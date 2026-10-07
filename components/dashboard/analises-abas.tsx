@@ -89,7 +89,7 @@ export function AnalisesAbas({ dados, filtro, mapsKey, centro }: {
     <section className="meta-tema fin-card" data-testid="dash-analises">
       <div className="flex flex-wrap items-start justify-between gap-3 px-5 pt-4">
         <div className="min-w-0">
-          <h2 className="text-[16px] font-bold" style={{ color: FIN_COR.texto }}>Análises do período</h2>
+          <h2 className="text-[16px] font-semibold" style={{ color: FIN_COR.texto }}>Análises do período</h2>
           <p className="mt-0.5 text-[13px]" style={{ color: FIN_COR.texto2 }}>Pedidos, entrega, bairros e produtos — o período vale para todas as abas.</p>
         </div>
         <div className="flex-shrink-0">{filtro}</div>

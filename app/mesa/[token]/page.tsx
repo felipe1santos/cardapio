@@ -164,7 +164,7 @@ function MesaEmLimpeza({ mesaNome, lojaNome, logoUrl }: { mesaNome: string; loja
           <img src={logoUrl} alt="" className="mx-auto mb-4 h-14 w-14 rounded-full object-cover" />
         ) : null}
         <p className="text-[12px] font-semibold uppercase tracking-wide text-text-subtle">{lojaNome}</p>
-        <h1 className="mt-1 text-[18px] font-bold text-text-main">{mesaNome}</h1>
+        <h1 className="mt-1 text-[18px] font-semibold text-text-main">{mesaNome}</h1>
         <p className="mt-3 text-[15px] leading-relaxed text-text-main">Esta mesa está em limpeza e ficará disponível em breve.</p>
       </div>
     </main>

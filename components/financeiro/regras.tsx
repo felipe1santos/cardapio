@@ -65,7 +65,7 @@ export function SecaoRegras() {
   if (!cfg) return <p className="text-[13px] text-text-subtle">Carregando…</p>
   const campo = (k: string, rot: string, ajuda: string, dinheiro: boolean) => (
     <label key={k} className="block fin-card p-3">
-      <span className="block text-[12.5px] font-bold text-text-main">{rot}</span>
+      <span className="block text-[12.5px] font-semibold text-text-main">{rot}</span>
       <span className="mb-2 block text-[12px] text-text-subtle">{ajuda}</span>
       <span className="flex h-[38px] items-center fin-card px-2.5 focus-within:border-primary">
         {dinheiro && <span className="mr-1.5 text-[13px] text-text-subtle">R$</span>}

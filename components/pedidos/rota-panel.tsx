@@ -430,7 +430,7 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose, dataSource
   }
 
   return (
-    <div className="fixed inset-0 z-[80] flex flex-col bg-[#111827]/55 p-3 sm:p-4">
+    <div data-despacho-rotas="" className="fixed inset-0 z-[80] flex flex-col bg-[#111827]/55 p-3 sm:p-4">
       <div className="flex flex-1 flex-col overflow-hidden rounded-menuzia bg-white shadow-2xl">
         {/* Cabeçalho */}
         <div className="border-b border-border px-4 py-3">

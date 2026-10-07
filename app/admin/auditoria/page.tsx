@@ -112,7 +112,7 @@ export default function AuditoriaPage() {
                 key={g.id}
                 onClick={() => setGrupo(g.id)}
                 className={[
-                  'min-h-[40px] rounded-menuzia border px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide lg:min-h-0',
+                  'min-h-[40px] rounded-menuzia border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide lg:min-h-0',
                   grupo === g.id
                     ? 'border-primary bg-primary text-white'
                     : 'border-border bg-main text-text-subtle hover:text-text-main',
@@ -163,7 +163,7 @@ export default function AuditoriaPage() {
           </div>
           <div className="hidden overflow-hidden rounded-menuzia border border-border bg-main lg:block">
             <table className="w-full text-left">
-              <thead className="bg-page text-[11px] font-bold uppercase tracking-wide text-text-subtle">
+              <thead className="bg-page text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
                 <tr>
                   <th className="px-4 py-2.5">Quando</th>
                   <th className="px-4 py-2.5">Quem</th>

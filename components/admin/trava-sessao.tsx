@@ -114,7 +114,7 @@ export function TravaSessao() {
       <div className="w-full max-w-[360px] rounded-[3px] border border-[#E5E7EB] bg-white p-[20px] shadow-xl">
         {tela === 'lista' ? (
           <>
-            <h2 className="text-[16px] font-bold text-[#1F2937]">Quem vai usar?</h2>
+            <h2 className="text-[16px] font-semibold text-[#1F2937]">Quem vai usar?</h2>
             <p className="mb-[12px] mt-[2px] text-[13px] text-[#6B7280]">Escolha o seu nome e digite o seu PIN.</p>
             {erro && <p role="alert" className="mb-[10px] text-[13px] text-[#EF4444]">{erro}</p>}
             <div className="max-h-[300px] space-y-[6px] overflow-y-auto">
@@ -131,7 +131,7 @@ export function TravaSessao() {
           </>
         ) : (
           <>
-            <h2 className="text-center text-[16px] font-bold text-[#1F2937]">Tela bloqueada</h2>
+            <h2 className="text-center text-[16px] font-semibold text-[#1F2937]">Tela bloqueada</h2>
             <p className="mb-[14px] mt-[2px] text-center text-[13px] text-[#6B7280]">
               {tela === 'outro' && escolhido ? <>PIN de <b className="text-[#1F2937]">{escolhido.nome}</b></> : <>PIN de <b className="text-[#1F2937]">{estado.nome}</b></>}
             </p>

@@ -200,7 +200,7 @@ export function TabQrCode({ restauranteId, active }: { restauranteId: string; ac
                     <QrCode className="h-5 w-5" />
                   </span>
                   <div className="min-w-0">
-                    <h3 className="text-[15px] font-bold text-text-main">QR das mesas · cardápio do salão</h3>
+                    <h3 className="text-[15px] font-semibold text-text-main">QR das mesas · cardápio do salão</h3>
                     <p className="mt-0.5 text-[12px] leading-relaxed text-text-subtle">
                       <strong className="text-text-main">Este é o que vai na mesa.</strong> Toque no QR de uma mesa para
                       imprimir só ela, ou use o botão ao lado para imprimir várias de uma vez.
@@ -234,7 +234,7 @@ export function TabQrCode({ restauranteId, active }: { restauranteId: string; ac
           {moduloMesas && (
             <div className="mb-8 flex items-center gap-3">
               <span className="h-px flex-1 bg-border" />
-              <span className="text-[11px] font-bold uppercase tracking-wide text-text-subtle">Outro QR, outro destino</span>
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Outro QR, outro destino</span>
               <span className="h-px flex-1 bg-border" />
             </div>
           )}
@@ -246,7 +246,7 @@ export function TabQrCode({ restauranteId, active }: { restauranteId: string; ac
                 <Truck className="h-5 w-5" />
               </span>
               <div>
-                <h3 className="text-[15px] font-bold text-text-main">
+                <h3 className="text-[15px] font-semibold text-text-main">
                   {moduloMesas ? 'QR do delivery · vitrine de entrega' : 'QR do cardápio'}
                 </h3>
                 <p className="mt-0.5 text-[12px] leading-relaxed text-text-subtle">

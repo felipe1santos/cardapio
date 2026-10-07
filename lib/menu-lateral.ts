@@ -20,7 +20,7 @@ export const NAV_ITEMS = [
   { href: '/admin/pdv', label: 'PDV' },
   { href: '/admin/mesas', label: 'Mesas e Comandas' },
   { href: '/admin/cozinha', label: 'Cozinha' },
-  { href: '/admin/logistica', label: 'Logística' },
+  { href: '/admin/lista-pedidos', label: 'Pedidos' },
   { href: '/admin/financeiro', label: 'Financeiro' },
   { href: '/admin/cardapio', label: 'Cardápio' },
   { href: '/admin/clientes', label: 'Clientes' },
@@ -46,7 +46,7 @@ export const PERMISSAO_DO_MENU: Record<string, Permissao> = {
   '/admin/pdv': 'pedidos.balcao.criar',
   '/admin/mesas': 'comanda.ver',
   '/admin/cozinha': 'cozinha.gerenciar',
-  '/admin/logistica': 'logistica.operar',
+  '/admin/lista-pedidos': 'logistica.operar',
   '/admin/financeiro': 'pedidos.delivery.ver',
   '/admin/cardapio': 'cardapio.editar',
   '/admin/clientes': 'clientes.ver',
@@ -70,7 +70,7 @@ export function itensDoMenu(opcoes: {
   financeiro?: boolean
 }): ItemMenu[] {
   return NAV_ITEMS.filter((item) => {
-    if (item.href === '/admin/logistica' && !opcoes.usaLogistica) return false
+    if (item.href === '/admin/lista-pedidos' && !opcoes.usaLogistica) return false
     if (item.href === '/admin/mesas' && !opcoes.moduloMesas) return false
     if (item.href === '/admin/financeiro' && !opcoes.financeiro) return false
     if (opcoes.papel === null) return true

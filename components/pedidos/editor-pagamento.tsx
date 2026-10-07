@@ -55,7 +55,7 @@ export function EditorPagamento({ pedidoId, p, onFeito, onCancelar }: { pedidoId
           ))}
           <input inputMode="decimal" placeholder="sem troco" value={trocoTxt} onChange={(e) => setTrocoTxt(e.target.value.replace(/[^\d.,]/g, '').slice(0, 9))}
             className="h-[36px] w-[110px] rounded-menuzia border border-border bg-white px-2 text-[13px] outline-none focus:border-primary" data-testid="editar-troco" />
-          {troco && troco > p.total && <span className="text-[12.5px] font-bold text-[#92400E]">levar {brl(trocoLevar(p.total, troco))}</span>}
+          {troco && troco > p.total && <span className="text-[12.5px] font-semibold text-[#92400E]">levar {brl(trocoLevar(p.total, troco))}</span>}
         </div>
       )}
       <label className="flex items-center gap-2 text-[12.5px] text-text-main">

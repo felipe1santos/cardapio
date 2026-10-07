@@ -21,7 +21,7 @@ export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
 export function Badge({ tone, className = '', ...props }: BadgeProps) {
   const classes = [
     'inline-block rounded-menuzia px-2 py-0.5',
-    'text-[10px] font-bold uppercase tracking-wide',
+    'text-[10px] font-semibold uppercase tracking-wide',
     toneClasses[tone],
     className,
   ].join(' ')

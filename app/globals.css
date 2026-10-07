@@ -564,7 +564,7 @@ html:has(.vitrine-sem-zoom) {
 
   [data-admin-shell]:not([data-rota-kanban='sim']) main .rounded-menuzia.text-\[11px\] {
     font-size: 12.8px;
-    font-weight: 700;
+    font-weight: 600;
     border-radius: 4.8px;
     padding-left: 12.8px;
     padding-right: 12.8px;
@@ -650,7 +650,7 @@ html:has(.vitrine-sem-zoom) {
   [data-admin-shell]:not([data-rota-kanban='sim']) main thead th[class] {
     background-color: var(--adm-borda);
     font-size: 12.8px;
-    font-weight: 700;
+    font-weight: 600;
     color: var(--adm-texto-forte);
     text-transform: none;
     letter-spacing: normal;
@@ -826,7 +826,7 @@ html:has(.vitrine-sem-zoom) {
    padrão do painel, de 12,8px). */
 .tela-pdv input.pdv-campo-valor {
   font-size: 26px !important;
-  font-weight: 800;
+  font-weight: 600;
   color: var(--text-main, #1F2937) !important;
   background-color: #fff !important;
   border-width: 2px !important;
@@ -1406,3 +1406,7 @@ details.ti-tec[open] > summary .ti-chev { transform: rotate(180deg); }
     display: none !important;
   }
 }
+
+/* Regra 6 (item 58, 2026-10-07): peso máximo 600 em todo o sistema. O navegador usa 700 ("bolder")
+   em b/strong/th. O Despacho de rotas fica como está (regra 4); o papel impresso não passa por aqui. */
+:where(b, strong, th):not([data-despacho-rotas] *) { font-weight: 600; }

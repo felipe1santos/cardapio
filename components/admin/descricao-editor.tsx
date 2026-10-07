@@ -77,7 +77,7 @@ export function DescricaoEditor({
         <button
           type="button"
           onClick={() => marcar({ tipo: 'negrito' })}
-          className="flex h-[30px] items-center gap-1 rounded-menuzia border border-border px-2 text-[12px] font-bold text-text-main transition-colors hover:border-primary hover:text-primary"
+          className="flex h-[30px] items-center gap-1 rounded-menuzia border border-border px-2 text-[12px] font-semibold text-text-main transition-colors hover:border-primary hover:text-primary"
           title="Deixar o trecho selecionado em negrito"
         >
           <Bold className="h-3.5 w-3.5" strokeWidth={2.6} />
@@ -156,7 +156,7 @@ export function DescricaoEditor({
 
       {temMarcacao && (
         <div className="mt-2 rounded-menuzia border border-border bg-page px-2.5 py-2">
-          <div className="mb-1 text-[10px] font-bold uppercase tracking-wide text-text-subtle">Como o cliente vê</div>
+          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-text-subtle">Como o cliente vê</div>
           <p className="text-[12px] leading-[16px] text-[#5C5C5C]">
             {pedacos.map((p, i) => (
               <span key={i} style={{ fontWeight: p.negrito ? 600 : undefined, color: p.cor ?? undefined }}>

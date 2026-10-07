@@ -76,7 +76,7 @@ try {
   const tudoAberto = Object.fromEntries(['0', '1', '2', '3', '4', '5', '6'].map((d) => [d, [{ abre: '00:00', fecha: '23:59' }]]))
   const fmt = (await um(`select jsonb_typeof(horario_funcionamento) t, horario_funcionamento h from restaurantes where horario_funcionamento is not null limit 1`))
   console.log('   (formato de horário de exemplo)', JSON.stringify(fmt?.h)?.slice(0, 160))
-  await db.query(`delete from eventos_auditoria where restaurante_id=$1 and acao in ('loja.abriu_horario','loja.fechou_horario')`, [loja.id]).catch(() => {})
+  // Nunca apagar eventos_auditoria: a cadeia de hash do livro quebraria (auditoria_verificar_cadeia).
   await db.query(`update restaurantes set status_loja='automatico' where id=$1`, [loja.id])
   const c1 = await cron()
   const ev1 = await um(`select acao, usuario_nome, dados from eventos_auditoria where restaurante_id=$1 and acao in ('loja.abriu_horario','loja.fechou_horario') order by seq desc limit 1`, [loja.id])

@@ -52,7 +52,7 @@ export function CabecalhoSecao({ titulo, subtitulo, grande = false }: { titulo?:
   if (!titulo && !subtitulo) return null
   return (
     <div className="min-w-0">
-      {titulo && <h2 className={`${grande ? 'text-[20px]' : 'text-[16px]'} font-bold leading-tight`} style={{ color: FIN_COR.texto }}>{titulo}</h2>}
+      {titulo && <h2 className={`${grande ? 'text-[20px]' : 'text-[16px]'} font-semibold leading-tight`} style={{ color: FIN_COR.texto }}>{titulo}</h2>}
       {subtitulo && <p className="mt-0.5 text-[13px] leading-[18px]" style={{ color: FIN_COR.texto2 }}>{subtitulo}</p>}
     </div>
   )
@@ -76,7 +76,7 @@ export function Kpi({ rotulo, valor, icone, variacao, inverso = false, detalhe, 
         <p className="line-clamp-2 break-words text-[13px] font-semibold leading-[17px]" style={{ color: FIN_COR.texto2 }}>{rotulo}</p>
         {icone && <span className="flex h-[28px] w-[28px] flex-shrink-0 items-center justify-center rounded-full" style={{ background: FIN_COR.trilho, color: FIN_COR.texto2 }} aria-hidden="true">{icone}</span>}
       </div>
-      <p className="whitespace-nowrap text-[22px] font-bold leading-tight" style={{ color: FIN_COR.texto }}>{valor}</p>
+      <p className="whitespace-nowrap text-[22px] font-semibold leading-tight" style={{ color: FIN_COR.texto }}>{valor}</p>
       {(temVar || detalhe) && (
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px]">
           {temVar && (
@@ -107,7 +107,7 @@ export function Aviso({ tipo = 'info', titulo, children, acao, onFechar, testid 
     <div role={tipo === 'erro' ? 'alert' : undefined} className="fin-card flex gap-2.5 border-l-[3px] px-4 py-3" style={{ borderLeftColor: faixa }} data-testid={testid} data-aviso={tipo}>
       <Icone className="mt-[1px] h-[18px] w-[18px] flex-shrink-0" style={{ color: corIcone }} aria-hidden="true" />
       <div className="min-w-0 flex-1 text-[13px] leading-[19px]" style={{ color: FIN_COR.texto }}>
-        {titulo && <p className="font-bold">{titulo}</p>}
+        {titulo && <p className="font-semibold">{titulo}</p>}
         {children && <div className={titulo ? 'mt-0.5' : ''} style={{ color: titulo ? FIN_COR.texto : FIN_COR.texto }}>{children}</div>}
         {acao && <div className="mt-2.5 flex flex-wrap gap-2">{acao}</div>}
       </div>
@@ -124,7 +124,7 @@ export function Aviso({ tipo = 'info', titulo, children, acao, onFechar, testid 
 export function Destaque({ titulo, subtitulo, children, testid }: { titulo: ReactNode; subtitulo?: ReactNode; children: ReactNode; testid?: string }) {
   return (
     <div className="rounded-[6px] px-4 py-3" style={{ background: FIN_COR.destaque }} data-testid={testid}>
-      <p className="text-[15px] font-bold leading-tight" style={{ color: FIN_COR.texto }}>{titulo}</p>
+      <p className="text-[15px] font-semibold leading-tight" style={{ color: FIN_COR.texto }}>{titulo}</p>
       {subtitulo && <p className="text-[12px]" style={{ color: FIN_COR.texto2 }}>{subtitulo}</p>}
       <div className="mt-2">{children}</div>
     </div>

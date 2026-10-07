@@ -94,7 +94,7 @@ export function Rosca({ fatias, centro, subcentro, testid, tamanho = 220 }: { fa
               />
             )
           })}
-          <text x={c} y={c - 2} textAnchor="middle" fontSize={22} fontWeight={700} fill={CORES_GRAFICO.texto}>{centro}</text>
+          <text x={c} y={c - 2} textAnchor="middle" fontSize={22} fontWeight={600} fill={CORES_GRAFICO.texto}>{centro}</text>
           {subcentro && <text x={c} y={c + 18} textAnchor="middle" fontSize={12} fill={CORES_GRAFICO.eixo}>{subcentro}</text>}
         </svg>
         {atual && dica && svgRef.current && (() => {
@@ -110,13 +110,13 @@ export function Rosca({ fatias, centro, subcentro, testid, tamanho = 220 }: { fa
               className="min-w-[170px] rounded-[8px] bg-white px-[12px] py-[10px] text-left shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
               style={{ border: `1px solid ${CORES_GRAFICO.bordaTooltip}`, color: CORES_GRAFICO.texto }}
             >
-              <p className="mb-[4px] flex items-center gap-[6px] text-[14px] font-bold"><span className="inline-block h-[10px] w-[10px] rounded-[2px]" style={{ background: atual.cor }} />{atual.rotulo}</p>
+              <p className="mb-[4px] flex items-center gap-[6px] text-[14px] font-semibold"><span className="inline-block h-[10px] w-[10px] rounded-[2px]" style={{ background: atual.cor }} />{atual.rotulo}</p>
               {atual.linhas.map((l) => <p key={l} className="text-[12.5px] leading-[18px]">{l}</p>)}
             </TooltipNoPonto>
           )
         })()}
       </div>
-      <ul className="mt-[12px] flex flex-wrap justify-center gap-x-[14px] gap-y-[6px] text-[12px] font-bold" style={{ color: CORES_GRAFICO.texto }} data-testid={testid ? `${testid}-legenda` : undefined}>
+      <ul className="mt-[12px] flex flex-wrap justify-center gap-x-[14px] gap-y-[6px] text-[12px] font-semibold" style={{ color: CORES_GRAFICO.texto }} data-testid={testid ? `${testid}-legenda` : undefined}>
         {fatias.filter((f) => f.valor > 0).map((f) => (
           <li key={f.id} className="flex items-center gap-[6px]"><span className="inline-block h-[10px] w-[10px] rounded-[2px]" style={{ background: f.cor }} />{f.rotulo}</li>
         ))}

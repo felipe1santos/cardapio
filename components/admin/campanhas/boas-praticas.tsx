@@ -23,7 +23,7 @@ export function BoasPraticas({ onFechar }: { onFechar: () => void }) {
     <div className="fixed inset-0 z-[60] flex items-stretch justify-end bg-black/40" onMouseDown={onFechar}>
       <aside role="dialog" aria-modal="true" aria-label="Boas práticas" className="flex h-full w-full max-w-[440px] flex-col bg-white shadow-2xl" onMouseDown={(e) => e.stopPropagation()} data-testid="boas-praticas">
         <div className="flex h-[60px] flex-shrink-0 items-center justify-between border-b border-[#e5e7eb] px-5">
-          <span className="flex items-center gap-2 text-[15px] font-bold text-[#1f2937]"><Lightbulb className="h-5 w-5 text-[#f59e0b]" /> Boas práticas</span>
+          <span className="flex items-center gap-2 text-[15px] font-semibold text-[#1f2937]"><Lightbulb className="h-5 w-5 text-[#f59e0b]" /> Boas práticas</span>
           <button type="button" onClick={onFechar} aria-label="Fechar" className="text-[#6b7280] hover:text-[#1f2937]"><X className="h-5 w-5" /></button>
         </div>
         <ul className="flex-1 space-y-3 overflow-y-auto p-5">
@@ -31,7 +31,7 @@ export function BoasPraticas({ onFechar }: { onFechar: () => void }) {
             <li key={d.titulo} className="flex gap-3 rounded-[6px] border border-[#e5e7eb] p-3.5">
               <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[8px] bg-[#E0F2FE] text-[#0688d4]"><d.icone className="h-[18px] w-[18px]" /></span>
               <div>
-                <h4 className="text-[13.5px] font-bold text-[#1f2937]">{d.titulo}</h4>
+                <h4 className="text-[13.5px] font-semibold text-[#1f2937]">{d.titulo}</h4>
                 <p className="mt-0.5 text-[12.5px] leading-relaxed text-[#5b6472]">{d.texto}</p>
               </div>
             </li>

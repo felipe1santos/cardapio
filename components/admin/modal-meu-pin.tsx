@@ -37,7 +37,7 @@ export function ModalMeuPin({ temPin, onFechar }: { temPin: boolean; onFechar: (
     <div className="fixed inset-0 z-[95] flex items-center justify-center bg-[#111827]/60 p-4" data-testid="modal-meu-pin" onMouseDown={(e) => { if (e.target === e.currentTarget) onFechar() }}>
       <div className="w-full max-w-[380px] rounded-[3px] border border-[#E5E7EB] bg-white shadow-xl">
         <div className="border-b border-[#E5E7EB] px-[16px] py-[12px]">
-          <h2 className="text-[15px] font-bold text-[#1F2937]">{temPin ? 'Trocar meu PIN' : 'Criar meu PIN'}</h2>
+          <h2 className="text-[15px] font-semibold text-[#1F2937]">{temPin ? 'Trocar meu PIN' : 'Criar meu PIN'}</h2>
           <p className="mt-[2px] text-[12px] leading-relaxed text-[#6B7280]">6 números, só seu. Serve para destravar a tela, trocar de operador e aprovar ações. Ninguém da loja consegue ver.</p>
         </div>
         {ok ? (
@@ -50,15 +50,15 @@ export function ModalMeuPin({ temPin, onFechar }: { temPin: boolean; onFechar: (
         ) : (
           <form className="space-y-[10px] px-[16px] py-[14px]" onSubmit={(e) => { e.preventDefault(); void salvar() }}>
             <label className="block">
-              <span className="mb-[4px] block text-[11px] font-bold uppercase tracking-wide text-[#6B7280]">Sua senha</span>
+              <span className="mb-[4px] block text-[11px] font-semibold uppercase tracking-wide text-[#6B7280]">Sua senha</span>
               <input type="password" autoComplete="current-password" className={campo} value={senha} onChange={(e) => setSenha(e.target.value)} data-testid="meu-pin-senha" />
             </label>
             <label className="block">
-              <span className="mb-[4px] block text-[11px] font-bold uppercase tracking-wide text-[#6B7280]">Novo PIN</span>
+              <span className="mb-[4px] block text-[11px] font-semibold uppercase tracking-wide text-[#6B7280]">Novo PIN</span>
               <input type="password" inputMode="numeric" maxLength={6} autoComplete="off" className={campo} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))} data-testid="meu-pin-novo" />
             </label>
             <label className="block">
-              <span className="mb-[4px] block text-[11px] font-bold uppercase tracking-wide text-[#6B7280]">Repita o PIN</span>
+              <span className="mb-[4px] block text-[11px] font-semibold uppercase tracking-wide text-[#6B7280]">Repita o PIN</span>
               <input type="password" inputMode="numeric" maxLength={6} autoComplete="off" className={campo} value={conf} onChange={(e) => setConf(e.target.value.replace(/\D/g, '').slice(0, 6))} data-testid="meu-pin-conf" />
             </label>
             {erro && <p role="alert" className="text-[12px] font-medium text-[#EF4444]" data-testid="meu-pin-erro">{erro}</p>}

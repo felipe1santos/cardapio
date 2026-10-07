@@ -55,7 +55,7 @@ export function SecaoMotoboys() {
       <section className={cartao} data-testid="motoboys-modo">
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
           <div>
-            <p className="text-[13px] font-bold text-text-main">Troco do motoboy: {e.modo.modo === 'pedido' ? 'por pedido' : `fundo fixo (${brl(e.modo.fundoPadraoCentavos)})`}</p>
+            <p className="text-[13px] font-semibold text-text-main">Troco do motoboy: {e.modo.modo === 'pedido' ? 'por pedido' : `fundo fixo (${brl(e.modo.fundoPadraoCentavos)})`}</p>
             <p className="text-[12px] text-text-subtle">{e.modo.modo === 'pedido' ? 'No despacho de um pedido em dinheiro, o troco sai da gaveta para o motoboy (valor editável).' : 'No início do turno, o motoboy recebe o fundo; complemente quando faltar.'}
               {e.modo.proximo && <b className="text-[#8A4B00]"> Muda para {e.modo.proximo === 'pedido' ? '"por pedido"' : '"fundo fixo"'} no próximo caixa.</b>}</p>
           </div>
@@ -73,7 +73,7 @@ export function SecaoMotoboys() {
       </section>
 
       <section className={cartao} data-testid="motoboys-lista">
-        <h2 className="border-b border-border px-4 py-3 text-[13px] font-bold text-text-main">Motoboys</h2>
+        <h2 className="border-b border-border px-4 py-3 text-[13px] font-semibold text-text-main">Motoboys</h2>
         {e.motoboys.length === 0 ? <p className="px-4 py-3 text-[13px] text-text-subtle">Nenhum motoboy cadastrado.</p> : (
           <ul className="divide-y divide-border">
             {[...e.motoboys].sort((a, b) => Number(temDin(b)) - Number(temDin(a))).map((m) => (
@@ -98,7 +98,7 @@ export function SecaoMotoboys() {
       </section>
 
       <section className={cartao} data-testid="sem-registro">
-        <h2 className="border-b border-border px-4 py-3 text-[13px] font-bold text-text-main">Entregas sem pagamento registrado (sem app, sem motoboy, Nexta)</h2>
+        <h2 className="border-b border-border px-4 py-3 text-[13px] font-semibold text-text-main">Entregas sem pagamento registrado (sem app, sem motoboy, Nexta)</h2>
         {e.semRegistro.length === 0 ? <p className="px-4 py-3 text-[13px] text-text-subtle">Nada pendente.</p> : (
           <ul className="divide-y divide-border">
             {e.semRegistro.map((p) => (
@@ -114,7 +114,7 @@ export function SecaoMotoboys() {
       {e.nexta.length > 0 && (
         <section className={cartao} data-testid="nexta-a-receber">
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
-            <h2 className="text-[13px] font-bold text-text-main">Nexta: a receber ({e.nexta.length})</h2>
+            <h2 className="text-[13px] font-semibold text-text-main">Nexta: a receber ({e.nexta.length})</h2>
             <button type="button" className={botao.sucesso} data-testid="repasse-nexta"
               onClick={async () => { const r = await post('/api/admin/financeiro/motoboys', { acao: 'repasse_nexta', lancamentoIds: e.nexta.map((n) => n.id), chave: crypto.randomUUID() }); pronto(r.s === 200 ? 'Repasse da Nexta registrado na gaveta.' : String(r.j.error)) }}>
               Repasse recebido
@@ -170,7 +170,7 @@ function JanelaAcerto({ m, dono, onFechar, onPronto }: { m: Moto; dono: boolean;
         </>
       ) : (
         <div data-testid="acerto-resultado">
-          <p className={`text-[15px] font-bold ${res.diferenca_centavos === 0 ? 'text-[#006B4E]' : 'text-[#D93616]'}`}>
+          <p className={`text-[15px] font-semibold ${res.diferenca_centavos === 0 ? 'text-[#006B4E]' : 'text-[#D93616]'}`}>
             {res.diferenca_centavos === 0 ? 'Acerto concluído: bateu.' : `${res.diferenca_centavos < 0 ? 'Faltou' : 'Sobrou'} ${brl(Math.abs(res.diferenca_centavos))} — ficou como pendência do motoboy.`}
           </p>
           <p className="mt-1 text-[13px] text-text-subtle">Esperado {brl(res.esperado_centavos)} · contado {brl(res.contado_centavos)}</p>
@@ -248,7 +248,7 @@ export function SecaoPix() {
   if (!lista) return <p className="text-[13px] text-text-subtle">Carregando…</p>
   return (
     <section className="fin-card" data-testid="pix-lista">
-      <h2 className="border-b border-border px-4 py-3 text-[13px] font-bold text-text-main">Pix a conferir — confira no banco antes de confirmar</h2>
+      <h2 className="border-b border-border px-4 py-3 text-[13px] font-semibold text-text-main">Pix a conferir — confira no banco antes de confirmar</h2>
       {lista.length === 0 ? <p className="px-4 py-3 text-[13px] text-text-subtle">Nenhum Pix esperando conferência.</p> : (
         <ul className="divide-y divide-border">
           {lista.map((p) => (

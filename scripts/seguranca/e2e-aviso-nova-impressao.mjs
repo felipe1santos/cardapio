@@ -23,7 +23,7 @@ const SENHA = 'demo-local-123456'
 const res = []
 const ok = (nome, cond, info = '') => { res.push(!!cond); console.log(`   ${cond ? '✅' : '❌'} ${nome}${info ? ` — ${info}` : ''}`) }
 
-const COM_AVISO = ['/admin/dashboard', '/admin/cardapio', '/admin/ajustes', '/admin/logistica', '/admin/clientes', '/admin/pdv']
+const COM_AVISO = ['/admin/dashboard', '/admin/cardapio', '/admin/ajustes', '/admin/lista-pedidos', '/admin/clientes', '/admin/pdv']
 const SEM_AVISO = ['/admin/pedidos', '/admin/impressao']
 
 const browser = await chromium.launch()
@@ -70,7 +70,7 @@ try {
         ok(`${largura}px: segunda frase ${largura > 500 ? 'visível' : 'escondida no celular'}`, !!m && m.segundaFrase === largura > 500)
         await p.screenshot({ path: join(SHOTS, `aviso-${largura}-dashboard.png`) })
       }
-      if (rota === '/admin/logistica') await p.screenshot({ path: join(SHOTS, `aviso-${largura}-logistica.png`) })
+      if (rota === '/admin/lista-pedidos') await p.screenshot({ path: join(SHOTS, `aviso-${largura}-logistica.png`) })
     }
     for (const rota of SEM_AVISO) {
       await p.goto(`${BASE}${rota}`, { waitUntil: 'networkidle' })

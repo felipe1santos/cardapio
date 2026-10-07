@@ -119,7 +119,7 @@ export function AvisoSomBloqueado() {
       onClick={() => void alarme.testar()}
       data-testid="som-bloqueado"
       data-pedido-esperando={espera ? 'sim' : 'nao'}
-      className={`relative z-[100] flex min-h-[56px] w-full flex-shrink-0 items-center justify-center gap-3 bg-[#B91C1C] px-4 py-3 text-center text-[16px] font-bold leading-snug text-white shadow-[0_2px_8px_rgba(0,0,0,0.25)] hover:bg-[#991B1B] focus-visible:outline focus-visible:outline-4 focus-visible:-outline-offset-4 focus-visible:outline-white ${espera ? 'animate-pulse' : ''}`}
+      className={`relative z-[100] flex min-h-[56px] w-full flex-shrink-0 items-center justify-center gap-3 bg-[#B91C1C] px-4 py-3 text-center text-[16px] font-semibold leading-snug text-white shadow-[0_2px_8px_rgba(0,0,0,0.25)] hover:bg-[#991B1B] focus-visible:outline focus-visible:outline-4 focus-visible:-outline-offset-4 focus-visible:outline-white ${espera ? 'animate-pulse' : ''}`}
     >
       <span aria-hidden="true" className="text-[22px]">🔔</span>
       <span>

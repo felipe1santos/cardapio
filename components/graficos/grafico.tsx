@@ -211,10 +211,10 @@ export function GraficoFinanceiro({ rotulos, periodos, series, metas = [], forma
             y={svgRef.current.getBoundingClientRect().top + Math.min(altura / 2, 90)} lado={tipEsquerda ? 'esquerda' : 'direita'}
             className="min-w-[200px] max-w-[300px] rounded-[8px] bg-white px-4 py-3 text-[13px] shadow-[0_4px_14px_rgba(28,43,51,0.18)]"
             style={{ border: `1px solid ${CORES_GRAFICO.bordaTooltip}`, color: CORES_GRAFICO.texto }} testid={testid ? `${testid}-tooltip` : undefined}>
-            {soBarras && <p className="mb-2 text-[15px] font-bold leading-snug">{periodos?.[foco] ?? rotulos[foco]}</p>}
+            {soBarras && <p className="mb-2 text-[15px] font-semibold leading-snug">{periodos?.[foco] ?? rotulos[foco]}</p>}
             {secoes.map((sec) => (
               <div key={sec} className="mb-1 last:mb-0">
-                {sec && <p className="mb-0.5 font-bold">{sec}</p>}
+                {sec && <p className="mb-0.5 font-semibold">{sec}</p>}
                 {series.filter((s) => (s.secao ?? '') === sec).map((s) => (
                   <p key={s.nome} className="flex items-center justify-between gap-3">
                     <span className="flex items-center gap-1.5"><Quadradinho s={s} />{s.nome}</span>
@@ -229,7 +229,7 @@ export function GraficoFinanceiro({ rotulos, periodos, series, metas = [], forma
           </TooltipNoPonto>
         )}
       </div>
-      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12px] font-bold" data-testid={testid ? `${testid}-legenda` : undefined}>
+      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12px] font-semibold" data-testid={testid ? `${testid}-legenda` : undefined}>
         {series.map((s) => <span key={s.nome} className="flex items-center gap-1.5"><Quadradinho s={s} />{s.nome}</span>)}
         {metas.map((m) => <span key={m.rotulo} className="flex items-center gap-1.5"><span className="inline-block h-[2px] w-[12px]" style={{ background: m.estilo === 'solida' ? CORES_GRAFICO.metaSolida : CORES_GRAFICO.metaTracejada }} />{m.rotulo}</span>)}
       </div>

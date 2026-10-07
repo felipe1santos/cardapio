@@ -46,7 +46,7 @@ const ORDEM: TipoAutomacao[] = ['status_pedido', 'cupom_novo', 'fidelidade', 'lo
 const EXEMPLO: Record<string, string> = { nome: 'Ana', produto: 'X-Burger', cupom: 'BEMVINDO10', desconto: 'X-Burger por R$ 25,00', faltam: '2 pedidos' }
 
 const INPUT = 'h-[38px] w-full rounded-[5px] border border-border bg-white px-3 text-[13px] text-text-main outline-none focus:border-primary'
-const BOTAO = 'inline-flex h-[38px] items-center justify-center gap-2 rounded-[5px] px-4 text-[13px] font-bold transition-colors disabled:opacity-50'
+const BOTAO = 'inline-flex h-[38px] items-center justify-center gap-2 rounded-[5px] px-4 text-[13px] font-semibold transition-colors disabled:opacity-50'
 
 async function api<T>(url: string, metodo = 'GET', corpo?: unknown): Promise<{ ok: boolean; dados?: T; erro?: string }> {
   try {
@@ -147,7 +147,7 @@ function CartaoAutomacao({ a, loja, relatorio, onSalvo }: { a: Automacao; loja: 
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h4 className="text-[14px] font-bold text-text-main">{info.nome}</h4>
+            <h4 className="text-[14px] font-semibold text-text-main">{info.nome}</h4>
             {a.tipo === 'status_pedido' && <Etiqueta tom="azul">Transacional</Etiqueta>}
           </div>
           <p className="mt-0.5 text-[12px] text-text-subtle">{info.quando}</p>
@@ -175,11 +175,11 @@ function CartaoAutomacao({ a, loja, relatorio, onSalvo }: { a: Automacao; loja: 
         <div className="mt-3 grid gap-4 lg:grid-cols-2">
           <div className="space-y-3">
             <label className="block">
-              <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Título</span>
+              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Título</span>
               <input value={titulo} maxLength={60} onChange={(e) => setTitulo(e.target.value)} className={INPUT} />
             </label>
             <label className="block">
-              <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Texto</span>
+              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Texto</span>
               <textarea value={texto} maxLength={200} rows={3} onChange={(e) => setTexto(e.target.value)} className={`${INPUT} h-auto py-2`} data-push-texto={a.tipo} />
             </label>
             <div className="flex flex-wrap gap-1.5">
@@ -191,25 +191,25 @@ function CartaoAutomacao({ a, loja, relatorio, onSalvo }: { a: Automacao; loja: 
             </div>
             {a.tipo === 'recompra' && (
               <label className="block">
-                <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Dias depois do 1º pedido</span>
+                <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Dias depois do 1º pedido</span>
                 <input type="number" min={1} max={60} value={Number(params.dias ?? 3)} onChange={(e) => setParams({ ...params, dias: Number(e.target.value) })} className={`${INPUT} w-28`} />
               </label>
             )}
             {a.tipo === 'inativo' && (
               <div className="flex flex-wrap gap-3">
                 <label className="block">
-                  <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Sem pedir há (dias)</span>
+                  <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Sem pedir há (dias)</span>
                   <input type="number" min={2} max={180} value={Number(params.dias ?? 6)} onChange={(e) => setParams({ ...params, dias: Number(e.target.value) })} className={`${INPUT} w-28`} />
                 </label>
                 <label className="block">
-                  <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Repetir a cada (dias)</span>
+                  <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Repetir a cada (dias)</span>
                   <input type="number" min={3} max={90} value={Number(params.repetir_dias ?? 14)} onChange={(e) => setParams({ ...params, repetir_dias: Number(e.target.value) })} className={`${INPUT} w-28`} />
                 </label>
               </div>
             )}
             {a.tipo === 'fidelidade' && (
               <label className="block">
-                <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Texto do prêmio liberado</span>
+                <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Texto do prêmio liberado</span>
                 <input value={String(params.texto_premio ?? TEXTO_PREMIO_PADRAO)} maxLength={200} onChange={(e) => setParams({ ...params, texto_premio: e.target.value })} className={INPUT} />
               </label>
             )}
@@ -288,14 +288,14 @@ function NovaAvulsa({ loja, onCriada }: { loja: Dados['loja']; onCriada: (msg: s
       <TituloBloco titulo="Notificação avulsa" subtitulo="Mande agora ou agende. Sai só dentro do horário permitido e para quem deixou promoções ligadas." />
       <div className="mt-3 grid gap-4 lg:grid-cols-2">
         <div className="space-y-3">
-          <label className="block"><span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Título</span>
+          <label className="block"><span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Título</span>
             <input value={titulo} maxLength={60} onChange={(e) => setTitulo(e.target.value)} className={INPUT} data-avulsa-titulo /></label>
-          <label className="block"><span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Texto</span>
+          <label className="block"><span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Texto</span>
             <textarea value={texto} maxLength={200} rows={3} onChange={(e) => setTexto(e.target.value)} placeholder="Ex.: Hoje tem pizza grande com 20% de desconto, {nome}!" className={`${INPUT} h-auto py-2`} data-avulsa-texto /></label>
-          <label className="block"><span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Imagem (opcional, link https)</span>
+          <label className="block"><span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Imagem (opcional, link https)</span>
             <input value={imagem} onChange={(e) => setImagem(e.target.value)} placeholder="https://…" className={INPUT} /></label>
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block"><span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Ao tocar, abre</span>
+            <label className="block"><span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Ao tocar, abre</span>
               <select value={destino} onChange={(e) => setDestino(e.target.value as typeof destino)} className={INPUT} data-avulsa-destino>
                 <option value="cardapio">Cardápio</option>
                 <option value="promocoes">Promoções</option>
@@ -303,19 +303,19 @@ function NovaAvulsa({ loja, onCriada }: { loja: Dados['loja']; onCriada: (msg: s
                 <option value="cupom">Um cupom</option>
               </select></label>
             {destino === 'produto' && (
-              <label className="block"><span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Produto</span>
+              <label className="block"><span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Produto</span>
                 <select value={produtoId} onChange={(e) => setProdutoId(e.target.value)} className={INPUT}>
                   <option value="">Escolha…</option>
                   {produtos.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
                 </select></label>
             )}
             {destino === 'cupom' && (
-              <label className="block"><span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Código do cupom</span>
+              <label className="block"><span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Código do cupom</span>
                 <input value={cupom} onChange={(e) => setCupom(e.target.value.toUpperCase())} className={INPUT} /></label>
             )}
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block"><span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Para quem</span>
+            <label className="block"><span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Para quem</span>
               <select value={publico} onChange={(e) => setPublico(e.target.value as typeof publico)} className={INPUT} data-avulsa-publico>
                 <option value="todos">Todos com notificação ativa</option>
                 <option value="recentes">Quem pediu nos últimos X dias</option>
@@ -323,7 +323,7 @@ function NovaAvulsa({ loja, onCriada }: { loja: Dados['loja']; onCriada: (msg: s
                 <option value="fidelidade">Clientes da fidelidade</option>
               </select></label>
             {(publico === 'recentes' || publico === 'inativos') && (
-              <label className="block"><span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Dias</span>
+              <label className="block"><span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Dias</span>
                 <input type="number" min={1} max={365} value={dias} onChange={(e) => setDias(Number(e.target.value))} className={INPUT} /></label>
             )}
           </div>
@@ -383,7 +383,7 @@ export function PushNotificacoes() {
     return (
       <Cartao className="p-6 text-center" data-push-nao-liberado>
         <div className="mx-auto mb-3 w-fit"><BolhaIcone icone={Bell} tom="azul" tamanho={48} /></div>
-        <h3 className="text-[15px] font-bold">Notificações do app</h3>
+        <h3 className="text-[15px] font-semibold">Notificações do app</h3>
         <p className="mx-auto mt-1 max-w-[460px] text-[13px] text-text-subtle">
           Avise seus clientes no celular, com o ícone e o nome da sua loja: pedido saiu, promoção, cupom, fidelidade.
           Ainda não está liberado para a sua loja — fale com o suporte da Menuzia para ativar.
@@ -414,7 +414,7 @@ export function PushNotificacoes() {
           <Cartao key={s.rotulo} className="flex items-center gap-3 p-3">
             <BolhaIcone icone={s.icone} tom={s.tom} tamanho={36} />
             <div className="min-w-0">
-              <p className="text-[20px] font-bold leading-none text-text-main">{s.valor}</p>
+              <p className="text-[20px] font-semibold leading-none text-text-main">{s.valor}</p>
               <p className="mt-1 truncate text-[11.5px] text-text-subtle">{s.rotulo}</p>
             </div>
           </Cartao>
@@ -424,7 +424,7 @@ export function PushNotificacoes() {
       <Cartao className="p-4" data-push-teste>
         <TituloBloco titulo="Testar no seu celular" subtitulo="Abra o cardápio da loja no seu celular, ative as notificações (Perfil › Notificações) com o seu telefone e toque em enviar." />
         <div className="mt-3 flex flex-wrap items-end gap-2">
-          <label className="block"><span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Telefone de teste</span>
+          <label className="block"><span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Telefone de teste</span>
             <input value={limites.telefoneTeste} onChange={(e) => setLimites({ ...limites, telefoneTeste: e.target.value })} placeholder="(27) 99999-0000" className={`${INPUT} w-[200px]`} data-push-telefone-teste /></label>
           <button type="button" disabled={testando} className={`${BOTAO} bg-primary text-white hover:bg-primary-dark`} data-push-testar
             onClick={async () => {
@@ -486,11 +486,11 @@ export function PushNotificacoes() {
       <Cartao className="p-4" data-push-limites>
         <TituloBloco titulo="Limites e horários" subtitulo={`Marketing nunca sai de madrugada (00:00–07:59) e só com a loja aberta ou pouco antes de abrir. Teto do sistema: ${dados.config.tetoDia} por dia e ${dados.config.tetoSemana} por semana.`} />
         <div className="mt-3 flex flex-wrap items-end gap-3">
-          <label className="block"><span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Por cliente, por dia</span>
+          <label className="block"><span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Por cliente, por dia</span>
             <input type="number" min={0} max={dados.config.tetoDia} value={limites.limiteDia} onChange={(e) => setLimites({ ...limites, limiteDia: Number(e.target.value) })} className={`${INPUT} w-28`} data-push-limite-dia /></label>
-          <label className="block"><span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Por cliente, por semana</span>
+          <label className="block"><span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Por cliente, por semana</span>
             <input type="number" min={0} max={dados.config.tetoSemana} value={limites.limiteSemana} onChange={(e) => setLimites({ ...limites, limiteSemana: Number(e.target.value) })} className={`${INPUT} w-28`} /></label>
-          <label className="block"><span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Minutos antes de abrir</span>
+          <label className="block"><span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Minutos antes de abrir</span>
             <input type="number" min={0} max={120} value={limites.antecedenciaMin} onChange={(e) => setLimites({ ...limites, antecedenciaMin: Number(e.target.value) })} className={`${INPUT} w-28`} /></label>
           <button type="button" disabled={salvandoLim} className={`${BOTAO} bg-primary text-white hover:bg-primary-dark`} data-push-salvar-limites
             onClick={async () => {

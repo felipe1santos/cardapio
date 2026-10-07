@@ -62,14 +62,14 @@ export function CardModuloMesas({ onEstado }: { onEstado?: (ativo: boolean) => v
     <Card>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <h3 className="mb-1 text-[13px] font-bold text-text-main">Módulo Mesas e Comandas</h3>
+          <h3 className="mb-1 text-[13px] font-semibold text-text-main">Módulo Mesas e Comandas</h3>
           <p className="text-[12px] leading-relaxed text-text-subtle">
             Atendimento no salão: QR Code por mesa, painel do garçom, conta com taxa de serviço, divisão e pagamentos.
             Usa o mesmo cardápio do delivery — nada é cadastrado de novo. O PDV de balcão não depende disto.
           </p>
         </div>
         <span
-          className={`rounded-menuzia px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+          className={`rounded-menuzia px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
             ativo ? 'bg-price-bg text-price-text' : 'bg-page text-text-subtle'
           }`}
           role="status"

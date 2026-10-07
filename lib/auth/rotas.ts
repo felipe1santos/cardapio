@@ -21,6 +21,7 @@ const PAGINAS: [prefixo: string, permissao: Permissao][] = [
   ['/admin/cozinha', 'cozinha.gerenciar'],
   ['/admin/equipe', 'equipe.gerenciar'],
   ['/admin/auditoria', 'auditoria.ver'],
+  ['/admin/lista-pedidos', 'logistica.operar'],
   ['/admin/logistica', 'logistica.operar'],
   ['/admin/cardapio', 'cardapio.editar'],
   ['/admin/clientes', 'clientes.ver'],
@@ -117,7 +118,7 @@ export function telaInicialDoPapel(papel: string | null | undefined, moduloMesas
   if (pode(papel, 'dashboard.faturamento')) return '/admin/dashboard'
   if (moduloMesas && pode(papel, 'mesas.operar')) return '/admin/mesas'
   if (pode(papel, 'pedidos.delivery.ver')) return '/admin/pedidos'
-  if (pode(papel, 'logistica.operar')) return '/admin/logistica'
+  if (pode(papel, 'logistica.operar')) return '/admin/lista-pedidos'
   // Motoboy com login (0136): o app dele, fora do painel.
   if (papel === 'entregador') return '/motoboy'
   return '/login'

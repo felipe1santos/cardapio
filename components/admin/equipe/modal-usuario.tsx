@@ -172,7 +172,7 @@ export function ModalUsuario({
         onMouseDown={(e) => e.stopPropagation()}
       >
         <header className="flex h-[60px] flex-shrink-0 items-center justify-between border-b border-[#e5e7eb] px-5">
-          <h2 id="modal-usuario-titulo" className="text-[17px] font-bold text-[#1f2937]">{editando ? 'Editar usuário' : 'Adicionar usuário'}</h2>
+          <h2 id="modal-usuario-titulo" className="text-[17px] font-semibold text-[#1f2937]">{editando ? 'Editar usuário' : 'Adicionar usuário'}</h2>
           <button type="button" onClick={onCancelar} aria-label="Fechar" className="flex h-9 w-9 items-center justify-center rounded-[5px] text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#1f2937]">
             <X className="h-5 w-5" />
           </button>
@@ -181,7 +181,7 @@ export function ModalUsuario({
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:flex-row lg:overflow-hidden">
           {/* ── Coluna esquerda: informações ── */}
           <section className="flex-shrink-0 border-b border-[#e5e7eb] p-5 lg:w-[360px] lg:overflow-y-auto lg:border-b-0 lg:border-r">
-            <h3 className="mb-4 text-[14px] font-bold text-[#1f2937]">Informações do usuário</h3>
+            <h3 className="mb-4 text-[14px] font-semibold text-[#1f2937]">Informações do usuário</h3>
             <div className="space-y-4">
               <Campo rotulo="Nome" erro={tentou ? erros.nome : null}>
                 <input ref={primeiro} className="cf-campo" placeholder=" " value={nome} onChange={(e) => setNome(e.target.value)} maxLength={80} aria-invalid={tentou && !!erros.nome} data-testid="usuario-nome" />
@@ -247,7 +247,7 @@ export function ModalUsuario({
             <div className="flex-shrink-0 border-b border-[#e5e7eb] px-5 py-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h3 className="text-[14px] font-bold text-[#1f2937]">Permissões</h3>
+                  <h3 className="text-[14px] font-semibold text-[#1f2937]">Permissões</h3>
                   <p className="mt-0.5 flex items-center gap-1.5 text-[12.5px] text-[#5b6472]" data-testid="permissoes-total">
                     <ShieldCheck className="h-4 w-4 text-[#0688d4]" />
                     {total === 1 ? '1 permissão concedida' : `${total} permissões concedidas`}
@@ -285,7 +285,7 @@ export function ModalUsuario({
                 return (
                   <div key={g.titulo}>
                     <div className="mb-2 flex items-center justify-between">
-                      <h4 className="text-[11.5px] font-bold uppercase tracking-[0.06em] text-[#5b6472]">{g.titulo} <span className="font-semibold text-[#9ca3af]">· {marcados}/{g.itens.length}</span></h4>
+                      <h4 className="text-[11.5px] font-semibold uppercase tracking-[0.06em] text-[#5b6472]">{g.titulo} <span className="font-semibold text-[#9ca3af]">· {marcados}/{g.itens.length}</span></h4>
                       <button type="button" className="text-[12px] font-semibold text-[#0688d4] hover:underline" onClick={() => marcarGrupo(g.itens, marcados < g.itens.length)}>
                         {marcados < g.itens.length ? 'Marcar todas' : 'Desmarcar todas'}
                       </button>

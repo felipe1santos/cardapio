@@ -91,7 +91,7 @@ export function FiltroPeriodo({
 
       {aberto && (
         <div className="absolute left-0 top-[calc(100%+6px)] z-30 w-[min(520px,calc(100vw-40px))] rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white p-3 shadow-[0_8px_24px_rgba(16,24,40,0.12)]">
-          <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-[var(--adm-texto-suave)]">Atalhos</p>
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--adm-texto-suave)]">Atalhos</p>
           <div className="flex flex-wrap gap-1.5">
             {PRESETS.map((p) => (
               <button
@@ -105,7 +105,7 @@ export function FiltroPeriodo({
                   setAberto(false)
                 }}
                 className={[
-                  'rounded-[4.8px] border-[0.8px] px-3 py-1.5 text-[12.8px] font-bold transition-colors',
+                  'rounded-[4.8px] border-[0.8px] px-3 py-1.5 text-[12.8px] font-semibold transition-colors',
                   preset === p.id
                     ? 'border-[var(--adm-grafico)] bg-[var(--adm-grafico)] text-white'
                     : 'border-[var(--adm-borda)] bg-[var(--adm-superficie-2)] text-[var(--adm-texto-medio)] hover:border-[var(--adm-grafico)]',
@@ -116,7 +116,7 @@ export function FiltroPeriodo({
             ))}
           </div>
 
-          <p className="mb-2 mt-4 text-[11px] font-bold uppercase tracking-wide text-[var(--adm-texto-suave)]">
+          <p className="mb-2 mt-4 text-[11px] font-semibold uppercase tracking-wide text-[var(--adm-texto-suave)]">
             Período específico
           </p>
           <div className="flex flex-wrap items-end gap-2">
@@ -131,7 +131,7 @@ export function FiltroPeriodo({
             <button
               type="button"
               onClick={aplicarDatas}
-              className="h-[36px] flex-shrink-0 rounded-[4.8px] bg-[var(--adm-grafico)] px-4 text-[12.8px] font-bold text-white transition-colors hover:brightness-95"
+              className="h-[36px] flex-shrink-0 rounded-[4.8px] bg-[var(--adm-grafico)] px-4 text-[12.8px] font-semibold text-white transition-colors hover:brightness-95"
             >
               Aplicar
             </button>

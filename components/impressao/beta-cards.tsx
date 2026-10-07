@@ -233,7 +233,7 @@ export function ModalPareamento({ codigo, erro, conectado, onGerarOutro, onFecha
       ) : (
         <div className="space-y-3 text-center">
           <p className="text-[13px] text-[#1F2937]">Digite este código no <strong>Assistente Menuzia Beta</strong> instalado no computador da loja.</p>
-          <p className="rounded-[10px] bg-[#F3F4F6] py-4 font-mono text-[34px] font-extrabold tracking-[0.18em] text-[#111827]" data-testid="codigo-pareamento">{codigo.codigo}</p>
+          <p className="rounded-[10px] bg-[#F3F4F6] py-4 font-mono text-[34px] font-semibold tracking-[0.18em] text-[#111827]" data-testid="codigo-pareamento">{codigo.codigo}</p>
           <p className="text-[13px] text-[#6B7280]">Vale uma vez · expira em <strong className="text-[#111827]" data-testid="pareamento-tempo">{mmss}</strong></p>
           <p className="flex items-center justify-center gap-1.5 text-[12px] text-[#6B7280]"><span className="h-2 w-2 animate-pulse rounded-full bg-[#F59E0B]" /> Aguardando o computador…</p>
         </div>

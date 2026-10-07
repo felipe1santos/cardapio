@@ -29,6 +29,9 @@ import {
   Monitor,
   Smartphone,
   Store,
+  Route,
+  Bike,
+  DoorOpen,
 } from 'lucide-react'
 import { corTempoPedido, textoTempoPedido } from '@/lib/tempo-pedido'
 import { PainelPedido } from '@/components/pedidos/painel-pedido'
@@ -38,10 +41,11 @@ import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { RotaPanel } from '@/components/pedidos/rota-panel'
+import { DespacharNoCard } from '@/components/pedidos/despachar-card'
 import { CancelarPedidoModal } from '@/components/pedidos/cancelar-modal'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
-import { buscarFluxoLoja, buscarStatusELoja, definirStatusLoja, FLUXO_LOJA_PADRAO, usaDespachoDeRotas } from '@/lib/queries/ajustes'
+import { atualizarConfigLoja, buscarFluxoLoja, buscarStatusELoja, definirStatusLoja, FLUXO_LOJA_PADRAO, usaDespachoDeRotas } from '@/lib/queries/ajustes'
 import { lojaEstaAberta, type HorarioFuncionamento, type StatusLoja } from '@/lib/timezone'
 import { notificarPedido } from '@/lib/notificar'
 import { etiquetasDoPedido, origemVisivelNoCard, rotuloOrigemPedido as origemDoCard } from '@/lib/pedido-origem'
@@ -57,6 +61,8 @@ import { cancelarPedidoRequest } from '@/lib/cancelamento'
 import { atualizarConfigImpressao, buscarConfigImpressao, solicitarReimpressao } from '@/lib/queries/impressao'
 import {
   avancarStatusPedido,
+  buscarDespachoAberto,
+  definirDespachoAberto,
   listarPedidosConcluidos,
   listarPedidosKanban,
   listarPedidosLogistica,
@@ -111,7 +117,7 @@ const COLUNA_CONFIG: Record<Coluna, ColunaConfig> = {
 
 
 /** Selo do card sem fundo: ícone + texto (2026-10-03). */
-const SELO = 'inline-flex items-center gap-1 whitespace-nowrap text-[11px] font-bold uppercase tracking-wide'
+const SELO = 'inline-flex items-center gap-1 whitespace-nowrap text-[11px] font-semibold uppercase tracking-wide'
 
 
 // Milhar com ponto ("R$ 4.088,00"): função única do painel, ver lib/moeda.ts.
@@ -133,7 +139,7 @@ function SubSecao({ titulo, cor, vazio, children }: { titulo: string; cor: strin
   const count = Children.count(children)
   return (
     <div>
-      <div className={`mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide ${cor}`}>
+      <div className={`mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide ${cor}`}>
         <span>{titulo}</span>
         <span className="rounded-full bg-page px-1.5 text-text-subtle">{count}</span>
       </div>
@@ -177,7 +183,7 @@ function FluxoCard({ order, tone, onClick, onConcluir, rotulo }: { order: Pedido
     <div className={`rounded-menuzia border border-border border-l-[3px] shadow-sm transition-shadow hover:shadow-md ${t.accent} ${t.bg}`} data-testid={`fluxo-${order.numero}`}>
       <button onClick={onClick} className="w-full p-3 text-left">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-bold">#{order.numero}</span>
+          <span className="text-sm font-semibold">#{order.numero}</span>
           <div className="flex items-center gap-1.5">
             {/* Em rota há dias é pedido esquecido, não entrega em andamento. */}
             {pedidoParado(order, Date.now()) && (
@@ -249,6 +255,9 @@ export default function PedidosPage() {
   const [fluxo, setFluxo] = useState(FLUXO_LOJA_PADRAO)
   const [lojaMenuOpen, setLojaMenuOpen] = useState(false)
   const [maisAberto, setMaisAberto] = useState(false)
+  // Item 58: "Despacho aberto" e "Entregar sem entregador" vieram da Logística para o menu "⋯".
+  const [despachoAberto, setDespachoAberto] = useState(false)
+  const [confirmaSemEntregador, setConfirmaSemEntregador] = useState(false)
   // Menus do topo (Mais e status da loja): portal por cima de tudo; Esc e clique fora fecham.
   const botaoStatus = useRef<HTMLButtonElement>(null)
   const botaoMais = useRef<HTMLButtonElement>(null)
@@ -341,6 +350,47 @@ export default function PedidosPage() {
       window.dispatchEvent(new CustomEvent('menuzia:focus-mode', { detail: false }))
     }
   }, [])
+
+  useEffect(() => {
+    if (!focusMode) return
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape' && !document.querySelector('[data-modal-central], [data-flutuante]')) void toggleFocus() }
+    window.addEventListener('keydown', esc)
+    return () => window.removeEventListener('keydown', esc)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusMode])
+
+  useEffect(() => {
+    if (!restauranteId) return
+    buscarDespachoAberto(supabase, restauranteId).then(setDespachoAberto).catch(() => {})
+  }, [supabase, restauranteId])
+
+  async function alternarDespachoAberto() {
+    if (!restauranteId) return
+    const v = !despachoAberto
+    setDespachoAberto(v)
+    try { await definirDespachoAberto(supabase, restauranteId, v) } catch { setDespachoAberto(!v); setError('Não foi possível salvar o despacho aberto.') }
+  }
+
+  /** Modo "entrega sem entregador" (o mesmo da Logística): bloqueado com pedido em rota. */
+  async function mudarModoEntrega(semEntregador: boolean) {
+    if (!restauranteId) return
+    if (semEntregador && transit.length > 0) { setError(`Há ${transit.length} pedido(s) em rota. Conclua antes de entregar sem entregador.`); setConfirmaSemEntregador(false); return }
+    try {
+      await atualizarConfigLoja(supabase, restauranteId, { entregaSemEntregador: semEntregador })
+      setFluxo((f) => ({ ...f, entregaSemEntregador: semEntregador }))
+    } catch {
+      setError('Não foi possível mudar o modo de entrega.')
+    }
+    setConfirmaSemEntregador(false)
+    setMaisAberto(false)
+  }
+
+  /** Despacho pelo card (item 58): sai das colunas na hora e entra em "Em trânsito". */
+  function aoDespachar(p: Pedido, entregadorId: string | null) {
+    setOrders((prev) => prev.filter((o) => o.id !== p.id))
+    setTransit((prev) => (prev.some((o) => o.id === p.id) ? prev : [...prev, { ...p, status: 'em_rota', entregadorId }]))
+    if (restauranteId) refetch(restauranteId)
+  }
 
   function toggleCol4() {
     setShowCol4((v) => {
@@ -725,12 +775,13 @@ export default function PedidosPage() {
   // Topo do Kanban (v2, 2026-10-03): status com texto; o resto só ícone, quadrado, mesma altura.
   // Ligado = cor viva sólida com ícone claro; desligado = cinza-escuro com ícone claro (riscado
   // quando faz sentido). A dica (tooltip por cima de tudo) diz o estado e o que o clique faz.
-  const QUAD = 'relative inline-flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-[4px] text-white transition-[filter] hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0688D4] sm:h-[44px] sm:w-[44px]'
+  // Item 58: estilo dos cards do Fluxo de caixa — fundo clarinho e ícone colorido (contraste ≥ 4,5:1).
+  const QUAD = 'relative inline-flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-[4px] transition-[filter] hover:brightness-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0688D4] sm:h-[44px] sm:w-[44px]'
   const ICONE = 'h-[20px] w-[20px]'
-  const DESLIGADO = 'bg-[#4B5563]'
+  const DESLIGADO = 'bg-[#F1F2F4] text-[#4B5563]'
   const ITEM = 'flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] font-medium text-text-main hover:bg-page'
   const estadoChip = (ligado: boolean) => (
-    <span className={`ml-auto rounded-full px-1.5 py-[1px] text-[10.5px] font-bold text-white ${ligado ? 'bg-[#15803D]' : 'bg-[#4B5563]'}`}>{ligado ? 'Ligado' : 'Desligado'}</span>
+    <span className={`ml-auto rounded-full px-1.5 py-[1px] text-[10.5px] font-semibold text-white ${ligado ? 'bg-[#15803D]' : 'bg-[#4B5563]'}`}>{ligado ? 'Ligado' : 'Desligado'}</span>
   )
   const statusTexto = lojaStatus && lojaStatus.statusLoja !== 'automatico' ? 'Manual' : 'Automático'
   const dicaStatus = `${lojaAberta ? 'Recebendo pedidos' : 'Loja fechada'} (${statusTexto}) – clique para abrir ou fechar a loja`
@@ -748,16 +799,16 @@ export default function PedidosPage() {
           aria-expanded={lojaMenuOpen}
           aria-haspopup="menu"
           aria-label={dicaStatus}
-          className={`inline-flex h-[36px] flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[4px] px-2 text-[13px] font-semibold text-white transition-[filter] hover:brightness-110 sm:h-[44px] sm:px-3 ${lojaAberta ? 'bg-[#15803D]' : 'bg-[#B91C1C]'}`}
+          className={`inline-flex h-[36px] flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[4px] px-2 text-[13px] font-semibold transition-[filter] hover:brightness-95 sm:h-[44px] sm:px-3 ${lojaAberta ? 'bg-[#DCFCE7] text-[#15803D]' : 'bg-[#FEE2E2] text-[#B91C1C]'}`}
           data-testid="kanban-status-loja"
+          data-aberta={lojaAberta ? '1' : '0'}
         >
           <span className="relative flex h-2.5 w-2.5">
-            {lojaAberta && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-60" />}
-            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-white" />
+            {lojaAberta && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-current opacity-50" />}
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-current" />
           </span>
           <span className="max-[379px]:hidden xl:hidden">{lojaAberta ? 'Aberta' : 'Fechada'}</span>
-          <span className="hidden xl:inline">{lojaAberta ? 'Recebendo pedidos' : 'Loja fechada'}</span>
-          <span className="hidden rounded-full bg-black/25 px-1.5 py-[1px] text-[10.5px] font-bold xl:inline">{statusTexto}</span>
+          <span className="hidden xl:inline">{lojaAberta ? 'Recebendo pedidos' : 'Loja fechada'} · {statusTexto}</span>
           <ChevronDown className="hidden h-4 w-4 opacity-90 sm:block" />
         </button>
       </Dica>
@@ -777,40 +828,29 @@ export default function PedidosPage() {
       </Flutuante>
       {alarme.tocando ? (
         <Dica texto="Alarme de pedido novo tocando – clique para silenciar (o próximo pedido novo toca de novo)">
-          <button onClick={alarme.silenciar} aria-label="Silenciar o alarme de pedido novo" className={`${QUAD} bg-[#C2410C]`} data-testid="kanban-silenciar">
+          <button onClick={alarme.silenciar} aria-label="Silenciar o alarme de pedido novo" className={`${QUAD} bg-[#FFEDD5] text-[#C2410C]`} data-testid="kanban-silenciar">
             <BellRing className={`${ICONE} animate-pulse`} />
           </button>
         </Dica>
       ) : (
         <Dica texto={dicaSom}>
-          <button onClick={toggleSom} aria-pressed={alarme.somAtivo} aria-label={dicaSom} className={`${QUAD} max-sm:hidden ${alarme.somAtivo ? 'bg-[#0369A1]' : DESLIGADO}`} data-testid="kanban-som">
+          <button onClick={toggleSom} aria-pressed={alarme.somAtivo} aria-label={dicaSom} className={`${QUAD} max-sm:hidden ${alarme.somAtivo ? 'bg-[#E0F2FE] text-[#0369A1]' : DESLIGADO}`} data-testid="kanban-som">
             {alarme.somAtivo ? <Bell className={ICONE} /> : <BellOff className={ICONE} />}
           </button>
         </Dica>
       )}
       <Dica texto={dicaAceite}>
-        <button onClick={toggleAutoAceite} aria-pressed={autoAceitar} aria-label={dicaAceite} className={`${QUAD} max-sm:hidden ${autoAceitar ? 'bg-[#7E22CE]' : DESLIGADO}`} data-testid="kanban-aceite">
+        <button onClick={toggleAutoAceite} aria-pressed={autoAceitar} aria-label={dicaAceite} className={`${QUAD} max-sm:hidden ${autoAceitar ? 'bg-[#F3E8FF] text-[#7E22CE]' : DESLIGADO}`} data-testid="kanban-aceite">
           {autoAceitar ? <Zap className={ICONE} fill="currentColor" /> : <ZapOff className={ICONE} />}
         </button>
       </Dica>
-      {comRotas ? (
-        <Dica texto="Rotas – abrir o despacho dos motoboys no mapa">
-          <button onClick={() => setRotaOpen(true)} aria-label="Rotas – abrir o despacho dos motoboys no mapa" className={`${QUAD} max-sm:hidden bg-[#1F2937]`} data-testid="kanban-rotas">
-            <Capacete className={ICONE} strokeWidth={2.2} />
-          </button>
-        </Dica>
-      ) : (
-        <Dica texto="Rotas desligado – esta loja não trabalha com motoboy (Ajustes › Entrega). A entrega é concluída aqui no Kanban">
-          <span tabIndex={0} aria-label="Rotas desligado – esta loja não trabalha com motoboy" className="inline-flex flex-shrink-0 max-sm:hidden" data-testid="kanban-rotas-desligado">
-            <button disabled data-rotas-desligado tabIndex={-1} aria-hidden className={`${QUAD} pointer-events-none cursor-not-allowed ${DESLIGADO}`}>
-              <Capacete className={ICONE} strokeWidth={2.2} />
-              <span aria-hidden className="absolute h-[2px] w-[26px] rotate-45 rounded-full bg-white" />
-            </button>
-          </span>
-        </Dica>
-      )}
-      <Dica texto="Mais opções – testar som, repetição do alarme, métricas, entregas e tela cheia">
-        <button ref={botaoMais} onClick={() => setMaisAberto((v) => !v)} aria-expanded={maisAberto} aria-haspopup="menu" aria-label="Mais opções" className={`${QUAD} bg-[#374151]`} data-testid="kanban-mais">
+      <Dica texto={focusMode ? 'Sair da tela cheia (Esc)' : 'Tela cheia – só as colunas do Kanban e o botão Despachar'}>
+        <button onClick={() => void toggleFocus()} aria-pressed={focusMode} aria-label={focusMode ? 'Sair da tela cheia' : 'Tela cheia'} className={`${QUAD} max-lg:hidden bg-[#E0F2FE] text-[#0369A1]`} data-testid="kanban-tela-cheia">
+          {focusMode ? <Minimize2 className={ICONE} /> : <Maximize2 className={ICONE} />}
+        </button>
+      </Dica>
+      <Dica texto="Mais opções – despacho aberto, entregar sem entregador, som, métricas e entregas">
+        <button ref={botaoMais} onClick={() => setMaisAberto((v) => !v)} aria-expanded={maisAberto} aria-haspopup="menu" aria-label="Mais opções" className={`${QUAD} bg-[#F1F2F4] text-[#374151]`} data-testid="kanban-mais">
           <MoreHorizontal className={ICONE} />
         </button>
       </Dica>
@@ -833,11 +873,37 @@ export default function PedidosPage() {
             <p className="flex items-center gap-2 px-3 py-2.5 text-[13px] text-text-subtle"><Capacete className="h-4 w-4" /> Rotas: desligado (sem motoboy)</p>
           )}
         </div>
+        {fluxo.usaLogistica && (
+          <div className="border-b border-border">
+            {!fluxo.entregaSemEntregador && (
+              <button onClick={() => void alternarDespachoAberto()} aria-pressed={despachoAberto} className={ITEM} data-testid="kanban-despacho-aberto">
+                <Bike className="h-4 w-4" /> Despacho aberto {estadoChip(despachoAberto)}
+              </button>
+            )}
+            {fluxo.entregaSemEntregador ? (
+              <button onClick={() => void mudarModoEntrega(false)} className={ITEM} data-testid="kanban-voltar-entregadores">
+                <Bike className="h-4 w-4" /> Voltar a usar entregadores
+              </button>
+            ) : confirmaSemEntregador ? (
+              <div className="px-3 py-2" data-testid="kanban-sem-entregador-confirmar">
+                <p className="text-[12px] leading-snug text-text-main">Pedido sai do Kanban e fecha, sem motoboy nem rota.</p>
+                <div className="mt-1.5 flex justify-end gap-1.5">
+                  <button onClick={() => setConfirmaSemEntregador(false)} className="h-[30px] rounded-[3px] border border-border px-2 text-[12px] font-semibold">Cancelar</button>
+                  <button onClick={() => void mudarModoEntrega(true)} className="h-[30px] rounded-[3px] bg-[var(--adm-azul,#0b78d0)] px-2 text-[12px] font-semibold text-white" data-testid="kanban-sem-entregador-ok">Confirmar</button>
+                </div>
+              </div>
+            ) : (
+              <button onClick={() => setConfirmaSemEntregador(true)} className={ITEM} data-testid="kanban-sem-entregador">
+                <DoorOpen className="h-4 w-4" /> Entregar sem entregador
+              </button>
+            )}
+          </div>
+        )}
         <button onClick={() => { void alarme.testar(); setMaisAberto(false) }} className={ITEM} data-testid="kanban-testar-som">
           <Volume2 className="h-4 w-4" /> Testar som
         </button>
         <div className="border-t border-border px-3 py-2">
-          <p className="text-[11px] font-bold uppercase tracking-wide text-text-subtle">Repetir o alarme</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Repetir o alarme</p>
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             {OPCOES_REPETICAO.map((s) => (
               <button key={s} onClick={() => alarme.setRepetirSeg(s)} aria-pressed={alarme.repetirSeg === s}
@@ -861,9 +927,6 @@ export default function PedidosPage() {
           </button>
           <button onClick={() => { toggleCol4(); setMaisAberto(false) }} aria-pressed={showCol4} className={ITEM} data-testid="kanban-entregas">
             <Columns3 className="h-4 w-4" /> Entregas e concluídos {estadoChip(showCol4)}
-          </button>
-          <button onClick={() => { void toggleFocus(); setMaisAberto(false) }} className={`${ITEM} max-lg:hidden`} data-testid="kanban-tela-cheia">
-            {focusMode ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />} {focusMode ? 'Sair da tela cheia' : 'Tela cheia'}
           </button>
         </div>
       </Flutuante>
@@ -889,13 +952,19 @@ export default function PedidosPage() {
     )
   }
 
+  const prontosEntrega = orders.filter((o) => o.status === 'pronto' && o.tipo === 'entrega' && !o.entregadorId).length
   return (
     <>
-      {topBar}
+      {!focusMode && topBar}
+      {focusMode && (
+        <button type="button" onClick={() => void toggleFocus()} className="fixed right-3 top-3 z-30 inline-flex h-[36px] items-center gap-1.5 rounded-[4px] bg-[#E0F2FE] px-3 text-[13px] font-semibold text-[#0369A1] shadow hover:brightness-95" data-testid="sair-tela-cheia-kanban">
+          <Minimize2 className="h-4 w-4" aria-hidden /> Sair da tela cheia
+        </button>
+      )}
 
       {/* Quadro + painel do pedido lado a lado: o painel não cobre nem bloqueia o quadro. */}
       <div className="flex min-h-0 flex-1">
-      <div className="flex min-w-0 flex-1 flex-col gap-3 overflow-hidden p-5">
+      <div className={`flex min-w-0 flex-1 flex-col gap-3 overflow-hidden p-5 ${comRotas ? 'max-lg:pb-24' : ''}`}>
         {error && (
           <div className="rounded-menuzia border border-danger bg-danger-bg px-3.5 py-2.5 text-[13px] font-medium text-danger">{error}</div>
         )}
@@ -925,7 +994,7 @@ export default function PedidosPage() {
 
         {agendados.length > 0 && (
           <div className="flex items-center gap-2 overflow-x-auto rounded-menuzia border border-border bg-white px-3 py-2" data-testid="faixa-agendados">
-            <span className="shrink-0 text-[11px] font-bold uppercase tracking-wide text-text-subtle">Agendados ({agendados.length})</span>
+            <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Agendados ({agendados.length})</span>
             {agendados.map((p) => (
               <button
                 key={p.id}
@@ -951,11 +1020,11 @@ export default function PedidosPage() {
                 <div className={`flex items-center justify-between px-4 py-3 text-white ${cfg.headerBg}`}>
                   <div className="flex items-center gap-2">
                     <cfg.Icon className="h-4 w-4" strokeWidth={2.5} />
-                    <h3 className="text-sm font-bold">{cfg.label}</h3>
+                    <h3 className="text-sm font-semibold">{cfg.label}</h3>
                   </div>
-                  <span className="rounded-full bg-white/25 px-2 py-0.5 text-[11px] font-bold text-white">{colOrders.length}</span>
+                  <span className="rounded-full bg-white/25 px-2 py-0.5 text-[11px] font-semibold text-white">{colOrders.length}</span>
                 </div>
-                <div className="flex-1 space-y-3 overflow-y-auto p-3 max-lg:overflow-visible">
+                <div className={`flex-1 space-y-3 overflow-y-auto p-3 max-lg:overflow-visible ${comRotas ? 'pb-20' : ''}`}>
                   {colOrders.map((order) => {
                     const idadeMs = now - new Date(order.criadoEm).getTime()
                     const corTempo = { ok: 'text-price-text', atencao: 'text-[#B45309]', atraso: 'text-danger' }[corTempoPedido(idadeMs)]
@@ -992,7 +1061,7 @@ export default function PedidosPage() {
                         {/* Linha 1: número, origem, tempo e atendimento (sem fundo). */}
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                            <span className="rounded-menuzia bg-text-main px-1.5 py-0.5 text-sm font-bold text-white">#{order.numero}</span>
+                            <span className="rounded-menuzia bg-text-main px-1.5 py-0.5 text-sm font-semibold text-white">#{order.numero}</span>
                             {/* Origem do pedido da vitrine (item 55): só o ícone, ao lado do número, com a dica.
                                 Direto, PDV, Mesa e Balcão não mostram nada. É a única mudança no card antigo. */}
                             {(() => {
@@ -1012,7 +1081,7 @@ export default function PedidosPage() {
                           </div>
                           <div className="flex flex-shrink-0 items-center gap-1.5">
                             <span
-                              className={`inline-flex items-center gap-1 whitespace-nowrap text-[11.5px] font-bold tabular-nums ${corTempo}`}
+                              className={`inline-flex items-center gap-1 whitespace-nowrap text-[11.5px] font-semibold tabular-nums ${corTempo}`}
                               title={pedidoParado(order, now) ? `Aberto há ${textoTempoPedido(idadeMs)}: ninguém fechou este pedido. Conclua ou cancele.` : 'Tempo desde que o pedido chegou'}
                               data-testid="card-tempo"
                             >
@@ -1036,7 +1105,7 @@ export default function PedidosPage() {
                                 <IconePag className="h-[18px] w-[18px]" aria-hidden />
                               </span>
                             )}
-                            <span className="whitespace-nowrap text-[14px] font-bold tabular-nums text-status-ready" data-testid="card-preco">{brl(order.total)}</span>
+                            <span className="whitespace-nowrap text-[14px] font-semibold tabular-nums text-status-ready" data-testid="card-preco">{brl(order.total)}</span>
                           </div>
                         </div>
                         {/* Linha 3: só o botão de etapa (não abre o painel). */}
@@ -1061,15 +1130,8 @@ export default function PedidosPage() {
                               Saiu p/ entrega <ArrowRight className="h-4 w-4" aria-hidden />
                             </Button>
                           )}
-                          {order.status === 'pronto' && order.tipo === 'entrega' && usaDespachoDeRotas(fluxo) && (
-                            <span
-                              className="flex min-h-[40px] w-full items-center justify-center gap-1.5 rounded-menuzia border border-[#0369A1]/25 bg-alert-bg px-2 text-[11px] font-bold uppercase tracking-wide text-alert-text lg:min-h-0 lg:py-2"
-                              data-testid="card-na-logistica"
-                              title="Despacho feito no módulo de Logística"
-                            >
-                              <Capacete className="h-3.5 w-3.5" strokeWidth={2.2} />
-                              Na logística
-                            </span>
+                          {order.status === 'pronto' && order.tipo === 'entrega' && usaDespachoDeRotas(fluxo) && restauranteId && (
+                            <DespacharNoCard pedido={order} supabase={supabase} restauranteId={restauranteId} onDespachado={aoDespachar} onErro={setError} />
                           )}
                         </div>
                       </div>
@@ -1086,7 +1148,7 @@ export default function PedidosPage() {
             <div className="flex flex-col overflow-hidden rounded-menuzia border border-border border-t-[3px] border-t-purple bg-white max-lg:flex-shrink-0 max-lg:overflow-visible">
               <div className="flex items-center justify-between border-b border-border px-4 py-3">
                 <h3 className="text-sm font-semibold">Entregas & concluídos</h3>
-                <span className="rounded-full bg-page px-2 py-0.5 text-[11px] font-bold text-text-subtle">{transit.length + concluded.length}</span>
+                <span className="rounded-full bg-page px-2 py-0.5 text-[11px] font-semibold text-text-subtle">{transit.length + concluded.length}</span>
               </div>
               <div className="flex-1 space-y-4 overflow-y-auto p-3 max-lg:overflow-visible">
                 <SubSecao titulo="Em trânsito" cor="text-status-preparing" vazio="Ninguém em rota">
@@ -1139,6 +1201,16 @@ export default function PedidosPage() {
         />
       )}
       </div>
+
+      {/* Item 58: "Despachar" fixo no canto inferior direito (vários de uma vez, no Despacho de rotas). */}
+      {comRotas && (
+        <button type="button" onClick={() => setRotaOpen(true)}
+          className="fixed bottom-4 right-4 z-30 inline-flex h-[52px] items-center gap-2 rounded-[8px] bg-[var(--adm-azul,#0b78d0)] px-5 text-[15px] font-semibold text-white shadow-[0_8px_24px_rgba(11,120,208,0.35)] hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0688D4]"
+          aria-label={`Despachar – ${prontosEntrega} pronto(s) para entrega`} data-testid="kanban-despachar">
+          <Route className="h-5 w-5" aria-hidden /> Despachar
+          <span className="grid h-[24px] min-w-[24px] place-items-center rounded-full bg-white px-1.5 text-[12.5px] font-semibold text-[#075EA8]" data-testid="kanban-despachar-contador">{prontosEntrega}</span>
+        </button>
+      )}
 
       {/* Painel de despacho de rotas */}
       {rotaOpen && restauranteId && usaDespachoDeRotas(fluxo) && (

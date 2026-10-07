@@ -148,7 +148,7 @@ export function VisaoGeral({ onDisparar, detalhado }: { onDisparar: () => void; 
         <div className="grid grid-cols-1 gap-3 xl:grid-cols-5">
           <section className="campanha-cartao rounded-[6px] border border-[#e5e7eb] bg-white p-4 xl:col-span-3" data-testid="grafico-dias">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-[14px] font-bold text-[#1f2937]">Resultado por dia</h3>
+              <h3 className="text-[14px] font-semibold text-[#1f2937]">Resultado por dia</h3>
               <div className="flex rounded-[5px] border border-[#d6dae1] p-0.5">
                 {(['receita', 'pedidos', 'enviadas'] as const).map((s) => (
                   <button key={s} type="button" onClick={() => setSerie(s)} className={`h-7 rounded-[4px] px-2.5 text-[12px] font-semibold ${serie === s ? 'bg-[#0688d4] text-white' : 'text-[#5b6472] hover:text-[#1f2937]'}`}>
@@ -160,7 +160,7 @@ export function VisaoGeral({ onDisparar, detalhado }: { onDisparar: () => void; 
             <BarrasDias serie={dados.serie} campo={serie} />
           </section>
           <section className="campanha-cartao rounded-[6px] border border-[#e5e7eb] bg-white p-4 xl:col-span-2" data-testid="grafico-campanhas">
-            <h3 className="mb-3 text-[14px] font-bold text-[#1f2937]">Receita por campanha</h3>
+            <h3 className="mb-3 text-[14px] font-semibold text-[#1f2937]">Receita por campanha</h3>
             <BarrasCampanhas envios={dados.envios} />
           </section>
         </div>
@@ -230,7 +230,7 @@ function Metrica({ icone: Icone, tom, rotulo, ajuda, valor, testid }: { icone: L
       <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full sm:h-12 sm:w-12" style={{ backgroundColor: c.fundo, color: c.cor }}><Icone className="h-5 w-5 sm:h-6 sm:w-6" strokeWidth={2.2} /></span>
       <div className="min-w-0">
         <div className="flex items-center gap-1 text-[12px] leading-tight text-[#5b6472] sm:text-[12.5px]">{rotulo}<Ajuda texto={ajuda} /></div>
-        <div className="mt-0.5 truncate text-[18px] sm:text-[20px] font-bold text-[#1f2937] tabular-nums" data-valor>{valor}</div>
+        <div className="mt-0.5 truncate text-[18px] sm:text-[20px] font-semibold text-[#1f2937] tabular-nums" data-valor>{valor}</div>
       </div>
     </div>
   )
@@ -240,7 +240,7 @@ function Indicador({ rotulo, ajuda, valor, extra, indisponivel, testid }: { rotu
   return (
     <div className="bg-white px-4 py-3.5" data-testid={testid}>
       <div className="flex items-center gap-1 text-[12.5px] text-[#5b6472]">{rotulo}<Ajuda texto={ajuda} /></div>
-      <div className={`mt-0.5 text-[17px] font-bold tabular-nums ${indisponivel ? 'text-[#9ca3af]' : 'text-[#1f2937]'}`} data-valor>
+      <div className={`mt-0.5 text-[17px] font-semibold tabular-nums ${indisponivel ? 'text-[#9ca3af]' : 'text-[#1f2937]'}`} data-valor>
         {valor}
         {extra && <span className="ml-1.5 text-[12px] font-semibold text-[#15803d]">{extra}</span>}
       </div>

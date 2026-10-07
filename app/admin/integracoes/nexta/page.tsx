@@ -120,7 +120,7 @@ function dataHora(iso: string) {
 function Metrica({ valor, label, tom }: { valor: string; label: string; tom?: 'preco' }) {
   return (
     <div className="rounded-menuzia border border-border bg-white p-3.5">
-      <div className={`text-2xl font-bold leading-none ${tom === 'preco' ? 'text-price-text' : 'text-text-main'}`}>{valor}</div>
+      <div className={`text-2xl font-semibold leading-none ${tom === 'preco' ? 'text-price-text' : 'text-text-main'}`}>{valor}</div>
       <div className="mt-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">{label}</div>
     </div>
   )
@@ -412,7 +412,7 @@ export default function IntegracaoNextaPage() {
             <Card>
               <div className="mb-0.5 flex flex-wrap items-center gap-2">
                 <Truck className="h-5 w-5 flex-shrink-0 text-primary" strokeWidth={2.25} />
-                <h3 className="text-[13px] font-bold text-text-main">Nexta Delivery</h3>
+                <h3 className="text-[13px] font-semibold text-text-main">Nexta Delivery</h3>
                 <span
                   className={`inline-flex items-center gap-1.5 rounded-menuzia px-2 py-0.5 text-[11px] font-semibold ${
                     conectado ? 'bg-price-bg text-price-text' : 'bg-page text-text-subtle'
@@ -445,7 +445,7 @@ export default function IntegracaoNextaPage() {
                   <Headset className="h-6 w-6 text-primary" strokeWidth={2.25} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-[13px] font-bold text-text-main">Precisa de ajuda com o Nexta?</h3>
+                  <h3 className="text-[13px] font-semibold text-text-main">Precisa de ajuda com o Nexta?</h3>
                   <p className="mt-0.5 text-[12px] leading-relaxed text-text-subtle">
                     O suporte do Nexta ajuda a configurar a integração e a resolver qualquer problema com uma entrega em
                     andamento. Se preferir ligar: <strong className="font-semibold text-text-main">{SUPORTE_TELEFONE_EXIBICAO}</strong>.
@@ -472,7 +472,7 @@ export default function IntegracaoNextaPage() {
               >
                 <Settings2 className="h-5 w-5 flex-shrink-0 text-text-subtle" strokeWidth={2.25} />
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[13px] font-bold text-text-main">Configuração técnica</span>
+                  <span className="block text-[13px] font-semibold text-text-main">Configuração técnica</span>
                   <span className="mt-0.5 block text-[12px] leading-relaxed text-text-subtle">
                     Você configura isto uma vez, junto com o suporte do Nexta.
                   </span>
@@ -583,7 +583,7 @@ export default function IntegracaoNextaPage() {
 
             {/* Endereço de coleta */}
             <Card>
-              <h3 className="mb-0.5 text-[13px] font-bold text-text-main">Endereço de coleta</h3>
+              <h3 className="mb-0.5 text-[13px] font-semibold text-text-main">Endereço de coleta</h3>
               <p className="mb-4 text-[12px] leading-relaxed text-text-subtle">
                 Onde o motoboy do Nexta busca os pedidos. O padrão Open Delivery exige o endereço separado em campos, por isso ele é
                 preenchido aqui e não no cadastro da loja.
@@ -646,13 +646,13 @@ export default function IntegracaoNextaPage() {
 
             {/* Preferências de despacho */}
             <Card>
-              <h3 className="mb-0.5 text-[13px] font-bold text-text-main">Preferências de despacho</h3>
+              <h3 className="mb-0.5 text-[13px] font-semibold text-text-main">Preferências de despacho</h3>
               <p className="mb-4 text-[12px] leading-relaxed text-text-subtle">
                 O que pedimos ao Nexta em cada corrida. Vale para todas as entregas desta loja.
               </p>
               <div className="space-y-5">
                 <div className="space-y-3.5">
-                  <h4 className="text-[12px] font-bold text-text-main">Como o pedido é transportado</h4>
+                  <h4 className="text-[12px] font-semibold text-text-main">Como o pedido é transportado</h4>
                   <div className="grid gap-3.5 sm:grid-cols-3">
                   <div>
                     <label className={labelCls}>Veículo</label>
@@ -688,7 +688,7 @@ export default function IntegracaoNextaPage() {
                 </div>
 
                 <div className="space-y-3.5">
-                  <h4 className="text-[12px] font-bold text-text-main">Prazos e peso</h4>
+                  <h4 className="text-[12px] font-semibold text-text-main">Prazos e peso</h4>
                   <div className="grid gap-3.5 sm:grid-cols-3">
                   <div>
                     <label className={labelCls}>Limite de coleta (min)</label>
@@ -742,7 +742,7 @@ export default function IntegracaoNextaPage() {
             <Card>
               <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <h3 className="text-[13px] font-bold text-text-main">Entregas pelo Nexta</h3>
+                  <h3 className="text-[13px] font-semibold text-text-main">Entregas pelo Nexta</h3>
                   <p className="mt-0.5 text-[12px] text-text-subtle">Números apurados pelas corridas registradas aqui.</p>
                 </div>
                 <div className="flex gap-0.5 rounded-menuzia border border-border p-0.5">
@@ -776,7 +776,7 @@ export default function IntegracaoNextaPage() {
             <Card className="!p-0">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border p-4.5">
                 <div>
-                  <h3 className="text-[13px] font-bold text-text-main">Monitor de entregas</h3>
+                  <h3 className="text-[13px] font-semibold text-text-main">Monitor de entregas</h3>
                   <p className="mt-0.5 text-[12px] text-text-subtle">Atualiza em tempo real conforme o Nexta avisa.</p>
                 </div>
                 <select
@@ -811,7 +811,7 @@ export default function IntegracaoNextaPage() {
                     <tbody className="divide-y divide-border">
                       {entregasFiltradas.map((e) => (
                         <tr key={e.id} className="hover:bg-page/60">
-                          <td className="px-4.5 py-2.5 font-bold">{e.pedidoNumero === null ? '—' : `#${e.pedidoNumero}`}</td>
+                          <td className="px-4.5 py-2.5 font-semibold">{e.pedidoNumero === null ? '—' : `#${e.pedidoNumero}`}</td>
                           <td className="px-3 py-2.5 text-text-subtle">{dataHora(e.criadoEm)}</td>
                           <td className="px-3 py-2.5">
                             <Badge tone={nextaEventoTom(e.status)}>{nextaEventoTexto(e.status)}</Badge>
@@ -855,7 +855,7 @@ export default function IntegracaoNextaPage() {
 
             {/* Painel do Nexta */}
             <Card>
-              <h3 className="mb-0.5 text-[13px] font-bold text-text-main">Painel do Nexta</h3>
+              <h3 className="mb-0.5 text-[13px] font-semibold text-text-main">Painel do Nexta</h3>
               <p className="mb-4 text-[12px] leading-relaxed text-text-subtle">
                 Faturas, extrato financeiro e contratação de diária não têm API — ficam no painel do próprio Nexta.
               </p>

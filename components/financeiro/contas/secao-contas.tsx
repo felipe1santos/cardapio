@@ -318,7 +318,7 @@ function BaixaConta({ conta, caixaAberto, onFechar, onFeito, toast }: { conta: C
   return (
     <Janela titulo={pagar ? 'Pagar conta' : 'Receber'} onFechar={onFechar} testid="janela-baixa">
       <p className="text-[13px]"><b>{conta.descricao}</b></p>
-      <p className="mb-3 text-[22px] font-bold" data-testid="baixa-valor">{brl(conta.valor_centavos)}</p>
+      <p className="mb-3 text-[22px] font-semibold" data-testid="baixa-valor">{brl(conta.valor_centavos)}</p>
       <span className={ROT}>{pagar ? 'De onde sai o dinheiro' : 'Para onde vai o dinheiro'}</span>
       <div className="mb-3 grid grid-cols-2 gap-2">
         {([['empresa', 'Conta da empresa', 'Pix, boleto, cartão da empresa'], ['gaveta', 'Dinheiro do caixa', caixaAberto ? 'Vira movimentação do turno' : 'Caixa fechado']] as const).map(([id, t, s]) => (

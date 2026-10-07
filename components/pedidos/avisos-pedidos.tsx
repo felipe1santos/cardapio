@@ -79,7 +79,7 @@ export function AvisosPedidos({ avisos, onEntregue, onNaoEntregue, onCancelar, o
       >
         <AlertTriangle className="h-5 w-5" strokeWidth={2.2} />
         {total > 0 && (
-          <span className="absolute -right-1.5 -top-1.5 flex h-[20px] min-w-[20px] items-center justify-center rounded-full bg-[#B91C1C] px-1 text-[11px] font-bold text-white ring-2 ring-white" data-testid="avisos-badge">
+          <span className="absolute -right-1.5 -top-1.5 flex h-[20px] min-w-[20px] items-center justify-center rounded-full bg-[#B91C1C] px-1 text-[11px] font-semibold text-white ring-2 ring-white" data-testid="avisos-badge">
             {total > 99 ? '99+' : total}
           </span>
         )}
@@ -87,7 +87,7 @@ export function AvisosPedidos({ avisos, onEntregue, onNaoEntregue, onCancelar, o
       </Dica>
       <Flutuante ancora={botao} aberto={aberto} onFechar={fechar} largura={420} testid="avisos-painel" rotulo="Avisos">
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <p className="text-[14px] font-bold text-text-main">Avisos</p>
+          <p className="text-[14px] font-semibold text-text-main">Avisos</p>
           <button type="button" onClick={() => setAberto(false)} className="flex h-[32px] w-[32px] items-center justify-center rounded-[3px] text-text-subtle hover:bg-page" aria-label="Fechar"><X className="h-4 w-4" /></button>
         </div>
         {avisos.length === 0 ? (
@@ -96,12 +96,12 @@ export function AvisosPedidos({ avisos, onEntregue, onNaoEntregue, onCancelar, o
           <div>
             {avisos.map((a) => (
               <div key={a.id} className="border-b border-border px-4 py-3 last:border-b-0" data-testid={`aviso-${a.id}`}>
-                <p className="text-[13px] font-bold text-[#B45309]">{a.titulo}</p>
+                <p className="text-[13px] font-semibold text-[#B45309]">{a.titulo}</p>
                 <p className="mt-0.5 text-[12.5px] leading-snug text-text-subtle">{a.texto}</p>
                 {a.pedidos?.map((p) => (
                   <div key={p.id} className="mt-2.5 rounded-[3px] border border-border p-2.5" data-testid="aviso-pedido">
                     <div className="flex items-baseline justify-between gap-2">
-                      <span className="text-[13px] font-bold text-text-main">#{p.numero} · {p.cliente || 'Cliente'}</span>
+                      <span className="text-[13px] font-semibold text-text-main">#{p.numero} · {p.cliente || 'Cliente'}</span>
                       <span className="flex-shrink-0 text-[11.5px] text-text-subtle">{ROTULO_STATUS[p.status] ?? p.status} · aberto há {p.aberto}</span>
                     </div>
                     {confirmarNao === p.id ? (

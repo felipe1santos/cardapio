@@ -52,7 +52,7 @@ export function PainelLateral({ titulo, subtitulo, onFechar, children, acoes, la
             <ArrowLeft className="h-5 w-5" /> Voltar
           </button>
           <div className="min-w-0 flex-1">
-            <h2 className="truncate text-[18px] font-bold" style={{ color: FIN_COR.texto }}>{titulo}</h2>
+            <h2 className="truncate text-[18px] font-semibold" style={{ color: FIN_COR.texto }}>{titulo}</h2>
             {subtitulo && <div className="text-[13px]" style={{ color: FIN_COR.texto2 }}>{subtitulo}</div>}
           </div>
           <button type="button" onClick={onFechar} aria-label="Fechar" className="hidden h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-[6px] text-text-subtle hover:bg-[#F5F6F7] active:bg-[#E4E7EA] sm:flex" data-testid="painel-fechar">

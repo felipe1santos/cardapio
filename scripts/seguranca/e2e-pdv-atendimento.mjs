@@ -202,12 +202,14 @@ ok('6. dois balcões simultâneos não se misturam', bA.json.senha !== bB.json.s
 for (const st of ['preparando', 'pronto']) await db.query('update pedidos set status=$2 where id=$1', [pEnt.id, st])
 await db.query("update pedidos set status='preparando' where id=$1", [lSemTel.json.id])
 await db.query("update pedidos set status='pronto' where id=$1", [lSemTel.json.id])
-await pGer.goto(`${BASE}/admin/logistica`, { waitUntil: 'networkidle' })
+// Item 58: o despacho é no Kanban — a entrega pronta ganha "Despachar" no card; o balcão não.
+await pGer.goto(`${BASE}/admin/pedidos`, { waitUntil: 'networkidle' })
 await dispensar(pGer)
-const naLog = await aguardar(async () => (await pGer.content()).includes('Cliente Telefone Demo'), 15000)
-ok('10. entrega manual pronta aparece na logística', !!naLog)
-ok('11. balcão (sem entrega) não entra na logística', !(await pGer.content()).includes('Balcão Sem Telefone'))
-await foto(pGer, 'a02-logistica-entrega-manual')
+const cardEnt = pGer.locator('[data-testid^="pedido-"]').filter({ hasText: 'Cliente Telefone Demo' }).first()
+const naLog = await aguardar(async () => (await cardEnt.getByTestId('card-despachar').count()) > 0, 15000)
+ok('10. entrega manual pronta aparece para despachar (card do Kanban)', !!naLog)
+ok('11. balcão (sem entrega) não tem "Despachar"', (await pGer.locator('[data-testid^="pedido-"]').filter({ hasText: 'Balcão Sem Telefone' }).getByTestId('card-despachar').count()) === 0)
+await foto(pGer, 'a02-kanban-entrega-manual')
 
 // ════════════════════════════════════════════════════════════════════════════
 secao('Mesas: nome obrigatório, concorrência, conta antiga')

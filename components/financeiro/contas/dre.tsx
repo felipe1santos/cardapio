@@ -68,7 +68,7 @@ export function SecaoDre() {
               </thead>
               <tbody>
                 {linhas.map((l, i) => (
-                  <tr key={i} className={`[&>td]:border-b [&>td]:border-border ${l.forte ? 'bg-[#F9FAFB] font-bold' : ''}`} data-testid={l.testid}>
+                  <tr key={i} className={`[&>td]:border-b [&>td]:border-border ${l.forte ? 'bg-[#F9FAFB] font-semibold' : ''}`} data-testid={l.testid}>
                     <td className={`px-3 py-2 ${l.forte ? '' : l.recuo ? 'pl-10 text-[12px] text-text-subtle' : 'pl-6 text-text-subtle'}`}>{l.sinal === '-' ? '(−) ' : l.sinal === '+' ? '(+) ' : l.sinal === '=' ? '(=) ' : l.sinal === '±' ? '(±) ' : ''}{l.rotulo}</td>
                     <td className={`whitespace-nowrap px-3 py-2 text-right ${l.testid === 'dre-lucro-liquido' ? (l.atual < 0 ? 'text-[#D93616]' : 'text-[#006B4E]') : ''}`} data-valor={l.atual}>{brl(l.atual)}</td>
                     <td className="whitespace-nowrap px-3 py-2 text-right text-text-subtle">{deFat(l.atual)}</td>

@@ -693,14 +693,16 @@ export async function entregarPedidoEmRota(supabase: SupabaseClient, pedidoId: s
 // server-side e reverte os benefícios de fidelidade. Ver lib/cancelamento.ts.
 
 /** Pedidos concluídos (entregues + recusados) desde uma data — para o histórico. */
-export async function listarPedidosConcluidos(supabase: SupabaseClient, restauranteId: string, desdeISO: string): Promise<Pedido[]> {
-  const { data, error } = await supabase
+/** `ateISO` (item 58): fim do período (exclusivo) — a tela Pedidos filtra por hoje, ontem, 7 dias ou datas. */
+export async function listarPedidosConcluidos(supabase: SupabaseClient, restauranteId: string, desdeISO: string, ateISO?: string): Promise<Pedido[]> {
+  let q = supabase
     .from('pedidos')
     .select(PEDIDO_SELECT)
     .eq('restaurante_id', restauranteId)
     .in('status', ['entregue', 'cancelado'])
     .gte('atualizado_em', desdeISO)
-    .order('atualizado_em', { ascending: false })
+  if (ateISO) q = q.lt('atualizado_em', ateISO)
+  const { data, error } = await q.order('atualizado_em', { ascending: false }).limit(1000)
 
   if (error) throw error
   return ((data ?? []) as unknown as PedidoRow[]).map(mapPedido)

@@ -122,7 +122,7 @@ export function TaxasModal({
                       pessoas
                     </label>
                   )}
-                  <span className="ml-auto w-[88px] text-right text-[15px] font-bold text-text-main" data-testid="taxa-valor">{valor !== undefined ? formatBRL(valor) : '—'}</span>
+                  <span className="ml-auto w-[88px] text-right text-[15px] font-semibold text-text-main" data-testid="taxa-valor">{valor !== undefined ? formatBRL(valor) : '—'}</span>
                 </div>
               </div>
             )

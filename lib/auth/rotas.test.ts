@@ -22,6 +22,7 @@ describe('garçom tentando entrar pela URL', () => {
     '/admin/pedidos',
     '/admin/pdv',
     '/admin/logistica',
+    '/admin/lista-pedidos',
     '/admin/cardapio',
     '/admin/campanhas',
     '/admin/fidelidade',

@@ -31,7 +31,7 @@ export function InfoPagamento({ p, compacto = false, mostrarStatus = true, card 
       <div className="text-right text-[11.5px] leading-snug" data-testid="info-pagamento">
         <span className="font-semibold text-text-main">{rotuloForma(p.formaPagamento, p.cartaoTipo)}</span>
         <span className="text-text-subtle"> · </span>
-        {p.pago ? <span className="font-bold text-price-text">Pago</span> : <span className="font-semibold text-[#92400E]">{statusAReceber(p.tipo)}</span>}
+        {p.pago ? <span className="font-semibold text-price-text">Pago</span> : <span className="font-semibold text-[#92400E]">{statusAReceber(p.tipo)}</span>}
         {troco && <div className="font-semibold text-[#92400E]" data-testid="info-troco">Troco p/ {brl(troco)}</div>}
       </div>
     )
@@ -44,8 +44,8 @@ export function InfoPagamento({ p, compacto = false, mostrarStatus = true, card 
       {troco && <span className="font-semibold text-[#92400E]" data-testid="info-troco">Troco p/ {brl(troco)}</span>}
       {mostrarStatus && (
         p.pago
-          ? <span className="rounded-menuzia bg-price-bg px-1.5 py-[1px] text-[11px] font-bold text-price-text">Pago</span>
-          : <span className="rounded-menuzia bg-warn-bg px-1.5 py-[1px] text-[11px] font-bold text-[#92400E]">{statusAReceber(p.tipo)}</span>
+          ? <span className="rounded-menuzia bg-price-bg px-1.5 py-[1px] text-[11px] font-semibold text-price-text">Pago</span>
+          : <span className="rounded-menuzia bg-warn-bg px-1.5 py-[1px] text-[11px] font-semibold text-[#92400E]">{statusAReceber(p.tipo)}</span>
       )}
     </div>
   )
@@ -57,7 +57,7 @@ export function AlertaTroco({ p }: { p: PagamentoDoPedido }) {
   const levar = trocoLevar(p.total, p.trocoPara)
   if (levar <= 0) return null
   return (
-    <div className="rounded-menuzia border border-[#F59E0B] bg-[#FEF3C7] px-2.5 py-1.5 text-[13px] font-bold text-[#92400E]" data-testid="alerta-troco">
+    <div className="rounded-menuzia border border-[#F59E0B] bg-[#FEF3C7] px-2.5 py-1.5 text-[13px] font-semibold text-[#92400E]" data-testid="alerta-troco">
       Levar {brl(levar)} de troco <span className="font-semibold">(cliente paga com {brl(p.trocoPara!)})</span>
     </div>
   )

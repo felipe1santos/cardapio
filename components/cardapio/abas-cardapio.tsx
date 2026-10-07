@@ -57,7 +57,7 @@ export function AbasCardapio({
               {rotulo}
               {n !== undefined && n > 0 && (
                 <span
-                  className={`min-w-[20px] rounded-full px-1.5 py-[1px] text-center text-[11px] font-bold ${
+                  className={`min-w-[20px] rounded-full px-1.5 py-[1px] text-center text-[11px] font-semibold ${
                     selecionada ? 'bg-[var(--adm-azul)] text-white' : 'bg-[#f1f2f4] text-[var(--adm-texto-medio)]'
                   }`}
                 >

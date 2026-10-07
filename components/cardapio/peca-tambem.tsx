@@ -161,7 +161,7 @@ export function PecaTambem({ restauranteId, itens, grupos }: { restauranteId: st
               <button type="button" aria-label="Mostrar menos" disabled={limite <= 1} onClick={() => mudarLimite(limite - 1)} className="toque-icone flex h-8 w-8 items-center justify-center text-[var(--adm-texto-medio)] hover:bg-[var(--adm-hover)] disabled:opacity-40">
                 <Minus className="h-3.5 w-3.5" />
               </button>
-              <span className="w-8 text-center text-[14px] font-bold tabular-nums text-[var(--adm-texto)]" data-testid="peca-tambem-limite">
+              <span className="w-8 text-center text-[14px] font-semibold tabular-nums text-[var(--adm-texto)]" data-testid="peca-tambem-limite">
                 {limite}
               </span>
               <button type="button" aria-label="Mostrar mais" disabled={limite >= MAX_SUGESTOES} onClick={() => mudarLimite(limite + 1)} className="toque-icone flex h-8 w-8 items-center justify-center text-[var(--adm-texto-medio)] hover:bg-[var(--adm-hover)] disabled:opacity-40">
@@ -193,7 +193,7 @@ export function PecaTambem({ restauranteId, itens, grupos }: { restauranteId: st
                   const foraDoLimite = i >= limite
                   return (
                     <li key={b.id} className={`flex items-center gap-3 px-4 py-2.5 ${!b.ativo ? 'bg-[var(--adm-superficie-2)]' : ''}`}>
-                      <span className={`w-5 flex-shrink-0 text-center text-[12px] font-bold ${foraDoLimite ? 'text-[var(--adm-texto-suave)]' : 'text-[var(--adm-azul)]'}`}>{i + 1}</span>
+                      <span className={`w-5 flex-shrink-0 text-center text-[12px] font-semibold ${foraDoLimite ? 'text-[var(--adm-texto-suave)]' : 'text-[var(--adm-azul)]'}`}>{i + 1}</span>
                       <div className={!b.ativo ? 'opacity-50' : ''}>
                         <ItemThumb item={item} size={40} />
                       </div>
@@ -201,9 +201,9 @@ export function PecaTambem({ restauranteId, itens, grupos }: { restauranteId: st
                         <p className="truncate text-[13px] font-semibold text-[var(--adm-texto)]">{item.nome}</p>
                         <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                           <PrecoItem item={item} />
-                          {motivo && <span className="rounded-full bg-danger-bg px-2 py-[1px] text-[10.5px] font-bold text-danger">{motivo}</span>}
+                          {motivo && <span className="rounded-full bg-danger-bg px-2 py-[1px] text-[10.5px] font-semibold text-danger">{motivo}</span>}
                           {foraDoLimite && b.ativo && (
-                            <span className="rounded-full bg-warn-bg px-2 py-[1px] text-[10.5px] font-bold text-[#92400E]" title={`Só as ${limite} primeiras aparecem. Suba este produto ou aumente o limite.`}>
+                            <span className="rounded-full bg-warn-bg px-2 py-[1px] text-[10.5px] font-semibold text-[#92400E]" title={`Só as ${limite} primeiras aparecem. Suba este produto ou aumente o limite.`}>
                               Fora do limite
                             </span>
                           )}
@@ -235,7 +235,7 @@ export function PecaTambem({ restauranteId, itens, grupos }: { restauranteId: st
 
           <CartaoPainel className="lg:sticky lg:top-0">
             <div className="border-b border-[var(--adm-borda)] px-4 py-3">
-              <h3 className="text-[14px] font-bold text-[var(--adm-texto-forte)]">Adicionar produto</h3>
+              <h3 className="text-[14px] font-semibold text-[var(--adm-texto-forte)]">Adicionar produto</h3>
               <div className="relative mt-2">
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--adm-texto-suave)]" />
                 <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar produto ou categoria…" aria-label="Buscar produto" className={`${CLASSE_CAMPO} pl-8`} />

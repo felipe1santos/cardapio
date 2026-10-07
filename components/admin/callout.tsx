@@ -29,7 +29,7 @@ export function Callout({
         <Icone className="h-4 w-4" strokeWidth={2.2} />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-[13px] font-bold text-[var(--adm-texto,#101828)]">{titulo}</p>
+        <p className="text-[13px] font-semibold text-[var(--adm-texto,#101828)]">{titulo}</p>
         {children && (
           <div className="mt-0.5 text-[12px] leading-relaxed text-[var(--adm-texto-suave,#5b6472)]">{children}</div>
         )}

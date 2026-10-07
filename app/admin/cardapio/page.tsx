@@ -282,7 +282,7 @@ function CampoFotoCategoria({
         {rotulo}
         <span
           className={[
-            'rounded-menuzia px-1.5 py-[2px] text-[9px] font-bold uppercase tracking-wide',
+            'rounded-menuzia px-1.5 py-[2px] text-[9px] font-semibold uppercase tracking-wide',
             obrigatoria ? 'bg-[#FEE2E2] text-danger' : 'bg-[#F3F4F6] text-text-subtle',
           ].join(' ')}
         >
@@ -390,7 +390,7 @@ function DayToggles({ days, onChange }: { days: number[]; onChange: (days: numbe
           className={[
             // 21px no desktop é alvo de mouse; no dedo erra o dia vizinho. Abaixo de
             // `lg` a pílula cresce nos dois eixos (a de altura vem da camada do painel).
-            'flex h-6 w-6 max-lg:h-10 max-lg:w-10 max-lg:text-[13px] select-none items-center justify-center rounded-menuzia border text-[11px] font-bold transition-colors',
+            'flex h-6 w-6 max-lg:h-10 max-lg:w-10 max-lg:text-[13px] select-none items-center justify-center rounded-menuzia border text-[11px] font-semibold transition-colors',
             active.has(day)
               ? 'border-[var(--adm-azul)] bg-[var(--adm-azul)] text-white'
               : 'border-border bg-white text-text-subtle hover:border-[var(--adm-azul)]',
@@ -567,7 +567,7 @@ function GrupoItemCard({
           <span className="flex-1 text-[13px] font-semibold text-text-main">{grupo.nome}</span>
           <span
             className={[
-              'rounded-menuzia px-1.5 py-0.5 text-[10px] font-bold',
+              'rounded-menuzia px-1.5 py-0.5 text-[10px] font-semibold',
               grupo.obrigatorio ? 'bg-danger-bg text-danger' : 'border border-border bg-white text-text-subtle',
             ].join(' ')}
           >
@@ -623,7 +623,7 @@ function GrupoItemCard({
                       await onRefresh()
                     } catch { /* silencioso */ }
                   }}
-                  className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-danger text-[10px] font-bold leading-none text-white shadow-sm hover:bg-[#DC2626]"
+                  className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-danger text-[10px] font-semibold leading-none text-white shadow-sm hover:bg-[#DC2626]"
                   title="Remover foto"
                 >
                   ×
@@ -632,7 +632,7 @@ function GrupoItemCard({
             </div>
             <span className="flex-1 text-[13px] font-medium">{comp.nome}</span>
             {comp.pausado && (
-              <span className="flex-shrink-0 rounded-menuzia bg-warn-bg px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-warn">
+              <span className="flex-shrink-0 rounded-menuzia bg-warn-bg px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-warn">
                 Pausado
               </span>
             )}
@@ -641,7 +641,7 @@ function GrupoItemCard({
                 + R$ {comp.preco.toFixed(2).replace('.', ',')}
               </span>
             ) : (
-              <span className="rounded-menuzia bg-price-bg px-1.5 py-0.5 text-[11px] font-bold text-price-text">
+              <span className="rounded-menuzia bg-price-bg px-1.5 py-0.5 text-[11px] font-semibold text-price-text">
                 Grátis
               </span>
             )}
@@ -1637,7 +1637,7 @@ export default function CardapioPage() {
         <TopBar title="Gestor de Cardápio" breadcrumb="Cardápio" />
         <div className="flex flex-1 items-center justify-center p-5">
           <div className="max-w-md rounded-menuzia border border-border bg-white p-5 text-center">
-            <h2 className="text-sm font-bold text-danger">Não foi possível carregar o cardápio</h2>
+            <h2 className="text-sm font-semibold text-danger">Não foi possível carregar o cardápio</h2>
             <p className="mt-2 text-[13px] leading-relaxed text-text-subtle">{error}</p>
           </div>
         </div>
@@ -1688,7 +1688,7 @@ export default function CardapioPage() {
                   }`}
                 >
                   {group.nome}
-                  <span className={`rounded-full px-1.5 text-[11px] font-bold ${ativa ? 'bg-white/25 text-white' : 'bg-[#f1f2f4] text-[var(--adm-texto-medio)]'}`}>{groupCounts.get(group.id) ?? 0}</span>
+                  <span className={`rounded-full px-1.5 text-[11px] font-semibold ${ativa ? 'bg-white/25 text-white' : 'bg-[#f1f2f4] text-[var(--adm-texto-medio)]'}`}>{groupCounts.get(group.id) ?? 0}</span>
                 </button>
               )
             })}
@@ -1717,9 +1717,9 @@ export default function CardapioPage() {
           {/* Categorias (desktop) */}
           <aside className="flex w-[260px] flex-shrink-0 flex-col overflow-hidden rounded-[6px] border-[0.8px] border-[var(--adm-borda-cartao)] bg-white max-lg:hidden">
             <div className="flex items-center justify-between gap-2 border-b border-[var(--adm-borda)] px-3.5 py-2.5">
-              <h3 className="flex items-center gap-2 text-[13px] font-bold text-[var(--adm-texto-forte)]">
+              <h3 className="flex items-center gap-2 text-[13px] font-semibold text-[var(--adm-texto-forte)]">
                 Categorias
-                <span className="rounded-full bg-[#f1f2f4] px-2 py-[1px] text-[11px] font-bold text-[var(--adm-texto-medio)]">{groups.length}</span>
+                <span className="rounded-full bg-[#f1f2f4] px-2 py-[1px] text-[11px] font-semibold text-[var(--adm-texto-medio)]">{groups.length}</span>
               </h3>
               <button type="button" onClick={openCreateCategoria} className="flex items-center gap-1 rounded-[4px] px-2 py-1 text-[12px] font-semibold text-[var(--adm-azul)] hover:bg-[var(--adm-azul-claro)]">
                 <Plus className="h-3.5 w-3.5" /> Nova
@@ -1764,7 +1764,7 @@ export default function CardapioPage() {
                       {group.horarioAtivoInicio && group.horarioAtivoFim && (
                         <Clock className="h-3.5 w-3.5 flex-shrink-0 text-[var(--adm-azul)]" aria-label={`Ativa das ${group.horarioAtivoInicio} às ${group.horarioAtivoFim}`} />
                       )}
-                      <span className={['ml-auto rounded-full px-2 py-[1px] text-[11px] font-bold', group.nome === activeGroup ? 'bg-white text-[var(--adm-azul-escuro)]' : 'bg-[#f1f2f4] text-[var(--adm-texto-medio)]'].join(' ')}>
+                      <span className={['ml-auto rounded-full px-2 py-[1px] text-[11px] font-semibold', group.nome === activeGroup ? 'bg-white text-[var(--adm-azul-escuro)]' : 'bg-[#f1f2f4] text-[var(--adm-texto-medio)]'].join(' ')}>
                         {groupCounts.get(group.id) ?? 0}
                       </span>
                     </button>
@@ -1810,7 +1810,7 @@ export default function CardapioPage() {
           <section className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-[6px] border-[0.8px] border-[var(--adm-borda-cartao)] bg-white max-lg:overflow-visible">
             <div className="flex flex-wrap items-center gap-2 border-b border-[var(--adm-borda)] px-3.5 py-2.5">
               <div className="mr-auto min-w-0">
-                <h2 className="truncate text-[14px] font-bold text-[var(--adm-texto-forte)]">{activeGroup ?? 'Sem categoria'}</h2>
+                <h2 className="truncate text-[14px] font-semibold text-[var(--adm-texto-forte)]">{activeGroup ?? 'Sem categoria'}</h2>
                 <p className="text-[11.5px] text-[var(--adm-texto-suave)]">
                   {visibleItems.length} {visibleItems.length === 1 ? 'item' : 'itens'}
                   {selected.size > 0 && <> · <b className="text-[var(--adm-azul)]">{selected.size} selecionado(s)</b></>}
@@ -2052,13 +2052,13 @@ export default function CardapioPage() {
                         <div className="mt-1 flex items-center justify-between">
                           {item.promocaoPreco !== null ? (
                             <span className="flex flex-col">
-                              <span className="rounded-menuzia bg-price-bg px-2 py-1 text-[13px] font-bold text-price-text">
+                              <span className="rounded-menuzia bg-price-bg px-2 py-1 text-[13px] font-semibold text-price-text">
                                 R$ {item.promocaoPreco.toFixed(2).replace('.', ',')}
                               </span>
                               <span className="mt-0.5 text-[11px] text-text-subtle line-through">R$ {item.preco.toFixed(2).replace('.', ',')}</span>
                             </span>
                           ) : (
-                            <span className="rounded-menuzia bg-price-bg px-2 py-1 text-[13px] font-bold text-price-text">
+                            <span className="rounded-menuzia bg-price-bg px-2 py-1 text-[13px] font-semibold text-price-text">
                               <PrecoDaLista item={item} />
                             </span>
                           )}
@@ -2118,7 +2118,7 @@ export default function CardapioPage() {
       <aside className={modalClass(drawer === 'categoria', 'w-[380px] max-w-[92vw]')}>
         <div className="flex items-center justify-between border-b border-border px-4.5 py-4">
           <div>
-            <h2 className="text-[15px] font-bold">Nova categoria</h2>
+            <h2 className="text-[15px] font-semibold">Nova categoria</h2>
             <p className="mt-0.5 text-xs text-text-subtle">Ex.: Lanches, Combos, Bebidas, Sobremesas.</p>
           </div>
           <button onClick={closeDrawer} className="toque-icone flex h-[30px] w-[30px] items-center justify-center rounded-menuzia bg-page text-lg text-text-subtle hover:bg-border">×</button>
@@ -2194,7 +2194,7 @@ export default function CardapioPage() {
       <aside className={modalClass(drawer === 'preset', 'w-[420px] max-w-[92vw]')}>
         <div className="flex items-center justify-between border-b border-border px-4.5 py-4">
           <div>
-            <h2 className="text-[15px] font-bold">Importar grupo de complementos</h2>
+            <h2 className="text-[15px] font-semibold">Importar grupo de complementos</h2>
             <p className="mt-0.5 text-xs text-text-subtle">Selecione um grupo salvo para adicionar a este produto com as regras já configuradas.</p>
           </div>
           <button onClick={() => setDrawer('edit')} className="toque-icone flex h-[30px] w-[30px] items-center justify-center rounded-menuzia bg-page text-lg text-text-subtle hover:bg-border">×</button>
@@ -2221,13 +2221,13 @@ export default function CardapioPage() {
                 <div className="flex-1 min-w-0">
                   <h4 className="truncate text-sm font-semibold text-[var(--adm-texto)]">{preset.nome}</h4>
                   <div className="mt-0.5 flex items-center gap-2">
-                    <span className={`text-[10px] font-bold ${preset.obrigatorio ? 'text-danger' : 'text-text-subtle'}`}>
+                    <span className={`text-[10px] font-semibold ${preset.obrigatorio ? 'text-danger' : 'text-text-subtle'}`}>
                       {preset.obrigatorio ? 'Obrigatório' : 'Opcional'}
                     </span>
                     <span className="text-[10px] text-text-subtle">· {ruleHint(preset)}</span>
                   </div>
                 </div>
-                <span className="rounded-full bg-[#f1f2f4] px-2 py-0.5 text-[11px] font-bold text-[var(--adm-texto-medio)]">{preset.itens.length} {preset.itens.length === 1 ? 'opção' : 'opções'}</span>
+                <span className="rounded-full bg-[#f1f2f4] px-2 py-0.5 text-[11px] font-semibold text-[var(--adm-texto-medio)]">{preset.itens.length} {preset.itens.length === 1 ? 'opção' : 'opções'}</span>
               </div>
               <div className="flex flex-wrap gap-1.5 px-3.5 py-2.5">
                 {preset.itens.map((entry) => (
@@ -2261,7 +2261,7 @@ export default function CardapioPage() {
             <header className="flex-shrink-0 border-b border-[#e5e7eb]">
               <div className="flex items-center justify-between gap-3 px-5 pt-3.5">
                 <div className="min-w-0">
-                  <h2 id="produto-titulo" className="truncate text-[17px] font-bold text-[#1f2937]">{form.id ? 'Editar produto' : 'Novo produto'}</h2>
+                  <h2 id="produto-titulo" className="truncate text-[17px] font-semibold text-[#1f2937]">{form.id ? 'Editar produto' : 'Novo produto'}</h2>
                   <p className="truncate text-[12px] text-[#6b7280]">{form.id ? form.nome : `Em ${groups.find((g) => g.id === form.grupoId)?.nome ?? 'nenhuma categoria'}`}</p>
                 </div>
                 <button type="button" onClick={closeDrawer} aria-label="Fechar" className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[5px] text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#1f2937]" data-testid="produto-fechar"><X className="h-5 w-5" /></button>
@@ -2269,7 +2269,7 @@ export default function CardapioPage() {
               <nav className="mt-2 flex gap-1 overflow-x-auto px-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="tablist" aria-label="Seções do produto">
                 {ABAS_PRODUTO.map((a) => (
                   <button key={a.id} type="button" role="tab" aria-selected={abaProduto === a.id} onClick={() => setAbaProduto(a.id)} data-testid={`produto-aba-${a.id}`}
-                    className={['-mb-px flex-shrink-0 whitespace-nowrap border-b-2 px-3 py-2.5 text-[12.5px] font-bold uppercase tracking-[0.03em] transition-colors',
+                    className={['-mb-px flex-shrink-0 whitespace-nowrap border-b-2 px-3 py-2.5 text-[12.5px] font-semibold uppercase tracking-[0.03em] transition-colors',
                       abaProduto === a.id ? 'border-[#0688d4] text-[#0688d4]' : 'border-transparent text-[#6b7280] hover:text-[#1f2937]'].join(' ')}>
                     {a.rotulo}
                   </button>
@@ -2284,7 +2284,7 @@ export default function CardapioPage() {
                   <Aviso tom="azul" className="mb-3">
                     <span className="flex items-start justify-between gap-2">
                       <span>{avisoItem}</span>
-                      <button type="button" data-toque-livre onClick={() => setAvisoItem(null)} className="font-bold" aria-label="Dispensar aviso">✕</button>
+                      <button type="button" data-toque-livre onClick={() => setAvisoItem(null)} className="font-semibold" aria-label="Dispensar aviso">✕</button>
                     </span>
                   </Aviso>
                 )}
@@ -2295,7 +2295,7 @@ export default function CardapioPage() {
                 <div className="px-5 pb-6">
                   {!form.id && (
                     <div className="mb-4">
-                      <div className="mb-2 text-[11.5px] font-bold uppercase tracking-[0.05em] text-[#5b6472]">Que tipo de produto?</div>
+                      <div className="mb-2 text-[11.5px] font-semibold uppercase tracking-[0.05em] text-[#5b6472]">Que tipo de produto?</div>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" data-testid="produto-tipo">
                 {[
                   { key: 'simples', icon: <Sandwich className="h-5 w-5" />, label: 'Lanche / Simples', onClick: () => { setForm((p) => ({ ...p, tipoItem: 'simples' })); setTemTamanhos(false) }, active: form.tipoItem === 'simples' && !temTamanhos },
@@ -2413,7 +2413,7 @@ export default function CardapioPage() {
                         <label className="cf"><input className="cf-campo" placeholder=" " maxLength={40} value={form.codigoInterno} onChange={(e) => setForm((p) => ({ ...p, codigoInterno: e.target.value }))} data-testid="produto-codigo-interno" /><span className="cf-rotulo">Código interno</span></label>
                       </div>
                       <div className="sm:col-span-2">
-                        <div className="mb-1.5 text-[11.5px] font-bold uppercase tracking-[0.05em] text-[#5b6472]">Descrição</div>
+                        <div className="mb-1.5 text-[11.5px] font-semibold uppercase tracking-[0.05em] text-[#5b6472]">Descrição</div>
                         <DescricaoEditor valor={form.descricao} onChange={(descricao) => setForm((p) => ({ ...p, descricao }))} placeholder="Ex.: Pão brioche, 2 hambúrgueres 120g, cheddar e molho da casa" />
                         <p className="mt-1 text-[11.5px] text-[#6b7280]">Dica: selecione um trecho e use <b>negrito</b> ou cor para destacar. Escreva ingredientes e o tamanho da porção.</p>
                       </div>
@@ -2454,7 +2454,7 @@ export default function CardapioPage() {
                   {/* Tamanhos e preços (pizza, marmita, açaí) */}
                   {temVariacoes && (
                     <div className="mt-5 border-t border-[#eef0f3] pt-4" data-testid="produto-tamanhos">
-                      <div className="mb-2 text-[11.5px] font-bold uppercase tracking-[0.05em] text-[#5b6472]">{form.tipoItem === 'pizza' ? 'Tamanhos e preços' : temTamanhos ? 'Volumes' : 'Tamanhos'}</div>
+                      <div className="mb-2 text-[11.5px] font-semibold uppercase tracking-[0.05em] text-[#5b6472]">{form.tipoItem === 'pizza' ? 'Tamanhos e preços' : temTamanhos ? 'Volumes' : 'Tamanhos'}</div>
                       {!form.id ? (
                         <p className="rounded-[6px] border border-dashed border-[#c9d2dc] px-3 py-4 text-center text-[12.5px] text-[#6b7280]">Salve o produto para montar {form.tipoItem === 'pizza' ? 'a tabela de sabores × tamanhos' : temTamanhos ? 'os volumes' : 'os tamanhos'}.</p>
                       ) : form.tipoItem === 'pizza' && currentItem && restauranteId ? (
@@ -2507,7 +2507,7 @@ export default function CardapioPage() {
                       <span className="flex-1 text-[13px] font-medium">{comp.nome}</span>
                       {comp.preco > 0
                         ? <span className="text-xs font-semibold text-price-text">+ R$ {comp.preco.toFixed(2).replace('.', ',')}</span>
-                        : <span className="rounded-menuzia bg-price-bg px-1.5 py-0.5 text-[11px] font-bold text-price-text">Grátis</span>
+                        : <span className="rounded-menuzia bg-price-bg px-1.5 py-0.5 text-[11px] font-semibold text-price-text">Grátis</span>
                       }
                       <button onClick={() => removeComplementoFromItem(comp.id)}
                         className="flex h-[26px] w-[26px] items-center justify-center rounded-menuzia bg-danger-bg text-[15px] text-danger hover:bg-[#FCA5A5] hover:text-white">
@@ -2613,7 +2613,7 @@ export default function CardapioPage() {
                       {pausadoAteTerPreco && <p className="mt-1.5 text-[11.5px] font-medium text-[#92400E]">Pausado até ter um {temTamanhos ? 'volume' : 'tamanho'} com preço.</p>}
                     </div>
                     <div>
-                      <div className="mb-1.5 text-[11.5px] font-bold uppercase tracking-[0.05em] text-[#5b6472]">Dias em que aparece</div>
+                      <div className="mb-1.5 text-[11.5px] font-semibold uppercase tracking-[0.05em] text-[#5b6472]">Dias em que aparece</div>
                       <DayToggles days={form.diasDisponiveis} onChange={(days) => setForm((p) => ({ ...p, diasDisponiveis: days }))} />
                     </div>
                   </div>
@@ -2704,7 +2704,7 @@ export default function CardapioPage() {
           {confirmarFechar && (
             <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/30 p-4" onMouseDown={(e) => { e.stopPropagation(); setConfirmarFechar(false) }}>
               <div role="alertdialog" aria-modal="true" className="w-full max-w-[400px] rounded-[8px] bg-white p-5 shadow-2xl" onMouseDown={(e) => e.stopPropagation()} data-testid="confirmar-descartar">
-                <h3 className="text-[15px] font-bold text-[#1f2937]">Sair sem salvar?</h3>
+                <h3 className="text-[15px] font-semibold text-[#1f2937]">Sair sem salvar?</h3>
                 <p className="mt-1.5 text-[13px] text-[#4b5563]">As alterações deste produto ainda não foram salvas e serão perdidas.</p>
                 <div className="mt-4 flex justify-end gap-2">
                   <button type="button" className="h-10 rounded-[5px] border border-[#d6dae1] px-4 text-[13px] font-semibold text-[#374151]" onClick={() => setConfirmarFechar(false)} data-testid="descartar-voltar">Continuar editando</button>

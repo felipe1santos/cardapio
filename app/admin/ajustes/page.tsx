@@ -581,7 +581,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
               {form.logoUrl
                 // eslint-disable-next-line @next/next/no-img-element
                 ? <img src={form.logoUrl} alt="Logotipo" className="h-16 w-16 rounded-menuzia border border-border object-cover" />
-                : <div className="flex h-16 w-16 items-center justify-center rounded-menuzia border border-border bg-page text-xl font-bold text-text-subtle">
+                : <div className="flex h-16 w-16 items-center justify-center rounded-menuzia border border-border bg-page text-xl font-semibold text-text-subtle">
                     {form.nome.trim().charAt(0).toUpperCase() || '?'}
                   </div>
               }
@@ -1397,7 +1397,7 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
         <div className="max-w-xl space-y-6">
           {/* Como a loja vende e como fecha o pedido */}
           <Card>
-            <h3 className="mb-1 text-[13px] font-bold text-text-main">Como a loja atende</h3>
+            <h3 className="mb-1 text-[13px] font-semibold text-text-main">Como a loja atende</h3>
             <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
               Define o que o cliente pode escolher no cardápio e quem encerra o pedido no painel.
             </p>
@@ -1428,7 +1428,7 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
 
           {/* Taxa padrão */}
           <Card>
-            <h3 className="mb-1 text-[13px] font-bold text-text-main">Taxa padrão de entrega</h3>
+            <h3 className="mb-1 text-[13px] font-semibold text-text-main">Taxa padrão de entrega</h3>
             <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
               Vale para quem não tem taxa específica por bairro. Se você não cadastrou nenhum bairro nem faixa de raio,
               é essa a taxa de todo pedido de entrega.
@@ -1465,7 +1465,7 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
 
           {/* Entrega grátis acima de um valor */}
           <Card>
-            <h3 className="mb-1 text-[13px] font-bold text-text-main">Entrega grátis</h3>
+            <h3 className="mb-1 text-[13px] font-semibold text-text-main">Entrega grátis</h3>
             <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
               Pedidos com subtotal igual ou acima deste valor ganham entrega grátis. O aviso aparece em destaque no
               carrinho do cliente. Deixe em branco para desativar.
@@ -1492,7 +1492,7 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
 
           {/* Taxas por bairro */}
           <Card>
-            <h3 className="mb-1 text-[13px] font-bold text-text-main">Taxas por bairro</h3>
+            <h3 className="mb-1 text-[13px] font-semibold text-text-main">Taxas por bairro</h3>
             <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
               Quando o cliente informa o bairro no checkout, o sistema usa a taxa correspondente. Bairro que não está
               aqui só consegue pedir se a opção “aceitar bairro fora da tabela” estiver ligada acima (ou se ele cair
@@ -1574,7 +1574,7 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
 
           {/* Entrega por raio (faixas de km) */}
           <Card>
-            <h3 className="mb-1 text-[13px] font-bold text-text-main">Entrega por raio (km)</h3>
+            <h3 className="mb-1 text-[13px] font-semibold text-text-main">Entrega por raio (km)</h3>
             <p className="mb-2 text-[12px] leading-relaxed text-text-subtle">
               Cobra o frete pela distância em linha reta entre a loja e o cliente. Defina faixas: até X km custa R$ Y.
               Endereços além da última faixa ficam fora da área de entrega.
@@ -1733,7 +1733,7 @@ function TabConta({ active }: { active: boolean }) {
     <div className={['flex flex-1 flex-col overflow-hidden', !active ? 'hidden' : ''].join(' ')}>
       <div className="flex-1 overflow-y-auto px-5 py-6">
         <Card className="mb-5 max-w-xl">
-          <h3 className="mb-1 text-[13px] font-bold text-text-main">Aplicativo Menuzia (atalho)</h3>
+          <h3 className="mb-1 text-[13px] font-semibold text-text-main">Aplicativo Menuzia (atalho)</h3>
           <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
             Instale o painel como aplicativo na área de trabalho / tela inicial — abre em janela
             própria, sem a barra do navegador, com o ícone da Menuzia. Normalmente o navegador
@@ -1746,7 +1746,7 @@ function TabConta({ active }: { active: boolean }) {
         {active && (
         <Card className="max-w-xl space-y-5">
           <div>
-            <h3 className="mb-0.5 text-[13px] font-bold text-text-main">Alterar senha</h3>
+            <h3 className="mb-0.5 text-[13px] font-semibold text-text-main">Alterar senha</h3>
             <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
               Defina uma nova senha de acesso ao painel. Você continuará logado nesta sessão.
             </p>
@@ -1886,7 +1886,7 @@ function TabMesas({ restauranteId, active }: { restauranteId: string; active: bo
               <ConfigConta embutida />
               <CardapioDaMesaConfig />
               <Card>
-                <h3 className="mb-1 text-[13px] font-bold text-text-main">Cadastro das mesas</h3>
+                <h3 className="mb-1 text-[13px] font-semibold text-text-main">Cadastro das mesas</h3>
                 <p className="text-[12px] leading-relaxed text-text-subtle">
                   Com o módulo ligado, cadastrar, editar, bloquear e gerar o QR de cada mesa é feito em{' '}
                   <strong className="text-text-main">Mesas e Comandas</strong>, no menu lateral — junto do salão, das
@@ -1899,7 +1899,7 @@ function TabMesas({ restauranteId, active }: { restauranteId: string; active: bo
           {moduloAtivo === false && (
           <>
           <Card>
-            <h3 className="mb-1 text-[13px] font-bold text-text-main">Mesas</h3>
+            <h3 className="mb-1 text-[13px] font-semibold text-text-main">Mesas</h3>
             <p className="mb-4 text-[12px] leading-relaxed text-text-subtle">
               Cadastre as mesas do estabelecimento para uso no PDV de balcão.
             </p>
@@ -1935,7 +1935,7 @@ function TabMesas({ restauranteId, active }: { restauranteId: string; active: bo
                       <button
                         onClick={() => handleToggleAtiva(m)}
                         className={[
-                          'flex-shrink-0 rounded-menuzia px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide transition-colors',
+                          'flex-shrink-0 rounded-menuzia px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide transition-colors',
                           m.ativa
                             ? 'bg-status-ready/10 text-status-ready hover:bg-status-ready/20'
                             : 'bg-page text-text-subtle hover:bg-border',

@@ -84,10 +84,10 @@ export function MercadoPagoCard({ avisar }: { avisar: (m: string) => void }) {
     <section className="flex h-full flex-col rounded-[12px] border border-[#E5E7EB] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]" data-testid="cartao-mercadopago">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-[15px] font-bold text-text-main">Mercado Pago · Pix online</p>
+          <p className="text-[15px] font-semibold text-text-main">Mercado Pago · Pix online</p>
           <p className="mt-[2px] text-[12.5px] text-text-subtle">O cliente paga o Pix na hora, pelo QR; o pedido só vai para a cozinha depois que o Mercado Pago confirma. O dinheiro cai na conta da loja.</p>
         </div>
-        <span className={`flex-shrink-0 rounded-[3px] px-[8px] py-[3px] text-[11px] font-bold uppercase tracking-wide text-white ${c.conectada ? 'bg-[#047857]' : c.status === 'erro' ? 'bg-[#B91C1C]' : 'bg-[#4B5563]'}`} data-testid="mp-situacao">
+        <span className={`flex-shrink-0 rounded-[3px] px-[8px] py-[3px] text-[11px] font-semibold uppercase tracking-wide text-white ${c.conectada ? 'bg-[#047857]' : c.status === 'erro' ? 'bg-[#B91C1C]' : 'bg-[#4B5563]'}`} data-testid="mp-situacao">
           {c.conectada ? 'Conectado' : c.status === 'erro' ? 'Reconectar' : 'Desconectado'}
         </span>
       </div>
@@ -136,9 +136,9 @@ export function MercadoPagoCard({ avisar }: { avisar: (m: string) => void }) {
                   <span className="w-[54px] font-semibold">#{p.numero ?? '—'}</span>
                   <span className="min-w-0 flex-1 truncate text-text-subtle">{p.cliente ?? ''}</span>
                   <span className="font-semibold">{brl(p.valor)}</span>
-                  <span className="rounded-[3px] px-[6px] py-[2px] text-[11px] font-bold text-white" style={{ background: r.cor }}>{r.t}</span>
+                  <span className="rounded-[3px] px-[6px] py-[2px] text-[11px] font-semibold text-white" style={{ background: r.cor }}>{r.t}</span>
                   {['pago', 'a_devolver'].includes(p.status) && (
-                    <button type="button" onClick={() => { setDevolver(p); setEtapa('motivo'); setErro(null) }} className="h-[30px] rounded-[3px] border border-[#B91C1C] px-[8px] text-[11px] font-bold uppercase text-[#B91C1C] hover:bg-[#FEE2E2]" data-testid="mp-devolver">Devolver</button>
+                    <button type="button" onClick={() => { setDevolver(p); setEtapa('motivo'); setErro(null) }} className="h-[30px] rounded-[3px] border border-[#B91C1C] px-[8px] text-[11px] font-semibold uppercase text-[#B91C1C] hover:bg-[#FEE2E2]" data-testid="mp-devolver">Devolver</button>
                   )}
                 </li>
               )

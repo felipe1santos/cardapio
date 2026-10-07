@@ -671,8 +671,8 @@ export default function MesaDetalhePage() {
                   <Utensils className="h-5 w-5" />
                 </span>
                 <div className="min-w-0">
-                  <div className="text-[10px] font-bold uppercase tracking-wide opacity-80">{estadoTexto}</div>
-                  <div className="truncate text-[16px] font-extrabold leading-tight md:text-[18px]">
+                  <div className="text-[10px] font-semibold uppercase tracking-wide opacity-80">{estadoTexto}</div>
+                  <div className="truncate text-[16px] font-semibold leading-tight md:text-[18px]">
                     {mesa.nome}
                     {conta?.numero ? <span className="ml-2 text-[12px] font-semibold opacity-85 md:text-[13px]"><span className="hidden md:inline">Comanda </span>#{conta.numero}</span> : null}
                   </div>
@@ -682,12 +682,12 @@ export default function MesaDetalhePage() {
               {conta && (
                 <div className="ml-auto flex flex-shrink-0 items-center gap-1.5 md:gap-2">
                   <div className="rounded-menuzia bg-white/15 px-2 py-1 text-right md:px-3 md:py-1.5">
-                    <div className="text-[9px] font-bold uppercase tracking-wide opacity-80 md:text-[10px]">Total</div>
-                    <div className="text-[13px] font-extrabold md:text-[15px]">{brl(conta.totais.total)}</div>
+                    <div className="text-[9px] font-semibold uppercase tracking-wide opacity-80 md:text-[10px]">Total</div>
+                    <div className="text-[13px] font-semibold md:text-[15px]">{brl(conta.totais.total)}</div>
                   </div>
                   <div className={`rounded-menuzia px-2 py-1 text-right md:px-3 md:py-1.5 ${conta.totais.restante > 0 ? 'bg-white text-text-main' : 'bg-white/15'}`}>
-                    <div className="text-[9px] font-bold uppercase tracking-wide opacity-70 md:text-[10px]">Falta pagar</div>
-                    <div className={`text-[13px] font-extrabold md:text-[15px] ${conta.totais.restante > 0 ? 'text-danger' : ''}`}>{brl(conta.totais.restante)}</div>
+                    <div className="text-[9px] font-semibold uppercase tracking-wide opacity-70 md:text-[10px]">Falta pagar</div>
+                    <div className={`text-[13px] font-semibold md:text-[15px] ${conta.totais.restante > 0 ? 'text-danger' : ''}`}>{brl(conta.totais.restante)}</div>
                   </div>
                 </div>
               )}
@@ -716,7 +716,7 @@ export default function MesaDetalhePage() {
               aria-selected={aba === id}
               onClick={() => setAba(id)}
               className={[
-                'flex min-h-[44px] items-center justify-center gap-1.5 whitespace-nowrap rounded-menuzia px-3 text-[12px] font-bold uppercase tracking-wide transition-colors sm:px-5 lg:min-h-[40px]',
+                'flex min-h-[44px] items-center justify-center gap-1.5 whitespace-nowrap rounded-menuzia px-3 text-[12px] font-semibold uppercase tracking-wide transition-colors sm:px-5 lg:min-h-[40px]',
                 aba === id ? `${cor} text-white shadow-sm` : 'text-text-subtle hover:bg-page hover:text-text-main',
               ].join(' ')}
             >
@@ -791,7 +791,7 @@ export default function MesaDetalhePage() {
                       aria-selected={g.id === categoriaAberta}
                       onClick={() => setCategoriaAtiva(g.id)}
                       className={[
-                        'min-h-[40px] whitespace-nowrap rounded-menuzia border px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-colors lg:min-h-[34px]',
+                        'min-h-[40px] whitespace-nowrap rounded-menuzia border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide transition-colors lg:min-h-[34px]',
                         g.id === categoriaAberta
                           ? 'border-primary bg-primary text-white'
                           : 'border-border bg-main text-text-subtle hover:text-text-main',
@@ -830,7 +830,7 @@ export default function MesaDetalhePage() {
           <aside className="space-y-4 xl:sticky xl:top-0">
             <div className="hidden rounded-menuzia border border-border bg-main xl:block">
               <div className="border-b border-border px-4 py-3">
-                <h3 className="text-[13px] font-bold text-text-main">Lançamento</h3>
+                <h3 className="text-[13px] font-semibold text-text-main">Lançamento</h3>
                 <p className="text-[11px] text-text-subtle">Confira antes de enviar. Depois vai direto pra cozinha.</p>
               </div>
               {painel('max-h-[46vh]')}
@@ -838,8 +838,8 @@ export default function MesaDetalhePage() {
 
             <div className="rounded-menuzia border border-border bg-main">
               <div className="flex items-center justify-between border-b border-border px-4 py-3">
-                <h3 className="text-[13px] font-bold text-text-main">Já lançado</h3>
-                <span className="text-[13px] font-bold text-price-text">{brl(totalComanda)}</span>
+                <h3 className="text-[13px] font-semibold text-text-main">Já lançado</h3>
+                <span className="text-[13px] font-semibold text-price-text">{brl(totalComanda)}</span>
               </div>
               {pedidos.length === 0 ? (
                 <p className="px-4 py-6 text-center text-[12px] text-text-subtle">Nenhum pedido nesta mesa ainda.</p>
@@ -854,7 +854,7 @@ export default function MesaDetalhePage() {
                           <span className="block text-[11px] text-text-subtle">por {p.criadoPorNome}</span>
                         )}
                       </span>
-                      <span className="text-[13px] font-bold text-price-text">{brl(p.total)}</span>
+                      <span className="text-[13px] font-semibold text-price-text">{brl(p.total)}</span>
                     </li>
                   ))}
                 </ul>
@@ -888,14 +888,14 @@ export default function MesaDetalhePage() {
                 ? 'Lançamento vazio'
                 : `${resumoLancamento.itens} ${resumoLancamento.itens === 1 ? 'item' : 'itens'} no lançamento`}
             </div>
-            <div className="text-[16px] font-bold text-price-text">{brl(resumoLancamento.total)}</div>
+            <div className="text-[16px] font-semibold text-price-text">{brl(resumoLancamento.total)}</div>
           </div>
           <Button className="min-h-[44px]" onClick={() => setFolhaAberta(true)}>
             <ShoppingBag className="h-4 w-4" />
             <span className="hidden min-[400px]:inline">Ver lançamento</span>
             <span className="min-[400px]:hidden">Ver</span>
             {resumoLancamento.itens > 0 && (
-              <span className="grid h-[20px] min-w-[20px] place-items-center rounded-full bg-white px-1 text-[11px] font-bold text-primary">{resumoLancamento.itens}</span>
+              <span className="grid h-[20px] min-w-[20px] place-items-center rounded-full bg-white px-1 text-[11px] font-semibold text-primary">{resumoLancamento.itens}</span>
             )}
           </Button>
         </div>
@@ -948,7 +948,7 @@ export default function MesaDetalhePage() {
             <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-full border-2 border-status-ready text-status-ready">
               <Check className="h-6 w-6" />
             </div>
-            <h2 className="text-[16px] font-bold text-text-main">Pedido #{enviado.numero} enviado</h2>
+            <h2 className="text-[16px] font-semibold text-text-main">Pedido #{enviado.numero} enviado</h2>
             <p className="mt-1 text-[13px] text-text-subtle">
               A cozinha recebeu e o pedido entrou na comanda da {mesa.nome}.
             </p>

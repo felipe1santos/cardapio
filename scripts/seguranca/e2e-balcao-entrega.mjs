@@ -238,7 +238,8 @@ try {
   await card(pEnt.numero).getByRole('button', { name: 'Aceitar' }).click(); await k.waitForTimeout(900)
   await card(pEnt.numero).getByRole('button', { name: 'Pronto' }).click(); await k.waitForTimeout(1500)
   ok('fica em "pronto"', (await um(`select status from pedidos where id = $1`, [pEnt.id])).status === 'pronto')
-  ok('card mostra NA LOGÍSTICA com capacete', await card(pEnt.numero).getByTestId('card-na-logistica').isVisible())
+  // Item 58: o despacho é no próprio card ("Despachar") — o "Na logística" saiu.
+  ok('card mostra o botão Despachar', await card(pEnt.numero).getByTestId('card-despachar').isVisible())
   const aud1 = await um(`select dados from eventos_auditoria where entidade_id = $1 and acao = 'pedido.entrega_balcao_destino'`, [pEnt.id])
   ok('auditoria registra caminho "logistica"', aud1?.dados?.caminho === 'logistica')
   // 0135: o card mostra a forma escolhida no PDV; no card mínimo (2026-10-03) é o ícone + tooltip.
@@ -246,7 +247,7 @@ try {
   ok('card mostra a forma escolhida (Dinheiro) e "A …" (não pago)', /Dinheiro/.test(cardTxt) && /A (pagar|receber)/.test(cardTxt), cardTxt)
   ok('card com ENTREGA em destaque', await card(pEnt.numero).getByTestId('etiqueta-entrega').isVisible())
   const CAPACETE = 'path[d="M3 16.5V15a9 9 0 0 1 17.6-2.7"]'
-  ok('capacete na etiqueta ENTREGA e no "Na logística"', (await card(pEnt.numero).getByTestId('etiqueta-entrega').locator(CAPACETE).count()) === 1 && (await card(pEnt.numero).getByTestId('card-na-logistica').locator(CAPACETE).count()) === 1)
+  ok('capacete na etiqueta ENTREGA', (await card(pEnt.numero).getByTestId('etiqueta-entrega').locator(CAPACETE).count()) === 1)
   ok('relógio no cronômetro do card', (await card(pEnt.numero).locator('[data-testid="card-tempo"] svg.lucide-clock').count()) === 1)
   if (adult.s === 201) {
     // Pedido do delivery (Pix, telefone sem OTP): o card não mostra pagamento nem "não verif.";
@@ -262,10 +263,8 @@ try {
     await k.keyboard.press('Escape'); await k.mouse.click(5, 300); await k.waitForTimeout(300)
   }
   await foto(k, '03-kanban-na-logistica')
-  await k.goto(`${BASE}/admin/logistica`, { waitUntil: 'networkidle' }); await dispensar(k); await k.waitForTimeout(1200)
-  ok('aparece na Logística para despachar', (await k.locator('body').innerText()).includes(`#${pEnt.numero}`))
-  ok('capacete na tela da Logística', (await k.locator(CAPACETE).count()) > 0)
-  await foto(k, '04-logistica')
+  ok('conta no botão "Despachar" do Kanban (prontos para entrega)', Number(await k.getByTestId('kanban-despachar-contador').innerText()) >= 1)
+  await foto(k, '04-kanban-despachar')
 
   secao('Retirada pronta: conclusão local de sempre')
   await k.goto(`${BASE}/admin/pedidos`, { waitUntil: 'networkidle' })
@@ -322,7 +321,7 @@ try {
   const aud2 = await um(`select dados from eventos_auditoria where entidade_id = $1 and acao = 'pedido.entrega_balcao_destino'`, [p2.id])
   ok('auditoria registra "conclusao_automatica"', aud2?.dados?.caminho === 'conclusao_automatica')
   await k.reload({ waitUntil: 'networkidle' }); await k.waitForTimeout(800)
-  ok('sem "NA LOGÍSTICA" enganoso na tela', (await k.getByTestId('card-na-logistica').count()) === 0)
+  ok('sem "Despachar" enganoso na tela (loja sem motoboy)', (await k.getByTestId('card-despachar').count()) === 0 && (await k.getByTestId('kanban-despachar').count()) === 0)
   await foto(k, '06-kanban-logistica-desligada')
 
   secao('Logística ligada + "entrega sem entregador": também conclui sozinha')

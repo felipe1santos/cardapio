@@ -127,7 +127,7 @@ export function ListaCampanhas({ campanhas, carregando, acoes, onNovo }: { campa
                   return (
                     <li key={c.id} className="p-3.5" data-testid="campanha-cartao">
                       <div className="flex items-start justify-between gap-2">
-                        <span className="min-w-0 break-words text-[14px] font-bold text-[#1f2937]">{c.nome}</span>
+                        <span className="min-w-0 break-words text-[14px] font-semibold text-[#1f2937]">{c.nome}</span>
                         <SeloStatusCampanha status={situacaoCampanha(c)} />
                       </div>
                       <div className="mt-1 flex items-center gap-1.5 text-[12px] text-[#5b6472]"><T.icone className="h-3.5 w-3.5" />{T.rotulo} · {formatarDataHora(c.agendadoEm ?? c.criadoEm)}</div>

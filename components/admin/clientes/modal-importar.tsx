@@ -190,7 +190,7 @@ export function ModalImportar({ onFechar, onImportou }: { onFechar: () => void; 
             onChange={(e) => { const c = e.target.checked; setArquivo({ ...arquivo, cabecalho: c }); setMapa(mapearAutomatico(arquivo.linhas[0], c)) }} data-testid="tem-cabecalho" /> primeira linha é cabeçalho</label>
         </p>
 
-        <h3 className="mb-2 mt-4 text-[11.5px] font-bold uppercase tracking-[0.05em] text-[#5b6472]">Colunas do arquivo → campos</h3>
+        <h3 className="mb-2 mt-4 text-[11.5px] font-semibold uppercase tracking-[0.05em] text-[#5b6472]">Colunas do arquivo → campos</h3>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3" data-testid="mapeamento">
           {nomesColunas.map((nome, i) => (
             <label key={i} className="flex items-center gap-2 rounded-[6px] border border-[#e5e7eb] px-2.5 py-2">
@@ -240,7 +240,7 @@ export function ModalImportar({ onFechar, onImportou }: { onFechar: () => void; 
               </div>
             )}
 
-            <h3 className="mb-2 mt-4 text-[11.5px] font-bold uppercase tracking-[0.05em] text-[#5b6472]">Prévia (primeiras 10 linhas)</h3>
+            <h3 className="mb-2 mt-4 text-[11.5px] font-semibold uppercase tracking-[0.05em] text-[#5b6472]">Prévia (primeiras 10 linhas)</h3>
             <div className="overflow-x-auto rounded-[6px] border border-[#e5e7eb]" data-testid="previa">
               <table className="w-full min-w-[760px] text-left text-[12px]">
                 <thead className="bg-[#f9fafb] text-[#374151]"><tr>{['Linha', 'Nome', 'Telefone', 'E-mail', 'Nascimento', 'Endereço', 'Situação'].map((h) => <th key={h} className="px-2.5 py-2 font-semibold">{h}</th>)}</tr></thead>
@@ -311,7 +311,7 @@ function Resumo({ icone: Icone, cor, fundo, valor, rotulo, testid }: { icone: ty
   return (
     <div className="flex items-center gap-2.5 rounded-[6px] px-3 py-2.5" style={{ backgroundColor: fundo }} data-testid={testid}>
       <Icone className="h-5 w-5 flex-shrink-0" style={{ color: cor }} />
-      <span><span className="block text-[18px] font-bold tabular-nums" style={{ color: cor }} data-valor>{valor.toLocaleString('pt-BR')}</span><span className="block text-[11.5px] leading-tight text-[#374151]">{rotulo}</span></span>
+      <span><span className="block text-[18px] font-semibold tabular-nums" style={{ color: cor }} data-valor>{valor.toLocaleString('pt-BR')}</span><span className="block text-[11.5px] leading-tight text-[#374151]">{rotulo}</span></span>
     </div>
   )
 }

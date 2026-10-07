@@ -16,7 +16,7 @@ import { ICONES_PDV, TelaPdv } from './tela-pdv'
 
 const CAMPO =
   'w-full rounded-menuzia border border-border px-3 py-2.5 text-[15px] text-text-main placeholder:text-text-subtle/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary'
-const ROTULO = 'mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle'
+const ROTULO = 'mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle'
 
 function Casca({ titulo, rotulo, onFechar, children, rodape, onSubmit }: {
   titulo: string
@@ -66,7 +66,7 @@ function CamposCliente({ nome, setNome, telefone, setTelefone, prefixo }: {
 }
 
 const BOTAO_SEC = 'flex flex-1 items-center justify-center gap-2 rounded-menuzia border border-border py-3 text-[13px] font-semibold text-text-subtle hover:text-text-main'
-const BOTAO_OK = 'flex flex-[2] items-center justify-center gap-2 rounded-menuzia bg-status-ready py-3 text-[14px] font-bold text-white transition-all hover:brightness-95 disabled:opacity-50'
+const BOTAO_OK = 'flex flex-[2] items-center justify-center gap-2 rounded-menuzia bg-status-ready py-3 text-[14px] font-semibold text-white transition-all hover:brightness-95 disabled:opacity-50'
 
 function Erro({ texto, id }: { texto: string | null; id: string }) {
   if (!texto) return null
@@ -222,7 +222,7 @@ export function LimpezaModal({ mesa, podeLiberar, onFechar, onLiberada }: {
         </>
       }
     >
-      <span className="inline-block rounded-menuzia bg-status-pending px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-white" data-testid="limpeza-badge">
+      <span className="inline-block rounded-menuzia bg-status-pending px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-white" data-testid="limpeza-badge">
         Em limpeza
       </span>
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-[13px]" data-testid="limpeza-detalhe">

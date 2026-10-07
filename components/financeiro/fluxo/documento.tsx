@@ -29,16 +29,16 @@ function descreverFiltros(f: FiltrosFluxo, o: { operadores: Opcao[]; motoboys: O
 }
 
 export function DocumentoFluxo({ dados }: { dados: DadosImpressao }) {
-  const cab = 'border-b border-black px-1.5 py-1 text-left text-[9px] font-bold uppercase'
+  const cab = 'border-b border-black px-1.5 py-1 text-left text-[9px] font-semibold uppercase'
   const cel = 'border-b border-[#ccc] px-1.5 py-[3px] text-[9.5px]'
   if ('turno' in dados) {
     const t = dados.turno
     return (
       <div className="bg-white p-2 font-sans text-black">
-        <h1 className="text-[16px] font-bold">Extrato do turno — {dados.loja}</h1>
+        <h1 className="text-[16px] font-semibold">Extrato do turno — {dados.loja}</h1>
         <p className="text-[10.5px]">Aberto {dataHoraBR(t.aberto_em)} por {String(t.aberto_por_nome ?? '—')} · {t.fechado_em ? `fechado ${dataHoraBR(t.fechado_em)} por ${String(t.fechado_por_nome ?? '—')}` : 'em andamento'}</p>
         <p className="text-[10.5px]">Esperado {brl(t.esperado_dinheiro_centavos)} · contado {brl(t.contado_dinheiro_centavos)} · diferença {brl(t.diferenca_centavos)} · maquininha {brl(t.contado_cartao_centavos)}</p>
-        {dados.reaberturas.map((r, i) => <p key={i} className="text-[10.5px] font-bold">Reaberto por {r.por} em {dataHoraBR(r.em)}{r.motivo ? ` — ${r.motivo}` : ''}</p>)}
+        {dados.reaberturas.map((r, i) => <p key={i} className="text-[10.5px] font-semibold">Reaberto por {r.por} em {dataHoraBR(r.em)}{r.motivo ? ` — ${r.motivo}` : ''}</p>)}
         <p className="mb-2 text-[9.5px] text-[#444]">Gerado por {dados.geradoPor} em {dataHoraBR(dados.geradoEm)}</p>
         <table className="w-full border-collapse">
           <thead><tr>{['Data/hora', 'Tipo', 'Descrição', 'Forma', 'Carteira', 'Feito por', 'Aprovado por', 'Valor'].map((h) => <th key={h} className={cab}>{h}</th>)}</tr></thead>
@@ -65,14 +65,14 @@ export function DocumentoFluxo({ dados }: { dados: DadosImpressao }) {
   }
   return (
     <div className="bg-white p-2 font-sans text-black">
-      <h1 className="text-[16px] font-bold">Fluxo de Caixa — {dados.loja}</h1>
+      <h1 className="text-[16px] font-semibold">Fluxo de Caixa — {dados.loja}</h1>
       <p className="text-[10.5px]">Período: {dataBR(dados.filtros.de)} a {dataBR(dados.filtros.ate)} · Filtros: {descreverFiltros(dados.filtros, dados.opcoes)}</p>
       <p className="mb-2 text-[9.5px] text-[#444]">Gerado por {dados.geradoPor} em {dataHoraBR(dados.geradoEm)} · {dados.linhas.length} turno(s)</p>
       <table className="w-full border-collapse">
         <thead><tr>{cols.map((c) => <th key={c.id} className={cab}>{c.rotulo}</th>)}</tr></thead>
         <tbody>
           {dados.linhas.map((l) => <tr key={l.turnoId ?? 'x'}>{cols.map((c) => <td key={c.id} className={`${cel} ${c.tipo === 'centavos' || c.tipo === 'diferenca' ? 'text-right' : ''}`}>{valor(l, c.id as string)}</td>)}</tr>)}
-          <tr className="font-bold">{cols.map((c, i) => <td key={c.id} className={`border-t-2 border-black px-1.5 py-1 text-[9.5px] ${c.tipo === 'centavos' || c.tipo === 'diferenca' ? 'text-right' : ''}`}>{i === 0 ? 'TOTAL' : (c.id as string) in dados.totais && !['esperado', 'informado'].includes(c.id as string) ? brl(dados.totais[c.id as Somavel]) : ''}</td>)}</tr>
+          <tr className="font-semibold">{cols.map((c, i) => <td key={c.id} className={`border-t-2 border-black px-1.5 py-1 text-[9.5px] ${c.tipo === 'centavos' || c.tipo === 'diferenca' ? 'text-right' : ''}`}>{i === 0 ? 'TOTAL' : (c.id as string) in dados.totais && !['esperado', 'informado'].includes(c.id as string) ? brl(dados.totais[c.id as Somavel]) : ''}</td>)}</tr>
         </tbody>
       </table>
     </div>

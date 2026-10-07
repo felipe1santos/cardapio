@@ -89,7 +89,7 @@ export function SecaoCaixa({ modo }: { modo: 'caixa' | 'movimentacoes' }) {
         <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
           {t ? (
             <div className="min-w-0">
-              <p className="flex items-center gap-2 text-[18px] font-bold text-text-main">
+              <p className="flex items-center gap-2 text-[18px] font-semibold text-text-main">
                 <span className="h-[9px] w-[9px] rounded-full bg-[#006B4E]" /> Caixa aberto
                 {t.status === 'reaberto' && <SeloMeta tom="laranja">Reaberto</SeloMeta>}
               </p>
@@ -100,7 +100,7 @@ export function SecaoCaixa({ modo }: { modo: 'caixa' | 'movimentacoes' }) {
             </div>
           ) : (
             <div>
-              <p className="flex items-center gap-2 text-[18px] font-bold text-text-main"><span className="h-[9px] w-[9px] rounded-full bg-[#D93616]" /> Caixa fechado</p>
+              <p className="flex items-center gap-2 text-[18px] font-semibold text-text-main"><span className="h-[9px] w-[9px] rounded-full bg-[#D93616]" /> Caixa fechado</p>
               <p className="mt-0.5 text-[13px] text-text-subtle">Sem caixa aberto a loja não recebe pagamentos no PDV, no balcão e nas mesas.</p>
             </div>
           )}
@@ -177,7 +177,7 @@ function UltimoFechado({ f, podeReabrir, onReabrir }: { f: Fechado; podeReabrir:
   return (
     <section className="fin-card" data-testid="caixa-ultimo">
       <div className="flex flex-wrap items-center justify-between gap-2 px-5 pt-4">
-        <h2 className="text-[16px] font-bold text-text-main">Último fechamento · {hora(f.fechado_em)} por {f.fechado_por_nome ?? '—'}</h2>
+        <h2 className="text-[16px] font-semibold text-text-main">Último fechamento · {hora(f.fechado_em)} por {f.fechado_por_nome ?? '—'}</h2>
         <div className="flex gap-2">
           <button type="button" className={botao.secundario} onClick={() => window.open(`/admin/financeiro/caixa/${f.id}`, '_blank')} data-testid="caixa-relatorio">Relatório</button>
           {podeReabrir && <button type="button" className={botao.secundario} onClick={onReabrir} data-testid="caixa-reabrir">Reabrir</button>}
@@ -332,8 +332,8 @@ function JanelaFechar({ onFechar }: { onFechar: () => void }) {
       {etapa === 'divergencia' && dif && (
         <div data-testid="fechar-divergencia">
           {soPendencias
-            ? <p className="text-[14px] font-bold text-[#8A4B00]">Explique as pendências antes de fechar.</p>
-            : <p className="text-[14px] font-bold text-[#D93616]">A contagem não bateu: diferença de {brl(dif.diferencaCentavos)} no dinheiro{dif.diferencaCartaoCentavos ? ` e ${brl(dif.diferencaCartaoCentavos)} no cartão` : ''}.</p>}
+            ? <p className="text-[14px] font-semibold text-[#8A4B00]">Explique as pendências antes de fechar.</p>
+            : <p className="text-[14px] font-semibold text-[#D93616]">A contagem não bateu: diferença de {brl(dif.diferencaCentavos)} no dinheiro{dif.diferencaCartaoCentavos ? ` e ${brl(dif.diferencaCartaoCentavos)} no cartão` : ''}.</p>}
           {dif.textos?.length ? <ul className="mt-[4px] list-disc pl-5 text-[12.5px] text-text-main" data-testid="fechar-motivos">{dif.textos.map((t) => <li key={t}>{t}</li>)}</ul> : null}
           <p className="mb-[10px] mt-[2px] text-[12.5px] text-text-subtle">{soPendencias ? 'A justificativa fica no fechamento e o dono recebe o aviso.' : 'Conte de novo, ou explique a diferença (o dono recebe o aviso). Cada contagem fica registrada.'}</p>
           <textarea className="min-h-[80px] w-full rounded-[3px] border border-border p-[10px] text-[13px] outline-none focus:border-primary" placeholder="O que aconteceu?" value={just} onChange={(ev) => setJust(ev.target.value.slice(0, 500))} data-testid="fechar-justificativa" />
@@ -344,11 +344,11 @@ function JanelaFechar({ onFechar }: { onFechar: () => void }) {
       )}
       {etapa === 'feito' && fim && (
         <div data-testid="fechar-feito">
-          <p className="text-[14px] font-bold text-[#006B4E]">Caixa fechado.</p>
+          <p className="text-[14px] font-semibold text-[#006B4E]">Caixa fechado.</p>
           <div className="mt-[8px] grid grid-cols-3 gap-[8px] text-[12.5px]">
-            <div><p className="text-text-subtle">Esperado</p><p className="font-bold">{brl(fim.esperado_dinheiro_centavos)}</p></div>
-            <div><p className="text-text-subtle">Contado</p><p className="font-bold">{brl(fim.contado_dinheiro_centavos)}</p></div>
-            <div><p className="text-text-subtle">Diferença</p><p className="font-bold">{brl(fim.diferenca_centavos)}</p></div>
+            <div><p className="text-text-subtle">Esperado</p><p className="font-semibold">{brl(fim.esperado_dinheiro_centavos)}</p></div>
+            <div><p className="text-text-subtle">Contado</p><p className="font-semibold">{brl(fim.contado_dinheiro_centavos)}</p></div>
+            <div><p className="text-text-subtle">Diferença</p><p className="font-semibold">{brl(fim.diferenca_centavos)}</p></div>
           </div>
           <LinhasPixOnline p={(fim as unknown as { resumo?: { pix_online?: Pendencias["pixOnline"] } }).resumo?.pix_online ?? fim.pendencias?.pixOnline} />
         </div>

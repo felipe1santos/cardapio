@@ -360,7 +360,7 @@ secao('4. idempotência e concorrência')
 secao('5. garçom digitando URL proibida')
 {
   const PAGINAS = ['/admin/dashboard', '/admin/clientes', '/admin/ajustes', '/admin/pedidos', '/admin/pdv',
-    '/admin/equipe', '/admin/cardapio', '/admin/campanhas', '/admin/fidelidade', '/admin/integracoes', '/admin/logistica']
+    '/admin/equipe', '/admin/cardapio', '/admin/campanhas', '/admin/fidelidade', '/admin/integracoes', '/admin/lista-pedidos']
   for (const rota of PAGINAS) {
     await garcom.page.goto(`${BASE}${rota}`, { waitUntil: 'domcontentloaded' })
     const final = new URL(garcom.page.url()).pathname

@@ -24,7 +24,7 @@ export function ModalCsv({ titulo, subtitulo, onFechar, children, rodape, largur
         className="flex h-full w-full flex-col overflow-hidden bg-white sm:h-auto sm:max-h-[92vh] sm:rounded-[8px] sm:shadow-[0_24px_64px_rgba(15,23,42,0.28)]" style={{ maxWidth: largura }}>
         <header className="flex flex-shrink-0 items-start justify-between gap-3 border-b border-[#e5e7eb] px-5 py-3.5">
           <div className="min-w-0">
-            <h2 className="text-[16px] font-bold text-[#1f2937]">{titulo}</h2>
+            <h2 className="text-[16px] font-semibold text-[#1f2937]">{titulo}</h2>
             {subtitulo && <p className="mt-0.5 text-[12.5px] text-[#6b7280]">{subtitulo}</p>}
           </div>
           <button type="button" onClick={onFechar} aria-label="Fechar" className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[5px] text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#1f2937]"><X className="h-5 w-5" /></button>

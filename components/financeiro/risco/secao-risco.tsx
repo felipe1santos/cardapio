@@ -73,7 +73,7 @@ export function SecaoRisco() {
               <button key={l.usuarioId} type="button" onClick={() => setAberto(aberto === l.usuarioId ? null : l.usuarioId)} className="fin-card p-3 text-left" data-testid="risco-cartao">
                 <span className="flex items-center justify-between gap-2"><b className="text-[14px]">{l.nome}</b>{l.foraDoPadrao.length ? <Selo cor="#D93616">Fora do padrão</Selo> : null}</span>
                 <span className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[12.5px]">
-                  {METRICAS.filter((k) => l.valores[k] > 0).map((k) => <span key={k} className={l.foraDoPadrao.includes(k) ? 'font-bold text-[#D93616]' : 'text-text-subtle'}>{ROTULO_METRICA[k]}: {l.valores[k]}</span>)}
+                  {METRICAS.filter((k) => l.valores[k] > 0).map((k) => <span key={k} className={l.foraDoPadrao.includes(k) ? 'font-semibold text-[#D93616]' : 'text-text-subtle'}>{ROTULO_METRICA[k]}: {l.valores[k]}</span>)}
                 </span>
                 {aberto === l.usuarioId && (
                   <span className="mt-2 block border-t border-border pt-2 text-[12px] text-text-subtle">{Object.entries(l.acoes).map(([a, n]) => `${a}: ${n}`).join(' · ')}</span>

@@ -255,7 +255,7 @@ export function ContaPresencialModal({
               {conta?.tipo === 'balcao' ? (conta.entrega ? 'PDV · Entrega manual' : 'Comanda de balcão') : 'Conta da mesa'}
               {conta && !aberta && <span className="ml-2 text-danger">· {conta.status === 'fechada' ? 'Fechada' : conta.status}</span>}
             </p>
-            <h2 className="truncate text-[18px] font-bold text-text-main" data-testid="conta-titulo">{titulo}</h2>
+            <h2 className="truncate text-[18px] font-semibold text-text-main" data-testid="conta-titulo">{titulo}</h2>
             {conta && (
               <p className="text-[12px] text-text-subtle">
                 Aberta {horaCurta(conta.abertaEm)} ({tempoCurto(conta.abertaEm, agora)})
@@ -300,7 +300,7 @@ export function ContaPresencialModal({
           <div className="mx-4 mt-3 flex flex-wrap items-center gap-2 rounded-menuzia bg-warn-bg px-3 py-2 text-[12px] font-semibold text-text-main" data-testid="conta-sem-nome">
             <span className="flex-1">Conta aberta sem o nome do cliente. Informe o nome antes de lançar ou fechar.</span>
             {pode?.identificar && (
-              <button type="button" onClick={() => setSub({ tipo: 'identificar' })} className="rounded-menuzia bg-white px-2.5 py-1.5 text-[11px] font-bold text-text-main">
+              <button type="button" onClick={() => setSub({ tipo: 'identificar' })} className="rounded-menuzia bg-white px-2.5 py-1.5 text-[11px] font-semibold text-text-main">
                 Informar nome
               </button>
             )}
@@ -316,15 +316,15 @@ export function ContaPresencialModal({
             <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
               {conta.solicitacoes.length > 0 && (
                 <div className="rounded-menuzia border border-warn/40 bg-warn-bg p-3">
-                  <p className="text-[11px] font-bold uppercase tracking-wide text-warn">Cancelamento pedido à gerência</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-warn">Cancelamento pedido à gerência</p>
                   <ul className="mt-1.5 space-y-1.5">
                     {conta.solicitacoes.map((s) => (
                       <li key={s.id} className="flex flex-wrap items-center gap-2 text-[13px] text-text-main">
                         <span className="flex-1">{s.descricao} — “{s.motivo}” <span className="text-text-subtle">({s.solicitadoPorNome})</span></span>
                         {pode.decidir_cancelamento && aberta && (
                           <>
-                            <button type="button" disabled={ocupado} onClick={() => void agir({ acao: 'decidir_cancelamento', solicitacaoId: s.id, aprovar: true }, 'Cancelamento aprovado.')} className="rounded-menuzia bg-danger px-2.5 py-1.5 text-[11px] font-bold text-white disabled:opacity-50">Aprovar</button>
-                            <button type="button" disabled={ocupado} onClick={() => void agir({ acao: 'decidir_cancelamento', solicitacaoId: s.id, aprovar: false }, 'Cancelamento recusado.')} className="rounded-menuzia border border-border bg-white px-2.5 py-1.5 text-[11px] font-bold text-text-main disabled:opacity-50">Recusar</button>
+                            <button type="button" disabled={ocupado} onClick={() => void agir({ acao: 'decidir_cancelamento', solicitacaoId: s.id, aprovar: true }, 'Cancelamento aprovado.')} className="rounded-menuzia bg-danger px-2.5 py-1.5 text-[11px] font-semibold text-white disabled:opacity-50">Aprovar</button>
+                            <button type="button" disabled={ocupado} onClick={() => void agir({ acao: 'decidir_cancelamento', solicitacaoId: s.id, aprovar: false }, 'Cancelamento recusado.')} className="rounded-menuzia border border-border bg-white px-2.5 py-1.5 text-[11px] font-semibold text-text-main disabled:opacity-50">Recusar</button>
                           </>
                         )}
                       </li>
@@ -414,8 +414,8 @@ export function ContaPresencialModal({
                 <Linha rotulo="Total" valor={conta.totais.total} forte />
                 <Linha rotulo="Pago" valor={conta.totais.pago} />
                 <div className="mt-1 flex items-center justify-between">
-                  <span className="text-[13px] font-bold text-text-main">Restante</span>
-                  <span className={['text-[22px] font-extrabold', conta.totais.restante > 0 ? 'text-text-main' : 'text-price-text'].join(' ')} data-testid="conta-restante">
+                  <span className="text-[13px] font-semibold text-text-main">Restante</span>
+                  <span className={['text-[22px] font-semibold', conta.totais.restante > 0 ? 'text-text-main' : 'text-price-text'].join(' ')} data-testid="conta-restante">
                     {formatBRL(conta.totais.restante)}
                   </span>
                 </div>
@@ -423,7 +423,7 @@ export function ContaPresencialModal({
 
               {conta.entrega && (
                 <div className="rounded-menuzia border border-border bg-white px-3 py-2 text-[12px]" data-testid="conta-entrega">
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-text-subtle">Entrega</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-text-subtle">Entrega</p>
                   <p className="mt-1 text-text-main">
                     {conta.entrega.rua}, {conta.entrega.numero}
                     {conta.entrega.complemento ? ` · ${conta.entrega.complemento}` : ''}
@@ -442,7 +442,7 @@ export function ContaPresencialModal({
 
               {conta.pagamentos.length > 0 && (
                 <div className="rounded-menuzia border border-border bg-white px-3 py-2">
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-text-subtle">Pagamentos</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-text-subtle">Pagamentos</p>
                   <ul className="mt-1 space-y-1">
                     {conta.pagamentos.map((pg) => (
                       <li key={pg.id} className="flex items-center gap-2 text-[12px]">
@@ -467,7 +467,7 @@ export function ContaPresencialModal({
                   type="button"
                   onClick={() => onLancarItens(conta)}
                   data-testid="conta-lancar-grande"
-                  className="mt-auto flex h-[68px] w-full items-center justify-center gap-2 rounded-menuzia bg-primary text-[17px] font-bold text-white shadow-sm transition-all hover:bg-primary-dark active:scale-[0.98]"
+                  className="mt-auto flex h-[68px] w-full items-center justify-center gap-2 rounded-menuzia bg-primary text-[17px] font-semibold text-white shadow-sm transition-all hover:bg-primary-dark active:scale-[0.98]"
                 >
                   <svg viewBox="0 0 24 24" className="h-7 w-7 fill-current" aria-hidden><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" /></svg>
                   Lançar itens
@@ -482,7 +482,7 @@ export function ContaPresencialModal({
                   </p>
                   {conta.status === 'fechada' && pode.pre_conta && !conta.entrega && <PreContaBloco comandaId={conta.id} />}
                   {conta.status === 'fechada' && pode.reabrir && (
-                    <button type="button" onClick={() => setSub({ tipo: 'reabrir' })} data-testid="conta-reabrir" className="w-full rounded-menuzia border-2 border-warn bg-white py-3 text-[13px] font-bold text-warn hover:bg-warn hover:text-white">
+                    <button type="button" onClick={() => setSub({ tipo: 'reabrir' })} data-testid="conta-reabrir" className="w-full rounded-menuzia border-2 border-warn bg-white py-3 text-[13px] font-semibold text-warn hover:bg-warn hover:text-white">
                       Reabrir conta
                     </button>
                   )}
@@ -703,8 +703,8 @@ export function ContaPresencialModal({
 function Linha({ rotulo, valor, forte, testid }: { rotulo: string; valor: number; forte?: boolean; testid?: string }) {
   return (
     <div className="flex items-center justify-between py-0.5" data-testid={testid}>
-      <span className={forte ? 'font-bold text-text-main' : 'text-text-subtle'}>{rotulo}</span>
-      <span className={forte ? 'font-bold text-text-main' : 'text-text-main'}>{formatBRL(valor)}</span>
+      <span className={forte ? 'font-semibold text-text-main' : 'text-text-subtle'}>{rotulo}</span>
+      <span className={forte ? 'font-semibold text-text-main' : 'text-text-main'}>{formatBRL(valor)}</span>
     </div>
   )
 }
@@ -734,12 +734,12 @@ function CartaoPedido({
   return (
     <div className={['rounded-menuzia border p-3', cancelado ? 'border-border bg-page/50 opacity-70' : 'border-border bg-white'].join(' ')} data-testid={`pedido-${p.numero}`}>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[15px] font-bold text-text-main">#{p.numero}</span>
+        <span className="text-[15px] font-semibold text-text-main">#{p.numero}</span>
         <span className="text-[12px] text-text-subtle">{horaCurta(p.criadoEm)}{p.criadoPorNome ? ` · por ${p.criadoPorNome}` : ''}</span>
         <Badge tone={TOM_COZINHA[p.status] ?? 'alert'}>{ROTULO_COZINHA[p.status as StatusCozinha] ?? p.status}</Badge>
         {at && <Badge tone={at === 'servido' || at === 'entregue_balcao' || at === 'concluido' ? 'ok' : at === 'nao_entregue' ? 'danger' : 'alert'}>{ROTULO_ATENDIMENTO[at]}</Badge>}
         {p.resolvidoForcado && <Badge tone="paused">Resolvido à força</Badge>}
-        <span className={['ml-auto text-[15px] font-bold', cancelado ? 'text-text-subtle line-through' : 'text-text-main'].join(' ')}>{formatBRL(p.total)}</span>
+        <span className={['ml-auto text-[15px] font-semibold', cancelado ? 'text-text-subtle line-through' : 'text-text-main'].join(' ')}>{formatBRL(p.total)}</span>
       </div>
       {!cancelado && p.status === 'pronto' && p.prontoEm && (
         <p className="mt-0.5 text-[11px] font-semibold text-status-ready">pronto há {minutosDesde(p.prontoEm, agora)} min</p>
@@ -762,17 +762,17 @@ function CartaoPedido({
       {aberta && !cancelado && (
         <div className="mt-2.5 flex flex-wrap gap-2">
           {p.status === 'recebido' && pode.transicionar && (
-            <button type="button" disabled={ocupado} onClick={() => void onAgir({ acao: 'transicionar', pedidoId: p.id, de: 'recebido', para: 'preparando' }, `#${p.numero} em preparo.`)} className="rounded-menuzia bg-status-preparing px-3 py-2 text-[12px] font-bold text-white disabled:opacity-50">
+            <button type="button" disabled={ocupado} onClick={() => void onAgir({ acao: 'transicionar', pedidoId: p.id, de: 'recebido', para: 'preparando' }, `#${p.numero} em preparo.`)} className="rounded-menuzia bg-status-preparing px-3 py-2 text-[12px] font-semibold text-white disabled:opacity-50">
               Aceitar (preparar)
             </button>
           )}
           {p.status === 'preparando' && pode.transicionar && (
-            <button type="button" disabled={ocupado} onClick={() => void onAgir({ acao: 'transicionar', pedidoId: p.id, de: 'preparando', para: 'pronto' }, `#${p.numero} pronto.`)} className="rounded-menuzia bg-status-ready px-3 py-2 text-[12px] font-bold text-white disabled:opacity-50">
+            <button type="button" disabled={ocupado} onClick={() => void onAgir({ acao: 'transicionar', pedidoId: p.id, de: 'preparando', para: 'pronto' }, `#${p.numero} pronto.`)} className="rounded-menuzia bg-status-ready px-3 py-2 text-[12px] font-semibold text-white disabled:opacity-50">
               Marcar pronto
             </button>
           )}
           {p.status === 'pronto' && pode.atender && (
-            <button type="button" disabled={ocupado} onClick={() => void onAgir({ acao: 'atender', pedidoId: p.id }, `#${p.numero}: ${verboAtender.toLowerCase()}.`)} data-testid={`atender-${p.numero}`} className="rounded-menuzia bg-sidebar-bg px-3 py-2 text-[12px] font-bold text-white disabled:opacity-50">
+            <button type="button" disabled={ocupado} onClick={() => void onAgir({ acao: 'atender', pedidoId: p.id }, `#${p.numero}: ${verboAtender.toLowerCase()}.`)} data-testid={`atender-${p.numero}`} className="rounded-menuzia bg-sidebar-bg px-3 py-2 text-[12px] font-semibold text-white disabled:opacity-50">
               {verboAtender}
             </button>
           )}
@@ -892,7 +892,7 @@ export function ReceberModal({
         <div className="space-y-3">
           <div className="flex items-center justify-between rounded-menuzia bg-page px-4 py-3">
             <span className="text-[14px] font-semibold text-text-subtle">Restante a pagar · {ident}</span>
-            <span className="text-[28px] font-extrabold text-text-main" data-testid="receber-restante">{formatBRL(restante)}</span>
+            <span className="text-[28px] font-semibold text-text-main" data-testid="receber-restante">{formatBRL(restante)}</span>
           </div>
           {/* O que já mexeu no total: taxas (azul) e desconto (verde), como na conta. */}
           {(conta.totais.taxaServico > 0 || (conta.taxas ?? []).length > 0 || conta.totais.desconto > 0) && (
@@ -905,18 +905,18 @@ export function ReceberModal({
           <label className="block">
             <span className="mb-1 block text-[13px] font-semibold text-text-subtle">Valor a receber</span>
             <input value={valor} inputMode="decimal" onFocus={() => setCampo('valor')} onChange={(e) => setValor(e.target.value)} data-testid="receber-valor"
-              className={['pdv-campo-valor h-[60px] w-full rounded-menuzia border-2 px-4 text-right text-[26px] font-extrabold text-text-main focus:outline-none', campo === 'valor' ? 'pdv-campo-ativo border-primary' : 'border-border'].join(' ')} />
+              className={['pdv-campo-valor h-[60px] w-full rounded-menuzia border-2 px-4 text-right text-[26px] font-semibold text-text-main focus:outline-none', campo === 'valor' ? 'pdv-campo-ativo border-primary' : 'border-border'].join(' ')} />
           </label>
           {forma === 'dinheiro' && (
             <>
               <label className="block">
                 <span className="mb-1 block text-[13px] font-semibold text-text-subtle">Valor recebido</span>
                 <input value={recebido} inputMode="decimal" onFocus={() => setCampo('recebido')} onChange={(e) => setRecebido(e.target.value)} placeholder="0,00" data-testid="receber-recebido"
-                  className={['pdv-campo-valor h-[60px] w-full rounded-menuzia border-2 px-4 text-right text-[26px] font-extrabold text-text-main placeholder:font-normal focus:outline-none', campo === 'recebido' ? 'pdv-campo-ativo border-primary' : 'border-border'].join(' ')} />
+                  className={['pdv-campo-valor h-[60px] w-full rounded-menuzia border-2 px-4 text-right text-[26px] font-semibold text-text-main placeholder:font-normal focus:outline-none', campo === 'recebido' ? 'pdv-campo-ativo border-primary' : 'border-border'].join(' ')} />
               </label>
               <div className="flex items-center justify-between rounded-menuzia bg-price-bg px-4 py-3">
-                <span className="text-[15px] font-bold text-text-main">Troco</span>
-                <strong className="text-[30px] font-extrabold text-price-text" data-testid="receber-troco">{formatBRL(troco)}</strong>
+                <span className="text-[15px] font-semibold text-text-main">Troco</span>
+                <strong className="text-[30px] font-semibold text-price-text" data-testid="receber-troco">{formatBRL(troco)}</strong>
               </div>
             </>
           )}
@@ -942,7 +942,7 @@ export function ReceberModal({
                 onClick={() => { setForma(f); setCampo('valor') }}
                 data-testid={`forma-${f}`}
                 aria-pressed={forma === f}
-                className={['relative flex h-[64px] items-center gap-2.5 rounded-menuzia border-2 px-3 text-[15px] font-bold transition-colors', forma === f ? 'border-primary bg-primary text-white' : 'border-border bg-white text-text-main hover:border-primary'].join(' ')}
+                className={['relative flex h-[64px] items-center gap-2.5 rounded-menuzia border-2 px-3 text-[15px] font-semibold transition-colors', forma === f ? 'border-primary bg-primary text-white' : 'border-border bg-white text-text-main hover:border-primary'].join(' ')}
               >
                 <svg viewBox="0 0 24 24" className="h-6 w-6 flex-shrink-0 fill-current" aria-hidden><path d={ICONE_FORMA_PDV[f] ?? ICONE_FORMA_PDV.outros} /></svg>
                 {ROTULO_FORMA[f as FormaPagamento] ?? f}
@@ -952,7 +952,7 @@ export function ReceberModal({
           </div>
           <div className="grid grid-cols-4 gap-2">
             {(['exato', 50, 100, 200] as const).map((a) => (
-              <button key={String(a)} type="button" onClick={() => atalho(a)} className="h-[56px] rounded-menuzia border border-border bg-white text-[15px] font-bold text-text-main active:scale-[0.97]" data-testid={`receber-atalho-${a}`}>
+              <button key={String(a)} type="button" onClick={() => atalho(a)} className="h-[56px] rounded-menuzia border border-border bg-white text-[15px] font-semibold text-text-main active:scale-[0.97]" data-testid={`receber-atalho-${a}`}>
                 {a === 'exato' ? 'Valor exato' : `R$ ${a}`}
               </button>
             ))}
@@ -960,7 +960,7 @@ export function ReceberModal({
           <div className="grid grid-cols-3 gap-2" data-testid="receber-teclado">
             {['1', '2', '3', '4', '5', '6', '7', '8', '9', ',', '0', '⌫'].map((t) => (
               <button key={t} type="button" onClick={() => tecla(t)} aria-label={t === '⌫' ? 'Apagar' : t}
-                className="h-[56px] rounded-menuzia border border-border bg-white text-[22px] font-bold text-text-main active:bg-page">
+                className="h-[56px] rounded-menuzia border border-border bg-white text-[22px] font-semibold text-text-main active:bg-page">
                 {t}
               </button>
             ))}
@@ -1004,7 +1004,7 @@ function PendenciasModal({
         {grupos.map(({ cat, itens }) =>
           itens.length === 0 ? null : (
             <div key={cat}>
-              <p className="text-[12px] font-bold text-text-main">
+              <p className="text-[12px] font-semibold text-text-main">
                 {ROTULO_PENDENCIA[cat]} ({itens.length})
               </p>
               <ul className="mt-1 space-y-1">
@@ -1015,7 +1015,7 @@ function PendenciasModal({
                       {p.criado_por_nome ? ` · por ${p.criado_por_nome}` : ''} · {p.itens.map((i) => `${i.quantidade}× ${i.nome}`).join(', ')}
                     </span>
                     {cat === 'pronto_nao_atendido' && pode.atender && (
-                      <button type="button" disabled={ocupado} onClick={() => void onAgir({ acao: 'atender', pedidoId: p.id }, `#${p.numero} entregue.`)} className="rounded-menuzia bg-sidebar-bg px-2.5 py-1.5 text-[11px] font-bold text-white disabled:opacity-50">
+                      <button type="button" disabled={ocupado} onClick={() => void onAgir({ acao: 'atender', pedidoId: p.id }, `#${p.numero} entregue.`)} className="rounded-menuzia bg-sidebar-bg px-2.5 py-1.5 text-[11px] font-semibold text-white disabled:opacity-50">
                         {verbo}
                       </button>
                     )}
@@ -1027,7 +1027,7 @@ function PendenciasModal({
         )}
         {dados.cancelamentos.length > 0 && (
           <div>
-            <p className="text-[12px] font-bold text-text-main">{ROTULO_PENDENCIA.cancelamento_pendente} ({dados.cancelamentos.length})</p>
+            <p className="text-[12px] font-semibold text-text-main">{ROTULO_PENDENCIA.cancelamento_pendente} ({dados.cancelamentos.length})</p>
             <ul className="mt-1 space-y-1">
               {dados.cancelamentos.map((c) => (
                 <li key={c.id} className="flex flex-wrap items-center gap-2 rounded-menuzia border border-border px-3 py-2 text-[12px]">
@@ -1036,8 +1036,8 @@ function PendenciasModal({
                   </span>
                   {pode.decidir_cancelamento && (
                     <>
-                      <button type="button" disabled={ocupado} onClick={() => void onAgir({ acao: 'decidir_cancelamento', solicitacaoId: c.id, aprovar: true }, 'Cancelamento aprovado.')} className="rounded-menuzia bg-danger px-2.5 py-1.5 text-[11px] font-bold text-white disabled:opacity-50">Aprovar</button>
-                      <button type="button" disabled={ocupado} onClick={() => void onAgir({ acao: 'decidir_cancelamento', solicitacaoId: c.id, aprovar: false }, 'Cancelamento recusado.')} className="rounded-menuzia border border-border px-2.5 py-1.5 text-[11px] font-bold text-text-main disabled:opacity-50">Recusar</button>
+                      <button type="button" disabled={ocupado} onClick={() => void onAgir({ acao: 'decidir_cancelamento', solicitacaoId: c.id, aprovar: true }, 'Cancelamento aprovado.')} className="rounded-menuzia bg-danger px-2.5 py-1.5 text-[11px] font-semibold text-white disabled:opacity-50">Aprovar</button>
+                      <button type="button" disabled={ocupado} onClick={() => void onAgir({ acao: 'decidir_cancelamento', solicitacaoId: c.id, aprovar: false }, 'Cancelamento recusado.')} className="rounded-menuzia border border-border px-2.5 py-1.5 text-[11px] font-semibold text-text-main disabled:opacity-50">Recusar</button>
                     </>
                   )}
                 </li>
@@ -1062,13 +1062,13 @@ function PendenciasModal({
           Voltar sem fechar
         </button>
         {Number(dados.financeiro.restante) > 0 && pode.pagamento && (
-          <button type="button" onClick={onReceber} className="rounded-menuzia bg-primary px-4 py-2.5 text-[13px] font-bold text-white">
+          <button type="button" onClick={onReceber} className="rounded-menuzia bg-primary px-4 py-2.5 text-[13px] font-semibold text-white">
             <Ic d={ICONES_PDV.receber} />
             Receber restante
           </button>
         )}
         {pode.resolver && dados.pedidos.length > 0 && (
-          <button type="button" onClick={onResolver} data-testid="pendencias-resolver" className="ml-auto rounded-menuzia border-2 border-warn px-4 py-2.5 text-[13px] font-bold text-warn hover:bg-warn hover:text-white">
+          <button type="button" onClick={onResolver} data-testid="pendencias-resolver" className="ml-auto rounded-menuzia border-2 border-warn px-4 py-2.5 text-[13px] font-semibold text-warn hover:bg-warn hover:text-white">
             <Ic d={ICONES_PDV.alerta} />
             Resolver pendências…
           </button>
@@ -1158,7 +1158,7 @@ function ResolverModal({
         {!soMarcar && (
           <>
             <label className="block">
-              <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Motivo <span className="text-danger">*</span></span>
+              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Motivo <span className="text-danger">*</span></span>
               <input value={motivo} maxLength={300} onChange={(e) => setMotivo(e.target.value)} data-testid="resolver-motivo" className="w-full rounded-menuzia border border-border px-3 py-2 text-[13px] focus:border-primary focus:outline-none" />
             </label>
             <label className="flex items-center gap-2 text-[12px] text-text-main">
@@ -1171,11 +1171,11 @@ function ResolverModal({
       </div>
       <div className="flex flex-wrap gap-2 border-t border-border px-4 py-3">
         <button type="button" onClick={onVoltar} className="rounded-menuzia border border-border px-4 py-2.5 text-[13px] font-semibold"><Ic d={ICONES_PDV.voltar} />Voltar</button>
-        <button type="button" disabled={!podeAplicar || ocupado} onClick={() => void aplicar(false)} className="ml-auto rounded-menuzia border-2 border-primary px-4 py-2.5 text-[13px] font-bold text-primary disabled:opacity-40">
+        <button type="button" disabled={!podeAplicar || ocupado} onClick={() => void aplicar(false)} className="ml-auto rounded-menuzia border-2 border-primary px-4 py-2.5 text-[13px] font-semibold text-primary disabled:opacity-40">
           <Ic d={ICONES_PDV.check} />
           Aplicar
         </button>
-        <button type="button" disabled={!podeAplicar || ocupado} onClick={() => void aplicar(true)} data-testid="resolver-aplicar-fechar" className="rounded-menuzia bg-status-ready px-4 py-2.5 text-[13px] font-bold text-white disabled:opacity-40">
+        <button type="button" disabled={!podeAplicar || ocupado} onClick={() => void aplicar(true)} data-testid="resolver-aplicar-fechar" className="rounded-menuzia bg-status-ready px-4 py-2.5 text-[13px] font-semibold text-white disabled:opacity-40">
           <Ic d={ICONES_PDV.checkDuplo} />
           Aplicar e fechar conta
         </button>
@@ -1229,7 +1229,7 @@ function CancelarModal({
             : 'Este pedido já começou a ser preparado ou a conta já recebeu pagamento. A gerência decide o cancelamento.'}
         </p>
         <label className="block">
-          <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Motivo <span className="text-danger">*</span></span>
+          <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Motivo <span className="text-danger">*</span></span>
           <input autoFocus value={motivo} maxLength={200} onChange={(e) => setMotivo(e.target.value)} data-testid="cancelar-motivo" className="w-full rounded-menuzia border border-border px-3 py-2 text-[13px] focus:border-primary focus:outline-none" />
         </label>
         {erro && <p className="rounded-menuzia bg-danger-bg px-3 py-2 text-[12px] font-semibold text-danger">{erro}</p>}
@@ -1245,7 +1245,7 @@ function CancelarModal({
             const e = await onConfirmar(motivo.trim(), direto)
             if (e) setErro(e)
           }}
-          className="flex-[2] rounded-menuzia bg-danger py-2.5 text-[13px] font-bold text-white disabled:opacity-40"
+          className="flex-[2] rounded-menuzia bg-danger py-2.5 text-[13px] font-semibold text-white disabled:opacity-40"
         >
           <Ic d={ICONES_PDV.fechar} />
           {direto ? 'Cancelar pedido' : 'Pedir à gerência'}
@@ -1279,7 +1279,7 @@ function MotivoModal({
       <div className="space-y-3 px-4 py-4">
         <p className="text-[13px] text-text-main">{descricao}</p>
         <label className="block">
-          <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Motivo <span className="text-danger">*</span></span>
+          <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Motivo <span className="text-danger">*</span></span>
           <input autoFocus value={motivo} maxLength={300} onChange={(e) => setMotivo(e.target.value)} data-testid="motivo" className="w-full rounded-menuzia border border-border px-3 py-2 text-[13px] focus:border-primary focus:outline-none" />
         </label>
         {erro && <p className="rounded-menuzia bg-danger-bg px-3 py-2 text-[12px] font-semibold text-danger">{erro}</p>}
@@ -1295,7 +1295,7 @@ function MotivoModal({
             const e = await onConfirmar(motivo.trim())
             if (e) setErro(e)
           }}
-          className={['flex-[2] rounded-menuzia py-2.5 text-[13px] font-bold text-white disabled:opacity-40', perigo ? 'bg-danger' : 'bg-warn'].join(' ')}
+          className={['flex-[2] rounded-menuzia py-2.5 text-[13px] font-semibold text-white disabled:opacity-40', perigo ? 'bg-danger' : 'bg-warn'].join(' ')}
         >
           <Ic d={ICONES_PDV.alerta} />
           {botao}
@@ -1328,7 +1328,7 @@ function AjustarModal({
       <div className="space-y-3 px-4 py-4">
         {podeTaxa ? (
         <label className="block">
-          <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Taxa de serviço (%)</span>
+          <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Taxa de serviço (%)</span>
           <input value={taxa} inputMode="decimal" onChange={(e) => setTaxa(e.target.value)} className="w-full rounded-menuzia border border-border px-3 py-2 text-[13px]" />
           {conta.tipo === 'balcao' && <span className="mt-0.5 block text-[11px] text-text-subtle">Balcão nasce sem taxa de serviço. Taxa manual só gerente ou dono.</span>}
         </label>
@@ -1346,7 +1346,7 @@ function AjustarModal({
         </div>
         <input value={desconto} inputMode="decimal" onChange={(e) => setDesconto(e.target.value)} className="w-full rounded-menuzia border border-border px-3 py-2 text-[13px]" />
         <label className="block">
-          <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Motivo do desconto</span>
+          <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Motivo do desconto</span>
           <input value={motivo} maxLength={300} onChange={(e) => setMotivo(e.target.value)} className="w-full rounded-menuzia border border-border px-3 py-2 text-[13px]" />
         </label>
         {erro && <p className="rounded-menuzia bg-danger-bg px-3 py-2 text-[12px] font-semibold text-danger">{erro}</p>}
@@ -1368,7 +1368,7 @@ function AjustarModal({
             })
             if (e) setErro(e)
           }}
-          className="flex-[2] rounded-menuzia bg-primary py-2.5 text-[13px] font-bold text-white disabled:opacity-40"
+          className="flex-[2] rounded-menuzia bg-primary py-2.5 text-[13px] font-semibold text-white disabled:opacity-40"
         >
           <Ic d={ICONES_PDV.salvar} />
           Salvar
@@ -1492,7 +1492,7 @@ function PreContaBloco({ comandaId, variante = 'bloco' }: { comandaId: string; v
         disabled={enviando}
         onClick={() => void imprimir(Boolean(ultima))}
         data-testid={ultima ? 'pre-conta-reimprimir' : 'pre-conta-imprimir'}
-        className="w-full rounded-menuzia border-2 border-sidebar-bg bg-white py-3 text-[14px] font-bold text-sidebar-bg transition-all hover:bg-sidebar-bg hover:text-white disabled:opacity-50"
+        className="w-full rounded-menuzia border-2 border-sidebar-bg bg-white py-3 text-[14px] font-semibold text-sidebar-bg transition-all hover:bg-sidebar-bg hover:text-white disabled:opacity-50"
       >
         {enviando ? 'Enviando…' : ultima ? 'Reimprimir Recibo/Extrato' : 'Imprimir Recibo/Extrato'}
       </button>
@@ -1512,7 +1512,7 @@ function PreContaBloco({ comandaId, variante = 'bloco' }: { comandaId: string; v
         <p className="mt-1.5 text-[11px] font-semibold text-danger" data-testid="pre-conta-erro">
           {erro.texto}
           {erro.semCaixa && (
-            <a href="/admin/impressao" className="mt-1.5 inline-flex items-center rounded-menuzia border border-danger/40 bg-white px-2.5 py-1 text-[12px] font-bold text-danger no-underline hover:bg-danger hover:text-white" data-testid="pre-conta-configurar">
+            <a href="/admin/impressao" className="mt-1.5 inline-flex items-center rounded-menuzia border border-danger/40 bg-white px-2.5 py-1 text-[12px] font-semibold text-danger no-underline hover:bg-danger hover:text-white" data-testid="pre-conta-configurar">
               Configurar impressão
             </a>
           )}
@@ -1628,14 +1628,14 @@ function BarraAcoesConta({
       <div className="flex w-full gap-2 sm:w-auto">
         {pode.pagamento && conta.totais.restante > 0 && (
           <button type="button" disabled={ocupado} onClick={onReceber} data-testid="conta-receber"
-            className="flex h-[84px] flex-1 items-center justify-center gap-2 rounded-menuzia bg-primary px-7 text-[18px] font-bold text-white transition-all hover:bg-primary-dark active:scale-[0.98] disabled:opacity-50 sm:flex-none">
+            className="flex h-[84px] flex-1 items-center justify-center gap-2 rounded-menuzia bg-primary px-7 text-[18px] font-semibold text-white transition-all hover:bg-primary-dark active:scale-[0.98] disabled:opacity-50 sm:flex-none">
             <Ic d={ICONES_PDV.receber} />
             Receber
           </button>
         )}
         {pode.fechar && (
           <button type="button" disabled={ocupado} onClick={onFechar} data-testid="conta-fechar"
-            className={['flex h-[84px] flex-1 items-center justify-center gap-2 rounded-menuzia border-2 border-status-ready px-7 text-[18px] font-bold transition-all hover:brightness-95 active:scale-[0.98] disabled:opacity-50 sm:flex-none',
+            className={['flex h-[84px] flex-1 items-center justify-center gap-2 rounded-menuzia border-2 border-status-ready px-7 text-[18px] font-semibold transition-all hover:brightness-95 active:scale-[0.98] disabled:opacity-50 sm:flex-none',
               // Uma ação forte por vez: com saldo a receber, o destaque é o Receber.
               pode.pagamento && conta.totais.restante > 0 ? 'bg-white text-status-ready' : 'bg-status-ready text-white'].join(' ')}>
             <Ic d={ICONES_PDV.check} />

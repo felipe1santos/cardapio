@@ -81,12 +81,12 @@ export function FichaDaLoja({
                 className="h-11 w-11 flex-shrink-0 rounded-[var(--adm-raio-sm,6px)] border border-[var(--adm-borda,#e5e7eb)] object-cover"
               />
             ) : (
-              <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[var(--adm-raio-sm,6px)] bg-[var(--adm-azul-claro,#eff6ff)] text-[16px] font-bold text-[var(--adm-azul,#0b78d0)]">
+              <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[var(--adm-raio-sm,6px)] bg-[var(--adm-azul-claro,#eff6ff)] text-[16px] font-semibold text-[var(--adm-azul,#0b78d0)]">
                 {loja.nome.charAt(0).toUpperCase()}
               </span>
             )}
             <div className="min-w-0">
-              <h2 className="truncate text-[15px] font-bold text-[var(--adm-texto,#101828)]">{loja.nome}</h2>
+              <h2 className="truncate text-[15px] font-semibold text-[var(--adm-texto,#101828)]">{loja.nome}</h2>
               {(loja.bairro || loja.cidade) && (
                 <p className="truncate text-[12px] text-[var(--adm-texto-suave,#5b6472)]">
                   {[loja.bairro, loja.cidade].filter(Boolean).join(', ')}

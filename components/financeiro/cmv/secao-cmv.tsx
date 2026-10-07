@@ -227,9 +227,9 @@ function AplicarPreco({ l, onFechar, onAplicou, toast }: { l: Linha; onFechar: (
     <PainelLateral titulo="Aplicar novo preço" subtitulo={`${l.nome}${l.variante ? ` · ${l.variante}` : ''}`} onFechar={onFechar} largura={520} testid="aplicar-preco"
       acoes={<><button type="button" className={BOTAO.neutro} onClick={onFechar}>Cancelar</button><button type="button" className={BOTAO.primario} disabled={enviando || !(novoC > 0) || novoC === l.precoCentavos} onClick={() => void confirmar()} data-testid="aplicar-confirmar">{enviando ? 'Aplicando…' : 'Confirmar novo preço'}</button></>}>
       <div className="grid grid-cols-2 gap-3 text-[14px]">
-        <div className="rounded-[6px] border border-border p-3"><p className="text-[12px] text-text-subtle">Preço atual</p><p className="text-[20px] font-bold" data-testid="aplicar-antigo">{brl(l.precoCentavos)}</p><p className="text-[12px] text-text-subtle">margem {pct(l.margemPct)}</p></div>
+        <div className="rounded-[6px] border border-border p-3"><p className="text-[12px] text-text-subtle">Preço atual</p><p className="text-[20px] font-semibold" data-testid="aplicar-antigo">{brl(l.precoCentavos)}</p><p className="text-[12px] text-text-subtle">margem {pct(l.margemPct)}</p></div>
         <div className="rounded-[6px] border-2 border-[#0A78BE] p-3"><p className="text-[12px] text-text-subtle">Preço novo</p>
-          <input value={novo} onChange={(e) => setNovo(e.target.value)} inputMode="decimal" className="h-[40px] w-full rounded-[4px] border border-border px-2 text-[18px] font-bold" data-testid="aplicar-novo" />
+          <input value={novo} onChange={(e) => setNovo(e.target.value)} inputMode="decimal" className="h-[40px] w-full rounded-[4px] border border-border px-2 text-[18px] font-semibold" data-testid="aplicar-novo" />
           <p className="text-[12px] text-text-subtle">margem {pct(margemNova)}</p></div>
       </div>
       <p className="mt-3 text-[12.5px] text-text-subtle">Sugerido pela margem-alvo de {l.margemAlvoPct}%: {brl(l.sugestaoCentavos)}. O preço só muda ao confirmar, fica na auditoria e vale para a vitrine, o PDV e as mesas.</p>

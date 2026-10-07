@@ -359,7 +359,7 @@ export default function MesasPage() {
                 onClick={() => setFiltro(f)}
                 title={f === 'todas' ? 'Todas as mesas' : AJUDA_ESTADO[f]}
                 className={[
-                  'min-h-[40px] flex-shrink-0 whitespace-nowrap rounded-menuzia border px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide transition-colors lg:min-h-0',
+                  'min-h-[40px] flex-shrink-0 whitespace-nowrap rounded-menuzia border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide transition-colors lg:min-h-0',
                   filtro === f
                     ? 'border-primary bg-primary text-white'
                     : 'border-border bg-main text-text-subtle hover:text-text-main',
@@ -440,7 +440,7 @@ export default function MesasPage() {
               const conteudo = (
                 <>
                   <div className="flex items-start justify-between gap-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wide opacity-85">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide opacity-85">
                       {mesa.bloqueada && <Lock className="mr-0.5 inline h-3 w-3 align-[-2px]" />}
                       {ROTULO_ESTADO[mesa.estado]}
                     </span>
@@ -451,31 +451,31 @@ export default function MesasPage() {
                   {/* Conta de dias atrás: o "3h20" do relógio normal não diz que a mesa
                       está presa. Aqui a etiqueta grita, com o tempo em dias. */}
                   {contaAberta && comandaEsquecida({ abertaEm: mesa.abertaEm }, agora) && (
-                    <span className="mt-1 inline-flex w-fit items-center rounded-menuzia bg-white/95 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-danger shadow-sm">
+                    <span className="mt-1 inline-flex w-fit items-center rounded-menuzia bg-white/95 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-danger shadow-sm">
                       Aberta há {tempoAberta(mesa.abertaEm!, agora)}
                     </span>
                   )}
                   {chamadoDaMesa && (
-                    <span className="mt-1 inline-flex w-fit items-center gap-1 rounded-menuzia bg-danger px-1.5 py-0.5 text-[10px] font-bold uppercase text-white shadow-sm motion-safe:animate-pulse">
+                    <span className="mt-1 inline-flex w-fit items-center gap-1 rounded-menuzia bg-danger px-1.5 py-0.5 text-[10px] font-semibold uppercase text-white shadow-sm motion-safe:animate-pulse">
                       <BellRing className="h-3 w-3" />
                       {chamadoDaMesa.status === 'assumido' ? 'Alguém já vai' : 'Chamando'}
                     </span>
                   )}
                   <div className="mt-auto min-w-0">
-                    <span className="block truncate text-[24px] font-extrabold leading-none">{mesa.nome}</span>
+                    <span className="block truncate text-[24px] font-semibold leading-none">{mesa.nome}</span>
                     <span className="mt-1 block truncate text-[10px] opacity-80">
                       {mesa.setor || 'Sem setor'}
                       {mesa.capacidade ? ` · ${mesa.capacidade} lugares` : ''}
                     </span>
                     {contaAberta ? (
-                      <span className="mt-1 block truncate text-[13px] font-bold">
+                      <span className="mt-1 block truncate text-[13px] font-semibold">
                         {mesa.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} · {mesa.qtdPedidos} lanç.
                       </span>
                     ) : (
                       abre && <span className="mt-1 block text-[11px] opacity-80">{acao}</span>
                     )}
                     {gerencia && mesa.qrRevogado && mesa.estado !== 'inativa' && (
-                      <span className="mt-1 block text-[10px] font-bold uppercase">QR revogado</span>
+                      <span className="mt-1 block text-[10px] font-semibold uppercase">QR revogado</span>
                     )}
                   </div>
                 </>
@@ -698,7 +698,7 @@ function FormMesa({
 function Campo({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">{label}</label>
+      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">{label}</label>
       {children}
       {hint && <p className="mt-1 text-[11px] text-text-subtle">{hint}</p>}
     </div>

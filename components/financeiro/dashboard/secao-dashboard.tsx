@@ -210,7 +210,7 @@ function DiferencasPorTurno({ turnos, total }: { turnos: Dados['diferencasPorTur
         </div>
       ))}
       {turnos.length > 0 && (
-        <div className="mt-1 flex justify-between gap-3 pt-1.5 text-[14px] font-bold"><span>Total (sobras − faltas)</span><span className="whitespace-nowrap">{brl(total)}</span></div>
+        <div className="mt-1 flex justify-between gap-3 pt-1.5 text-[14px] font-semibold"><span>Total (sobras − faltas)</span><span className="whitespace-nowrap">{brl(total)}</span></div>
       )}
     </Card>
   )
@@ -230,7 +230,7 @@ function Item({ rotulo, nome, detalhe, alerta, testid }: { rotulo: string; nome?
   return (
     <div className="mb-2 border-b border-border pb-2 last:border-b-0" data-testid={testid}>
       <p className="text-[12px] font-semibold" style={{ color: FIN_COR.texto2 }}>{rotulo}</p>
-      <p className="text-[14.5px] font-bold" style={{ color: alerta && nome ? CORES_GRAFICO.medidorAlerta : FIN_COR.texto }}>{nome ?? '—'}</p>
+      <p className="text-[14.5px] font-semibold" style={{ color: alerta && nome ? CORES_GRAFICO.medidorAlerta : FIN_COR.texto }}>{nome ?? '—'}</p>
       {detalhe && <p className="text-[12.5px]" style={{ color: FIN_COR.texto2 }}>{detalhe}</p>}
     </div>
   )

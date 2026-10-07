@@ -35,7 +35,7 @@ export function SeloMaisPedidos({ raio = 8 }: { raio?: number }) {
   return (
     <span
       data-selo-mais-pedidos
-      className="pointer-events-none absolute left-0 top-0 z-[1] inline-flex h-[20px] items-center gap-[3px] whitespace-nowrap pl-[6px] pr-[7px] text-[10.5px] font-bold leading-[20px]"
+      className="pointer-events-none absolute left-0 top-0 z-[1] inline-flex h-[20px] items-center gap-[3px] whitespace-nowrap pl-[6px] pr-[7px] text-[10.5px] font-semibold leading-[20px]"
       style={{ background: ESTILO_SELO_MAIS_PEDIDOS.fundo, color: ESTILO_SELO_MAIS_PEDIDOS.cor, borderRadius: `${raio}px 0 6px 0` }}
     >
       <IconeTagSvg nome="fogo" tamanho={12} />
@@ -135,7 +135,7 @@ export function PilulaDesconto({ percentual }: { percentual: number }) {
   return (
     <span
       data-desconto
-      className="inline-flex h-[20px] items-center gap-[4px] whitespace-nowrap rounded-[6px] px-[6px] text-[11.5px] font-bold leading-[20px]"
+      className="inline-flex h-[20px] items-center gap-[4px] whitespace-nowrap rounded-[6px] px-[6px] text-[11.5px] font-semibold leading-[20px]"
       style={{ background: ESTILO_DESCONTO.fundo, color: ESTILO_DESCONTO.cor }}
     >
       <span className="inline-flex -rotate-45"><IconeTagSvg nome="ticket" tamanho={13} /></span>-{percentual}%

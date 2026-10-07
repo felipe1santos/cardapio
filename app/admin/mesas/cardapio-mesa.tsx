@@ -77,7 +77,7 @@ export function CardapioDaMesaConfig() {
   if (erro) {
     return (
       <Card>
-        <h3 className="mb-1 text-[13px] font-bold text-text-main">Cardápio da mesa (QR)</h3>
+        <h3 className="mb-1 text-[13px] font-semibold text-text-main">Cardápio da mesa (QR)</h3>
         <p className="text-[12px] text-danger">{erro}</p>
       </Card>
     )
@@ -146,7 +146,7 @@ function SecaoModo({ inicial, onSalvo }: { inicial: boolean; onSalvo: (v: boolea
     <Card className="!bg-warn-bg border-warn/40">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="mb-1 text-[13px] font-bold text-text-main">Somente visualização (cardápio da mesa)</h3>
+          <h3 className="mb-1 text-[13px] font-semibold text-text-main">Somente visualização (cardápio da mesa)</h3>
           <p className="text-[12px] leading-relaxed text-text-subtle">
             Ligado, o cliente só <strong className="text-text-main">vê</strong> o cardápio do QR: itens, fotos,
             descrições e os sabores da pizza. Ele não escolhe tamanho nem adicional, não monta a lista e não chama o
@@ -166,7 +166,7 @@ function SecaoModo({ inicial, onSalvo }: { inicial: boolean; onSalvo: (v: boolea
           <span className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all ${ligado ? 'left-[22px]' : 'left-0.5'}`} />
         </button>
       </div>
-      <p className={`mt-2 text-[11px] font-bold uppercase tracking-wide ${ligado ? 'text-status-ready' : 'text-text-subtle'}`}>
+      <p className={`mt-2 text-[11px] font-semibold uppercase tracking-wide ${ligado ? 'text-status-ready' : 'text-text-subtle'}`}>
         {ligado ? 'Ligado — só visualização' : 'Desligado — cliente monta a seleção'}
       </p>
       <Retorno aviso={aviso} />
@@ -237,7 +237,7 @@ function SecaoCarrossel({
 
   return (
     <Card>
-      <h3 className="mb-1 text-[13px] font-bold text-text-main">Carrossel do topo (cardápio da mesa)</h3>
+      <h3 className="mb-1 text-[13px] font-semibold text-text-main">Carrossel do topo (cardápio da mesa)</h3>
       <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
         Imagens que passam sozinhas, devagar, no topo do cardápio que o cliente abre pelo QR. Sem imagens, o topo mostra o
         banner da loja. Até {MESA_CARROSSEL_MAX} imagens; formato horizontal fica melhor.
@@ -248,7 +248,7 @@ function SecaoCarrossel({
           <div key={u} className="relative overflow-hidden rounded-menuzia border border-border bg-page">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={u} alt={`Imagem ${i + 1} do carrossel`} className="aspect-[2/1] w-full object-cover" />
-            <span className="absolute left-1 top-1 rounded-menuzia bg-black/60 px-1.5 text-[10px] font-bold text-white">{i + 1}</span>
+            <span className="absolute left-1 top-1 rounded-menuzia bg-black/60 px-1.5 text-[10px] font-semibold text-white">{i + 1}</span>
             <div className="flex items-center justify-between gap-1 border-t border-border bg-main p-1">
               <span className="flex gap-1">
                 <button type="button" onClick={() => mover(i, -1)} disabled={i === 0} aria-label="Mover para antes" className="grid h-8 w-8 place-items-center rounded-menuzia text-text-subtle hover:bg-page disabled:opacity-30">
@@ -310,7 +310,7 @@ function SecaoMensagem({ inicial, padrao, onSalvo }: { inicial: string | null; p
 
   return (
     <Card>
-      <h3 className="mb-1 text-[13px] font-bold text-text-main">Aviso da seleção (cardápio da mesa)</h3>
+      <h3 className="mb-1 text-[13px] font-semibold text-text-main">Aviso da seleção (cardápio da mesa)</h3>
       <p className="mb-3 text-[12px] leading-relaxed text-text-subtle">
         Aparece como rodapé, depois do último item do cardápio — e também em &quot;Minha seleção&quot;, quando o cliente
         monta a lista. Deixe em branco para usar o texto padrão.
@@ -326,9 +326,9 @@ function SecaoMensagem({ inicial, padrao, onSalvo }: { inicial: string | null; p
         {texto.length}/{MESA_MENSAGEM_MAX}
       </div>
 
-      <p className="mb-1 mt-2 text-[11px] font-bold uppercase tracking-wide text-text-subtle">Como o cliente vê</p>
+      <p className="mb-1 mt-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Como o cliente vê</p>
       <div className="flex items-start gap-2.5 rounded-menuzia border border-border border-l-4 border-l-[#CB000F] bg-main px-3.5 py-3">
-        <span className="grid h-[22px] w-[22px] flex-shrink-0 place-items-center rounded-full bg-[#CB000F] font-serif text-[13px] font-extrabold italic text-white">
+        <span className="grid h-[22px] w-[22px] flex-shrink-0 place-items-center rounded-full bg-[#CB000F] font-serif text-[13px] font-semibold italic text-white">
           i
         </span>
         <p className="text-[13px] leading-relaxed text-text-main">{texto.trim() || padrao}</p>
@@ -361,7 +361,7 @@ function SecaoMensagem({ inicial, padrao, onSalvo }: { inicial: string | null; p
 function SecaoOrdem() {
   return (
     <Card>
-      <h3 className="mb-1 text-[13px] font-bold text-text-main">Ordem das categorias e dos itens</h3>
+      <h3 className="mb-1 text-[13px] font-semibold text-text-main">Ordem das categorias e dos itens</h3>
       <p className="text-[12px] leading-relaxed text-text-subtle" data-aviso-ordem-cardapio>
         A ordem das categorias e dos itens é definida em{' '}
         <Link href="/admin/cardapio" className="font-semibold text-primary underline">

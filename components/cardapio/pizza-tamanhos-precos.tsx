@@ -354,13 +354,13 @@ export function PizzaTamanhosPrecos({
                     return (
                       <th key={t.id} data-testid={`coluna-${t.nome}`} className="min-w-[150px] border-b border-[var(--adm-borda)] px-3 py-2 text-left align-top font-normal">
                         <div className="flex items-center justify-between gap-2">
-                          <span className={`text-[13px] font-bold ${vende ? 'text-[var(--adm-texto)]' : 'text-[var(--adm-texto-suave)] line-through'}`}>{t.nome}</span>
+                          <span className={`text-[13px] font-semibold ${vende ? 'text-[var(--adm-texto)]' : 'text-[var(--adm-texto-suave)] line-through'}`}>{t.nome}</span>
                           <Chave ligada={vende} rotulo={vende ? `Parar de vender ${t.nome} nesta pizza` : `Vender ${t.nome} nesta pizza`} disabled={ocupado === `tam:${t.id}`} onMudar={(v) => alternarTamanho(t, v)} />
                         </div>
                         <div className="mt-0.5 text-[11px] text-[var(--adm-texto-suave)]">
                           {t.fatias} fatias · {t.maxSabores > 1 ? `até ${t.maxSabores} sabores` : '1 sabor'}
                         </div>
-                        <span className={`mt-1 inline-block rounded-full px-2 py-[1px] text-[10.5px] font-bold ${s.classe}`}>{s.texto(n, sabores.length)}</span>
+                        <span className={`mt-1 inline-block rounded-full px-2 py-[1px] text-[10.5px] font-semibold ${s.classe}`}>{s.texto(n, sabores.length)}</span>
                         {vende && sabores.length > 0 && (
                           preenchendo === t.id ? (
                             <form
@@ -446,7 +446,7 @@ export function PizzaTamanhosPrecos({
                                 disabled={ocupadoSabor}
                                 onClick={() => gravarSabor(sabor, { status: CICLO_STATUS[(CICLO_STATUS.indexOf(sabor.status) + 1) % CICLO_STATUS.length] })}
                                 title="Tocar para mudar: Ativo → Inativo → Em falta"
-                                className={`mt-0.5 rounded-full px-1.5 py-[1px] text-[10px] font-bold ${
+                                className={`mt-0.5 rounded-full px-1.5 py-[1px] text-[10px] font-semibold ${
                                   sabor.status === 'disponivel' ? 'bg-price-bg text-price-text' : sabor.status === 'pausado' ? 'bg-warn-bg text-[#92400E]' : 'bg-danger-bg text-danger'
                                 }`}
                               >

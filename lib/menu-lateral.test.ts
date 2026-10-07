@@ -65,8 +65,8 @@ describe('Financeiro no menu (0132)', () => {
     expect(hrefs({})).not.toContain('/admin/financeiro')
     expect(hrefs({ financeiro: false })).not.toContain('/admin/financeiro')
   })
-  it('aparece com a flag e permissão, logo depois da Logística', () => {
+  it('aparece com a flag e permissão, logo depois de Pedidos (antes Logística)', () => {
     const h = hrefs({ financeiro: true })
-    expect(h.indexOf('/admin/financeiro')).toBe(h.indexOf('/admin/logistica') + 1)
+    expect(h.indexOf('/admin/financeiro')).toBe(h.indexOf('/admin/lista-pedidos') + 1)
   })
 })

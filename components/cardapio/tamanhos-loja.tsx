@@ -238,7 +238,7 @@ function ListaCatalogo({
 function Pilula({ children, preco = false }: { children: React.ReactNode; preco?: boolean }) {
   return (
     <span
-      className={`rounded-[4px] px-1.5 py-0.5 text-[11.5px] font-bold tabular-nums ${
+      className={`rounded-[4px] px-1.5 py-0.5 text-[11.5px] font-semibold tabular-nums ${
         preco ? 'bg-price-bg text-price-text' : 'bg-[#f1f2f4] text-[var(--adm-texto-medio)]'
       }`}
     >

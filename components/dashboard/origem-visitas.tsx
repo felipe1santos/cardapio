@@ -85,7 +85,7 @@ export function OrigemVisitas({ linhas, totais, semOrigem }: { linhas: LinhaOrig
                   ))}
                 </tbody>
                 <tfoot>
-                  <tr className="font-bold">
+                  <tr className="font-semibold">
                     <td className="py-[9px] pr-[8px]">Total</td>
                     <td className="py-[9px] pr-[8px] text-right tabular-nums" data-testid="origem-total-visitas">{num(totais.visitas)}</td>
                     <td className="py-[9px] pr-[8px] text-right tabular-nums" data-testid="origem-total-pedidos">{num(totais.pedidos)}</td>

@@ -13,7 +13,7 @@ type StatusUsuario = 'vazio' | 'checando' | 'disponivel' | 'em_uso' | 'invalido'
 /** ✓ em círculo verde — confirmação visual de campo validado. */
 function CheckVerde() {
   return (
-    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#16A34A] text-[13px] font-bold text-white shadow-sm">
+    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#16A34A] text-[13px] font-semibold text-white shadow-sm">
       ✓
     </span>
   )
@@ -98,7 +98,7 @@ export function CadastroForm({ error }: { error?: string }) {
 
       {/* E-mail autorizado — campo em destaque com borda azul escura */}
       <label className="mb-1 block">
-        <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-[#1e3a8a]">E-mail autorizado</span>
+        <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#1e3a8a]">E-mail autorizado</span>
         <span className="relative block">
           <input
             name="email"

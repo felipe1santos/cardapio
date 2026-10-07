@@ -117,7 +117,7 @@ export function EnvioImpressora({ d, ocupado, agir, onImprimirTeste }: { d: Disp
               Porta
               <input value={porta} onChange={(e) => setPorta(e.target.value.replace(/\D/g, ''))} inputMode="numeric" data-testid="calibrar-porta" className="mt-1 w-full rounded-menuzia border border-border px-3 py-2 text-[13px]" />
             </label>
-            <button type="button" disabled={ocupado || !ehIpv4(ip)} onClick={() => void agir(url, 'PATCH', { envio: 'raw_rede', redeIp: ip.trim(), redePorta: Number(porta) || 9100 }, `Envio pela rede: ${ip}:${Number(porta) || 9100}.`)} data-testid="calibrar-salvar-rede" className="rounded-menuzia bg-primary px-3 py-2 text-[12px] font-bold text-white disabled:opacity-40">
+            <button type="button" disabled={ocupado || !ehIpv4(ip)} onClick={() => void agir(url, 'PATCH', { envio: 'raw_rede', redeIp: ip.trim(), redePorta: Number(porta) || 9100 }, `Envio pela rede: ${ip}:${Number(porta) || 9100}.`)} data-testid="calibrar-salvar-rede" className="rounded-menuzia bg-primary px-3 py-2 text-[12px] font-semibold text-white disabled:opacity-40">
               Salvar
             </button>
             <p className="w-full text-[11.5px] text-text-subtle">O IP aparece no autoteste da impressora (segure o FEED ao ligar). Porta padrão: 9100.</p>
@@ -138,7 +138,7 @@ export function EnvioImpressora({ d, ocupado, agir, onImprimirTeste }: { d: Disp
         {d.modoImpressao === 'texto' && <p className="mt-1 text-[11.5px] text-text-subtle">Texto usa as letras da própria impressora (sem logo), com os acentos na página WPC1252 (o teste de largura imprime &quot;ÇÃÉÕ&quot; para conferir), e vai sempre direto, sem o driver.</p>}
       </div>
 
-      <button type="button" disabled={ocupado} onClick={onImprimirTeste} data-testid="imprimir-teste-largura" className="w-full rounded-menuzia border-2 border-primary py-2.5 text-[13px] font-bold text-primary disabled:opacity-40">
+      <button type="button" disabled={ocupado} onClick={onImprimirTeste} data-testid="imprimir-teste-largura" className="w-full rounded-menuzia border-2 border-primary py-2.5 text-[13px] font-semibold text-primary disabled:opacity-40">
         Imprimir teste de largura
       </button>
       <p className="text-[11.5px] text-text-subtle">Precisa do Assistente Menuzia Beta 0.2.0-beta.7 ou mais novo no computador da impressora.</p>

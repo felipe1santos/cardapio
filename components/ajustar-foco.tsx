@@ -97,7 +97,7 @@ export function AjustarFoco({
           >
             <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
               <div className="min-w-0">
-                <h2 className="text-[14px] font-bold text-text-main">{titulo}</h2>
+                <h2 className="text-[14px] font-semibold text-text-main">{titulo}</h2>
                 <p className="mt-0.5 text-[11.5px] leading-snug text-text-subtle">{descricao}</p>
               </div>
               <button

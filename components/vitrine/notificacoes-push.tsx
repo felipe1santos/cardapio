@@ -97,7 +97,7 @@ export function ConvitePushPosPedido({ slug, lojaNome, vinculo }: { slug: string
               if (r.ok) setEstado('ativo')
               else { if (r.motivo === 'negado' || r.motivo === 'fechado') registrarRecusa(slug); setEstado('negado') }
             }}
-            className="flex h-[44px] flex-[1.4] items-center justify-center gap-[6px] rounded-[10px] bg-[var(--tema-primaria)] text-[14px] font-bold text-white disabled:opacity-60"
+            className="flex h-[44px] flex-[1.4] items-center justify-center gap-[6px] rounded-[10px] bg-[var(--tema-primaria)] text-[14px] font-semibold text-white disabled:opacity-60"
             data-push-sim
           >
             <IconeSino className="h-[18px] w-[18px]" />

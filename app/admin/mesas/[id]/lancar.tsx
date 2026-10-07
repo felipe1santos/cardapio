@@ -92,19 +92,19 @@ export function CardProduto({
           </span>
         )}
         {noLancamento > 0 && (
-          <span className="absolute right-1.5 top-1.5 grid h-[26px] min-w-[26px] place-items-center rounded-full bg-primary px-1.5 text-[12px] font-bold text-white shadow" aria-hidden>
+          <span className="absolute right-1.5 top-1.5 grid h-[26px] min-w-[26px] place-items-center rounded-full bg-primary px-1.5 text-[12px] font-semibold text-white shadow" aria-hidden>
             {noLancamento}×
           </span>
         )}
       </span>
       <span className="flex flex-1 flex-col p-2.5">
-        {categoria && <span className="block truncate text-[10px] font-bold uppercase tracking-wide text-text-subtle">{categoria}</span>}
+        {categoria && <span className="block truncate text-[10px] font-semibold uppercase tracking-wide text-text-subtle">{categoria}</span>}
         <span className="line-clamp-2 text-[14px] font-semibold leading-tight text-text-main group-hover:text-primary">{item.nome}</span>
         {item.descricao && (
           <span className="mt-0.5 hidden text-[12px] leading-snug text-text-subtle sm:line-clamp-1">{descricaoEmTextoPuro(item.descricao)}</span>
         )}
         <span className="mt-auto flex flex-wrap items-center justify-between gap-1 pt-1.5">
-          <span className="text-[14px] font-bold text-price-text">
+          <span className="text-[14px] font-semibold text-price-text">
             {preco.aPartirDe && <span className="text-[11px] font-normal text-text-subtle">a partir de </span>}
             {brl(preco.valor)}
           </span>
@@ -160,13 +160,13 @@ export function SelecaoDoCliente({
       {/* Faixa de uma linha: é o que ocupa a tela no celular enquanto recolhida. */}
       <button onClick={onAlternar} aria-expanded={aberto} className="flex min-h-[40px] w-full items-center gap-2 px-2.5 py-1.5 text-left">
         <Badge tone="pending">Não lançado</Badge>
-        <span className="min-w-0 flex-1 truncate text-[12px] font-bold text-text-main">
+        <span className="min-w-0 flex-1 truncate text-[12px] font-semibold text-text-main">
           Cliente marcou {qtd} {qtd === 1 ? 'item' : 'itens'}
           {pendentes.length > 0 && pendentes.length < linhas.length && (
             <span className="font-semibold text-text-subtle"> · {pendentes.length} a adicionar</span>
           )}
         </span>
-        <span className="flex flex-shrink-0 items-center gap-0.5 text-[11px] font-bold uppercase text-primary">
+        <span className="flex flex-shrink-0 items-center gap-0.5 text-[11px] font-semibold uppercase text-primary">
           {aberto ? 'Fechar' : 'Ver'}
           <ChevronDown className={`h-4 w-4 transition-transform ${aberto ? 'rotate-180' : ''}`} />
         </span>
@@ -184,7 +184,7 @@ export function SelecaoDoCliente({
                 <li key={l.chave} className="flex items-center gap-2 py-1.5">
                   <div className="min-w-0 flex-1 text-[12px] leading-snug text-text-main">
                     <div className="truncate">
-                      <span className="font-bold">{l.quantidade}×</span> {l.nome}
+                      <span className="font-semibold">{l.quantidade}×</span> {l.nome}
                       <span className="ml-1 text-text-subtle">{brl(unit)}</span>
                     </div>
                     {detalhe && <div className="truncate text-[11px] text-text-subtle">{detalhe}</div>}
@@ -195,15 +195,15 @@ export function SelecaoDoCliente({
                     )}
                   </div>
                   {ja ? (
-                    <span className="flex flex-shrink-0 items-center gap-1 whitespace-nowrap text-[11px] font-bold uppercase text-status-ready">
+                    <span className="flex flex-shrink-0 items-center gap-1 whitespace-nowrap text-[11px] font-semibold uppercase text-status-ready">
                       <Check className="h-3.5 w-3.5" /> Adicionado
                     </span>
                   ) : r?.tipo === 'indisponivel' ? (
-                    <span className="flex-shrink-0 whitespace-nowrap text-[11px] font-bold uppercase text-danger">Indisponível</span>
+                    <span className="flex-shrink-0 whitespace-nowrap text-[11px] font-semibold uppercase text-danger">Indisponível</span>
                   ) : (
                     <button
                       onClick={() => onAdicionar(l.chave)}
-                      className="flex min-h-[36px] flex-shrink-0 items-center gap-1 whitespace-nowrap rounded-menuzia border border-primary bg-main px-2 text-[11px] font-bold uppercase tracking-wide text-primary hover:bg-primary hover:text-white"
+                      className="flex min-h-[36px] flex-shrink-0 items-center gap-1 whitespace-nowrap rounded-menuzia border border-primary bg-main px-2 text-[11px] font-semibold uppercase tracking-wide text-primary hover:bg-primary hover:text-white"
                     >
                       <Plus className="h-3.5 w-3.5" />
                       {r?.tipo === 'configurar' ? 'Configurar' : 'Adicionar'}
@@ -289,7 +289,7 @@ export function PainelLancamento({
                   >
                     <Minus className="h-3.5 w-3.5" />
                   </button>
-                  <span className="min-w-[24px] text-center text-[15px] font-bold xl:text-[13px]" aria-label="Quantidade">
+                  <span className="min-w-[24px] text-center text-[15px] font-semibold xl:text-[13px]" aria-label="Quantidade">
                     {l.quantidade}
                   </span>
                   <button
@@ -372,7 +372,7 @@ function Etapa({ titulo, obrigatorio, ok, dica, children }: { titulo: string; ob
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between gap-2">
-        <span className="text-[13px] font-bold text-text-main">{titulo}</span>
+        <span className="text-[13px] font-semibold text-text-main">{titulo}</span>
         {obrigatorio ? <Badge tone={ok ? 'ok' : 'danger'}>Obrigatório</Badge> : dica && <span className="text-[11px] text-text-subtle">{dica}</span>}
       </div>
       <div className="divide-y divide-border rounded-menuzia border border-border">{children}</div>
@@ -602,7 +602,7 @@ export function ConfiguradorGarcom({
           })}
 
           <label className="block">
-            <span className="mb-1.5 block text-[13px] font-bold text-text-main">Observação</span>
+            <span className="mb-1.5 block text-[13px] font-semibold text-text-main">Observação</span>
             <input
               value={observacao}
               onChange={(e) => setObservacao(e.target.value.slice(0, 200))}
@@ -619,7 +619,7 @@ export function ConfiguradorGarcom({
               <button aria-label="Diminuir quantidade" onClick={() => setQuantidade((q) => Math.max(1, q - 1))} className="grid h-[44px] w-[40px] place-items-center text-primary">
                 <Minus className="h-4 w-4" />
               </button>
-              <span className="min-w-[24px] text-center text-[14px] font-bold">{quantidade}</span>
+              <span className="min-w-[24px] text-center text-[14px] font-semibold">{quantidade}</span>
               <button aria-label="Aumentar quantidade" onClick={() => setQuantidade((q) => Math.min(99, q + 1))} className="grid h-[44px] w-[40px] place-items-center text-primary">
                 <Plus className="h-4 w-4" />
               </button>

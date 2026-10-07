@@ -14,7 +14,7 @@ export function BotaoAjudaImpressao({ onAbrir }: { onAbrir: () => void }) {
       aria-label="Como funciona a impressão"
       title="Como funciona a impressão"
       data-testid="ajuda-impressao"
-      className="inline-flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full border-2 border-primary text-[13px] font-extrabold italic leading-none text-primary transition-colors hover:bg-primary hover:text-white"
+      className="inline-flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full border-2 border-primary text-[13px] font-semibold italic leading-none text-primary transition-colors hover:bg-primary hover:text-white"
     >
       i
     </button>
@@ -112,7 +112,7 @@ export function ModalAjudaImpressao({ aberto, onFechar }: { aberto: boolean; onF
         data-testid="modal-ajuda-impressao"
       >
         <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-          <h2 id="ajuda-impressao-titulo" className="text-[16px] font-bold text-text-main">Como funciona a impressão</h2>
+          <h2 id="ajuda-impressao-titulo" className="text-[16px] font-semibold text-text-main">Como funciona a impressão</h2>
           <button ref={fechar} type="button" onClick={onFechar} aria-label="Fechar" className="flex h-[36px] w-[36px] items-center justify-center rounded-menuzia bg-page text-[20px] text-text-subtle hover:bg-border">
             ×
           </button>
@@ -120,13 +120,13 @@ export function ModalAjudaImpressao({ aberto, onFechar }: { aberto: boolean; onF
         <div className="flex-1 overflow-y-auto px-4 py-3">
           {TOPICOS.map((t) => (
             <section key={t.titulo} className="border-b border-border py-3 last:border-none">
-              <h3 className="text-[13px] font-bold text-text-main">{t.titulo}</h3>
+              <h3 className="text-[13px] font-semibold text-text-main">{t.titulo}</h3>
               <p className="mt-1 text-[13px] leading-relaxed text-text-subtle">{t.texto}</p>
             </section>
           ))}
         </div>
         <div className="border-t border-border px-4 py-3">
-          <button type="button" onClick={onFechar} className="w-full rounded-menuzia bg-primary py-2.5 text-[12px] font-bold uppercase tracking-wide text-white hover:bg-primary-dark">
+          <button type="button" onClick={onFechar} className="w-full rounded-menuzia bg-primary py-2.5 text-[12px] font-semibold uppercase tracking-wide text-white hover:bg-primary-dark">
             Entendi
           </button>
         </div>

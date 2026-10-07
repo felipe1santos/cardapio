@@ -78,7 +78,7 @@ export function FichaPreparoForm({ itemId, restauranteId }: { itemId: string | n
           <div className="mt-3 text-[12px] font-semibold text-text-main">Modo de preparo</div>
           {ficha.passos.map((p, i) => (
             <div key={i} className="mt-1.5 flex gap-2">
-              <span className="mt-1.5 w-5 flex-shrink-0 text-right text-[12px] font-bold text-text-subtle">{i + 1}.</span>
+              <span className="mt-1.5 w-5 flex-shrink-0 text-right text-[12px] font-semibold text-text-subtle">{i + 1}.</span>
               <textarea value={p.texto} rows={2} placeholder="O que fazer neste passo" className={`${campo} min-w-0 flex-1`} data-testid={`ficha-passo-${i}`}
                 onChange={(e) => set({ passos: ficha.passos.map((x, j) => (j === i ? { ...x, texto: e.target.value } : x)) })} />
               <label className="flex w-[64px] cursor-pointer flex-col items-center justify-center rounded-menuzia border border-dashed border-border text-[10px] text-text-subtle hover:border-primary">

@@ -58,7 +58,7 @@ export function SecaoInsumos({ insumos, podeEditar, onMudou, toast }: { insumos:
                 {i.aproveitamentoPct < 100 ? ` · aproveitamento ${i.aproveitamentoPct}%` : ''} · usado em {i.usos}
               </p>
             </div>
-            <span className="font-bold text-text-main" data-testid="insumo-custo">{custoUnitarioTexto(i)}</span>
+            <span className="font-semibold text-text-main" data-testid="insumo-custo">{custoUnitarioTexto(i)}</span>
             <div className="flex gap-1">
               <button type="button" className={BOTAO.neutro} onClick={() => void verHistorico(i)} data-testid="insumo-historico"><History className="h-4 w-4" /> Histórico</button>
               {podeEditar && <button type="button" className={BOTAO.neutro} onClick={() => setEditando(i)} data-testid="insumo-editar">Editar</button>}

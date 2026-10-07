@@ -316,7 +316,7 @@ function ListaConversas({ conversas, tags, carregando, temMais, onMais, selecion
                     <span className="min-w-0 flex-1 truncate text-[12.5px] text-[#6B7280]">
                       {c.ultimaOrigem && c.ultimaOrigem !== 'cliente' ? `${c.ultimaOrigem === 'atendente' ? 'Você' : ROTULO_ORIGEM[c.ultimaOrigem] ?? ''}: ` : ''}{c.previa ?? ''}
                     </span>
-                    {c.naoLidas > 0 && <span className="flex h-[18px] min-w-[18px] flex-shrink-0 items-center justify-center rounded-full bg-[#25D366] px-1 text-[11px] font-bold text-white">{c.naoLidas}</span>}
+                    {c.naoLidas > 0 && <span className="flex h-[18px] min-w-[18px] flex-shrink-0 items-center justify-center rounded-full bg-[#25D366] px-1 text-[11px] font-semibold text-white">{c.naoLidas}</span>}
                   </span>
                   {c.tags.length > 0 && (
                     <span className="mt-0.5 flex gap-1 overflow-hidden">

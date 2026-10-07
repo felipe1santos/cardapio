@@ -286,7 +286,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const items = itensDoMenu({ papel, moduloMesas, usaLogistica, financeiro: !!estadoSessao?.financeiroAtivo && acoesFin(papel, acessos).length > 0 }).filter((item) => caminhoPermitidoCompleto(item.href, papel, acessos)).map((item) => {
     const base = item
     if (item.href === '/admin/pedidos') return { ...base, badge: badges.novosPedidos }
-    if (item.href === '/admin/logistica') return { ...base, badge: semEntregador ? 0 : badges.logisticaPendente }
+    // Item 58: "Pedidos" (antes Logística) não tem contador — os prontos aparecem no botão Despachar do Kanban.
+    if (item.href === '/admin/lista-pedidos') return base
     return base
   })
 
@@ -360,7 +361,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <IndicadorSalvar />
       {/* Central de atendimento do WhatsApp: só o botão (leve); o painel vem sob demanda. */}
       {/* Botão flutuante do atendimento: fora do PDV, Mesas, Comandas e Balcão — lá ele cobria a barra de ações. */}
-      {restauranteId && papel && pode(papel, 'whatsapp.atender') && !focusMode && !/^\/admin\/(pdv|mesas)(\/|$)/.test(pathname) && <LancadorAtendimento restauranteId={restauranteId} />}
+      {restauranteId && papel && pode(papel, 'whatsapp.atender') && !focusMode && !/^\/admin\/(pdv|mesas)(\/|$)/.test(pathname) && <LancadorAtendimento restauranteId={restauranteId} lado={/^\/admin\/pedidos(\/|$)/.test(pathname) ? 'esquerda' : 'direita'} />}
       {fichaAberta && loja && (
         <FichaDaLoja
           loja={{ ...loja, slug: storeSlug }}

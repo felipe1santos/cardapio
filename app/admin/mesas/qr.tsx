@@ -176,12 +176,12 @@ export function DrawerQrMesa({
             ) : (
               <div className="flex h-[228px] items-center justify-center text-[12px] text-text-subtle">Gerando QR…</div>
             )}
-            <p className="mt-2 text-[13px] font-bold text-text-main">{rotuloMesa(mesa.nome)}</p>
+            <p className="mt-2 text-[13px] font-semibold text-text-main">{rotuloMesa(mesa.nome)}</p>
             <p className="text-[10px] uppercase tracking-wide text-text-subtle">Aponte a câmera para ver o cardápio</p>
           </div>
 
           <div className="mt-4">
-            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Link da mesa</label>
+            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Link da mesa</label>
             <div className="flex gap-1.5">
               <input
                 readOnly
@@ -231,7 +231,7 @@ export function DrawerQrMesa({
 
           {confirmando && (
             <div className="mt-4 rounded-menuzia border border-warn bg-warn-bg p-4">
-              <p className="text-[13px] font-bold text-text-main">
+              <p className="text-[13px] font-semibold text-text-main">
                 {confirmando === 'rodar_qr' ? 'Revogar o QR desta mesa e gerar outro?' : 'Revogar o QR desta mesa sem gerar outro?'}
               </p>
               <p className="mt-1 text-[12px] leading-relaxed text-text-main">
@@ -341,7 +341,7 @@ export function DrawerFolhaMesas({
         <div className="flex flex-1 flex-col gap-5 overflow-y-auto p-5 lg:flex-row">
           <div className="w-full space-y-4 lg:max-w-sm">
             <div>
-              <div className="mb-2 text-[11px] font-bold uppercase tracking-wide text-text-subtle">Formato</div>
+              <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Formato</div>
               <div className="flex flex-wrap gap-1.5">
                 {(['adesivo', 'cartao', 'cartaz'] as ModeloEtiqueta[]).map((id) => (
                   <Button
@@ -364,7 +364,7 @@ export function DrawerFolhaMesas({
 
             <div>
               <div className="mb-2 flex items-center justify-between">
-                <span className="text-[11px] font-bold uppercase tracking-wide text-text-subtle">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
                   Mesas ({selecionadas.length}/{mesas.length})
                 </span>
                 <button

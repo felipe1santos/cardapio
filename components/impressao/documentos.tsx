@@ -57,7 +57,7 @@ export function ImpressoraModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-md rounded-menuzia bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-border px-4.5 py-3.5">
-          <h3 className="text-[15px] font-bold">Editar impressora</h3>
+          <h3 className="text-[15px] font-semibold">Editar impressora</h3>
           <button onClick={onClose} className="flex h-[28px] w-[28px] items-center justify-center rounded-menuzia bg-page text-lg text-text-subtle hover:bg-border">×</button>
         </div>
         <div className="space-y-3.5 p-4.5">

@@ -60,7 +60,7 @@ export function PainelChamados({
     <div className="mb-4 rounded-menuzia border border-status-pending bg-warn-bg">
       <div className="flex items-center gap-2 border-b border-status-pending/40 px-4 py-2.5">
         <BellRing className="h-4 w-4 flex-shrink-0 text-status-pending" />
-        <span className="text-[13px] font-bold text-text-main">
+        <span className="text-[13px] font-semibold text-text-main">
           {chamados.length === 1 ? '1 mesa chamando' : `${chamados.length} mesas chamando`}
         </span>
       </div>
@@ -72,7 +72,7 @@ export function PainelChamados({
             <li key={c.id} className="flex flex-wrap items-center gap-2 px-4 py-2.5">
               <Link
                 href={`/admin/mesas/${c.mesaId}`}
-                className="text-[14px] font-bold text-text-main underline decoration-transparent hover:decoration-inherit"
+                className="text-[14px] font-semibold text-text-main underline decoration-transparent hover:decoration-inherit"
               >
                 {c.mesaNome}
               </Link>

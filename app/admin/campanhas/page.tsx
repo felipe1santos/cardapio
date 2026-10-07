@@ -101,7 +101,7 @@ function WhatsappPreview({ tipo, mensagem, imagemUrl, audioUrl }: {
     <div className="flex h-full flex-col overflow-hidden rounded-menuzia border border-border">
       {/* Header simulado */}
       <div className="flex flex-shrink-0 items-center gap-2.5 bg-[#075E54] px-3 py-2.5">
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-[13px] font-bold text-white">L</div>
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-[13px] font-semibold text-white">L</div>
         <div>
           <p className="text-[12px] font-semibold text-white leading-tight">Sua loja</p>
           <p className="text-[10px] text-white/70">online</p>
@@ -165,7 +165,7 @@ function CampanhaPreviewModal({ campanha, onClose }: { campanha: Campanha; onClo
       <div className="fixed left-1/2 top-1/2 z-[61] w-full max-w-[420px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-md bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <div>
-            <h3 className="text-[14px] font-bold text-text-main">{campanha.nome}</h3>
+            <h3 className="text-[14px] font-semibold text-text-main">{campanha.nome}</h3>
             <p className="text-[11px] text-text-subtle">{TIPO_LABEL[campanha.tipoMensagem]} · {formatarDataHora(campanha.agendadoEm)}</p>
           </div>
           <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-full bg-page text-xl font-light text-text-subtle hover:text-text-main">×</button>
@@ -517,7 +517,7 @@ export default function CampanhasPage() {
           <button type="button" onClick={() => setBoasPraticas(true)} className="inline-flex h-9 items-center gap-1.5 rounded-[5px] border border-[#d6dae1] bg-white px-3 text-[12.5px] font-semibold text-[#374151] hover:border-[#0688d4] hover:text-[#0688d4]" data-testid="abrir-boas-praticas">
             <Lightbulb className="h-4 w-4" /> Boas práticas
           </button>
-          <button type="button" onClick={abrirNovo} className="inline-flex h-9 items-center gap-1.5 rounded-[5px] bg-[#0688d4] px-3.5 text-[12.5px] font-bold text-white hover:bg-[#0570ae]" data-testid="disparar-mensagem">
+          <button type="button" onClick={abrirNovo} className="inline-flex h-9 items-center gap-1.5 rounded-[5px] bg-[#0688d4] px-3.5 text-[12.5px] font-semibold text-white hover:bg-[#0570ae]" data-testid="disparar-mensagem">
             <Send className="h-4 w-4" /> Disparar mensagem
           </button>
         </div>
@@ -555,7 +555,7 @@ export default function CampanhasPage() {
       <div className={['fixed right-0 top-0 z-50 flex h-full w-full max-w-[900px] flex-col bg-white shadow-2xl transition-transform duration-300', drawerOpen ? 'translate-x-0' : 'translate-x-full'].join(' ')} data-testid="drawer-campanha" aria-hidden={!drawerOpen}>
         {/* Header */}
         <div className="flex flex-shrink-0 items-center justify-between border-b border-border px-5 py-4">
-          <h2 className="text-[15px] font-bold text-text-main">{editingId ? 'Editar campanha' : 'Nova campanha'}</h2>
+          <h2 className="text-[15px] font-semibold text-text-main">{editingId ? 'Editar campanha' : 'Nova campanha'}</h2>
           <button onClick={fecharDrawer} className="flex h-8 w-8 items-center justify-center rounded-full bg-page text-xl font-light text-text-subtle hover:text-text-main">×</button>
         </div>
 

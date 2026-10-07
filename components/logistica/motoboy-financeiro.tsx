@@ -52,7 +52,8 @@ export function AcessoEntregador({ id, nome, desativado, temLogin, onMudou }: { 
 
 interface Fin { modo: 'pedido' | 'fundo'; veValores: boolean; motoboys: { entregadorId: string; nome: string; saldoCentavos: number }[]; trocos: { pedidoId: string; numero: number; entregadorId: string; entregador: string; trocoCentavos: number; cobre: boolean; temCentavos: number | null }[] }
 
-export function DinheiroComMotoboys() {
+/** `compacto` (item 58, tela Pedidos): card baixo, com o atalho para Financeiro › Acerto de motoboys. */
+export function DinheiroComMotoboys({ compacto = false }: { compacto?: boolean } = {}) {
   const [f, setF] = useState<Fin | null>(null)
   const [valores, setValores] = useState<Record<string, string>>({})
   const [msg, setMsg] = useState<string | null>(null)
@@ -64,10 +65,10 @@ export function DinheiroComMotoboys() {
   useEffect(() => { void carregar(); const i = setInterval(() => void carregar(), 15000); return () => clearInterval(i) }, [carregar])
   if (!f || (!f.veValores && f.trocos.length === 0)) return null
   return (
-    <section className="mb-4 rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white" data-testid="dinheiro-motoboys">
+    <section className={`${compacto ? '' : 'mb-4 '}rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white`} data-testid="dinheiro-motoboys">
       <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
-        <h2 className="text-[13px] font-bold text-text-main">Dinheiro com cada motoboy agora</h2>
-        <span className="text-[11px] text-text-subtle">Troco: {f.modo === 'pedido' ? 'por pedido' : 'fundo fixo'}</span>
+        <h2 className="text-[13px] font-semibold text-text-main">Dinheiro com cada motoboy agora</h2>
+        <span className="flex items-center gap-3 text-[11px] text-text-subtle">Troco: {f.modo === 'pedido' ? 'por pedido' : 'fundo fixo'}{compacto && <a href="/admin/financeiro?secao=motoboys" className="text-[12px] font-semibold text-[var(--adm-azul,#0b78d0)] hover:underline" data-testid="link-acerto-motoboys">Acerto de motoboys →</a>}</span>
       </div>
       {!f.veValores ? null : f.motoboys.length === 0 ? <p className="px-4 py-2.5 text-[13px] text-text-subtle">Nenhum motoboy com dinheiro.</p> : (
         <div className="flex flex-wrap gap-2 px-4 py-2.5">
@@ -78,7 +79,7 @@ export function DinheiroComMotoboys() {
       )}
       {f.trocos.length > 0 && (
         <div className="border-t border-border px-4 py-2.5" data-testid="trocos-a-entregar">
-          <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-[#B45309]">Troco para levar</p>
+          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-[#B45309]">Troco para levar</p>
           <ul className="max-h-[180px] space-y-1.5 overflow-y-auto">
             {f.trocos.map((t) => {
               const valor = valores[t.pedidoId] ?? (t.trocoCentavos / 100).toFixed(2).replace('.', ',')

@@ -254,7 +254,7 @@ export function MapaPedidos({ apiKey, centro, pontos, bairros, className = '' }:
       {dica && (
         <div className="pointer-events-none absolute z-[5] min-w-[160px] max-w-[260px] -translate-x-1/2 -translate-y-[calc(100%+10px)] rounded-[8px] bg-white px-3 py-2 text-[13px] shadow-[0_4px_14px_rgba(28,43,51,0.18)]"
           style={{ left: Math.max(90, Math.min(dica.x, (area.current?.clientWidth ?? 400) - 90)), top: Math.max(dica.y, 70), border: `1px solid ${CORES_GRAFICO.bordaTooltip}`, color: CORES_GRAFICO.texto }} data-testid="mapa-dica" role="tooltip">
-          <p className="font-bold leading-snug">{dica.titulo}</p>
+          <p className="font-semibold leading-snug">{dica.titulo}</p>
           {dica.linhas.map((l) => <p key={l} style={{ color: CORES_GRAFICO.eixo }}>{l}</p>)}
         </div>
       )}

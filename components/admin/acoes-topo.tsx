@@ -115,7 +115,7 @@ export function AcoesTopo() {
           aria-haspopup="dialog"
           aria-label="Dúvidas? Falar com o suporte"
           data-testid="topo-duvidas"
-          className="flex h-[36px] min-w-[36px] flex-shrink-0 items-center justify-center gap-1.5 rounded-[4px] bg-[#C2410C] px-2 text-[12.8px] font-bold text-white transition-[filter] hover:brightness-110 sm:h-[44px] sm:px-3"
+          className="flex h-[36px] min-w-[36px] flex-shrink-0 items-center justify-center gap-1.5 rounded-[4px] bg-[#C2410C] px-2 text-[12.8px] font-semibold text-white transition-[filter] hover:brightness-110 sm:h-[44px] sm:px-3"
         >
           <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] fill-current" aria-hidden="true">
             {ICONES.suporte.map((d) => (

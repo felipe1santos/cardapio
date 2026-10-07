@@ -318,11 +318,11 @@ function CartaoGrupo({
               className={CLASSE_CAMPO}
             />
           ) : (
-            <h4 className="truncate text-[14.5px] font-bold text-[var(--adm-texto)]">{preset.nome}</h4>
+            <h4 className="truncate text-[14.5px] font-semibold text-[var(--adm-texto)]">{preset.nome}</h4>
           )}
           <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11.5px] text-[var(--adm-texto-suave)]">
             <span
-              className={`rounded-full px-2 py-[1px] text-[10.5px] font-bold ${
+              className={`rounded-full px-2 py-[1px] text-[10.5px] font-semibold ${
                 preset.obrigatorio ? 'bg-danger-bg text-danger' : 'bg-[#f1f2f4] text-[var(--adm-texto-medio)]'
               }`}
             >
@@ -466,8 +466,8 @@ function CartaoGrupo({
                 onRemover={() => gravarOpcao(opcao, { imagemUrl: null })}
               />
               <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-[var(--adm-texto)]">{opcao.nome}</span>
-              {opcao.pausado && <span className="rounded-full bg-warn-bg px-2 py-[1px] text-[10.5px] font-bold text-[#92400E]">Pausado</span>}
-              <span className="rounded-[4px] bg-price-bg px-1.5 py-0.5 text-[12px] font-bold tabular-nums text-price-text">
+              {opcao.pausado && <span className="rounded-full bg-warn-bg px-2 py-[1px] text-[10.5px] font-semibold text-[#92400E]">Pausado</span>}
+              <span className="rounded-[4px] bg-price-bg px-1.5 py-0.5 text-[12px] font-semibold tabular-nums text-price-text">
                 {opcao.preco > 0 ? `+ ${brl(opcao.preco)}` : 'Grátis'}
               </span>
               <div className="flex items-center gap-1">

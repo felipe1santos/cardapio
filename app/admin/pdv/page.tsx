@@ -202,7 +202,7 @@ function PagamentoModal({
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Fechar conta</p>
-            <h2 className="text-[15px] font-bold text-text-main">{localNome}</h2>
+            <h2 className="text-[15px] font-semibold text-text-main">{localNome}</h2>
           </div>
           
 </div>
@@ -218,7 +218,7 @@ function PagamentoModal({
           <div className="grid gap-5 sm:grid-cols-2">
           {/* Resumo dos itens */}
           <div>
-            <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-text-subtle">Resumo</p>
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Resumo</p>
             <ul className="space-y-2">
               {linhas.map((i) => {
                 const img = imagemPorNome.get(i.nome)
@@ -239,7 +239,7 @@ function PagamentoModal({
                         {i.quantidade}× {i.nome}
                       </p>
                     </div>
-                    <span className="flex-shrink-0 text-[13px] font-bold text-text-main">
+                    <span className="flex-shrink-0 text-[13px] font-semibold text-text-main">
                       {formatBRL(i.precoUnitario * i.quantidade)}
                     </span>
                   </li>
@@ -252,13 +252,13 @@ function PagamentoModal({
           <div className="space-y-4">
           {/* Total */}
           <div className="flex items-center justify-between rounded-menuzia bg-page px-3 py-2.5">
-            <span className="text-[14px] font-bold text-text-main">Total</span>
-            <span className="text-[18px] font-extrabold text-text-main">{formatBRL(total)}</span>
+            <span className="text-[14px] font-semibold text-text-main">Total</span>
+            <span className="text-[18px] font-semibold text-text-main">{formatBRL(total)}</span>
           </div>
 
           {/* Forma de pagamento */}
           <div>
-            <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-text-subtle">Forma de pagamento</p>
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Forma de pagamento</p>
             <div className="grid grid-cols-2 gap-2.5">
               {formas.map((f) => (
                 <button
@@ -266,7 +266,7 @@ function PagamentoModal({
                   type="button"
                   onClick={() => setForma(f.id)}
                   className={[
-                    'flex flex-col items-center justify-center gap-1.5 rounded-menuzia border-2 px-3 py-4 font-bold transition-all active:scale-[0.97]',
+                    'flex flex-col items-center justify-center gap-1.5 rounded-menuzia border-2 px-3 py-4 font-semibold transition-all active:scale-[0.97]',
                     forma === f.id
                       ? `${f.selBg} border-transparent text-white shadow-md`
                       : `bg-white ${f.idle} hover:shadow-sm`,
@@ -282,20 +282,20 @@ function PagamentoModal({
           {/* Dinheiro: valor recebido + troco */}
           {forma === 'dinheiro' && (
             <div className="rounded-menuzia border border-border p-3">
-              <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-text-subtle">Valor recebido</p>
+              <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Valor recebido</p>
               <input
                 type="text"
                 inputMode="decimal"
                 value={recebido}
                 onChange={(e) => setRecebido(e.target.value)}
                 placeholder="Ex: 50,00"
-                className="w-full rounded-menuzia border border-border bg-white px-3 py-2.5 text-[16px] font-bold text-text-main placeholder:font-normal placeholder:text-text-subtle/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full rounded-menuzia border border-border bg-white px-3 py-2.5 text-[16px] font-semibold text-text-main placeholder:font-normal placeholder:text-text-subtle/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
               <div className="mt-2 flex items-center justify-between">
                 <span className="text-[13px] font-semibold text-text-subtle">Troco</span>
                 <span
                   className={[
-                    'text-[18px] font-extrabold',
+                    'text-[18px] font-semibold',
                     recebidoNum === 0 ? 'text-text-subtle/40' : troco < 0 ? 'text-danger' : 'text-price-text',
                   ].join(' ')}
                 >
@@ -319,7 +319,7 @@ function PagamentoModal({
             type="button"
             disabled={!forma || processando}
             onClick={() => forma && onReceberEFechar(forma)}
-            className="w-full rounded-menuzia bg-status-ready py-4 text-[16px] font-bold text-white shadow-sm transition-all hover:brightness-95 active:scale-[0.98] disabled:opacity-40"
+            className="w-full rounded-menuzia bg-status-ready py-4 text-[16px] font-semibold text-white shadow-sm transition-all hover:brightness-95 active:scale-[0.98] disabled:opacity-40"
           >
             {processando ? 'Processando…' : 'Receber e fechar conta'}
           </button>
@@ -327,7 +327,7 @@ function PagamentoModal({
             type="button"
             disabled={!forma || processando}
             onClick={() => forma && onReceber(forma)}
-            className="w-full rounded-menuzia border-2 border-primary bg-white py-3 text-[13px] font-bold uppercase tracking-wide text-primary transition-colors hover:bg-primary hover:text-white active:scale-[0.98] disabled:opacity-40"
+            className="w-full rounded-menuzia border-2 border-primary bg-white py-3 text-[13px] font-semibold uppercase tracking-wide text-primary transition-colors hover:bg-primary hover:text-white active:scale-[0.98] disabled:opacity-40"
           >
             Receber (manter mesa aberta)
           </button>
@@ -1014,7 +1014,7 @@ export default function PdvPage() {
               <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Conta da mesa</p>
-                  <h2 className="text-[18px] font-bold text-text-main">{mesaSelecionada.nome}</h2>
+                  <h2 className="text-[18px] font-semibold text-text-main">{mesaSelecionada.nome}</h2>
                 </div>
                 
 </div>
@@ -1033,20 +1033,20 @@ export default function PdvPage() {
                         <div key={p.id} className="rounded-menuzia border border-border p-3.5">
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex flex-wrap items-center gap-2">
-                              <span className="text-[15px] font-bold text-text-main">Pedido #{p.numero}</span>
-                              <span className={['rounded-menuzia px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide', st.cls].join(' ')}>
+                              <span className="text-[15px] font-semibold text-text-main">Pedido #{p.numero}</span>
+                              <span className={['rounded-menuzia px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide', st.cls].join(' ')}>
                                 {st.label}
                               </span>
                               <span
                                 className={[
-                                  'rounded-menuzia px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide',
+                                  'rounded-menuzia px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
                                   p.pago ? 'bg-price-bg text-price-text' : 'bg-warn-bg text-warn',
                                 ].join(' ')}
                               >
                                 {p.pago ? 'Pago' : 'A receber'}
                               </span>
                             </div>
-                            <span className="text-[15px] font-bold text-text-main">{formatBRL(p.total)}</span>
+                            <span className="text-[15px] font-semibold text-text-main">{formatBRL(p.total)}</span>
                           </div>
                           <ul className="mt-2.5 space-y-2">
                             {p.itens.map((i) => {
@@ -1073,7 +1073,7 @@ export default function PdvPage() {
                                     {detalhes && <p className="truncate text-[12px] text-text-subtle">{detalhes}</p>}
                                     {i.observacao && <p className="truncate text-[12px] italic text-text-subtle">&ldquo;{i.observacao}&rdquo;</p>}
                                   </div>
-                                  <span className="flex-shrink-0 text-[14px] font-bold text-text-main/90">{formatBRL(i.precoUnitario * i.quantidade)}</span>
+                                  <span className="flex-shrink-0 text-[14px] font-semibold text-text-main/90">{formatBRL(i.precoUnitario * i.quantidade)}</span>
                                 </li>
                               )
                             })}
@@ -1094,8 +1094,8 @@ export default function PdvPage() {
                 {/* Ações — botões grandes pro touch */}
                 <div className="flex flex-shrink-0 flex-col gap-3 border-t border-border bg-page/60 px-5 py-4 sm:w-[280px] sm:border-l sm:border-t-0">
                   <div className="rounded-menuzia border border-border bg-white px-4 py-3">
-                    <p className="text-[11px] font-bold uppercase tracking-wide text-text-subtle">Total da conta</p>
-                    <p className="text-[26px] font-extrabold leading-tight text-text-main">{formatBRL(totalConta)}</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Total da conta</p>
+                    <p className="text-[26px] font-semibold leading-tight text-text-main">{formatBRL(totalConta)}</p>
                     <p className="mt-0.5 text-[12px] text-text-subtle">{naoCancelados.length} pedido{naoCancelados.length !== 1 ? 's' : ''}{tudoPago ? ' · tudo pago' : ''}</p>
                   </div>
                   <button
@@ -1104,7 +1104,7 @@ export default function PdvPage() {
                       setPedidosModalAberto(false)
                       selecionarMesa(mesaSelecionada)
                     }}
-                    className="w-full rounded-menuzia border-2 border-primary bg-white py-4 text-[15px] font-bold text-primary transition-all hover:bg-primary hover:text-white active:scale-[0.98]"
+                    className="w-full rounded-menuzia border-2 border-primary bg-white py-4 text-[15px] font-semibold text-primary transition-all hover:bg-primary hover:text-white active:scale-[0.98]"
                   >
                     + Adicionar itens
                   </button>
@@ -1113,7 +1113,7 @@ export default function PdvPage() {
                       type="button"
                       disabled={fechando}
                       onClick={() => void fecharContaPaga()}
-                      className="w-full rounded-menuzia bg-status-ready py-4 text-[15px] font-bold text-white transition-all hover:brightness-95 active:scale-[0.98] disabled:opacity-50"
+                      className="w-full rounded-menuzia bg-status-ready py-4 text-[15px] font-semibold text-white transition-all hover:brightness-95 active:scale-[0.98] disabled:opacity-50"
                     >
                       {fechando ? 'Fechando…' : 'Fechar conta'}
                     </button>
@@ -1125,7 +1125,7 @@ export default function PdvPage() {
                         setPedidosModalAberto(false)
                         setPagamentoAberto(true)
                       }}
-                      className="w-full rounded-menuzia bg-status-ready py-4 text-[15px] font-bold text-white transition-all hover:brightness-95 active:scale-[0.98] disabled:opacity-50"
+                      className="w-full rounded-menuzia bg-status-ready py-4 text-[15px] font-semibold text-white transition-all hover:brightness-95 active:scale-[0.98] disabled:opacity-50"
                     >
                       Receber pagamento
                     </button>
@@ -1223,7 +1223,7 @@ export default function PdvPage() {
       {sairConfirm && (
         <TelaPdv titulo="Sair do PDV" onVoltar={() => setSairConfirm(false)} livre larguraMax={560} testid="pdv-sair" pequena>
           <div className="p-6 text-center">
-            <p className="text-[17px] font-bold text-text-main">Sair do PDV?</p>
+            <p className="text-[17px] font-semibold text-text-main">Sair do PDV?</p>
             <p className="mt-1 text-[14px] text-text-subtle">Você volta ao menu principal.</p>
           </div>
           <div className="flex gap-2 border-t border-border px-4 py-3">
@@ -1264,7 +1264,7 @@ export default function PdvPage() {
           /* ═══ Painel de mesas ═══ */
           <div className="flex-1 overflow-y-auto p-3 sm:p-4">
             <div className="mb-3 flex items-center justify-between gap-2 sm:mb-4">
-              <h1 className="text-[18px] font-bold text-text-main">Mesas</h1>
+              <h1 className="text-[18px] font-semibold text-text-main">Mesas</h1>
               <div className="flex items-center gap-2">
                 <div className="hidden items-center gap-4 md:flex">
                   {(['livre', 'aguardando', 'ocupada', 'limpeza'] as const).map((estado) => (
@@ -1299,7 +1299,7 @@ export default function PdvPage() {
               >
                 <span className="text-[11px] font-semibold uppercase tracking-wide text-white/60">{pdvV2 ? 'Comandas' : 'Avulso'}</span>
                 <div>
-                  <span className="block text-[20px] font-bold leading-none">Balcão</span>
+                  <span className="block text-[20px] font-semibold leading-none">Balcão</span>
                   <span className="mt-1 block text-[11px] text-white/70">{pdvV2 ? 'Central de balcão' : 'Venda rápida'}</span>
                 </div>
               </button>
@@ -1321,7 +1321,7 @@ export default function PdvPage() {
                     ].join(' ')}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold uppercase tracking-wide text-white/80">{labelEstado}</span>
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-white/80">{labelEstado}</span>
                       {mesa.comandaAberta && (
                         <span className="text-[10px] font-medium text-white/75">
                           {tempoDecorrido(mesa.comandaAberta.abertaEm)}
@@ -1329,12 +1329,12 @@ export default function PdvPage() {
                       )}
                     </div>
                     <div>
-                      <span className="block truncate text-[21px] font-extrabold leading-none sm:text-[24px]">{mesa.nome}</span>
+                      <span className="block truncate text-[21px] font-semibold leading-none sm:text-[24px]">{mesa.nome}</span>
                       {mesa.comandaAberta?.clienteNome && (
                         <span className="mt-1 block truncate text-[12px] font-semibold text-white/90">{mesa.comandaAberta.clienteNome}</span>
                       )}
                       {mesa.comandaAberta ? (
-                        <span className="mt-1.5 block text-[13px] font-bold text-white/95">
+                        <span className="mt-1.5 block text-[13px] font-semibold text-white/95">
                           {formatBRL(mesa.total)} · {mesa.qtdPedidos} ped
                         </span>
                       ) : estado === 'limpeza' ? (
@@ -1375,14 +1375,14 @@ export default function PdvPage() {
                     type="button"
                     onClick={voltarParaMesas}
                     data-testid="pdv-voltar-mesas"
-                    className="flex h-[40px] flex-shrink-0 items-center gap-1 rounded-menuzia bg-primary pl-2 pr-3 text-[13px] font-bold text-white transition-colors hover:bg-primary-dark active:scale-[0.97] sm:h-[44px] sm:pr-4 sm:text-[14px]"
+                    className="flex h-[40px] flex-shrink-0 items-center gap-1 rounded-menuzia bg-primary pl-2 pr-3 text-[13px] font-semibold text-white transition-colors hover:bg-primary-dark active:scale-[0.97] sm:h-[44px] sm:pr-4 sm:text-[14px]"
                   >
                     <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
                       <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
                     </svg>
                     {pdvV2 && telaBalcao ? 'Balcão' : 'Mesas'}
                   </button>
-                  <span className="min-w-0 flex-1 truncate text-[14px] font-bold text-text-main" data-testid="pdv-alvo">
+                  <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-text-main" data-testid="pdv-alvo">
                     {pdvV2 ? (alvoV2?.rotulo ?? '—') : (mesaSelecionada?.nome ?? 'Balcão')}
                   </span>
                   <div className="flex flex-shrink-0 items-center gap-2">{botaoTelaCheia}{botaoSair}{extrasCelular}</div>
@@ -1485,7 +1485,7 @@ export default function PdvPage() {
                       ].join(' ')}
                     >
                       {(qtdNaComanda.get(item.id) ?? 0) > 0 && (
-                        <span className="absolute right-1.5 top-1.5 z-10 grid h-[26px] min-w-[26px] place-items-center rounded-full bg-primary px-1.5 text-[12px] font-bold text-white shadow">
+                        <span className="absolute right-1.5 top-1.5 z-10 grid h-[26px] min-w-[26px] place-items-center rounded-full bg-primary px-1.5 text-[12px] font-semibold text-white shadow">
                           {qtdNaComanda.get(item.id)}×
                         </span>
                       )}
@@ -1516,8 +1516,8 @@ export default function PdvPage() {
                           <span
                             className={
                               item.promocaoPreco !== null
-                                ? 'text-[14px] font-bold text-price-text'
-                                : 'text-[14px] font-bold text-text-main'
+                                ? 'text-[14px] font-semibold text-price-text'
+                                : 'text-[14px] font-semibold text-text-main'
                             }
                           >
                             {formatBRL(item.promocaoPreco ?? item.preco)}
@@ -1542,17 +1542,17 @@ export default function PdvPage() {
                     ? 'Nenhum item no pedido'
                     : `${comanda.reduce((s, l) => s + l.quantidade, 0)} ${comanda.reduce((s, l) => s + l.quantidade, 0) === 1 ? 'item' : 'itens'} no pedido`}
                 </div>
-                <div className="text-[16px] font-bold text-text-main">{formatBRL(subtotal)}</div>
+                <div className="text-[16px] font-semibold text-text-main">{formatBRL(subtotal)}</div>
               </div>
               <button
                 type="button"
                 onClick={() => setMobileTab('comanda')}
                 data-testid="pdv-ver-pedido"
-                className="flex h-[44px] flex-shrink-0 items-center gap-2 rounded-menuzia bg-primary px-4 text-[14px] font-bold text-white transition-colors hover:bg-primary-dark active:scale-[0.98]"
+                className="flex h-[44px] flex-shrink-0 items-center gap-2 rounded-menuzia bg-primary px-4 text-[14px] font-semibold text-white transition-colors hover:bg-primary-dark active:scale-[0.98]"
               >
                 Ver pedido
                 {comanda.length > 0 && (
-                  <span className="grid h-[22px] min-w-[22px] place-items-center rounded-full bg-white px-1 text-[12px] font-bold text-primary">
+                  <span className="grid h-[22px] min-w-[22px] place-items-center rounded-full bg-white px-1 text-[12px] font-semibold text-primary">
                     {comanda.reduce((s, l) => s + l.quantidade, 0)}
                   </span>
                 )}
@@ -1573,7 +1573,7 @@ export default function PdvPage() {
                 type="button"
                 onClick={() => setMobileTab('cardapio')}
                 data-testid="pdv-voltar-cardapio"
-                className="flex h-[40px] flex-shrink-0 items-center gap-1 rounded-menuzia border border-border bg-white pl-2 pr-3 text-[13px] font-bold text-text-main hover:border-primary hover:text-primary"
+                className="flex h-[40px] flex-shrink-0 items-center gap-1 rounded-menuzia border border-border bg-white pl-2 pr-3 text-[13px] font-semibold text-text-main hover:border-primary hover:text-primary"
               >
                 <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
                   <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
@@ -1583,7 +1583,7 @@ export default function PdvPage() {
               <button
                 type="button"
                 onClick={voltarParaMesas}
-                className="ml-auto flex h-[40px] flex-shrink-0 items-center rounded-menuzia border border-border bg-white px-3 text-[13px] font-bold text-text-main hover:border-primary hover:text-primary"
+                className="ml-auto flex h-[40px] flex-shrink-0 items-center rounded-menuzia border border-border bg-white px-3 text-[13px] font-semibold text-text-main hover:border-primary hover:text-primary"
               >
                 {pdvV2 && telaBalcao ? 'Balcão' : 'Mesas'}
               </button>
@@ -1594,7 +1594,7 @@ export default function PdvPage() {
                   <svg viewBox="0 0 24 24" className="h-5 w-5 flex-shrink-0 fill-[#34D399]" aria-hidden><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" /></svg>
                   <span>{toastLancado.texto}</span>
                   {toastLancado.comandaId && (
-                    <button type="button" onClick={() => { setContaAberta(toastLancado.comandaId!); setToastLancado(null) }} className="ml-1 rounded-menuzia bg-white/15 px-3 py-2 text-[12px] font-bold hover:bg-white/25">
+                    <button type="button" onClick={() => { setContaAberta(toastLancado.comandaId!); setToastLancado(null) }} className="ml-1 rounded-menuzia bg-white/15 px-3 py-2 text-[12px] font-semibold hover:bg-white/25">
                       Ver conta
                     </button>
                   )}
@@ -1603,8 +1603,8 @@ export default function PdvPage() {
             )}
             {/* Header */}
             <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
-              <p className="text-[12px] font-bold uppercase tracking-wide text-text-subtle">Pedido</p>
-              <span className="min-w-0 truncate rounded-menuzia bg-primary/10 px-2.5 py-1 text-[13px] font-bold text-primary">
+              <p className="text-[12px] font-semibold uppercase tracking-wide text-text-subtle">Pedido</p>
+              <span className="min-w-0 truncate rounded-menuzia bg-primary/10 px-2.5 py-1 text-[13px] font-semibold text-primary">
                 {pdvV2 ? (alvoV2?.rotulo ?? '—') : (mesaSelecionada?.nome ?? 'Balcão')}
               </span>
             </div>
@@ -1627,8 +1627,8 @@ export default function PdvPage() {
             {!pdvV2 && mesaSelecionada?.comandaAberta && (
               <div className="border-b border-border bg-page/50">
                 <div className="flex items-center justify-between px-4 pb-1 pt-3">
-                  <p className="text-[11px] font-bold uppercase tracking-wide text-text-subtle">Já lançado na mesa</p>
-                  <span className="text-[16px] font-extrabold text-text-main">{formatBRL(totalConta)}</span>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Já lançado na mesa</p>
+                  <span className="text-[16px] font-semibold text-text-main">{formatBRL(totalConta)}</span>
                 </div>
                 {carregandoComanda ? (
                   <p className="px-4 pb-2.5 text-[12px] text-text-subtle/60">Carregando…</p>
@@ -1640,7 +1640,7 @@ export default function PdvPage() {
                           #{p.numero} · {p.itens.reduce((s, i) => s + i.quantidade, 0)} item(ns)
                           <span
                             className={[
-                              'ml-1.5 rounded-menuzia px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide',
+                              'ml-1.5 rounded-menuzia px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide',
                               p.pago ? 'bg-price-bg text-price-text' : 'bg-warn-bg text-warn',
                             ].join(' ')}
                           >
@@ -1656,7 +1656,7 @@ export default function PdvPage() {
                   <button
                     type="button"
                     onClick={() => setPedidosModalAberto(true)}
-                    className="flex-1 rounded-menuzia border-2 border-border bg-white py-3 text-[13px] font-bold text-text-main transition-colors hover:border-primary hover:text-primary active:scale-[0.98]"
+                    className="flex-1 rounded-menuzia border-2 border-border bg-white py-3 text-[13px] font-semibold text-text-main transition-colors hover:border-primary hover:text-primary active:scale-[0.98]"
                   >
                     Ver conta
                   </button>
@@ -1664,7 +1664,7 @@ export default function PdvPage() {
                     type="button"
                     disabled={fechando}
                     onClick={() => setPagamentoAberto(true)}
-                    className="flex-1 rounded-menuzia bg-primary py-3 text-[13px] font-bold text-white transition-colors hover:bg-primary-dark active:scale-[0.98] disabled:opacity-50"
+                    className="flex-1 rounded-menuzia bg-primary py-3 text-[13px] font-semibold text-white transition-colors hover:bg-primary-dark active:scale-[0.98] disabled:opacity-50"
                   >
                     Receber
                   </button>
@@ -1674,7 +1674,7 @@ export default function PdvPage() {
 
             {/* Novo pedido — o que está sendo montado agora */}
             <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-primary">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-primary">
                 Novo pedido{comanda.length > 0 ? ` · ${comanda.reduce((s, l) => s + l.quantidade, 0)} item(ns)` : ''}
               </p>
               {!pdvV2 && (
@@ -1713,7 +1713,7 @@ export default function PdvPage() {
                             <p className="text-[14px] font-semibold leading-tight text-text-main lg:text-[13px]">
                               {linha.item.nome}
                             </p>
-                            <span className="flex-shrink-0 text-[14px] font-bold text-text-main lg:text-[13px]">
+                            <span className="flex-shrink-0 text-[14px] font-semibold text-text-main lg:text-[13px]">
                               {formatBRL(precoRef)}
                             </span>
                           </div>
@@ -1733,7 +1733,7 @@ export default function PdvPage() {
                                 <path d="M19 13H5v-2h14v2z" />
                               </svg>
                             </button>
-                            <span className="w-9 text-center text-[16px] font-bold text-text-main">
+                            <span className="w-9 text-center text-[16px] font-semibold text-text-main">
                               {linha.quantidade}
                             </span>
                             <button
@@ -1773,7 +1773,7 @@ export default function PdvPage() {
               {comanda.length > 0 && (
                 <div className="flex items-center justify-between text-[14px]">
                   <span className="text-text-subtle">Subtotal (ref.)</span>
-                  <span className="font-bold text-text-main">{formatBRL(subtotal)}</span>
+                  <span className="font-semibold text-text-main">{formatBRL(subtotal)}</span>
                 </div>
               )}
               <div className="flex items-stretch gap-2">
@@ -1798,7 +1798,7 @@ export default function PdvPage() {
                     <svg viewBox="0 0 24 24" className="h-7 w-7 fill-current" aria-hidden><path d="M19.5 3.5 18 2l-1.5 1.5L15 2l-1.5 1.5L12 2l-1.5 1.5L9 2 7.5 3.5 6 2v14H3v3c0 1.66 1.34 3 3 3h12c1.66 0 3-1.34 3-3V2l-1.5 1.5zM19 19c0 .55-.45 1-1 1s-1-.45-1-1v-3H8V5h11v14zM9 7h6v2H9zm7 0h2v2h-2zm-7 3h6v2H9zm7 0h2v2h-2z" /></svg>
                     Ver conta
                     {totalContaAlvo !== null && totalContaAlvo > 0 && (
-                      <span className="absolute inset-x-1 top-1 truncate rounded-full bg-primary px-1.5 py-[1px] text-center text-[11px] font-bold leading-[16px] text-white" data-testid="pdv-ver-conta-total">
+                      <span className="absolute inset-x-1 top-1 truncate rounded-full bg-primary px-1.5 py-[1px] text-center text-[11px] font-semibold leading-[16px] text-white" data-testid="pdv-ver-conta-total">
                         {formatBRL(totalContaAlvo)}
                       </span>
                     )}
@@ -1810,7 +1810,7 @@ export default function PdvPage() {
                   title={pdvV2 && estadoPag.exige && estadoPag.erro ? estadoPag.erro : undefined}
                   onClick={lancarNaCozinha}
                   data-testid="pdv-lancar"
-                  className="flex h-[84px] min-w-0 flex-1 items-center justify-center gap-2 rounded-menuzia bg-status-ready text-[17px] font-bold text-white shadow-sm transition-all hover:brightness-95 active:scale-[0.98] disabled:opacity-40"
+                  className="flex h-[84px] min-w-0 flex-1 items-center justify-center gap-2 rounded-menuzia bg-status-ready text-[17px] font-semibold text-white shadow-sm transition-all hover:brightness-95 active:scale-[0.98] disabled:opacity-40"
                 >
                   <svg viewBox="0 0 24 24" className="h-7 w-7 flex-shrink-0 fill-current" aria-hidden><path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z" /></svg>
                   {launching ? 'Lançando…' : 'Lançar na cozinha'}

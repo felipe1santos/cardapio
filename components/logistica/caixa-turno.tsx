@@ -78,7 +78,7 @@ export function CaixaTurnoGaveta({ aberto, onFechar }: { aberto: boolean; onFech
       >
         <div className="flex items-center justify-between border-b border-border px-4.5 py-4">
           <div>
-            <h2 className="text-[15px] font-bold">Fechamento de caixa</h2>
+            <h2 className="text-[15px] font-semibold">Fechamento de caixa</h2>
             <p className="mt-0.5 text-xs text-text-subtle">Por turno: da abertura ao fechamento, mesmo passando da meia-noite.</p>
           </div>
           <button onClick={onFechar} className="toque-icone flex h-[30px] w-[30px] items-center justify-center rounded-menuzia bg-page text-lg text-text-subtle hover:bg-border">×</button>
@@ -139,7 +139,7 @@ export function CaixaTurnoGaveta({ aberto, onFechar }: { aberto: boolean; onFech
                     </div>
                   )}
                   {diff !== null && (
-                    <div className="flex justify-between border-t border-border pt-1.5 font-bold">
+                    <div className="flex justify-between border-t border-border pt-1.5 font-semibold">
                       <span>Diferença</span>
                       <span className={Math.abs(diff) < 0.005 ? 'text-price-text' : 'text-danger'}>{diff < 0 ? '− ' : ''}{formatarReal(Math.abs(diff))}</span>
                     </div>
@@ -170,7 +170,7 @@ export function CaixaTurnoGaveta({ aberto, onFechar }: { aberto: boolean; onFech
                   ))}
                   <div className="flex justify-between border-t border-border pt-1.5"><span className="text-text-subtle">Entregas em dinheiro</span><span className="font-medium">{dia.entregasEmDinheiro} · {formatarReal(dia.dinheiroEsperado)}</span></div>
                   <div className="flex justify-between"><span className="text-text-subtle">Declarado nos acertos</span><span className="font-medium">{formatarReal(dia.dinheiroDeclarado)}</span></div>
-                  <div className="flex justify-between font-bold"><span>Diferença</span><span className={Math.abs(dia.diferenca) < 0.005 ? 'text-price-text' : 'text-danger'}>{dia.diferenca < 0 ? '− ' : ''}{formatarReal(Math.abs(dia.diferenca))}</span></div>
+                  <div className="flex justify-between font-semibold"><span>Diferença</span><span className={Math.abs(dia.diferenca) < 0.005 ? 'text-price-text' : 'text-danger'}>{dia.diferenca < 0 ? '− ' : ''}{formatarReal(Math.abs(dia.diferenca))}</span></div>
                   {Object.entries(dia.pagamentosPorForma).map(([f, v]) => (
                     <div key={f} className="flex justify-between text-xs"><span className="text-text-subtle">Recebido no salão/balcão · {FORMA[f] ?? f}</span><span>{formatarReal(v)}</span></div>
                   ))}

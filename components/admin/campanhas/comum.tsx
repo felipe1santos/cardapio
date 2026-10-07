@@ -99,7 +99,7 @@ export function Confirmar({ titulo, texto, botao, perigo, onCancelar, onConfirma
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/45 p-4" onMouseDown={onCancelar}>
       <div role="dialog" aria-modal="true" className="w-full max-w-[420px] overflow-hidden rounded-[8px] bg-white shadow-[0_24px_64px_rgba(15,23,42,0.28)]" onMouseDown={(e) => e.stopPropagation()} data-testid="confirmar">
         <div className="flex h-[52px] items-center justify-between border-b border-[#e5e7eb] px-5">
-          <span className="text-[15px] font-bold text-[#1f2937]">{titulo}</span>
+          <span className="text-[15px] font-semibold text-[#1f2937]">{titulo}</span>
           <button type="button" onClick={onCancelar} aria-label="Fechar" className="text-[#6b7280] hover:text-[#1f2937]"><X className="h-5 w-5" /></button>
         </div>
         <p className="p-5 text-[13.5px] leading-relaxed text-[#374151]">{texto}</p>

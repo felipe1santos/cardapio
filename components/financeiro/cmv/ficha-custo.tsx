@@ -83,7 +83,7 @@ export function FichaCusto({ alvo, insumos, podeEditar, onFechar, onSalvou, toas
         <>
           <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4" data-testid="ficha-resumo">
             {[['CMV (custo)', brl(custo), 'ficha-cmv'], ['Preço', brl(atual.precoCentavos), ''], ['Lucro bruto', custo === null ? '—' : brl(atual.precoCentavos - custo), 'ficha-lucro'], ['Margem', margem === null ? '—' : `${margem.toFixed(1).replace('.', ',')}%`, 'ficha-margem']].map(([r, v, t]) => (
-              <div key={r} className="fin-card px-3 py-2"><p className="text-[11.5px] text-text-subtle">{r}</p><p className="text-[17px] font-bold" data-testid={t || undefined}>{v}</p></div>
+              <div key={r} className="fin-card px-3 py-2"><p className="text-[11.5px] text-text-subtle">{r}</p><p className="text-[17px] font-semibold" data-testid={t || undefined}>{v}</p></div>
             ))}
           </div>
           {aviso && <p className="mb-3 fin-card border-l-[3px] !border-l-[#CBD2D9] px-4 py-2.5 text-[13px] text-[#1C2B33]" data-testid="ficha-aviso">{aviso}</p>}

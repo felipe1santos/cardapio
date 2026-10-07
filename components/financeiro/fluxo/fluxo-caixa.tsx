@@ -283,7 +283,7 @@ export function FluxoCaixa({ usuarioId }: { usuarioId: string }) {
               ))}
             </tbody>
             {dados && dados.linhas.length > 0 && t && (
-              <tfoot className="sticky bottom-0 bg-[#E7F5FF] font-bold">
+              <tfoot className="sticky bottom-0 bg-[#E7F5FF] font-semibold">
                 <tr className="[&>td]:border-t [&>td]:border-[#CBD2D9]" data-testid="fluxo-rodape">
                   {visiveis.map((c, i) => (
                     <td key={c.id} className={`whitespace-nowrap px-3 py-2.5 ${c.tipo === 'centavos' || c.tipo === 'diferenca' ? 'text-right' : ''}`}>
@@ -317,7 +317,7 @@ export function FluxoCaixa({ usuarioId }: { usuarioId: string }) {
         ))}
         {dados && dados.linhas.length > 0 && t && (
           <div className="rounded-[6px] p-4 text-[14px]" style={{ background: FIN_COR.destaque, color: FIN_COR.texto }} data-testid="fluxo-rodape-celular">
-            <p className="font-bold">Totais ({dados.total} turnos)</p>
+            <p className="font-semibold">Totais ({dados.total} turnos)</p>
             <p>Recebido {brl(t.recebido)} · Diferença {brl(t.diferenca)}</p>
           </div>
         )}

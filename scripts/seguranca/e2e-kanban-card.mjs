@@ -55,7 +55,7 @@ try {
       return [...document.querySelectorAll('[data-testid^="pedido-"]')].map((card) => {
         const q = (s) => card.querySelector(s)
         const filhos = [...card.children].filter((c) => c.getBoundingClientRect().height > 0)
-        const botao = q('[data-testid="card-etapa"], [data-testid="card-na-logistica"]')
+        const botao = q('[data-testid="card-etapa"], [data-testid="card-na-logistica"], [data-testid="card-despachar"]')
         const rc = card.getBoundingClientRect(), rb = botao?.getBoundingClientRect()
         const preco = q('[data-testid="card-preco"]'), pag = q('[data-testid="card-pagamento"]')
         const linhas = [...new Set(filhos.map((f) => Math.round(f.getBoundingClientRect().top)))]
@@ -66,7 +66,7 @@ try {
           pag: pag ? { title: pag.getAttribute('title'), icone: !!pag.querySelector('svg'), antesDoPreco: pag.getBoundingClientRect().right <= preco.getBoundingClientRect().left + 1 } : null,
           preco: preco ? { cor: getComputedStyle(preco).color, peso: Number(getComputedStyle(preco).fontWeight), semFundo: transparente(preco) } : null,
           verde,
-          botao: botao ? { larguraTotal: rb.width >= rc.width - 28, seta: botao.dataset.testid === 'card-na-logistica' || botao.lastElementChild?.tagName.toLowerCase() === 'svg', alturaPx: Math.round(rb.height) } : null,
+          botao: botao ? { larguraTotal: rb.width >= rc.width - 28, seta: botao.dataset.testid === 'card-na-logistica' || botao.dataset.testid === 'card-despachar' || botao.lastElementChild?.tagName.toLowerCase() === 'svg', alturaPx: Math.round(rb.height) } : null,
           altura: Math.round(rc.height), cursor: getComputedStyle(card).cursor,
           vaza: [...card.querySelectorAll('span, div, button')].some((e) => e.getClientRects().length && e.getBoundingClientRect().right > rc.right + 1),
         }
@@ -78,8 +78,9 @@ try {
     ok('linha 2: ícone da forma antes do preço, com tooltip (forma · status · troco)', m.filter((c) => c.pag).length >= 6 && m.filter((c) => c.pag).every((c) => c.pag.icone && c.pag.antesDoPreco && / · /.test(c.pag.title)), texto(m.filter((c) => c.pag).map((c) => c.pag.title)))
     ok('troco no tooltip ("Troco p/ R$ 200,00")', m.some((c) => /Troco p\/ R\$\s?200,00/.test(c.pag?.title ?? '')))
     ok('mesa sem ícone de pagamento', !m.find((c) => c.nome?.startsWith('TESTE Card Mesa'))?.pag)
-    ok('preço em verde negrito (mesmo verde do botão Pronto), sem fundo', m.every((c) => c.preco.semFundo && c.preco.peso >= 700 && c.preco.cor === m[0].verde), `${m[0].preco.cor} × ${m[0].verde}`)
-    ok('linha 3: só o botão de etapa, largura total, seta à direita', m.every((c) => c.botao?.larguraTotal && c.botao.seta), texto(m.filter((c) => !(c.botao?.larguraTotal && c.botao?.seta)).map((c) => c.nome)))
+    // Regra 6 (item 58): peso máximo 600.
+    ok('preço em verde semibold 600 (mesmo verde do botão Pronto), sem fundo', m.every((c) => c.preco.semFundo && c.preco.peso === 600 && c.preco.cor === m[0].verde), `${m[0].preco.cor} × ${m[0].verde}`)
+    ok('linha 3: só o botão de etapa (ou Despachar), largura total, seta à direita', m.every((c) => c.botao?.larguraTotal && c.botao.seta), texto(m.filter((c) => !(c.botao?.larguraTotal && c.botao?.seta)).map((c) => c.nome)))
     ok('cursor de mão no card', m.every((c) => c.cursor === 'pointer'))
     ok('nome longo e valor alto não vazam', m.every((c) => !c.vaza), texto(m.filter((c) => c.vaza).map((c) => c.nome)))
     ok(`card compacto (altura ≤ ${nome === 'celular' ? 130 : 140} px)`, m.every((c) => c.altura <= (nome === 'celular' ? 130 : 140)), texto([...new Set(m.map((c) => c.altura))]))
@@ -134,7 +135,7 @@ try {
     })
     ok('linha do tempo horizontal, numa linha: Recebido → Preparando → Pronto → Em rota → Entregue (entrega)', pn.horizontal && pn.etapas.map((e) => e[0]).join(',') === 'etapa-recebido,etapa-preparando,etapa-pronto,etapa-em_rota,etapa-entregue' && pn.etapas[0][1] === 'atual', texto(pn.etapas))
     ok('observações do item e do pedido em vermelho com fundo vermelho claro e ícone', pn.obsItem && pn.obsItem.fundo === 'rgb(254, 226, 226)' && pn.obsItem.cor === 'rgb(239, 68, 68)' && pn.obsItem.icone && pn.obsPedido, texto(pn.obsItem))
-    ok('preços dos itens, subtotal e total no verde do Pronto; total maior e negrito', pn.total && pn.total.cor === m[0].verde && pn.total.px >= 18 && pn.total.peso >= 700 && pn.precosItens.length >= 2 && pn.precosItens.every((c) => c === m[0].verde), texto(pn.total))
+    ok('preços dos itens, subtotal e total no verde do Pronto; total maior e semibold 600', pn.total && pn.total.cor === m[0].verde && pn.total.px >= 18 && pn.total.peso === 600 && pn.precosItens.length >= 2 && pn.precosItens.every((c) => c === m[0].verde), texto(pn.total))
     ok('letra dos itens maior (15 px)', pn.itensPx >= 15, String(pn.itensPx))
     ok('cliente/pagamento: telefone clicável, endereço com bairro, "Troco p/ … · levar …", horário e "há quanto tempo"', /^tel:\d+/.test(pn.telefone ?? '') && pn.endereco && /Troco p\/ R\$\s?200,00 · levar R\$/.test(pn.troco ?? '') && /Feito às \d\d:\d\d · há/.test(pn.horario ?? ''), texto({ tel: pn.telefone, troco: pn.troco, horario: pn.horario }))
     ok('rodapé: Reimprimir e Cancelar (vermelho escuro, texto branco); Alterar pagamento', pn.reimprimir && pn.alterar && pn.cancelar?.fundo === 'rgb(153, 27, 27)' && pn.cancelar?.cor === 'rgb(255, 255, 255)', texto(pn.cancelar))
@@ -162,7 +163,7 @@ try {
       await cartao(p, vit.numero).getByTestId('card-etapa').click()
       ok('botão de etapa avança (Aceitar → Preparando) e NÃO abre o painel', await ate(async () => (await um(`select status::text s from pedidos where id=$1`, [vit.id])).s === 'preparando', 8000) && (await p.getByTestId('painel-pedido').count()) === 0)
       // Tela cheia com painel.
-      await p.getByTestId('kanban-mais').click(); await p.getByTestId('kanban-mais-menu').getByText('Tela cheia').click()
+      await p.getByTestId('kanban-tela-cheia').click() // item 58: botão da barra
       await p.waitForTimeout(700)
       await cartao(p, ret.numero).click({ position: { x: 40, y: 40 } })
       const cheia = await p.evaluate(() => ({ cards: document.querySelectorAll('[data-testid^="pedido-"]').length, painel: !!document.querySelector('[data-testid="painel-pedido"]'), horizontal: document.documentElement.scrollWidth > window.innerWidth + 1 }))
@@ -177,8 +178,14 @@ try {
 
 console.log('\n── Despacho de rotas e Cozinha ──')
 // Mapas, Cozinha, badge e botão: nenhuma alteração.
-const diff = execSync('git diff --stat origin/main -- components/maps ":(exclude)components/maps/route-map.tsx" app/cozinha components/ui/badge.tsx components/ui/button.tsx', { encoding: 'utf8' }).trim()
-ok('Cozinha, mapas (fora o route-map, conferido abaixo), badge e botão sem nenhuma alteração', diff === '', diff)
+// Item 58 (regra 6): a única mudança aceita é o peso da fonte (bold/extrabold/black → semibold).
+const brutoDiff = execSync('git diff -U0 origin/main -- components/maps ":(exclude)components/maps/route-map.tsx" app/cozinha components/ui/badge.tsx components/ui/button.tsx', { encoding: 'utf8' })
+const linhasDiff = brutoDiff.split('\n').filter((l) => /^[-+](?![-+])/.test(l))
+const normal = (l) => l.slice(1).replace(/(?<![\w-])font-(bold|extrabold|black)(?![\w-])/g, 'font-semibold').replace(/fontWeight=\{(700|800|900)\}/g, 'fontWeight={600}')
+const tirados = linhasDiff.filter((l) => l.startsWith('-')).map(normal).sort().join('\n')
+const postos = linhasDiff.filter((l) => l.startsWith('+')).map(normal).sort().join('\n')
+const diff = tirados === postos ? '' : execSync('git diff --stat origin/main -- components/maps ":(exclude)components/maps/route-map.tsx" app/cozinha components/ui/badge.tsx components/ui/button.tsx', { encoding: 'utf8' }).trim()
+ok('Cozinha, mapas (fora o route-map, conferido abaixo), badge e botão sem alteração além do peso da fonte (regra 6)', diff === '', diff)
 // Despacho de rotas (regra 4): desde a noite 3 (item 5, mapa abrindo em Fortaleza) o FUNCIONAMENTO
 // pode mudar; o design não — classes, estilo do mapa e ícones iguais aos do main.
 const superficie = (bruto) => {

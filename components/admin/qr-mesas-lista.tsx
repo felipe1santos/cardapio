@@ -76,10 +76,10 @@ export function ListaQrMesas({
 
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-[13px] font-bold text-text-main">{rotuloMesa(m.nome)}</span>
+                  <span className="text-[13px] font-semibold text-text-main">{rotuloMesa(m.nome)}</span>
                   {m.setor && <span className="text-[11px] text-text-subtle">{m.setor}</span>}
                   {m.qrRevogado && (
-                    <span className="rounded-menuzia bg-danger-bg px-1.5 py-0.5 text-[10px] font-bold uppercase text-danger">
+                    <span className="rounded-menuzia bg-danger-bg px-1.5 py-0.5 text-[10px] font-semibold uppercase text-danger">
                       QR revogado
                     </span>
                   )}

@@ -88,7 +88,7 @@ function Modal({ titulo, onFechar, children, rodape, testid, largura = 520 }: { 
           <button type="button" onClick={onFechar} className="-ml-1 flex h-[40px] items-center gap-1 rounded-[4px] px-1.5 text-[13px] font-semibold text-primary sm:hidden" data-testid="modal-voltar">
             <ArrowLeft className="h-5 w-5" /> Voltar
           </button>
-          <h2 className="min-w-0 flex-1 truncate text-[15px] font-bold text-text-main max-sm:text-center max-sm:pr-[70px]">{titulo}</h2>
+          <h2 className="min-w-0 flex-1 truncate text-[15px] font-semibold text-text-main max-sm:text-center max-sm:pr-[70px]">{titulo}</h2>
           <button type="button" onClick={onFechar} aria-label="Fechar" className="hidden h-[36px] w-[36px] items-center justify-center rounded-[4px] text-text-subtle hover:bg-page sm:flex" data-testid="modal-fechar"><X className="h-5 w-5" /></button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">{children}</div>
@@ -251,7 +251,7 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin }: { lojas: Lo
             ))}
           </div>
           <button type="button" onClick={() => setModal({ tipo: 'cadastrar' })}
-            className="fixed bottom-4 right-4 z-40 flex h-[48px] items-center gap-1.5 rounded-full bg-[#0369A1] px-5 text-[13px] font-bold text-white shadow-[0_8px_20px_rgba(3,105,161,0.4)] hover:brightness-110 sm:static sm:h-[40px] sm:rounded-[4px] sm:px-4 sm:text-[12px] sm:uppercase sm:tracking-wide sm:shadow-none"
+            className="fixed bottom-4 right-4 z-40 flex h-[48px] items-center gap-1.5 rounded-full bg-[#0369A1] px-5 text-[13px] font-semibold text-white shadow-[0_8px_20px_rgba(3,105,161,0.4)] hover:brightness-110 sm:static sm:h-[40px] sm:rounded-[4px] sm:px-4 sm:text-[12px] sm:uppercase sm:tracking-wide sm:shadow-none"
             data-testid="cadastrar-cliente">
             <Plus className="h-4 w-4" /> Cadastrar cliente
           </button>

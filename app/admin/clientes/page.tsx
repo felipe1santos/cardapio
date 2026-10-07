@@ -142,7 +142,7 @@ export default function ClientesPage() {
             da tela e só a tabela rola — com o cabeçalho e a coluna "Cliente" fixos. */}
         <div className="flex flex-col rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white lg:min-h-0 lg:flex-1" data-testid="clientes-card">
           <div className="flex flex-col gap-2.5 border-b border-[var(--adm-borda)] px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
-            <h3 className="text-[14px] font-bold text-[var(--adm-texto-forte)]">
+            <h3 className="text-[14px] font-semibold text-[var(--adm-texto-forte)]">
               Clientes <span className="font-normal text-[var(--adm-texto-suave)]" data-testid="clientes-contador">· {contador}</span>
             </h3>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -176,11 +176,11 @@ export default function ClientesPage() {
               <div key={cliente.telefone} className="rounded-menuzia border border-border bg-white p-3.5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="truncate text-[14px] font-bold">{cliente.nome || '—'}{cliente.origem === 'importado' && <span className="ml-1.5 rounded-[3px] bg-[#E0F2FE] px-1 py-[1px] text-[10.5px] font-semibold text-[#0570AE]">Importado</span>}</div>
+                    <div className="truncate text-[14px] font-semibold">{cliente.nome || '—'}{cliente.origem === 'importado' && <span className="ml-1.5 rounded-[3px] bg-[#E0F2FE] px-1 py-[1px] text-[10.5px] font-semibold text-[#0570AE]">Importado</span>}</div>
                     <div className="text-[12px] text-text-subtle">{cliente.telefone}</div>
                   </div>
                   <div className="flex-shrink-0 text-right">
-                    <div className="text-[14px] font-bold text-price-text">{brl(cliente.valorTotal)}</div>
+                    <div className="text-[14px] font-semibold text-price-text">{brl(cliente.valorTotal)}</div>
                     <div className="text-[11px] text-text-subtle">{cliente.totalPedidos} pedido{cliente.totalPedidos === 1 ? '' : 's'}</div>
                   </div>
                 </div>

@@ -15,7 +15,7 @@ describe('trava por inatividade', () => {
     expect(deveTravar({ ...base, inatividadeMin: 0 })).toBe(false)
   })
   it('telas de operação contínua não travam sozinhas', () => {
-    for (const p of ['/admin/pedidos', '/admin/logistica', '/admin/pdv', '/admin/pdv/balcao', '/admin/mesas', '/admin/mesas/12', '/admin/cozinha']) {
+    for (const p of ['/admin/pedidos', '/admin/logistica', '/admin/lista-pedidos', '/admin/pdv', '/admin/pdv/balcao', '/admin/mesas', '/admin/mesas/12', '/admin/cozinha']) {
       expect(autoTravaPermitida(p)).toBe(false)
       expect(deveTravar({ ...base, pathname: p })).toBe(false)
     }

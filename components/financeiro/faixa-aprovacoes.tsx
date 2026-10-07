@@ -49,7 +49,7 @@ export function FaixaAprovacoes() {
       {!aberto && (
         <button type="button" onClick={() => setAberto(pedidos[0])} data-testid="faixa-aprovacoes"
           className="fin-meta fixed left-1/2 top-[64px] z-[9990] flex -translate-x-1/2 items-center gap-2 rounded-full bg-[#8A4B00] px-4 py-2 text-[14px] font-semibold text-white shadow-lg hover:bg-[#764000] active:bg-[#633600]">
-          <span className="grid h-5 min-w-5 place-items-center rounded-full bg-white px-1 text-[11px] font-bold text-[#8A4B00]">{pedidos.length}</span>
+          <span className="grid h-5 min-w-5 place-items-center rounded-full bg-white px-1 text-[11px] font-semibold text-[#8A4B00]">{pedidos.length}</span>
           {pedidos.length === 1 ? `${pedidos[0].solicitante_nome} pede aprovação` : 'pedidos de aprovação'}
         </button>
       )}
@@ -57,7 +57,7 @@ export function FaixaAprovacoes() {
         <div className="fin-meta fixed inset-0 z-[9995] flex items-end justify-center !bg-[rgba(28,43,51,0.55)] sm:items-center" data-testid="janela-aprovar-remoto">
           <div className="max-h-[92vh] w-full max-w-[420px] overflow-y-auto rounded-t-[12px] bg-white p-5 shadow-[0_8px_28px_rgba(28,43,51,0.28)] sm:rounded-[8px]">
             <p className="text-[12.5px] font-semibold text-text-subtle">Pedido de aprovação</p>
-            <p className="mt-1 text-[16px] font-bold text-text-main" data-testid="aprovar-remoto-acao">{aberto.rotulo}{aberto.valor_centavos !== null ? ` — ${formatarCentavos(Math.abs(aberto.valor_centavos))}` : ''}</p>
+            <p className="mt-1 text-[16px] font-semibold text-text-main" data-testid="aprovar-remoto-acao">{aberto.rotulo}{aberto.valor_centavos !== null ? ` — ${formatarCentavos(Math.abs(aberto.valor_centavos))}` : ''}</p>
             <p className="mt-1 text-[13px] text-text-main">Quem pede: <b>{aberto.solicitante_nome}</b></p>
             {aberto.motivo && <p className="mt-1 text-[13px] text-text-main">Motivo: {aberto.motivo}</p>}
             <p className="mt-1 text-[12px] text-text-subtle">{aberto.dispositivo ?? ''} · vale até {new Date(aberto.expira_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })}</p>

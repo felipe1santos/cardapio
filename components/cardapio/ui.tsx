@@ -53,9 +53,9 @@ export function CabecalhoSecao({
           <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full" style={{ backgroundColor: t.fundo, color: t.cor }}>
             {icone}
           </span>
-          <h3 className="min-w-0 truncate text-[14px] font-bold text-[var(--adm-texto-forte)]">{titulo}</h3>
+          <h3 className="min-w-0 truncate text-[14px] font-semibold text-[var(--adm-texto-forte)]">{titulo}</h3>
           {contador !== undefined && (
-            <span className="rounded-full bg-[#f1f2f4] px-2 py-[1px] text-[11px] font-bold text-[var(--adm-texto-medio)]">{contador}</span>
+            <span className="rounded-full bg-[#f1f2f4] px-2 py-[1px] text-[11px] font-semibold text-[var(--adm-texto-medio)]">{contador}</span>
           )}
         </div>
         {acoes && <div className="flex flex-wrap items-center gap-2">{acoes}</div>}

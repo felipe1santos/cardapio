@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 const MODULES = [
   { href: '/admin/dashboard', label: 'Dashboard', desc: 'Métricas e faturamento do restaurante' },
   { href: '/admin/pedidos', label: 'Painel de Pedidos', desc: 'Acompanhe e avance os pedidos em tempo real' },
-  { href: '/admin/logistica', label: 'Logística', desc: 'Distribua entregas e feche o caixa dos entregadores' },
+  { href: '/admin/lista-pedidos', label: 'Pedidos', desc: 'Pedidos finalizados, entregas em rota e entregadores' },
   { href: '/admin/cardapio', label: 'Cardápio', desc: 'Gerencie itens, complementos e promoções' },
 ]
 
@@ -17,7 +17,7 @@ export default function AdminIndexPage() {
       <div className="flex flex-1 flex-col gap-5 overflow-y-auto p-5">
         <div className="flex flex-col items-start justify-between gap-3 rounded-menuzia border border-border bg-white p-5 sm:flex-row sm:items-center">
           <div>
-            <h1 className="text-base font-bold">Bem-vindo ao painel da sua loja</h1>
+            <h1 className="text-base font-semibold">Bem-vindo ao painel da sua loja</h1>
             <p className="mt-1 text-[13px] text-text-subtle">
               Acompanhe pedidos, organize o cardápio e veja como o cliente final enxerga sua vitrine.
             </p>

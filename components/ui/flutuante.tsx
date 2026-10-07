@@ -247,7 +247,7 @@ export function ModalCentral({ aberto, onFechar, titulo, subtitulo, children, ro
       >
         <div className="flex items-start justify-between gap-3 border-b border-[#E5E7EB] px-4 py-3 sm:px-5">
           <div className="min-w-0">
-            <h2 id={idTitulo} className="text-[16px] font-bold leading-tight text-[#1C2B33]">{titulo}</h2>
+            <h2 id={idTitulo} className="text-[16px] font-semibold leading-tight text-[#1C2B33]">{titulo}</h2>
             {subtitulo && <p className="mt-0.5 text-[13px] leading-[18px] text-[#465A69]">{subtitulo}</p>}
           </div>
           <button type="button" onClick={onFechar} aria-label="Fechar" data-testid={testid ? `${testid}-fechar` : undefined} className="-mr-1 flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-[8px] text-[22px] leading-none text-[#465A69] hover:bg-[#F3F4F6] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#0A78BE]">

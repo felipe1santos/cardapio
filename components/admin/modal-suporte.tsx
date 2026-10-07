@@ -125,7 +125,7 @@ export function ModalSuporte({
         <form onSubmit={enviar} noValidate>
           <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
             <div className="min-w-0">
-              <h2 id={idTitulo} className="text-[15px] font-bold text-text-main">Como podemos ajudar?</h2>
+              <h2 id={idTitulo} className="text-[15px] font-semibold text-text-main">Como podemos ajudar?</h2>
               <p id={idTexto} className="mt-0.5 text-[12px] leading-relaxed text-text-subtle">
                 Sua mensagem vai para o suporte da Menuzia no WhatsApp {SUPORTE_MENUZIA.exibicao}, com o nome da loja e a
                 tela em que você está.
@@ -143,7 +143,7 @@ export function ModalSuporte({
 
           <div className="px-4 py-3">
             <label className="block">
-              <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Sua dúvida</span>
+              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Sua dúvida</span>
               <textarea
                 ref={campo}
                 value={duvida}

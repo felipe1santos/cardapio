@@ -135,8 +135,8 @@ export default function CozinhaPage() {
               <div key={e.id} data-testid="estacao-card" className={['flex flex-col rounded-menuzia border bg-white p-4', e.ativo ? 'border-border' : 'border-dashed border-border opacity-70'].join(' ')}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <h3 className="truncate text-[15px] font-bold text-text-main">{e.nome}</h3>
-                    <span className="mt-1 inline-block rounded-menuzia bg-alert-bg px-1.5 py-[2px] text-[10px] font-bold uppercase tracking-wide text-alert-text">{LABEL_MODO[e.modo]}</span>
+                    <h3 className="truncate text-[15px] font-semibold text-text-main">{e.nome}</h3>
+                    <span className="mt-1 inline-block rounded-menuzia bg-alert-bg px-1.5 py-[2px] text-[10px] font-semibold uppercase tracking-wide text-alert-text">{LABEL_MODO[e.modo]}</span>
                   </div>
                   <span className="flex flex-col items-end gap-1 text-right">
                     <span className={['flex items-center gap-1.5 text-[11.5px] font-semibold', !e.ativo ? 'text-text-subtle' : e.online ? 'text-status-ready' : 'text-text-subtle'].join(' ')}>
@@ -176,7 +176,7 @@ export default function CozinhaPage() {
       {novaAberta && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/70 p-4" role="dialog" aria-modal="true" aria-labelledby="nova-estacao-titulo">
           <div className="w-full max-w-[460px] rounded-menuzia border border-border bg-white p-5 shadow-2xl">
-            <h2 id="nova-estacao-titulo" className="text-[15px] font-bold text-text-main">Nova estação</h2>
+            <h2 id="nova-estacao-titulo" className="text-[15px] font-semibold text-text-main">Nova estação</h2>
             <label className="mt-3 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Nome</label>
             <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex.: Chapa, Montagem, Embalagem" maxLength={60}
               className="mt-1 w-full rounded-menuzia border border-border px-3 py-2 text-[13px] outline-none focus:border-primary" data-testid="nova-estacao-nome" />
@@ -205,7 +205,7 @@ export default function CozinhaPage() {
       {confirmar && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#111827]/70 p-4" role="dialog" aria-modal="true">
           <div className="w-full max-w-[420px] rounded-menuzia border border-border bg-white p-5 shadow-2xl">
-            <h2 className="text-[15px] font-bold text-text-main">{confirmar.tipo === 'link' ? 'Gerar um link novo?' : 'Excluir a estação?'}</h2>
+            <h2 className="text-[15px] font-semibold text-text-main">{confirmar.tipo === 'link' ? 'Gerar um link novo?' : 'Excluir a estação?'}</h2>
             <p className="mt-1 text-[13px] text-text-subtle">
               {confirmar.tipo === 'link'
                 ? `O link e o QR Code atuais de "${confirmar.estacao.nome}" param de funcionar. A tela da cozinha precisa abrir o novo.`

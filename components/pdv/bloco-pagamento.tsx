@@ -72,7 +72,7 @@ export function BlocoPagamento({ comandaId, subtotalCarrinho, versao, onMudar }:
   return (
     <section className="rounded-menuzia border border-border bg-[#f9fafb] p-3" data-testid="pdv-pagamento" aria-label="Pagamento">
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-[11px] font-bold uppercase tracking-wide text-text-subtle">Pagamento</span>
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Pagamento</span>
         <span className="text-[12px] text-text-subtle">{statusAReceber(info.entrega ? 'entrega' : 'retirada')}</span>
       </div>
       <div className="grid grid-cols-2 gap-2">
@@ -121,10 +121,10 @@ export function BlocoPagamento({ comandaId, subtotalCarrinho, versao, onMudar }:
 
       <div className="mt-3 flex items-baseline justify-between text-[13px]">
         <span className="text-text-subtle">Total da conta</span>
-        <span className="font-bold text-text-main" data-testid="pdv-pag-total">{brl(total)}</span>
+        <span className="font-semibold text-text-main" data-testid="pdv-pag-total">{brl(total)}</span>
       </div>
       {levar > 0 && !erro && (
-        <p className="mt-2 rounded-menuzia bg-[#FEF3C7] px-3 py-2 text-[15px] font-bold text-[#92400E]" data-testid="pdv-levar-troco">
+        <p className="mt-2 rounded-menuzia bg-[#FEF3C7] px-3 py-2 text-[15px] font-semibold text-[#92400E]" data-testid="pdv-levar-troco">
           Levar de troco: {brl(levar)}
         </p>
       )}

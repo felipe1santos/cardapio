@@ -237,7 +237,7 @@ export function BulkUploadModal({
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <div>
-            <h3 className="text-[14px] font-bold text-text-main">Subir fotos em massa</h3>
+            <h3 className="text-[14px] font-semibold text-text-main">Subir fotos em massa</h3>
             <p className="text-[12px] text-text-subtle">
               {target.tipo === 'item' ? 'Categoria' : 'Grupo de complementos'}: <b className="text-text-main">{target.nome}</b>
             </p>

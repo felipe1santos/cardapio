@@ -24,7 +24,7 @@ import { textoTempoPedido } from '@/lib/tempo-pedido'
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const hora = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null)
 const VERDE = 'text-status-ready'
-const TITULO = 'mb-2 text-[12px] font-bold uppercase tracking-wide text-text-subtle'
+const TITULO = 'mb-2 text-[12px] font-semibold uppercase tracking-wide text-text-subtle'
 
 type Etapa = { id: string; rotulo: string; quando: string | null }
 
@@ -66,7 +66,7 @@ function LinhaDoTempo({ pedido }: { pedido: Pedido }) {
 
 function Obs({ texto, testid }: { texto: string; testid: string }) {
   return (
-    <div className="mt-1.5 flex items-start gap-1.5 rounded-[3px] border border-[#FCA5A5] bg-danger-bg px-2.5 py-1.5 text-[14px] font-bold text-danger" data-testid={testid}>
+    <div className="mt-1.5 flex items-start gap-1.5 rounded-[3px] border border-[#FCA5A5] bg-danger-bg px-2.5 py-1.5 text-[14px] font-semibold text-danger" data-testid={testid}>
       <AlertTriangle className="mt-[2px] h-4 w-4 flex-shrink-0" aria-hidden /> <span>{texto}</span>
     </div>
   )
@@ -115,7 +115,7 @@ export function PainelPedido({
           </button>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-[20px] font-bold leading-tight text-text-main">Pedido #{p.numero}</h2>
+              <h2 className="text-[20px] font-semibold leading-tight text-text-main">Pedido #{p.numero}</h2>
               <EtiquetasPedido pedido={p} />
             </div>
             <p className="mt-1 truncate text-[15px] font-semibold text-text-main" title={p.clienteNome || undefined}>{p.clienteNome || 'Cliente'}</p>
@@ -146,7 +146,7 @@ export function PainelPedido({
       <div className="flex-1 overflow-y-auto px-4 py-3 text-[14px]">
         {p.status === 'cancelado' && (
           <div className="mb-4 rounded-[3px] border border-danger bg-danger-bg p-3 text-[14px]" data-testid="painel-cancelado">
-            <div className="font-bold text-danger">Pedido cancelado · {rotuloMotivo(p.canceladoMotivo)}</div>
+            <div className="font-semibold text-danger">Pedido cancelado · {rotuloMotivo(p.canceladoMotivo)}</div>
             {p.canceladoObservacao && <div className="mt-1 text-text-main">{p.canceladoObservacao}</div>}
             {p.canceladoPor && <div className="mt-1 text-[12.5px] text-text-subtle">por {p.canceladoPor}</div>}
           </div>
@@ -179,7 +179,7 @@ export function PainelPedido({
             <div className="flex justify-between text-text-subtle"><span>Subtotal</span><span className={`tabular-nums ${VERDE}`}>{brl(p.subtotal)}</span></div>
             {p.taxaEntrega > 0 && <div className="flex justify-between text-text-subtle"><span>Taxa de entrega</span><span className={`tabular-nums ${VERDE}`}>{brl(p.taxaEntrega)}</span></div>}
             {p.desconto > 0 && <div className="flex justify-between text-text-subtle"><span>Desconto</span><span className={`tabular-nums ${VERDE}`}>−{brl(p.desconto)}</span></div>}
-            <div className="flex items-baseline justify-between pt-1"><span className="text-[16px] font-bold text-text-main">Total</span><span className={`text-[20px] font-bold tabular-nums ${VERDE}`} data-testid="painel-total">{brl(p.total)}</span></div>
+            <div className="flex items-baseline justify-between pt-1"><span className="text-[16px] font-semibold text-text-main">Total</span><span className={`text-[20px] font-semibold tabular-nums ${VERDE}`} data-testid="painel-total">{brl(p.total)}</span></div>
           </li>
         </ul>
 
@@ -194,7 +194,7 @@ export function PainelPedido({
                 <Phone className="h-4 w-4" aria-hidden /> {mascararTelefoneBR(p.clienteTelefone)}
               </a>
               {!p.telefoneVerificado && p.origem !== 'pdv' && (
-                <span className="rounded-[3px] bg-danger-bg px-1.5 py-0.5 text-[11px] font-bold uppercase text-danger" title="Telefone não confirmado por WhatsApp" data-testid="painel-nao-verificado">não verif.</span>
+                <span className="rounded-[3px] bg-danger-bg px-1.5 py-0.5 text-[11px] font-semibold uppercase text-danger" title="Telefone não confirmado por WhatsApp" data-testid="painel-nao-verificado">não verif.</span>
               )}
             </div>
           )}
@@ -217,7 +217,7 @@ export function PainelPedido({
                 <span className="text-text-subtle">Pagamento</span>
                 <span className="text-right">
                   <span className="inline-flex items-center gap-1.5 font-semibold"><Icone className="h-4 w-4" aria-hidden /> {rotuloForma(p.formaPagamento, p.cartaoTipo)}</span>
-                  <br />{p.pago ? <span className="font-bold text-price-text">Pago</span> : <span className="font-semibold text-[#92400E]">{statusAReceber(p.tipo)}</span>}
+                  <br />{p.pago ? <span className="font-semibold text-price-text">Pago</span> : <span className="font-semibold text-[#92400E]">{statusAReceber(p.tipo)}</span>}
                   {p.formaPagamento === 'dinheiro' && p.trocoPara ? (
                     <><br /><span className="font-semibold text-[#92400E]" data-testid="painel-troco">Troco p/ {brl(p.trocoPara)}{levar > 0 ? ` · levar ${brl(levar)}` : ''}</span></>
                   ) : null}

@@ -176,18 +176,7 @@ export default function EquipePage() {
 
   return (
     <>
-      <TopBar
-        title="Equipe"
-        breadcrumb="Usuários e permissões"
-        right={
-          papeisOferecidos.length > 0 ? (
-            <Button onClick={() => setModal({ usuario: null })} data-testid="adicionar-usuario">
-              <Plus className="mr-1.5 inline h-3.5 w-3.5" />
-              Adicionar usuário
-            </Button>
-          ) : undefined
-        }
-      />
+      <TopBar title="Equipe" breadcrumb="Usuários e permissões" />
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-5" onClick={() => setMenuDe(null)}>
         <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -199,6 +188,13 @@ export default function EquipePage() {
             <span className="hidden text-[12.5px] text-text-subtle sm:inline">
               {verExcluidos ? `${excluidos.length} excluído(s)` : `${linhas.length - excluidos.length} usuário(s)`}
             </span>
+          )}
+          {/* Item 58: o botão desceu do topo para a linha da busca, à direita (no celular, embaixo, largura total). */}
+          {papeisOferecidos.length > 0 && (
+            <Button onClick={() => setModal({ usuario: null })} data-testid="adicionar-usuario" className="w-full sm:ml-auto sm:w-auto">
+              <Plus className="mr-1.5 inline h-3.5 w-3.5" />
+              Adicionar usuário
+            </Button>
           )}
         </div>
 
@@ -221,7 +217,7 @@ export default function EquipePage() {
                 <div key={f.id} className="rounded-[6px] border border-[#e5e7eb] bg-white p-3.5" data-testid="usuario-cartao" data-login={f.usuario}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="truncate text-[14px] font-bold text-[#1f2937]">
+                      <div className="truncate text-[14px] font-semibold text-[#1f2937]">
                         {f.nome || '—'}
                         {f.id === eu && <span className="ml-1.5 text-[11px] font-normal text-text-subtle">(você)</span>}
                       </div>
@@ -262,7 +258,7 @@ export default function EquipePage() {
                   <tbody>
                     {visiveis.map((f) => (
                       <tr key={f.id} className="equipe-linha border-b border-[#f0f1f3] last:border-0" data-testid="usuario-linha" data-login={f.usuario}>
-                        <td className="px-4 py-3 font-bold text-[#1f2937]">
+                        <td className="px-4 py-3 font-semibold text-[#1f2937]">
                           {f.nome || '—'}
                           {f.id === eu && <span className="ml-1.5 text-[11px] font-normal text-text-subtle">(você)</span>}
                         </td>
@@ -442,7 +438,7 @@ function JanelaPequena({ titulo, onFechar, children, rodape }: { titulo: string;
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/45 p-4" onMouseDown={onFechar}>
       <div role="dialog" aria-modal="true" className="w-full max-w-[440px] overflow-hidden rounded-[8px] bg-white shadow-[0_24px_64px_rgba(15,23,42,0.28)]" onMouseDown={(e) => e.stopPropagation()} data-testid="janela-pequena">
         <div className="flex h-[54px] items-center justify-between border-b border-[#e5e7eb] px-5">
-          <span className="text-[15px] font-bold text-[#1f2937]">{titulo}</span>
+          <span className="text-[15px] font-semibold text-[#1f2937]">{titulo}</span>
           <button type="button" onClick={onFechar} aria-label="Fechar" className="text-[#6b7280] hover:text-[#1f2937]"><X className="h-5 w-5" /></button>
         </div>
         <div className="p-5">{children}</div>

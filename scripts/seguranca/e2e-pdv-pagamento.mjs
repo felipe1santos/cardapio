@@ -204,11 +204,12 @@ try {
   for (const st of ['preparando', 'pronto']) await sb.from('pedidos').update({ status: st }).eq('id', pDin.id)
   const pEnt = contas['entrega-dinheiro-0'].pedido
   for (const st of ['preparando', 'pronto']) await sb.from('pedidos').update({ status: st }).eq('id', pEnt.id)
-  await ir(ger.p, `${BASE}/admin/logistica`)
+  // Item 58: o alerta "Levar R$ … de troco" da Logística está em Pedidos › Em rota agora.
+  await ir(ger.p, `${BASE}/admin/lista-pedidos`)
   await ger.p.waitForTimeout(2000)
   const nAlertas = await ger.p.getByTestId('alerta-troco').count()
-  ok('Logística: alerta "Levar R$ … de troco" em destaque no pedido com troco', nAlertas >= 1, String(nAlertas))
-  await foto(ger.p, '07-logistica')
+  ok('Pedidos › Em rota agora: alerta "Levar R$ … de troco" em destaque no pedido com troco', nAlertas >= 1, String(nAlertas))
+  await foto(ger.p, '07-pedidos-em-rota')
   const motoP = await browser.newPage({ viewport: { width: 390, height: 844 } })
   await motoP.goto(`${BASE}/entregador/${moto.token}`, { waitUntil: 'networkidle' })
   await motoP.waitForTimeout(1500)

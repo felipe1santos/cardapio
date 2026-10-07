@@ -39,7 +39,7 @@ export default function RelatorioCaixa({ params }: { params: Promise<{ id: strin
       <div className="mx-auto max-w-[720px] rounded-[3px] border border-border bg-white p-6 text-[13px] text-text-main print:border-0">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
-            <h1 className="text-[18px] font-bold">Fechamento de caixa</h1>
+            <h1 className="text-[18px] font-semibold">Fechamento de caixa</h1>
             <p className="text-text-subtle">{d.loja}</p>
           </div>
           <button type="button" onClick={() => window.print()} className="h-[34px] rounded-[3px] bg-primary px-3 text-[11px] font-semibold uppercase tracking-wide text-white print:hidden">Imprimir / PDF</button>
@@ -50,16 +50,16 @@ export default function RelatorioCaixa({ params }: { params: Promise<{ id: strin
           <div className={linha}><span>Fechado por</span><b>{String(t.fechado_por_nome ?? '—')}</b></div>
           <div className={linha}><span>Fechamento</span><b>{hora(t.fechado_em)}</b></div>
         </div>
-        <h2 className="mt-5 text-[14px] font-bold">Dinheiro</h2>
+        <h2 className="mt-5 text-[14px] font-semibold">Dinheiro</h2>
         <div className={linha}><span>Fundo de troco</span><b>{brl(t.valor_inicial_centavos)}</b></div>
         <div className={linha}><span>Esperado na gaveta</span><b>{brl(t.esperado_dinheiro_centavos ?? d.saldos.gaveta)}</b></div>
         <div className={linha}><span>Contado</span><b>{brl(t.contado_dinheiro_centavos)}</b></div>
         <div className={linha}><span>Diferença</span><b className={Number(t.diferenca_centavos) < 0 ? 'text-[#EF4444]' : ''}>{brl(t.diferenca_centavos)}</b></div>
-        <h2 className="mt-5 text-[14px] font-bold">Cartão</h2>
+        <h2 className="mt-5 text-[14px] font-semibold">Cartão</h2>
         <div className={linha}><span>Esperado (registrado)</span><b>{brl(t.esperado_cartao_centavos ?? d.saldos.cartao)}</b></div>
         <div className={linha}><span>Maquininhas (contado)</span><b>{brl(t.contado_cartao_centavos)}</b></div>
         <div className={linha}><span>Diferença</span><b>{brl(t.diferenca_cartao_centavos)}</b></div>
-        <h2 className="mt-5 text-[14px] font-bold">Recebido por forma</h2>
+        <h2 className="mt-5 text-[14px] font-semibold">Recebido por forma</h2>
         {Object.keys(d.porForma).length === 0 ? <p className="text-text-subtle">Nenhum recebimento.</p>
           : Object.entries(d.porForma).map(([f, v]) => <div key={f} className={linha}><span>{FORMA[f] ?? f}</span><b>{brl(v)}</b></div>)}
         <div className={linha}><span>Pix a conferir</span><b>{brl(d.saldos.pix_conferir)}</b></div>
@@ -73,7 +73,7 @@ export default function RelatorioCaixa({ params }: { params: Promise<{ id: strin
             {anterior && <p className="mt-1">Fechamento anterior ({hora(anterior.fechado_em)}, por {String(anterior.fechado_por_nome ?? '—')}): esperado {brl(anterior.esperado_dinheiro_centavos)}, contado {brl(anterior.contado_dinheiro_centavos)}, diferença {brl(anterior.diferenca_centavos)}{anterior.justificativa ? ` — ${String(anterior.justificativa)}` : ''}.</p>}
           </div>
         ) : null}
-        <h2 className="mt-5 text-[14px] font-bold">Lançamentos</h2>
+        <h2 className="mt-5 text-[14px] font-semibold">Lançamentos</h2>
         <table className="mt-1 w-full text-left text-[12px]">
           <thead className="text-text-subtle"><tr><th className="py-1">Hora</th><th>O quê</th><th>Quem</th><th className="text-right">Valor</th></tr></thead>
           <tbody>

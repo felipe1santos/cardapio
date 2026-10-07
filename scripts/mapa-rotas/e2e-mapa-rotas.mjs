@@ -88,7 +88,7 @@ async function abrirDespacho(nome) {
   await p.waitForTimeout(1500)
   const aviso = p.locator('[aria-labelledby="setup-alerta-titulo"]').first()
   if (await aviso.isVisible().catch(() => false)) await aviso.click({ position: { x: 5, y: 5 } }).catch(() => {})
-  await p.getByTestId('kanban-rotas').click()
+  await p.getByTestId('kanban-despachar').click() // item 58: o capacete virou o Despachar
   await p.waitForTimeout(2500)
   const mapa = await p.evaluate(() => window.__mapa ?? null)
   await p.screenshot({ path: join(PRINTS, `${nome}.png`) })

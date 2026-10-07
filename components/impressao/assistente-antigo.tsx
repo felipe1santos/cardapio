@@ -59,7 +59,7 @@ export function AssistenteAntigo({
 
       <section className="rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="flex items-center gap-2 text-[15px] font-bold text-[var(--adm-texto)]"><Printer className="h-4 w-4 text-[var(--adm-texto-suave)]" /> Assistente antigo</h2>
+          <h2 className="flex items-center gap-2 text-[15px] font-semibold text-[var(--adm-texto)]"><Printer className="h-4 w-4 text-[var(--adm-texto-suave)]" /> Assistente antigo</h2>
           <SeloStatus
             estado={desativado ? 'desconectado' : online ? 'conectado' : vistoEm ? 'aguardando' : 'desconectado'}
             rotulo={desativado ? 'Desativado' : online ? 'Imprimindo' : vistoEm ? `Sem sinal desde ${quando(vistoEm)}` : 'Não conectado'}
@@ -107,7 +107,7 @@ export function AssistenteAntigo({
       </section>
 
       <section className="rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white p-4">
-        <h3 className="text-[14px] font-bold text-[var(--adm-texto)]">Impressoras do Assistente antigo</h3>
+        <h3 className="text-[14px] font-semibold text-[var(--adm-texto)]">Impressoras do Assistente antigo</h3>
         <p className="text-[12px] text-[var(--adm-texto-suave)]">Papel, fonte e cópias de cada impressora.</p>
         <ul className="mt-2 space-y-1.5">
           {atual?.impressoras.map((imp) => {

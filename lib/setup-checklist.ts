@@ -186,7 +186,7 @@ export function avaliarSetup(dados: DadosSetup): PendenciaSetup[] {
       severidade: 'atencao',
       titulo: 'Nenhum entregador cadastrado',
       descricao: 'O pedido pronto vai parar na Logística e não tem pra quem despachar. Cadastre um entregador ou, na Logística, passe a entregar sem entregador.',
-      href: '/admin/logistica',
+      href: '/admin/lista-pedidos?tab=entregadores',
     })
   }
 

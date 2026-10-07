@@ -110,7 +110,7 @@ function Indicador({
           {rotulo}
         </p>
         <div className="mt-0.5 flex items-center gap-3">
-          <p className="text-[22px] font-bold leading-tight text-[var(--adm-texto)]">{valor}</p>
+          <p className="text-[22px] font-semibold leading-tight text-[var(--adm-texto)]">{valor}</p>
           {serie && <MiniGrafico valores={serie} tendencia={delta === undefined || delta === null ? null : inverso ? -delta : delta} largura={64} altura={22} />}
         </div>
         {rodape && <p className="mt-0.5 text-[11px] text-[var(--adm-texto-suave)]">{rodape}</p>}
@@ -415,7 +415,7 @@ export default function DashboardPage() {
 
         {/* Quanto o cliente demora entre uma etapa e a seguinte. */}
         <Cartao className="p-4">
-          <h3 className="text-[14px] font-bold text-[var(--adm-texto-forte)]">Análise de tempo</h3>
+          <h3 className="text-[14px] font-semibold text-[var(--adm-texto-forte)]">Análise de tempo</h3>
           <p className="mt-0.5 text-[12px] text-[var(--adm-texto-suave)]">Tempo médio entre as etapas do funil de conversão</p>
           <div className="mt-4 flex flex-wrap gap-6">
             <Indicador icone={ICONES.visao} tom="roxo" rotulo="Visita → Visualização" valor={formatarDuracao(vitrine?.tempos.visita_visualizacao ?? null)} />
@@ -427,7 +427,7 @@ export default function DashboardPage() {
 
         {/* Faixa de resumo: dinheiro, ritmo e operação. */}
         <Cartao className="p-4">
-          <h3 className="text-[14px] font-bold text-[var(--adm-texto-forte)]">Resumo do período</h3>
+          <h3 className="text-[14px] font-semibold text-[var(--adm-texto-forte)]">Resumo do período</h3>
           <p className="mt-0.5 text-[12px] text-[var(--adm-texto-suave)]">
             Comparado com o período anterior de mesmo tamanho
           </p>
@@ -487,24 +487,24 @@ export default function DashboardPage() {
         {/* Clientes do período. */}
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <Cartao className="p-4">
-            <h3 className="text-[14px] font-bold text-[var(--adm-texto-forte)]">Clientes no período</h3>
+            <h3 className="text-[14px] font-semibold text-[var(--adm-texto-forte)]">Clientes no período</h3>
             <p className="mt-1 text-[12px] text-[var(--adm-texto-suave)]">
               Pessoas diferentes que pediram no recorte selecionado
             </p>
-            <p className="mt-3 text-[26px] font-bold leading-none text-[var(--adm-texto)]">{inteiro(m.clientes.total)}</p>
+            <p className="mt-3 text-[26px] font-semibold leading-none text-[var(--adm-texto)]">{inteiro(m.clientes.total)}</p>
           </Cartao>
           <Cartao className="p-4">
-            <h3 className="text-[14px] font-bold text-[var(--adm-texto-forte)]">Clientes novos</h3>
+            <h3 className="text-[14px] font-semibold text-[var(--adm-texto-forte)]">Clientes novos</h3>
             <p className="mt-1 text-[12px] text-[var(--adm-texto-suave)]">Fizeram o primeiro pedido dentro do período</p>
-            <p className="mt-3 text-[26px] font-bold leading-none text-[var(--adm-texto)]">
+            <p className="mt-3 text-[26px] font-semibold leading-none text-[var(--adm-texto)]">
               {inteiro(m.clientes.novos)}{' '}
               <span className="text-[14px] font-semibold text-[var(--adm-texto-suave)]">({m.clientes.pctNovos}%)</span>
             </p>
           </Cartao>
           <Cartao className="p-4">
-            <h3 className="text-[14px] font-bold text-[var(--adm-texto-forte)]">Clientes recorrentes</h3>
+            <h3 className="text-[14px] font-semibold text-[var(--adm-texto-forte)]">Clientes recorrentes</h3>
             <p className="mt-1 text-[12px] text-[var(--adm-texto-suave)]">Já haviam pedido antes e voltaram</p>
-            <p className="mt-3 text-[26px] font-bold leading-none text-[var(--adm-texto)]">
+            <p className="mt-3 text-[26px] font-semibold leading-none text-[var(--adm-texto)]">
               {inteiro(m.clientes.recorrentes)}{' '}
               <span className="text-[14px] font-semibold text-[var(--adm-texto-suave)]">
                 ({m.clientes.pctRecorrentes}%)

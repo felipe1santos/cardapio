@@ -92,7 +92,7 @@ export function ModalExportar({ onFechar, onToast }: { onFechar: () => void; onT
       </>}>
       <div className="space-y-5">
         <section>
-          <h3 className="mb-2 text-[11.5px] font-bold uppercase tracking-[0.05em] text-[#5b6472]">Período</h3>
+          <h3 className="mb-2 text-[11.5px] font-semibold uppercase tracking-[0.05em] text-[#5b6472]">Período</h3>
           <div className="flex flex-wrap gap-1.5">{ATALHOS.map((a) => <Chip key={a.id} {...a} />)}</div>
           {atalho === 'personalizado' && (
             <div className="mt-3 grid max-w-[360px] grid-cols-2 gap-2">
@@ -110,7 +110,7 @@ export function ModalExportar({ onFechar, onToast }: { onFechar: () => void; onT
           )}
         </section>
         <section>
-          <h3 className="mb-2 text-[11.5px] font-bold uppercase tracking-[0.05em] text-[#5b6472]">Filtros (opcionais)</h3>
+          <h3 className="mb-2 text-[11.5px] font-semibold uppercase tracking-[0.05em] text-[#5b6472]">Filtros (opcionais)</h3>
           <div className="flex flex-col gap-2">
             <Caixa marcado={recorrentes} onChange={(v) => { setRecorrentes(v); if (v) setUmaVez(false) }} testid="exportar-recorrentes">Somente recorrentes (2+ pedidos)</Caixa>
             <Caixa marcado={umaVez} onChange={(v) => { setUmaVez(v); if (v) setRecorrentes(false) }} testid="exportar-uma-vez">Somente quem comprou 1x</Caixa>
@@ -118,7 +118,7 @@ export function ModalExportar({ onFechar, onToast }: { onFechar: () => void; onT
           </div>
         </section>
         <section>
-          <h3 className="mb-2 text-[11.5px] font-bold uppercase tracking-[0.05em] text-[#5b6472]">Formato</h3>
+          <h3 className="mb-2 text-[11.5px] font-semibold uppercase tracking-[0.05em] text-[#5b6472]">Formato</h3>
           <div className="grid gap-2 sm:grid-cols-2">
             {([
               ['completa', FileSpreadsheet, 'Planilha completa (Excel)', 'Todas as colunas da tabela, em português, abre direto no Excel.'],

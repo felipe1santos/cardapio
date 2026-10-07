@@ -33,7 +33,7 @@ export function CartaoFunil({ etapa }: { etapa: EtapaFunilVitrine }) {
     <div className="flex min-h-[236px] flex-col overflow-hidden rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white" data-testid={`funil-${etapa.id}`}>
       <div className="flex-1 px-4 pt-4">
         <p className="text-[12.8px] font-semibold text-[var(--adm-texto-forte)]">{etapa.rotulo}</p>
-        <p className="mt-1 text-[26px] font-bold leading-none text-[var(--adm-texto)]">
+        <p className="mt-1 text-[26px] font-semibold leading-none text-[var(--adm-texto)]">
           {etapa.qtd.toLocaleString('pt-BR')}
         </p>
         <p className="mt-1.5 text-[11px] text-[var(--adm-texto-suave)]">{etapa.descricao}</p>
@@ -72,7 +72,7 @@ export function CartaoFunil({ etapa }: { etapa: EtapaFunilVitrine }) {
           />
         </svg>
         <div className="absolute inset-x-0 bottom-0 px-4 pb-3 text-white">
-          <p className="text-[15px] font-bold leading-none">{etapa.pct}%</p>
+          <p className="text-[15px] font-semibold leading-none">{etapa.pct}%</p>
           <p className="mt-1 text-[11px] font-medium text-white/90">
             {etapa.pctAnterior === null ? 'das visitas' : `${etapa.pctAnterior}% no período anterior`}
           </p>

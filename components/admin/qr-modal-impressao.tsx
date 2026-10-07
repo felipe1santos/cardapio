@@ -188,7 +188,7 @@ export function ModalImpressaoQr({
       >
         <div className="flex flex-shrink-0 items-start justify-between gap-3 border-b border-border px-5 py-4">
           <div className="min-w-0">
-            <h3 className="text-[15px] font-bold text-text-main">{titulo}</h3>
+            <h3 className="text-[15px] font-semibold text-text-main">{titulo}</h3>
             {subtitulo && <p className="mt-0.5 text-[12px] text-text-subtle">{subtitulo}</p>}
           </div>
           <button
@@ -282,12 +282,12 @@ export function ModalImpressaoQr({
                   onClick={() => setTamanho(tamanhoQrValido(modelo, tamanho - limites.passo))}
                   disabled={tamanho <= limites.min}
                   aria-label="Diminuir o QR"
-                  className="toque-icone flex h-[38px] w-[38px] items-center justify-center rounded-menuzia border border-border text-[18px] font-bold text-text-subtle hover:border-primary hover:text-primary disabled:opacity-40"
+                  className="toque-icone flex h-[38px] w-[38px] items-center justify-center rounded-menuzia border border-border text-[18px] font-semibold text-text-subtle hover:border-primary hover:text-primary disabled:opacity-40"
                 >
                   −
                 </button>
                 <div className="min-w-[74px] text-center">
-                  <span className="text-[17px] font-bold tabular-nums text-text-main">{tamanho}</span>
+                  <span className="text-[17px] font-semibold tabular-nums text-text-main">{tamanho}</span>
                   <span className="ml-1 text-[12px] text-text-subtle">mm</span>
                 </div>
                 <button
@@ -295,7 +295,7 @@ export function ModalImpressaoQr({
                   onClick={() => setTamanho(tamanhoQrValido(modelo, tamanho + limites.passo))}
                   disabled={tamanho >= limites.max}
                   aria-label="Aumentar o QR"
-                  className="toque-icone flex h-[38px] w-[38px] items-center justify-center rounded-menuzia border border-border text-[18px] font-bold text-text-subtle hover:border-primary hover:text-primary disabled:opacity-40"
+                  className="toque-icone flex h-[38px] w-[38px] items-center justify-center rounded-menuzia border border-border text-[18px] font-semibold text-text-subtle hover:border-primary hover:text-primary disabled:opacity-40"
                 >
                   +
                 </button>

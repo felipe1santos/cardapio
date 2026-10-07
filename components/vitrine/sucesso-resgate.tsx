@@ -31,7 +31,7 @@ export function SucessoResgate({ texto, onFim }: { texto: string; onFim: () => v
         <span className="efeito-check flex h-[52px] w-[52px] items-center justify-center rounded-full bg-[#16A34A]">
           <svg viewBox="0 0 24 24" className="h-7 w-7 fill-white" aria-hidden><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>
         </span>
-        <span className="text-[14px] font-bold text-[#15803D]">{texto}</span>
+        <span className="text-[14px] font-semibold text-[#15803D]">{texto}</span>
       </div>
     </div>
   )

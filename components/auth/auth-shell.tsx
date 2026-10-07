@@ -31,8 +31,8 @@ export function AuthShell({
         {/* Marca */}
         <div className="flex flex-col items-center justify-center bg-[#21478C] px-6 pb-12 pt-16 text-center sm:py-12">
           <div className="flex items-center gap-2.5">
-            <span className="text-4xl font-extrabold tracking-tight text-white">Menuzia</span>
-            <span className="flex h-9 w-9 items-center justify-center rounded-menuzia bg-[#E85D2A] text-2xl font-extrabold leading-none text-white">
+            <span className="text-4xl font-semibold tracking-tight text-white">Menuzia</span>
+            <span className="flex h-9 w-9 items-center justify-center rounded-menuzia bg-[#E85D2A] text-2xl font-semibold leading-none text-white">
               +
             </span>
           </div>
@@ -42,7 +42,7 @@ export function AuthShell({
         {/* Sheet */}
         <div className="flex-1 rounded-t-[28px] bg-white px-6 pb-12 pt-9 shadow-[0_-8px_28px_rgba(0,0,0,0.12)] sm:flex-none sm:rounded-none sm:shadow-none">
           <div className="mx-auto w-full max-w-sm">
-            <h1 className="mb-6 text-center text-xl font-bold text-text-main">{heading}</h1>
+            <h1 className="mb-6 text-center text-xl font-semibold text-text-main">{heading}</h1>
             {children}
           </div>
         </div>

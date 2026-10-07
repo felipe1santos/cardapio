@@ -63,7 +63,7 @@ export function CancelarPedidoModal({ pedido, onFechar, onCancelado }: Props) {
         className="w-full max-w-[420px] rounded-menuzia border border-border bg-white shadow-2xl"
       >
         <div className="border-b border-border px-5 py-4">
-          <h2 id="cancelar-pedido-titulo" className="text-[15px] font-bold">
+          <h2 id="cancelar-pedido-titulo" className="text-[15px] font-semibold">
             Cancelar pedido #{pedido.numero}
           </h2>
           <p className="mt-0.5 text-xs text-text-subtle">

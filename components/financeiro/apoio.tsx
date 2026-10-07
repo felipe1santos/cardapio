@@ -70,7 +70,7 @@ export function AprovacaoPin({ titulo, onConfirmar, onCancelar, erro, ocupado, r
   if (esperando) {
     return (
       <div className="fin-card border-l-[3px] p-[14px]" style={{ borderLeftColor: '#D47B04' }} data-testid="aprovacao-remota">
-        <p className="text-[14px] font-bold" style={{ color: FIN_COR.texto }}>{titulo}</p>
+        <p className="text-[14px] font-semibold" style={{ color: FIN_COR.texto }}>{titulo}</p>
         {esperando.status === 'pendente' && <p className="mt-[4px] text-[13px] text-text-main" data-testid="aprovacao-remota-esperando">Pedido enviado. Aguardando o gerente ou o dono aprovar no celular… (vale 10 minutos)</p>}
         {esperando.status === 'aprovado' && <p className="mt-[4px] text-[13px] font-semibold" style={{ color: FIN_COR.verde }}>Aprovado por {esperando.aprovador}.</p>}
         {esperando.status === 'recusado' && <p className="mt-[4px] text-[13px] font-semibold text-danger" data-testid="aprovacao-remota-recusada">Recusado por {esperando.aprovador}{esperando.motivo ? `: ${esperando.motivo}` : '.'}</p>}
@@ -85,7 +85,7 @@ export function AprovacaoPin({ titulo, onConfirmar, onCancelar, erro, ocupado, r
   }
   return (
     <div className="fin-card border-l-[3px] p-[14px]" style={{ borderLeftColor: '#D47B04' }} data-testid="aprovacao-pin">
-      <p className="text-[14px] font-bold" style={{ color: FIN_COR.texto }}>{titulo}</p>
+      <p className="text-[14px] font-semibold" style={{ color: FIN_COR.texto }}>{titulo}</p>
       {!quem ? (
         <>
           <p className="mb-[8px] mt-[2px] text-[12px] text-text-subtle">Chame quem vai aprovar e escolha o nome dele.</p>
@@ -128,7 +128,7 @@ export function Janela({ titulo, onFechar, children, testid, largura = 440 }: { 
     <div className="fin-meta fixed inset-0 z-[95] flex items-center justify-center !bg-[rgba(28,43,51,0.55)] p-4" data-testid={testid}>
       <div role="dialog" aria-modal="true" aria-label={titulo} className="max-h-[92vh] w-full overflow-y-auto rounded-[8px] bg-white shadow-[0_8px_28px_rgba(28,43,51,0.28)]" style={{ maxWidth: largura }}>
         <div className="flex items-center justify-between gap-3 border-b border-[#E4E7EA] px-[20px] py-[14px]">
-          <h2 className="text-[18px] font-bold" style={{ color: FIN_COR.texto }}>{titulo}</h2>
+          <h2 className="text-[18px] font-semibold" style={{ color: FIN_COR.texto }}>{titulo}</h2>
           <button type="button" onClick={onFechar} aria-label="Fechar" className="grid h-[32px] w-[32px] place-items-center rounded-[6px] text-[20px] hover:bg-[#F5F6F7] active:bg-[#E4E7EA]" style={{ color: FIN_COR.texto2 }}>×</button>
         </div>
         <div className="px-[20px] py-[16px]">{children}</div>

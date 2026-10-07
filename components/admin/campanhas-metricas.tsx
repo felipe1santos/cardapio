@@ -210,7 +210,7 @@ export function CampanhasMetricas({ opcoesCampanhas }: { opcoesCampanhas: { id: 
       ) : vazio ? (
         <Cartao className="flex flex-col items-center gap-3 px-4 py-14 text-center">
           <BolhaIcone icone={Megaphone} tom="azul" tamanho={52} />
-          <p className="text-[15px] font-bold text-[var(--adm-texto)]">Nenhuma campanha neste período</p>
+          <p className="text-[15px] font-semibold text-[var(--adm-texto)]">Nenhuma campanha neste período</p>
           <p className="max-w-[420px] text-[13px] text-[var(--adm-texto-suave)]">Quando você disparar uma campanha, aqui aparecem as mensagens enviadas, os cliques no link e os pedidos que vieram dela.</p>
         </Cartao>
       ) : t ? (
@@ -330,7 +330,7 @@ export function CampanhasMetricas({ opcoesCampanhas }: { opcoesCampanhas: { id: 
                         {inteiro(c.pedidos)}
                         {c.pedidos > c.pedidos_clique && <span className="block text-[11px] text-[#B45309]">{contagem(c.pedidos - c.pedidos_clique, 'provável', 'prováveis')}</span>}
                       </td>
-                      <td className="px-3 py-3 text-right font-bold" style={{ color: TONS.verde.cor }}>{formatarReal(Number(c.faturamento))}</td>
+                      <td className="px-3 py-3 text-right font-semibold" style={{ color: TONS.verde.cor }}>{formatarReal(Number(c.faturamento))}</td>
                       <td className="px-4 py-3 text-right">
                         <span className="inline-block rounded-full px-2 py-[2px] text-[12px] font-semibold" style={{ backgroundColor: TONS.roxo.fundo, color: TONS.roxo.cor }}>{pct(c.convertidos, c.enviadas)}</span>
                       </td>
@@ -343,7 +343,7 @@ export function CampanhasMetricas({ opcoesCampanhas }: { opcoesCampanhas: { id: 
 
           {/* Como contamos */}
           <Cartao className="bg-[#F8FAFC] p-4 text-[12px] leading-[18px] text-[var(--adm-texto-medio)]">
-            <p className="mb-2 flex items-center gap-1.5 text-[13px] font-bold text-[var(--adm-texto-forte)]"><ShieldCheck className="h-4 w-4 text-[#0688D4]" /> Como contamos</p>
+            <p className="mb-2 flex items-center gap-1.5 text-[13px] font-semibold text-[var(--adm-texto-forte)]"><ShieldCheck className="h-4 w-4 text-[#0688D4]" /> Como contamos</p>
             <div className="mb-2.5 flex flex-wrap gap-1.5">
               <Etiqueta tom="verde">Real: enviadas, falhas, cliques, pedidos com clique</Etiqueta>
               <Etiqueta tom="ambar">Estimado: pedidos prováveis</Etiqueta>
@@ -376,7 +376,7 @@ function Destaque({ icone, tom, titulo, valor, dica, etiqueta, barra, valorCor, 
         {etiqueta}
       </div>
       <p className="mt-3 text-[12.8px] font-medium text-[var(--adm-texto-medio)]">{titulo}</p>
-      <p className={['mt-0.5 font-bold leading-tight', valorPequeno ? 'text-[16px] sm:text-[18px] text-[var(--adm-texto-suave)]' : 'text-[21px] sm:text-[26px]'].join(' ')}
+      <p className={['mt-0.5 font-semibold leading-tight', valorPequeno ? 'text-[16px] sm:text-[18px] text-[var(--adm-texto-suave)]' : 'text-[21px] sm:text-[26px]'].join(' ')}
         style={valorCor && !valorPequeno ? { color: valorCor } : { color: valorPequeno ? undefined : 'var(--adm-texto)' }}>
         {valor}
       </p>
@@ -397,7 +397,7 @@ function Numero({ icone, tom, titulo, valor, dica, className = '' }: { icone: Lu
       <BolhaIcone icone={icone} tom={tom} tamanho={36} />
       <div className="min-w-0">
         <p className="truncate text-[12px] font-medium text-[var(--adm-texto-medio)]">{titulo}</p>
-        <p className="text-[20px] font-bold leading-tight text-[var(--adm-texto)]">{valor}</p>
+        <p className="text-[20px] font-semibold leading-tight text-[var(--adm-texto)]">{valor}</p>
         {dica && <p className="truncate text-[11px] text-[var(--adm-texto-suave)]">{dica}</p>}
       </div>
     </Cartao>
@@ -411,7 +411,7 @@ function Saude({ icone: Icone, tom, nome, valor }: { icone: LucideIcon; tom: Tom
     <div className="flex items-center gap-2.5 rounded-[6px] border-[0.8px] border-[var(--adm-borda)] px-3 py-2.5">
       <Icone className="h-4 w-4 flex-shrink-0" style={{ color: zero ? '#94A3B8' : t.cor }} strokeWidth={2.2} />
       <dt className="min-w-0 flex-1 truncate text-[12px] text-[var(--adm-texto-medio)]">{nome}</dt>
-      <dd className="text-[15px] font-bold" style={{ color: zero ? 'var(--adm-texto-suave)' : tom === 'vermelho' || tom === 'ambar' ? t.cor : 'var(--adm-texto)' }}>{inteiro(valor)}</dd>
+      <dd className="text-[15px] font-semibold" style={{ color: zero ? 'var(--adm-texto-suave)' : tom === 'vermelho' || tom === 'ambar' ? t.cor : 'var(--adm-texto)' }}>{inteiro(valor)}</dd>
     </div>
   )
 }
@@ -485,7 +485,7 @@ function FaturamentoPorCampanha({ campanhas }: { campanhas: MetricaCampanha[] })
         <li key={c.id}>
           <div className="mb-1 flex items-baseline justify-between gap-2 text-[12.5px]">
             <span className="min-w-0 truncate font-semibold text-[var(--adm-texto-forte)]">{c.nome}</span>
-            <span className="flex-shrink-0 font-bold" style={{ color: TONS.verde.cor }}>{formatarReal(Number(c.faturamento))}</span>
+            <span className="flex-shrink-0 font-semibold" style={{ color: TONS.verde.cor }}>{formatarReal(Number(c.faturamento))}</span>
           </div>
           <div className="flex h-[10px] overflow-hidden rounded-full bg-[#eef0f3]">
             <div className="h-full rounded-full" style={{ width: `${Number(c.faturamento) > 0 ? Math.max(4, (Number(c.faturamento) / maior) * 100) : 0}%`, backgroundColor: TONS.verde.forte }} />
@@ -529,7 +529,7 @@ export function DetalheCampanha({ campanha, onClose }: { campanha: MetricaCampan
           <div className="flex min-w-0 items-center gap-3">
             <BolhaIcone icone={Megaphone} tom="azul" tamanho={38} />
             <div className="min-w-0">
-              <h2 className="break-words text-[15px] font-bold text-[var(--adm-texto)]">{campanha.nome}</h2>
+              <h2 className="break-words text-[15px] font-semibold text-[var(--adm-texto)]">{campanha.nome}</h2>
               <p className="text-[12px] text-[var(--adm-texto-suave)]">{dataCurta(campanha.quando)} · {contagem(campanha.destinatarios, 'destinatário', 'destinatários')}</p>
             </div>
           </div>
@@ -551,7 +551,7 @@ export function DetalheCampanha({ campanha, onClose }: { campanha: MetricaCampan
               { nome: 'Pediram', valor: campanha.convertidos, tom: 'verde' },
             ]} />
           </div>
-          <h3 className="mb-2 mt-5 text-[14px] font-bold text-[var(--adm-texto-forte)]">Destinatários</h3>
+          <h3 className="mb-2 mt-5 text-[14px] font-semibold text-[var(--adm-texto-forte)]">Destinatários</h3>
           {erro ? (
             <p className="text-[13px] text-[#DC2626]" role="alert">{erro}</p>
           ) : lista === null ? (
@@ -597,7 +597,7 @@ function Mini({ icone, tom, titulo, valor }: { icone: LucideIcon; tom: Tom; titu
       <BolhaIcone icone={icone} tom={tom} tamanho={30} />
       <div className="min-w-0">
         <p className="truncate text-[11px] text-[var(--adm-texto-suave)]">{titulo}</p>
-        <p className="truncate text-[15px] font-bold text-[var(--adm-texto)]">{valor}</p>
+        <p className="truncate text-[15px] font-semibold text-[var(--adm-texto)]">{valor}</p>
       </div>
     </div>
   )

@@ -66,7 +66,7 @@ export function Modelos({ api, onUsar, onToast }: { api: ReturnType<typeof useMo
                 <header className="flex items-center gap-3 px-4 pt-4">
                   <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[8px] bg-[#E0F2FE] text-[#0688d4]"><FileText className="h-5 w-5" /></span>
                   <div className="min-w-0">
-                    <h4 className="truncate text-[14px] font-bold text-[#1f2937]">{m.nome}</h4>
+                    <h4 className="truncate text-[14px] font-semibold text-[#1f2937]">{m.nome}</h4>
                     <p className="text-[11.5px] text-[#6b7280]">Atualizado em {new Date(m.atualizado_em).toLocaleDateString('pt-BR')}</p>
                   </div>
                 </header>
@@ -119,7 +119,7 @@ function EditorModelo({ inicial, onCancelar, onSalvar }: { inicial: { id?: strin
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/45 p-4" onMouseDown={onCancelar}>
       <div role="dialog" aria-modal="true" className="w-full max-w-[560px] overflow-hidden rounded-[8px] bg-white shadow-[0_24px_64px_rgba(15,23,42,0.28)]" onMouseDown={(e) => e.stopPropagation()} data-testid="editor-modelo">
         <div className="flex h-[54px] items-center justify-between border-b border-[#e5e7eb] px-5">
-          <span className="text-[15px] font-bold text-[#1f2937]">{inicial.id ? 'Editar modelo' : 'Novo modelo'}</span>
+          <span className="text-[15px] font-semibold text-[#1f2937]">{inicial.id ? 'Editar modelo' : 'Novo modelo'}</span>
           <button type="button" onClick={onCancelar} aria-label="Fechar" className="text-[#6b7280] hover:text-[#1f2937]"><X className="h-5 w-5" /></button>
         </div>
         <div className="space-y-4 p-5">

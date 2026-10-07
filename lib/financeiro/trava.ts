@@ -6,7 +6,7 @@
  * Nelas a trava é só manual (menu de conta → Bloquear tela). E só trava sozinho quem já tem
  * PIN — sem PIN, destravar exigiria sair e entrar com senha a cada 5 minutos.
  */
-export const ROTAS_SEM_AUTOTRAVA = ['/admin/pedidos', '/admin/logistica', '/admin/pdv', '/admin/mesas', '/admin/cozinha'] as const
+export const ROTAS_SEM_AUTOTRAVA = ['/admin/pedidos', '/admin/lista-pedidos', '/admin/logistica', '/admin/pdv', '/admin/mesas', '/admin/cozinha'] as const
 
 export function autoTravaPermitida(pathname: string): boolean {
   return !ROTAS_SEM_AUTOTRAVA.some((r) => pathname === r || pathname.startsWith(r + '/'))

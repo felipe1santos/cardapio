@@ -90,7 +90,7 @@ export function MensagensAutomaticas({ onToast, onAtivoMudou }: { onToast: (tom:
       <section className="campanha-cartao rounded-[6px] border border-[#e5e7eb] bg-white">
         <div className="flex items-center justify-between gap-3 border-b border-[#eef0f3] px-4 py-3.5">
           <div>
-            <h3 className="text-[14px] font-bold text-[#1f2937]">Avisos de status do pedido</h3>
+            <h3 className="text-[14px] font-semibold text-[#1f2937]">Avisos de status do pedido</h3>
             <p className="mt-0.5 text-[12.5px] text-[#5b6472]">O cliente recebe no WhatsApp cada etapa do pedido, sempre que o WhatsApp da loja estiver conectado. Edite os textos abaixo.</p>
             {/* Sem chave geral desde a noite 5: loja que já tinha desligado continua sem envio até o suporte decidir. */}
             {cfg.ativo === false && <p className="mt-1.5 inline-flex rounded-[4px] bg-[#fff7ed] px-2 py-1 text-[12px] font-semibold text-[#9a3412]" data-testid="envio-pausado-suporte">Envio pausado nesta loja. Fale com o suporte para religar.</p>}
@@ -109,7 +109,7 @@ export function MensagensAutomaticas({ onToast, onAtivoMudou }: { onToast: (tom:
             </div>
           )}
           <div>
-            <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.06em] text-[#5b6472]">Enviar para os tipos de pedido</div>
+            <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#5b6472]">Enviar para os tipos de pedido</div>
             <div className="flex flex-wrap gap-x-5 gap-y-2">
               {TIPOS.map((t) => (
                 <label key={t.chave} className="inline-flex cursor-pointer items-center gap-2 text-[13.5px] text-[#1f2937]">

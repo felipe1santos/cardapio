@@ -91,11 +91,11 @@ function Marca({ marcada, redonda }: { marcada: boolean; redonda?: boolean }) {
 function CabecalhoGrupo({ nome, obrigatorio, regra, falta }: { nome: string; obrigatorio: boolean; regra: string; falta: number }) {
   return (
     <div className="mb-2 flex flex-wrap items-center gap-2">
-      <h3 className="text-[15px] font-bold text-text-main">{nome}</h3>
+      <h3 className="text-[15px] font-semibold text-text-main">{nome}</h3>
       <span className={['rounded-full px-2 py-[2px] text-[11.5px] font-semibold', obrigatorio ? 'bg-warn-bg text-[#92400E]' : 'bg-page text-text-subtle'].join(' ')}>
         {obrigatorio ? `Obrigatório · ${regra}` : `Opcional · ${regra}`}
       </span>
-      {falta > 0 && <span className="text-[12px] font-bold text-danger" data-falta>{falta === 1 ? 'Falta 1' : `Faltam ${falta}`}</span>}
+      {falta > 0 && <span className="text-[12px] font-semibold text-danger" data-falta>{falta === 1 ? 'Falta 1' : `Faltam ${falta}`}</span>}
     </div>
   )
 }
@@ -211,16 +211,16 @@ export function ConfigurarItem({
       rodape={
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <div className="flex h-[60px] flex-shrink-0 items-center justify-between rounded-menuzia border-2 border-border bg-white sm:w-[180px]" data-testid="config-quantidade">
-            <button type="button" onClick={() => setQuantidade((q) => Math.max(1, q - 1))} aria-label="Diminuir quantidade" className="flex h-full w-[56px] items-center justify-center text-[26px] font-bold text-primary disabled:opacity-30" disabled={quantidade <= 1}>−</button>
-            <span className="text-[20px] font-extrabold text-text-main" data-testid="config-qtd">{quantidade}</span>
-            <button type="button" onClick={() => setQuantidade((q) => Math.min(99, q + 1))} aria-label="Aumentar quantidade" className="flex h-full w-[56px] items-center justify-center text-[26px] font-bold text-primary">+</button>
+            <button type="button" onClick={() => setQuantidade((q) => Math.max(1, q - 1))} aria-label="Diminuir quantidade" className="flex h-full w-[56px] items-center justify-center text-[26px] font-semibold text-primary disabled:opacity-30" disabled={quantidade <= 1}>−</button>
+            <span className="text-[20px] font-semibold text-text-main" data-testid="config-qtd">{quantidade}</span>
+            <button type="button" onClick={() => setQuantidade((q) => Math.min(99, q + 1))} aria-label="Aumentar quantidade" className="flex h-full w-[56px] items-center justify-center text-[26px] font-semibold text-primary">+</button>
           </div>
           <button
             type="button"
             onClick={adicionar}
             data-testid="config-adicionar"
             data-pendente={faltas.length ? '' : undefined}
-            className={['flex min-h-[64px] flex-1 items-center justify-center gap-2 rounded-menuzia px-4 text-[17px] font-bold text-white transition-all active:scale-[0.98]', faltas.length ? 'bg-text-subtle' : 'bg-status-ready hover:brightness-95'].join(' ')}
+            className={['flex min-h-[64px] flex-1 items-center justify-center gap-2 rounded-menuzia px-4 text-[17px] font-semibold text-white transition-all active:scale-[0.98]', faltas.length ? 'bg-text-subtle' : 'bg-status-ready hover:brightness-95'].join(' ')}
           >
             {faltas.length ? (
               <>Escolha: {faltas.map((f) => f.rotulo).join(', ')}</>
@@ -245,9 +245,9 @@ export function ConfigurarItem({
               <FotoItem url={null} nome={item.nome} tamanho={120} className="lg:!h-[220px] lg:!w-full" />
             )}
             <div className="min-w-0">
-              <h2 className="text-[19px] font-bold leading-tight text-text-main">{item.nome}</h2>
+              <h2 className="text-[19px] font-semibold leading-tight text-text-main">{item.nome}</h2>
               {item.descricao && <p className="mt-1 text-[13px] leading-[18px] text-text-subtle">{descricaoEmTextoPuro(item.descricao)}</p>}
-              {precoBase !== null && <p className="mt-2 text-[17px] font-bold text-price-text">{formatBRL(precoBase)}</p>}
+              {precoBase !== null && <p className="mt-2 text-[17px] font-semibold text-price-text">{formatBRL(precoBase)}</p>}
             </div>
           </div>
         </aside>
@@ -394,9 +394,9 @@ export function ConfigurarItem({
                             {c.preco > 0 && <span className="block text-[13px] font-semibold text-price-text">+ {formatBRL(c.preco)}</span>}
                           </span>
                           <span className="flex flex-shrink-0 items-center rounded-menuzia border border-border bg-white">
-                            <button type="button" onClick={() => contar(g, c.nome, -1, n)} disabled={!on} aria-label={`Menos ${c.nome}`} className="flex h-[48px] w-[44px] items-center justify-center text-[22px] font-bold text-primary disabled:opacity-30">−</button>
-                            <span className="min-w-[24px] text-center text-[16px] font-bold" data-config-opcao-qtd>{qtd}</span>
-                            <button type="button" onClick={() => contar(g, c.nome, 1, n)} disabled={cheio} aria-label={`Mais ${c.nome}`} className="flex h-[48px] w-[44px] items-center justify-center text-[22px] font-bold text-primary disabled:opacity-30">+</button>
+                            <button type="button" onClick={() => contar(g, c.nome, -1, n)} disabled={!on} aria-label={`Menos ${c.nome}`} className="flex h-[48px] w-[44px] items-center justify-center text-[22px] font-semibold text-primary disabled:opacity-30">−</button>
+                            <span className="min-w-[24px] text-center text-[16px] font-semibold" data-config-opcao-qtd>{qtd}</span>
+                            <button type="button" onClick={() => contar(g, c.nome, 1, n)} disabled={cheio} aria-label={`Mais ${c.nome}`} className="flex h-[48px] w-[44px] items-center justify-center text-[22px] font-semibold text-primary disabled:opacity-30">+</button>
                           </span>
                         </div>
                       )

@@ -231,7 +231,7 @@ export function TelaPdv({
             {caminho.length > 1 && (
               <p className="truncate text-[12px] font-medium text-text-subtle" data-testid="tela-caminho">{caminho.slice(0, -1).join(' › ')} ›</p>
             )}
-            <h2 className="truncate text-[17px] font-bold leading-tight text-text-main" data-testid="tela-titulo">{titulo}</h2>
+            <h2 className="truncate text-[17px] font-semibold leading-tight text-text-main" data-testid="tela-titulo">{titulo}</h2>
           </nav>
           <button type="button" onClick={fecharTudo} aria-label="Fechar" data-testid="tela-fechar-tudo"
             className="flex h-[48px] w-[48px] flex-shrink-0 items-center justify-center rounded-menuzia border border-border bg-white text-text-subtle hover:text-text-main active:scale-[0.97]">
@@ -246,14 +246,14 @@ export function TelaPdv({
         {confirmarFechar && (
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/95 p-6" role="alertdialog" aria-label="Descartar" data-testid="tela-confirmar-fechar">
             <div className="w-full max-w-md text-center">
-              <p className="text-[17px] font-bold text-text-main">Descartar o que não foi salvo?</p>
+              <p className="text-[17px] font-semibold text-text-main">Descartar o que não foi salvo?</p>
               <p className="mt-1 text-[13px] text-text-subtle">O que foi digitado nesta tela será perdido.</p>
               <div className="mt-5 flex gap-2">
                 <button type="button" onClick={() => setConfirmarFechar(false)} className="flex h-[56px] flex-1 items-center justify-center gap-2 rounded-menuzia border border-border text-[15px] font-semibold text-text-main">
                   <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden><path d={ICONE_VOLTAR} /></svg>
                   Continuar aqui
                 </button>
-                <button type="button" onClick={() => { setConfirmarFechar(false); (ctx.fecharTudo ?? voltarRef.current)() }} className="flex h-[56px] flex-1 items-center justify-center gap-2 rounded-menuzia bg-danger text-[15px] font-bold text-white" data-testid="tela-descartar">
+                <button type="button" onClick={() => { setConfirmarFechar(false); (ctx.fecharTudo ?? voltarRef.current)() }} className="flex h-[56px] flex-1 items-center justify-center gap-2 rounded-menuzia bg-danger text-[15px] font-semibold text-white" data-testid="tela-descartar">
                   <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden><path d={ICONE_X} /></svg>
                   Descartar
                 </button>
@@ -288,7 +288,7 @@ export function BotaoPdv({
   }[tipo]
   return (
     <button type={type} onClick={onClick} disabled={disabled} data-testid={testid} title={title}
-      className={['flex min-h-[56px] items-center justify-center gap-2 rounded-menuzia border px-4 text-[15px] font-bold transition-all active:scale-[0.98] disabled:opacity-50', estilo, className].join(' ')}>
+      className={['flex min-h-[56px] items-center justify-center gap-2 rounded-menuzia border px-4 text-[15px] font-semibold transition-all active:scale-[0.98] disabled:opacity-50', estilo, className].join(' ')}>
       {icone && <svg viewBox="0 0 24 24" className="h-5 w-5 flex-shrink-0 fill-current" aria-hidden><path d={icone} /></svg>}
       <span>{children}</span>
     </button>

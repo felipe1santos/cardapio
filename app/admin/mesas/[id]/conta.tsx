@@ -279,7 +279,7 @@ export function PainelConta({
         {/* ── Cliente da conta: editável a qualquer momento ─────────────── */}
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-menuzia border border-border bg-main px-4 py-3" data-testid="conta-cliente">
           <span className="min-w-0 text-[13px]">
-            <span className="block text-[10px] font-bold uppercase tracking-wide text-text-subtle">Cliente</span>
+            <span className="block text-[10px] font-semibold uppercase tracking-wide text-text-subtle">Cliente</span>
             {conta.clienteNome ? (
               <span className="font-semibold text-text-main">
                 {conta.clienteNome}
@@ -303,7 +303,7 @@ export function PainelConta({
         {conta.solicitacoes.length > 0 && (
           <div className="rounded-menuzia border border-warn bg-warn-bg" data-testid="solicitacoes">
             <div className="border-b border-warn/40 px-4 py-2.5">
-              <h3 className="text-[13px] font-bold text-text-main">
+              <h3 className="text-[13px] font-semibold text-text-main">
                 {conta.solicitacoes.length === 1 ? 'Pedido de cancelamento aguardando' : `${conta.solicitacoes.length} pedidos de cancelamento aguardando`}
               </h3>
               <p className="text-[11px] text-text-subtle">A conta não fecha enquanto houver pedido sem decisão.</p>
@@ -349,7 +349,7 @@ export function PainelConta({
         {/* ── Lançamentos ───────────────────────────────────────────────── */}
         <div className="rounded-menuzia border border-border bg-main">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
-            <h3 className="text-[13px] font-bold text-text-main">Lançamentos</h3>
+            <h3 className="text-[13px] font-semibold text-text-main">Lançamentos</h3>
             {podeFazer('transferir_itens') && selecionados.size > 0 && (
               <Button variant="outline" onClick={() => setTransferindoItens(true)}>
                 <ArrowRightLeft className="mr-1.5 inline h-3.5 w-3.5" />
@@ -475,7 +475,7 @@ export function PainelConta({
                           >
                             −
                           </button>
-                          <span className="min-w-[26px] text-center text-[11px] font-bold" title="Quantidade a transferir ou cobrar">
+                          <span className="min-w-[26px] text-center text-[11px] font-semibold" title="Quantidade a transferir ou cobrar">
                             {parcelas[i.id] ?? i.quantidade}/{i.quantidade}
                           </span>
                           <button
@@ -546,8 +546,8 @@ export function PainelConta({
           </div>
           <div className={`mt-3 rounded-menuzia px-3 py-2.5 ${conta.totais.restante > 0 ? 'bg-warn-bg' : 'bg-price-bg'}`}>
             <div className="flex items-baseline justify-between">
-              <span className="text-[12px] font-bold uppercase tracking-wide text-text-subtle">Falta pagar</span>
-              <span className={`text-[22px] font-bold ${conta.totais.restante > 0 ? 'text-text-main' : 'text-price-text'}`} data-testid="restante">
+              <span className="text-[12px] font-semibold uppercase tracking-wide text-text-subtle">Falta pagar</span>
+              <span className={`text-[22px] font-semibold ${conta.totais.restante > 0 ? 'text-text-main' : 'text-price-text'}`} data-testid="restante">
                 {brl(conta.totais.restante)}
               </span>
             </div>
@@ -589,7 +589,7 @@ export function PainelConta({
                   <button type="button" aria-label="Menos pessoas" onClick={() => setDividirPor(Math.max(1, pessoas - 1))} className="grid h-9 w-9 place-items-center text-primary disabled:opacity-30" disabled={pessoas <= 1}>
                     <Minus className="h-3.5 w-3.5" />
                   </button>
-                  <span className="min-w-[24px] text-center text-[13px] font-bold">{pessoas}</span>
+                  <span className="min-w-[24px] text-center text-[13px] font-semibold">{pessoas}</span>
                   <button type="button" aria-label="Mais pessoas" onClick={() => setDividirPor(Math.min(30, pessoas + 1))} className="grid h-9 w-9 place-items-center text-primary">
                     <Plus className="h-3.5 w-3.5" />
                   </button>
@@ -631,7 +631,7 @@ export function PainelConta({
               type="button"
               onClick={() => setTaxaExtraAberta(true)}
               data-testid="mesa-adicionar-taxa"
-              className="mt-2 w-full rounded-menuzia border border-dashed border-primary py-2 text-[12px] font-bold text-primary hover:bg-primary hover:text-white"
+              className="mt-2 w-full rounded-menuzia border border-dashed border-primary py-2 text-[12px] font-semibold text-primary hover:bg-primary hover:text-white"
             >
               {conta.taxaExtra ? `Alterar taxas (${conta.taxaExtra.nome})` : '+ Adicionar taxa'}
             </button>
@@ -650,7 +650,7 @@ export function PainelConta({
 
         <div className="rounded-menuzia border border-border bg-main">
           <div className="border-b border-border px-4 py-3">
-            <h3 className="text-[13px] font-bold text-text-main">Pagamentos</h3>
+            <h3 className="text-[13px] font-semibold text-text-main">Pagamentos</h3>
           </div>
           {conta.pagamentos.length === 0 && <p className="px-4 py-5 text-center text-[12px] text-text-subtle">Nenhum pagamento ainda.</p>}
           <ul>
@@ -666,7 +666,7 @@ export function PainelConta({
                   {p.estornado && <span className="block text-[11px] text-danger">Estornado por {p.estornadoPorNome}: {p.estornoMotivo}</span>}
                 </span>
                 <span className="flex items-center gap-2">
-                  <span className="text-[13px] font-bold text-price-text">{brl(p.valor)}</span>
+                  <span className="text-[13px] font-semibold text-price-text">{brl(p.valor)}</span>
                   {podeFazer('estorno') && !p.estornado && (
                     <button
                       className="text-text-subtle hover:text-danger"
@@ -711,7 +711,7 @@ export function PainelConta({
 
         {podeFazer('cancelar_comanda') && (
           <div className="rounded-menuzia border border-border bg-main p-4">
-            <h3 className="text-[13px] font-bold text-text-main">Cancelar a conta</h3>
+            <h3 className="text-[13px] font-semibold text-text-main">Cancelar a conta</h3>
             <p className="mt-1 text-[11px] leading-relaxed text-text-subtle">
               Para mesa aberta por engano, esquecida aberta ou cliente que desistiu. Cancela todos os lançamentos —
               inclusive os que estão na cozinha, sem imprimir nada —, libera a mesa e <strong>fica no histórico</strong>
@@ -853,7 +853,7 @@ export function PainelConta({
 
 function Linha({ rotulo, valor, forte }: { rotulo: string; valor: string; forte?: boolean }) {
   return (
-    <div className={`flex items-baseline justify-between py-0.5 ${forte ? 'text-[15px] font-bold text-text-main' : 'text-[13px] text-text-subtle'}`}>
+    <div className={`flex items-baseline justify-between py-0.5 ${forte ? 'text-[15px] font-semibold text-text-main' : 'text-[13px] text-text-subtle'}`}>
       <span>{rotulo}</span>
       <span>{valor}</span>
     </div>
@@ -930,7 +930,7 @@ function AjusteValores({
                   role="radio"
                   aria-checked={tipo === t}
                   onClick={() => setTipo(t)}
-                  className={`min-h-[40px] min-w-[40px] px-2 text-[10px] font-bold lg:min-h-[28px] lg:min-w-0 ${tipo === t ? 'bg-primary text-white' : 'bg-main text-text-subtle'}`}
+                  className={`min-h-[40px] min-w-[40px] px-2 text-[10px] font-semibold lg:min-h-[28px] lg:min-w-0 ${tipo === t ? 'bg-primary text-white' : 'bg-main text-text-subtle'}`}
                 >
                   {t === 'valor' ? 'R$' : '%'}
                 </button>
@@ -1006,7 +1006,7 @@ function FormPagamento({
 
   return (
     <div className="space-y-3 rounded-menuzia border border-border bg-main p-4">
-      <h3 className="text-[13px] font-bold text-text-main">Receber pagamento</h3>
+      <h3 className="text-[13px] font-semibold text-text-main">Receber pagamento</h3>
       <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Forma de pagamento">
         {formas.map((f) => (
           <button
@@ -1014,7 +1014,7 @@ function FormPagamento({
             role="radio"
             aria-checked={forma === f}
             onClick={() => setForma(f)}
-            className={`min-h-[40px] rounded-menuzia border px-2.5 py-1.5 text-[11px] font-bold uppercase tracking-wide lg:min-h-0 ${forma === f ? 'border-primary bg-primary text-white' : 'border-border bg-main text-text-subtle'}`}
+            className={`min-h-[40px] rounded-menuzia border px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide lg:min-h-0 ${forma === f ? 'border-primary bg-primary text-white' : 'border-border bg-main text-text-subtle'}`}
           >
             {ROTULO_FORMA[f]}
           </button>
@@ -1022,7 +1022,7 @@ function FormPagamento({
       </div>
 
       <label className="block">
-        <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Valor</span>
+        <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Valor</span>
         <input value={valor} inputMode="decimal" onChange={(e) => setValor(e.target.value)} className={INPUT} placeholder="0,00" aria-label="Valor do pagamento" />
       </label>
       <div className="flex flex-wrap gap-1.5">
@@ -1046,14 +1046,14 @@ function FormPagamento({
 
       {forma === 'dinheiro' && (
         <label className="block">
-          <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Recebido em dinheiro</span>
+          <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Recebido em dinheiro</span>
           <input value={recebido} inputMode="decimal" onChange={(e) => setRecebido(e.target.value)} className={INPUT} placeholder="Opcional, para calcular o troco" aria-label="Valor recebido" />
-          {troco > 0 && <span className="mt-1 block text-[13px] font-bold text-price-text">Troco: {brl(troco)}</span>}
+          {troco > 0 && <span className="mt-1 block text-[13px] font-semibold text-price-text">Troco: {brl(troco)}</span>}
         </label>
       )}
 
       <label className="block">
-        <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Observação</span>
+        <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Observação</span>
         <input
           value={observacao}
           onChange={(e) => setObservacao(e.target.value.slice(0, 200))}
@@ -1107,7 +1107,7 @@ export function ModalMotivo({
     <TelaPdv titulo={titulo} onVoltar={onCancelar} livre larguraMax={640} sujo={!!motivo.trim()} testid="tela-motivo" pequena>
         <div className="p-5">
         <label className="block">
-          <span className="mb-1 block text-[13px] font-bold text-text-subtle">Motivo (obrigatório)</span>
+          <span className="mb-1 block text-[13px] font-semibold text-text-subtle">Motivo (obrigatório)</span>
           <input autoFocus value={motivo} onChange={(e) => setMotivo(e.target.value)} className={INPUT} placeholder="Ex.: cliente desistiu" />
         </label>
         <p className="mt-2 text-[13px] text-text-subtle">Fica registrado com o motivo e o seu nome.</p>
@@ -1155,7 +1155,7 @@ export function ModalDestino({
           ))}
         </select>
         <label className="mt-3 block">
-          <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Motivo (obrigatório)</span>
+          <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Motivo (obrigatório)</span>
           <input value={motivo} onChange={(e) => setMotivo(e.target.value)} className={INPUT} placeholder="Ex.: cliente mudou para a varanda" />
         </label>
         </div>
@@ -1282,7 +1282,7 @@ export function Historico({ eventos, lancamentos }: { eventos: EventoHistorico[]
                   aria-label={`Ver o que foi pedido no lançamento #${lanc.numero}`}
                 >
                   {conteudo}
-                  <span className="flex flex-shrink-0 items-center gap-0.5 text-[11px] font-bold uppercase text-primary">
+                  <span className="flex flex-shrink-0 items-center gap-0.5 text-[11px] font-semibold uppercase text-primary">
                     Ver
                     <ChevronRight className="h-4 w-4" />
                   </span>
@@ -1309,8 +1309,8 @@ function JanelaDoLancamento({ lanc, onFechar }: { lanc: LancamentoDaConta; onFec
       <div className="flex min-h-0 flex-1 flex-col" data-janela-lancamento>
         <div className="flex items-start justify-between gap-2 bg-primary px-4 py-3 text-white">
           <div className="min-w-0">
-            <div className="text-[10px] font-bold uppercase tracking-wide opacity-80">Enviado à cozinha às {hora(lanc.criadoEm)}</div>
-            <div className="text-[18px] font-extrabold leading-tight">Lançamento #{lanc.numero}</div>
+            <div className="text-[10px] font-semibold uppercase tracking-wide opacity-80">Enviado à cozinha às {hora(lanc.criadoEm)}</div>
+            <div className="text-[18px] font-semibold leading-tight">Lançamento #{lanc.numero}</div>
             <div className="text-[11px] opacity-85">{lanc.criadoPorNome ? `por ${lanc.criadoPorNome}` : ''}</div>
           </div>
         </div>
@@ -1326,7 +1326,7 @@ function JanelaDoLancamento({ lanc, onFechar }: { lanc: LancamentoDaConta; onFec
         <ul className="min-h-0 flex-1 divide-y divide-border overflow-y-auto">
           {lanc.itens.map((i) => (
             <li key={i.id} className={`flex items-start gap-3 px-4 py-3 ${i.cancelado ? 'bg-danger-bg/40' : ''}`}>
-              <span className={`grid h-8 min-w-[32px] flex-shrink-0 place-items-center rounded-menuzia px-1 text-[13px] font-extrabold ${i.cancelado ? 'bg-border text-text-subtle' : 'bg-primary/10 text-primary'}`}>
+              <span className={`grid h-8 min-w-[32px] flex-shrink-0 place-items-center rounded-menuzia px-1 text-[13px] font-semibold ${i.cancelado ? 'bg-border text-text-subtle' : 'bg-primary/10 text-primary'}`}>
                 {i.quantidade}×
               </span>
               <span className="min-w-0 flex-1">
@@ -1341,7 +1341,7 @@ function JanelaDoLancamento({ lanc, onFechar }: { lanc: LancamentoDaConta; onFec
                   </span>
                 )}
               </span>
-              <span className={`flex-shrink-0 text-[13px] font-bold ${i.cancelado ? 'text-text-subtle line-through' : 'text-price-text'}`}>
+              <span className={`flex-shrink-0 text-[13px] font-semibold ${i.cancelado ? 'text-text-subtle line-through' : 'text-price-text'}`}>
                 {brl(i.precoUnitario * i.quantidade)}
               </span>
             </li>
@@ -1350,7 +1350,7 @@ function JanelaDoLancamento({ lanc, onFechar }: { lanc: LancamentoDaConta; onFec
 
         <div className="flex items-center justify-between border-t border-border bg-page px-4 py-3">
           <span className="text-[12px] text-text-subtle">{qtd} {qtd === 1 ? 'item' : 'itens'}</span>
-          <span className="text-[16px] font-extrabold text-price-text">{brl(lanc.total)}</span>
+          <span className="text-[16px] font-semibold text-price-text">{brl(lanc.total)}</span>
         </div>
       </div>
     </TelaPdv>

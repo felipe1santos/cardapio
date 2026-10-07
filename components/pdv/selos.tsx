@@ -26,7 +26,7 @@ const ICONE = {
 export function Selo({ tom, icone, children, testid }: { tom: TomSelo; icone?: keyof typeof ICONE; children: React.ReactNode; testid?: string }) {
   const t = TOM[tom]
   return (
-    <span className="inline-flex max-w-full items-center gap-1 whitespace-nowrap rounded-full px-2 py-[3px] text-[11px] font-bold leading-[14px]" style={{ backgroundColor: t.fundo, color: t.texto }} data-selo={tom} data-testid={testid}>
+    <span className="inline-flex max-w-full items-center gap-1 whitespace-nowrap rounded-full px-2 py-[3px] text-[11px] font-semibold leading-[14px]" style={{ backgroundColor: t.fundo, color: t.texto }} data-selo={tom} data-testid={testid}>
       {icone && <svg viewBox="0 0 24 24" className="h-3 w-3 flex-shrink-0 fill-current" aria-hidden><path d={ICONE[icone]} /></svg>}
       <span className="truncate">{children}</span>
     </span>

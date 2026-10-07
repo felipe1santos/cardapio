@@ -40,13 +40,13 @@ export function AvisoNovaImpressao() {
     >
       <Printer className="h-5 w-5 flex-shrink-0" strokeWidth={2} aria-hidden />
       <p className="min-w-0 flex-1 text-[13.5px] leading-[18px]">
-        <strong className="font-bold">Novo sistema de impressão disponível!</strong>{' '}
+        <strong className="font-semibold">Novo sistema de impressão disponível!</strong>{' '}
         <span className="max-sm:hidden">Atualize o Assistente: comanda nova, mais rápida e fácil de calibrar.</span>
       </p>
       <Link
         href="/admin/impressao"
         data-testid="aviso-nova-impressao-botao"
-        className="inline-flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[8px] bg-white px-3 py-1.5 text-[13px] font-bold text-[#DC2626] hover:bg-[#FEF2F2] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+        className="inline-flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[8px] bg-white px-3 py-1.5 text-[13px] font-semibold text-[#DC2626] hover:bg-[#FEF2F2] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
       >
         Atualizar agora <ArrowRight className="h-4 w-4" aria-hidden />
       </Link>

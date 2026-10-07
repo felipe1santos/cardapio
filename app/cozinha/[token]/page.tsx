@@ -81,7 +81,7 @@ function ElapsedTimer({ criadoEm, now }: { criadoEm: string; now: number }) {
   const ms = elapsedMs(criadoEm, now)
   const color = timerColor(ms)
   return (
-    <span data-testid="kds-cronometro" className={`inline-flex items-center gap-1 font-mono text-[20px] font-black ${color}`}>
+    <span data-testid="kds-cronometro" className={`inline-flex items-center gap-1 font-mono text-[20px] font-semibold ${color}`}>
       <Clock className="h-5 w-5 animate-pulse" />
       {formatElapsed(ms)}
     </span>
@@ -107,7 +107,7 @@ function NameOverlay({ onSave }: { onSave: (name: string) => void }) {
       <div className="w-full max-w-sm rounded-menuzia border border-border bg-main p-6 shadow-xl">
         <div className="mb-4 flex items-center gap-2.5">
           <ChefHat className="h-5 w-5 text-primary" />
-          <h2 className="text-base font-extrabold text-text-main">Quem está na cozinha?</h2>
+          <h2 className="text-base font-semibold text-text-main">Quem está na cozinha?</h2>
         </div>
         <form onSubmit={handleSubmit}>
           <input
@@ -121,7 +121,7 @@ function NameOverlay({ onSave }: { onSave: (name: string) => void }) {
           <button
             type="submit"
             disabled={!input.trim()}
-            className="w-full rounded-menuzia bg-primary py-3 text-[13px] font-extrabold uppercase tracking-wide text-white transition-opacity disabled:opacity-40"
+            className="w-full rounded-menuzia bg-primary py-3 text-[13px] font-semibold uppercase tracking-wide text-white transition-opacity disabled:opacity-40"
           >
             Entrar
           </button>
@@ -214,9 +214,9 @@ function PrepModal({ pedido, cozinheiro, token, now, onClose, onRefetch, feitos,
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-6" onClick={() => setConfirmandoDevolver(false)}>
           <div className="w-full max-w-sm rounded-menuzia border-2 border-danger bg-main p-5 text-center shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-danger-bg">
-              <span className="text-2xl font-black text-danger">!</span>
+              <span className="text-2xl font-semibold text-danger">!</span>
             </div>
-            <h3 className="mb-2 text-base font-extrabold uppercase tracking-wide text-danger">Devolver pedido #{pedido.numero}?</h3>
+            <h3 className="mb-2 text-base font-semibold uppercase tracking-wide text-danger">Devolver pedido #{pedido.numero}?</h3>
             <p className="mb-5 text-[13px] leading-relaxed text-text-main">
               O pedido volta para a fila e fica liberado para <b>qualquer cozinheiro</b> pegar.
               Você perde o preparo dele. O cliente <b>não</b> recebe nova mensagem.
@@ -224,13 +224,13 @@ function PrepModal({ pedido, cozinheiro, token, now, onClose, onRefetch, feitos,
             <div className="flex gap-3">
               <button
                 onClick={() => setConfirmandoDevolver(false)}
-                className="flex-1 rounded-menuzia border border-border bg-page py-3 text-[13px] font-extrabold uppercase tracking-wide text-text-main hover:bg-border"
+                className="flex-1 rounded-menuzia border border-border bg-page py-3 text-[13px] font-semibold uppercase tracking-wide text-text-main hover:bg-border"
               >
                 Cancelar
               </button>
               <button
                 onClick={executarDevolver}
-                className="flex-1 rounded-menuzia bg-danger py-3 text-[13px] font-extrabold uppercase tracking-wide text-white hover:brightness-95"
+                className="flex-1 rounded-menuzia bg-danger py-3 text-[13px] font-semibold uppercase tracking-wide text-white hover:brightness-95"
               >
                 Devolver
               </button>
@@ -246,7 +246,7 @@ function PrepModal({ pedido, cozinheiro, token, now, onClose, onRefetch, feitos,
         <div className="flex items-start justify-between border-b border-border bg-sidebar-bg px-5 py-4 text-white lg:rounded-t-menuzia">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-2xl font-extrabold">#{pedido.numero}</span>
+              <span className="text-2xl font-semibold">#{pedido.numero}</span>
               <span className="rounded-menuzia bg-white/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide">
                 {pedido.tipo === 'retirada' ? 'Retirada' : 'Entrega'}
               </span>
@@ -261,7 +261,7 @@ function PrepModal({ pedido, cozinheiro, token, now, onClose, onRefetch, feitos,
                 </span>
               )}
               {pedido.tipo === 'entrega' && pedido.enderecoBairro && (
-                <span className="rounded-menuzia bg-[#0a6cff] px-2 py-0.5 text-[12px] font-extrabold uppercase tracking-wide text-white">
+                <span className="rounded-menuzia bg-[#0a6cff] px-2 py-0.5 text-[12px] font-semibold uppercase tracking-wide text-white">
                   📍 {pedido.enderecoBairro}
                 </span>
               )}
@@ -283,7 +283,7 @@ function PrepModal({ pedido, cozinheiro, token, now, onClose, onRefetch, feitos,
           {/* Order-level restriction — RED UPPERCASE BOLD in highlighted block */}
           {pedido.observacao && (
             <div className="mb-4 rounded-menuzia bg-danger-bg px-3.5 py-3">
-              <p className="text-[14px] font-bold uppercase text-danger">{pedido.observacao}</p>
+              <p className="text-[14px] font-semibold uppercase text-danger">{pedido.observacao}</p>
             </div>
           )}
 
@@ -301,14 +301,14 @@ function PrepModal({ pedido, cozinheiro, token, now, onClose, onRefetch, feitos,
           <button
             disabled={busy !== null}
             onClick={() => setConfirmandoDevolver(true)}
-            className="flex-1 rounded-menuzia border border-border bg-page py-3.5 text-[13px] font-extrabold uppercase tracking-wide text-text-main transition-colors hover:bg-border disabled:opacity-50"
+            className="flex-1 rounded-menuzia border border-border bg-page py-3.5 text-[13px] font-semibold uppercase tracking-wide text-text-main transition-colors hover:bg-border disabled:opacity-50"
           >
             {busy === 'devolver' ? 'Devolvendo…' : 'Devolver'}
           </button>
           <button
             disabled={busy !== null}
             onClick={concluir}
-            className="flex-1 rounded-menuzia bg-status-ready py-3.5 text-[13px] font-extrabold uppercase tracking-wide text-white transition-colors hover:brightness-95 disabled:opacity-50"
+            className="flex-1 rounded-menuzia bg-status-ready py-3.5 text-[13px] font-semibold uppercase tracking-wide text-white transition-colors hover:brightness-95 disabled:opacity-50"
           >
             {busy === 'concluir' ? 'Concluindo…' : 'Concluir pedido'}
           </button>
@@ -342,12 +342,12 @@ function DisponiveisCard({ pedido, now, onPegar, busy }: DisponiveisCardProps) {
       ].join(' ')}
     >
       <div className={['flex items-center justify-between border-b border-border px-3 py-2.5 text-white', devolvido ? 'bg-[#B45309]' : 'bg-[#EA580C]'].join(' ')}>
-        <span className="text-[30px] font-black leading-none">#{pedido.numero}</span>
+        <span className="text-[30px] font-semibold leading-none">#{pedido.numero}</span>
         <div className="flex items-center gap-2">
           <span className="rounded-menuzia bg-white/95 px-1.5 py-0.5">
             <ElapsedTimer criadoEm={pedido.criadoEm} now={now} />
           </span>
-          <span className="rounded-menuzia bg-white/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+          <span className="rounded-menuzia bg-white/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
             {devolvido ? 'Devolvido' : 'Aguardando'}
           </span>
         </div>
@@ -356,7 +356,7 @@ function DisponiveisCard({ pedido, now, onPegar, busy }: DisponiveisCardProps) {
       <div className="flex flex-1 flex-col gap-2 p-3">
         <InfoPagamento p={pedido} compacto mostrarStatus={false} />
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[18px] font-bold text-black">{pedido.clienteNome}</span>
+          <span className="text-[18px] font-semibold text-black">{pedido.clienteNome}</span>
           <span className="rounded-menuzia bg-page px-1.5 py-0.5 text-[10px] font-semibold uppercase text-text-subtle">
             {pedido.tipo === 'retirada' ? 'Retirada' : 'Entrega'}
           </span>
@@ -371,7 +371,7 @@ function DisponiveisCard({ pedido, now, onPegar, busy }: DisponiveisCardProps) {
             </span>
           )}
           {pedido.tipo === 'entrega' && pedido.enderecoBairro && (
-            <span className="rounded-menuzia bg-[#024A7D] px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-white">
+            <span className="rounded-menuzia bg-[#024A7D] px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white">
               📍 {pedido.enderecoBairro}
             </span>
           )}
@@ -388,7 +388,7 @@ function DisponiveisCard({ pedido, now, onPegar, busy }: DisponiveisCardProps) {
 
         {/* Order-level restriction preview — RED UPPERCASE */}
         {pedido.observacao && (
-          <p className="rounded-menuzia bg-danger-bg px-2 py-1 text-[15px] font-extrabold uppercase text-danger">⚠️ {pedido.observacao}</p>
+          <p className="rounded-menuzia bg-danger-bg px-2 py-1 text-[15px] font-semibold uppercase text-danger">⚠️ {pedido.observacao}</p>
         )}
       </div>
 
@@ -396,7 +396,7 @@ function DisponiveisCard({ pedido, now, onPegar, busy }: DisponiveisCardProps) {
         <button
           disabled={isBusy}
           onClick={() => onPegar(pedido)}
-          className="flex w-full items-center justify-center gap-1.5 rounded-menuzia bg-status-preparing py-3.5 text-[13px] font-extrabold uppercase tracking-wide text-white transition-opacity disabled:opacity-50"
+          className="flex w-full items-center justify-center gap-1.5 rounded-menuzia bg-status-preparing py-3.5 text-[13px] font-semibold uppercase tracking-wide text-white transition-opacity disabled:opacity-50"
         >
           <ChefHat className="h-4 w-4" />
           {isBusy ? 'Pegando…' : devolvido ? 'Pegar de novo' : 'Pegar para fazer'}
@@ -430,12 +430,12 @@ function EmPreparoCard({ pedido, now, cozinheiro, onOpen }: EmPreparoCardProps) 
       onClick={isOwner ? () => onOpen(pedido) : undefined}
     >
       <div className="flex items-center justify-between border-b border-border bg-[#024A7D] px-3 py-2.5 text-white">
-        <span className="text-[30px] font-black leading-none">#{pedido.numero}</span>
+        <span className="text-[30px] font-semibold leading-none">#{pedido.numero}</span>
         <div className="flex items-center gap-2">
           <span className="rounded-menuzia bg-white/95 px-1.5 py-0.5">
             <ElapsedTimer criadoEm={pedido.criadoEm} now={now} />
           </span>
-          <span className="rounded-menuzia bg-white/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+          <span className="rounded-menuzia bg-white/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
             Preparando
           </span>
         </div>
@@ -444,15 +444,15 @@ function EmPreparoCard({ pedido, now, cozinheiro, onOpen }: EmPreparoCardProps) 
       <div className="flex flex-1 flex-col gap-2 p-3">
         <InfoPagamento p={pedido} compacto mostrarStatus={false} />
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[18px] font-bold text-black">{pedido.clienteNome}</span>
+          <span className="text-[18px] font-semibold text-black">{pedido.clienteNome}</span>
           {pedido.tipo === 'entrega' && pedido.enderecoBairro && (
-            <span className="rounded-menuzia bg-[#024A7D] px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-white">
+            <span className="rounded-menuzia bg-[#024A7D] px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white">
               📍 {pedido.enderecoBairro}
             </span>
           )}
         </div>
         {pedido.preparandoPor && (
-          <span className="inline-flex w-fit items-center gap-1 rounded-menuzia bg-alert-bg px-2 py-0.5 text-[11px] font-bold text-alert-text">
+          <span className="inline-flex w-fit items-center gap-1 rounded-menuzia bg-alert-bg px-2 py-0.5 text-[11px] font-semibold text-alert-text">
             <ChefHat className="h-3 w-3" />
             {pedido.preparandoPor}
           </span>
@@ -469,7 +469,7 @@ function EmPreparoCard({ pedido, now, cozinheiro, onOpen }: EmPreparoCardProps) 
 
         {/* Order-level restriction preview — RED UPPERCASE */}
         {pedido.observacao && (
-          <p className="rounded-menuzia bg-danger-bg px-2 py-1 text-[15px] font-extrabold uppercase text-danger">⚠️ {pedido.observacao}</p>
+          <p className="rounded-menuzia bg-danger-bg px-2 py-1 text-[15px] font-semibold uppercase text-danger">⚠️ {pedido.observacao}</p>
         )}
       </div>
 
@@ -630,12 +630,12 @@ function ExpedicaoView({ pedidos, token, now, onRefetch }: ExpedicaoViewProps) {
             <div className="flex items-center justify-between border-b border-border bg-[#15803D] px-2.5 py-1.5 text-white">
               <div className="flex items-center gap-1.5">
                 <GripVertical className="h-4 w-4 cursor-grab text-white/80" />
-                <span className="text-base font-extrabold">#{p.numero}</span>
+                <span className="text-base font-semibold">#{p.numero}</span>
               </div>
               <div className="flex items-center gap-1">
                 {/* Reordenar: setinhas ao lado do temporizador */}
-                <button onClick={() => mover(p.id, -1)} disabled={idx === 0} className="flex h-5 w-5 items-center justify-center rounded-menuzia bg-white/20 text-[11px] font-bold leading-none text-white disabled:opacity-30">▲</button>
-                <button onClick={() => mover(p.id, 1)} disabled={idx === lista.length - 1} className="flex h-5 w-5 items-center justify-center rounded-menuzia bg-white/20 text-[11px] font-bold leading-none text-white disabled:opacity-30">▼</button>
+                <button onClick={() => mover(p.id, -1)} disabled={idx === 0} className="flex h-5 w-5 items-center justify-center rounded-menuzia bg-white/20 text-[11px] font-semibold leading-none text-white disabled:opacity-30">▲</button>
+                <button onClick={() => mover(p.id, 1)} disabled={idx === lista.length - 1} className="flex h-5 w-5 items-center justify-center rounded-menuzia bg-white/20 text-[11px] font-semibold leading-none text-white disabled:opacity-30">▼</button>
                 <span className="rounded-menuzia bg-white/95 px-1.5 py-0.5">
                   <ElapsedTimer criadoEm={p.criadoEm} now={now} />
                 </span>
@@ -644,9 +644,9 @@ function ExpedicaoView({ pedidos, token, now, onRefetch }: ExpedicaoViewProps) {
 
             <div className="flex flex-1 flex-col gap-1 p-2.5">
               <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[14px] font-bold text-black">{p.clienteNome}</span>
+                <span className="text-[14px] font-semibold text-black">{p.clienteNome}</span>
                 {p.tipo === 'entrega' ? (
-                  <span className="rounded-menuzia bg-[#024A7D] px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-white">
+                  <span className="rounded-menuzia bg-[#024A7D] px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white">
                     📍 {bairro}
                   </span>
                 ) : (
@@ -663,13 +663,13 @@ function ExpedicaoView({ pedidos, token, now, onRefetch }: ExpedicaoViewProps) {
                 ))}
               </ul>
               {p.observacao && (
-                <p className="text-[12px] font-bold uppercase text-danger">{p.observacao}</p>
+                <p className="text-[12px] font-semibold uppercase text-danger">{p.observacao}</p>
               )}
               {p.tipo === 'retirada' ? (
                 <button
                   disabled={busy === p.id}
                   onClick={() => marcarEntregue(p)}
-                  className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-menuzia bg-status-ready py-2 text-[12px] font-extrabold uppercase tracking-wide text-white transition-opacity disabled:opacity-50"
+                  className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-menuzia bg-status-ready py-2 text-[12px] font-semibold uppercase tracking-wide text-white transition-opacity disabled:opacity-50"
                 >
                   <PackageCheck className="h-4 w-4" />
                   {busy === p.id ? 'Aguarde…' : 'Entregue'}
@@ -703,12 +703,12 @@ function ProducaoTile({ pedido, now, onClick }: { pedido: Pedido; now: number; o
       ].join(' ')}
     >
       <div className={['flex items-center justify-between border-b border-border px-3 py-2.5 text-white', devolvido ? 'bg-[#B45309]' : 'bg-[#EA580C]'].join(' ')}>
-        <span className="text-[30px] font-black leading-none">#{pedido.numero}</span>
+        <span className="text-[30px] font-semibold leading-none">#{pedido.numero}</span>
         <div className="flex items-center gap-1.5">
           <span className="rounded-menuzia bg-white/95 px-1.5 py-0.5">
             <ElapsedTimer criadoEm={pedido.criadoEm} now={now} />
           </span>
-          <span className="rounded-menuzia bg-white/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+          <span className="rounded-menuzia bg-white/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
             {devolvido ? 'Devolvido' : 'Aguardando'}
           </span>
         </div>
@@ -717,7 +717,7 @@ function ProducaoTile({ pedido, now, onClick }: { pedido: Pedido; now: number; o
       <div className="flex flex-1 flex-col gap-2 p-3">
         <InfoPagamento p={pedido} compacto mostrarStatus={false} />
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[18px] font-bold text-black">{pedido.clienteNome}</span>
+          <span className="text-[18px] font-semibold text-black">{pedido.clienteNome}</span>
           <span className="rounded-menuzia bg-page px-1.5 py-0.5 text-[10px] font-semibold uppercase text-text-subtle">
             {pedido.tipo === 'retirada' ? 'Retirada' : 'Entrega'}
           </span>
@@ -732,7 +732,7 @@ function ProducaoTile({ pedido, now, onClick }: { pedido: Pedido; now: number; o
             </span>
           )}
           {pedido.tipo === 'entrega' && pedido.enderecoBairro && (
-            <span className="rounded-menuzia bg-[#024A7D] px-2 py-0.5 text-[11px] font-extrabold uppercase tracking-wide text-white">
+            <span className="rounded-menuzia bg-[#024A7D] px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white">
               📍 {pedido.enderecoBairro}
             </span>
           )}
@@ -747,11 +747,11 @@ function ProducaoTile({ pedido, now, onClick }: { pedido: Pedido; now: number; o
         </ul>
 
         {pedido.observacao && (
-          <p className="rounded-menuzia bg-danger-bg px-2 py-1 text-[15px] font-extrabold uppercase text-danger">⚠️ {pedido.observacao}</p>
+          <p className="rounded-menuzia bg-danger-bg px-2 py-1 text-[15px] font-semibold uppercase text-danger">⚠️ {pedido.observacao}</p>
         )}
       </div>
 
-      <div className="flex items-center justify-center gap-1.5 border-t border-border bg-status-preparing/10 px-3 py-2.5 text-[12px] font-extrabold uppercase tracking-wide text-status-preparing">
+      <div className="flex items-center justify-center gap-1.5 border-t border-border bg-status-preparing/10 px-3 py-2.5 text-[12px] font-semibold uppercase tracking-wide text-status-preparing">
         <ChefHat className="h-4 w-4" /> Toque para preparar
       </div>
     </button>
@@ -787,7 +787,7 @@ function ConfirmarPreparoModal({
         <div className="flex items-start justify-between border-b border-border bg-sidebar-bg px-5 py-4 text-white">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-2xl font-extrabold">#{pedido.numero}</span>
+              <span className="text-2xl font-semibold">#{pedido.numero}</span>
               <span className="rounded-menuzia bg-white/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide">
                 {pedido.tipo === 'retirada' ? 'Retirada' : 'Entrega'}
               </span>
@@ -820,16 +820,16 @@ function ConfirmarPreparoModal({
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-4">
-          <p className="mb-3 text-center text-[16px] font-extrabold text-text-main">Quer preparar este pedido?</p>
+          <p className="mb-3 text-center text-[16px] font-semibold text-text-main">Quer preparar este pedido?</p>
           {pedido.observacao && (
             <div className="mb-3 rounded-menuzia bg-danger-bg px-3.5 py-2.5">
-              <p className="text-[14px] font-bold uppercase text-danger">{pedido.observacao}</p>
+              <p className="text-[14px] font-semibold uppercase text-danger">{pedido.observacao}</p>
             </div>
           )}
           <ul className="space-y-2">
             {pedido.itens.map((item, idx) => (
               <li key={idx} className="rounded-menuzia border border-border border-l-4 border-l-[#024A7D] bg-main p-3">
-                <p className="text-[17px] font-extrabold leading-tight text-black">
+                <p className="text-[17px] font-semibold leading-tight text-black">
                   {item.quantidade}× {item.nome}
                 </p>
                 {(item.tamanhoNome || item.saborNome || item.bordaNome || item.massaNome) && (
@@ -840,12 +840,12 @@ function ConfirmarPreparoModal({
                 {item.complementos.length > 0 && (
                   <div className="mt-1.5 space-y-0.5">
                     {item.complementos.map((c, ci) => (
-                      <p key={ci} className="text-[14px] font-bold text-green-800">+ {c.nome}</p>
+                      <p key={ci} className="text-[14px] font-semibold text-green-800">+ {c.nome}</p>
                     ))}
                   </div>
                 )}
                 {item.observacao && (
-                  <p className="mt-1.5 text-[13px] font-extrabold uppercase text-danger">{item.observacao}</p>
+                  <p className="mt-1.5 text-[13px] font-semibold uppercase text-danger">{item.observacao}</p>
                 )}
               </li>
             ))}
@@ -857,14 +857,14 @@ function ConfirmarPreparoModal({
           <button
             disabled={busy}
             onClick={onCancel}
-            className="flex-1 rounded-menuzia border border-border bg-page py-3.5 text-[13px] font-extrabold uppercase tracking-wide text-text-main transition-colors hover:bg-border disabled:opacity-50"
+            className="flex-1 rounded-menuzia border border-border bg-page py-3.5 text-[13px] font-semibold uppercase tracking-wide text-text-main transition-colors hover:bg-border disabled:opacity-50"
           >
             Agora não
           </button>
           <button
             disabled={busy}
             onClick={onConfirm}
-            className="flex-1 rounded-menuzia bg-status-preparing py-3.5 text-[13px] font-extrabold uppercase tracking-wide text-white transition-colors hover:brightness-95 disabled:opacity-50"
+            className="flex-1 rounded-menuzia bg-status-preparing py-3.5 text-[13px] font-semibold uppercase tracking-wide text-white transition-colors hover:brightness-95 disabled:opacity-50"
           >
             {busy ? 'Abrindo…' : 'Sim, preparar'}
           </button>
@@ -1091,7 +1091,7 @@ export default function CozinhaPortalPage() {
     return (
       <div className="grid min-h-dvh place-items-center bg-page p-6">
         <div className="w-full max-w-sm rounded-menuzia border border-border bg-main p-5 text-center">
-          <p className="text-sm font-bold text-danger">{error}</p>
+          <p className="text-sm font-semibold text-danger">{error}</p>
         </div>
       </div>
     )
@@ -1158,37 +1158,37 @@ export default function CozinhaPortalPage() {
           <div className="flex min-w-0 items-center gap-3">
             <ChefHat className="h-7 w-7 flex-shrink-0 text-primary" />
             <div className="min-w-0">
-              <p className="truncate text-[20px] font-extrabold leading-tight" data-testid="kds-estacao">{data.estacao.nome}</p>
+              <p className="truncate text-[20px] font-semibold leading-tight" data-testid="kds-estacao">{data.estacao.nome}</p>
               <p className="truncate text-[12px] text-[#A3ACBA]">{data.estacao.restauranteNome} · {LABEL_MODO[data.estacao.modo]}</p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-[24px] font-black tabular-nums" data-testid="kds-relogio">{new Date(now).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })}</span>
-            <span className="rounded-full bg-white/10 px-3 py-1 text-[14px] font-bold" data-testid="kds-contador">{pedidosFiltrados.length} pedido{pedidosFiltrados.length !== 1 ? 's' : ''}</span>
-            <span className={['flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-bold', conectado ? 'bg-[#064E3B] text-[#6EE7B7]' : 'bg-[#7F1D1D] text-[#FECACA]'].join(' ')} data-testid="kds-conexao" data-estado={conectado ? 'online' : 'offline'}>
+            <span className="font-mono text-[24px] font-semibold tabular-nums" data-testid="kds-relogio">{new Date(now).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })}</span>
+            <span className="rounded-full bg-white/10 px-3 py-1 text-[14px] font-semibold" data-testid="kds-contador">{pedidosFiltrados.length} pedido{pedidosFiltrados.length !== 1 ? 's' : ''}</span>
+            <span className={['flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-semibold', conectado ? 'bg-[#064E3B] text-[#6EE7B7]' : 'bg-[#7F1D1D] text-[#FECACA]'].join(' ')} data-testid="kds-conexao" data-estado={conectado ? 'online' : 'offline'}>
               <span className={['h-2.5 w-2.5 rounded-full', conectado ? 'bg-[#10B981]' : 'animate-pulse bg-[#EF4444]'].join(' ')} />
               {conectado ? 'Conectado' : 'Sem conexão · tentando…'}
             </span>
             {!isExpedicao && cozinheiro && (
               <span className="flex items-center gap-1.5 text-[13px] font-semibold">
                 {cozinheiro}
-                <button onClick={trocarNome} className="rounded-[6px] bg-white/10 px-2 py-1 text-[11px] font-bold uppercase tracking-wide hover:bg-white/20">Trocar</button>
+                <button onClick={trocarNome} className="rounded-[6px] bg-white/10 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide hover:bg-white/20">Trocar</button>
               </span>
             )}
             {isCompleta && data.despachoRotas !== false && (
-              <button onClick={() => setMapaAberto(true)} className="inline-flex items-center gap-1.5 rounded-[6px] bg-[#0688D4] px-3 py-1.5 text-[12px] font-bold uppercase tracking-wide text-white hover:brightness-95">
+              <button onClick={() => setMapaAberto(true)} className="inline-flex items-center gap-1.5 rounded-[6px] bg-[#0688D4] px-3 py-1.5 text-[12px] font-semibold uppercase tracking-wide text-white hover:brightness-95">
                 <MapIcon className="h-4 w-4" />Mapa
               </button>
             )}
-            <button onClick={() => mudarPrefs({ som: !prefs.som })} data-testid="kds-som" aria-pressed={prefs.som} title="Som (M)" className="rounded-[6px] bg-white/10 px-3 py-1.5 text-[13px] font-bold hover:bg-white/20">{prefs.som ? '🔔 Som' : '🔕 Mudo'}</button>
-            <button onClick={() => setAjustesTempo((v) => !v)} title="Limites do cronômetro" data-testid="kds-ajustes-tempo" className="rounded-[6px] bg-white/10 px-3 py-1.5 text-[13px] font-bold hover:bg-white/20">⏱</button>
-            <button onClick={() => void tela.alternar()} data-testid="kds-tela-cheia" title="Tela cheia (F)" className="rounded-[6px] bg-[#0688D4] px-3 py-1.5 text-[13px] font-bold uppercase hover:brightness-95">{tela.cheia ? 'Sair da tela cheia' : 'Tela cheia'}</button>
+            <button onClick={() => mudarPrefs({ som: !prefs.som })} data-testid="kds-som" aria-pressed={prefs.som} title="Som (M)" className="rounded-[6px] bg-white/10 px-3 py-1.5 text-[13px] font-semibold hover:bg-white/20">{prefs.som ? '🔔 Som' : '🔕 Mudo'}</button>
+            <button onClick={() => setAjustesTempo((v) => !v)} title="Limites do cronômetro" data-testid="kds-ajustes-tempo" className="rounded-[6px] bg-white/10 px-3 py-1.5 text-[13px] font-semibold hover:bg-white/20">⏱</button>
+            <button onClick={() => void tela.alternar()} data-testid="kds-tela-cheia" title="Tela cheia (F)" className="rounded-[6px] bg-[#0688D4] px-3 py-1.5 text-[13px] font-semibold uppercase hover:brightness-95">{tela.cheia ? 'Sair da tela cheia' : 'Tela cheia'}</button>
           </div>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-2" role="tablist" aria-label="Filtro">
           {(['todos', 'mesa', 'entrega', 'retirada'] as FiltroKds[]).map((f, i) => (
             <button key={f} role="tab" aria-selected={prefs.filtro === f} onClick={() => mudarPrefs({ filtro: f })} data-testid={`kds-filtro-${f}`}
-              className={['rounded-full px-4 py-1.5 text-[14px] font-bold', prefs.filtro === f ? 'bg-white text-[#111827]' : 'bg-white/10 text-white hover:bg-white/20'].join(' ')}>
+              className={['rounded-full px-4 py-1.5 text-[14px] font-semibold', prefs.filtro === f ? 'bg-white text-[#111827]' : 'bg-white/10 text-white hover:bg-white/20'].join(' ')}>
               {f === 'todos' ? 'Todos' : f === 'mesa' ? 'Mesa' : f === 'entrega' ? 'Entrega' : 'Retirada'} <span className="ml-1 text-[11px] opacity-60">{i + 1}</span>
             </button>
           ))}
@@ -1236,10 +1236,10 @@ export default function CozinhaPortalPage() {
       {isExpedicao && (
         <main className="p-3">
           <div className="mb-2 flex items-center gap-2">
-            <h2 className="text-[11px] font-bold uppercase tracking-wide text-text-subtle">
+            <h2 className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
               Prontos para expedição
             </h2>
-            <span className="rounded-full bg-status-ready px-1.5 py-0.5 text-[10px] font-bold text-white">
+            <span className="rounded-full bg-status-ready px-1.5 py-0.5 text-[10px] font-semibold text-white">
               {data.pedidos.filter((p) => p.status === 'pronto').length}
             </span>
           </div>
@@ -1251,8 +1251,8 @@ export default function CozinhaPortalPage() {
       {!isExpedicao && !isCompleta && (
         <main className="p-3">
           <div className="mb-3 flex items-center gap-2">
-            <h2 className="text-[12px] font-bold uppercase tracking-wide text-text-subtle">Disponíveis</h2>
-            <span className="rounded-full bg-status-pending px-1.5 py-0.5 text-[10px] font-bold text-white">
+            <h2 className="text-[12px] font-semibold uppercase tracking-wide text-text-subtle">Disponíveis</h2>
+            <span className="rounded-full bg-status-pending px-1.5 py-0.5 text-[10px] font-semibold text-white">
               {disponiveis.length}
             </span>
             <span className="text-[11px] text-text-subtle">· ordenados pelo maior tempo de espera</span>
@@ -1279,10 +1279,10 @@ export default function CozinhaPortalPage() {
             {/* Left column: Disponíveis (status === 'recebido', oldest first) */}
             <section>
               <div className="mb-2 flex items-center gap-2">
-                <h2 className="text-[11px] font-bold uppercase tracking-wide text-text-subtle">
+                <h2 className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
                   Disponíveis
                 </h2>
-                <span className="rounded-full bg-status-pending px-1.5 py-0.5 text-[10px] font-bold text-white">
+                <span className="rounded-full bg-status-pending px-1.5 py-0.5 text-[10px] font-semibold text-white">
                   {disponiveis.length}
                 </span>
               </div>
@@ -1308,10 +1308,10 @@ export default function CozinhaPortalPage() {
             {/* Right column: Em preparo (status === 'preparando') */}
             <section>
               <div className="mb-2 flex items-center gap-2">
-                <h2 className="text-[11px] font-bold uppercase tracking-wide text-text-subtle">
+                <h2 className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
                   Em preparo
                 </h2>
-                <span className="rounded-full bg-status-preparing px-1.5 py-0.5 text-[10px] font-bold text-white">
+                <span className="rounded-full bg-status-preparing px-1.5 py-0.5 text-[10px] font-semibold text-white">
                   {emPreparo.length}
                 </span>
               </div>
@@ -1339,10 +1339,10 @@ export default function CozinhaPortalPage() {
             {isCompleta && (
               <section>
                 <div className="mb-2 flex items-center gap-2">
-                  <h2 className="text-[11px] font-bold uppercase tracking-wide text-text-subtle">
+                  <h2 className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
                     Pronto p/ Despacho
                   </h2>
-                  <span className="rounded-full bg-status-ready px-1.5 py-0.5 text-[10px] font-bold text-white">
+                  <span className="rounded-full bg-status-ready px-1.5 py-0.5 text-[10px] font-semibold text-white">
                     {data.pedidos.filter((p) => p.status === 'pronto').length}
                   </span>
                 </div>

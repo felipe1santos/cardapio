@@ -126,7 +126,7 @@ export function CentralBalcao({
         <button
           type="button"
           onClick={onVoltar}
-          className="flex items-center gap-1.5 rounded-menuzia border-2 border-primary bg-primary px-4 py-2.5 text-[14px] font-bold text-white transition-colors hover:bg-primary-dark active:scale-[0.97]"
+          className="flex items-center gap-1.5 rounded-menuzia border-2 border-primary bg-primary px-4 py-2.5 text-[14px] font-semibold text-white transition-colors hover:bg-primary-dark active:scale-[0.97]"
         >
           <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden>
             <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
@@ -135,7 +135,7 @@ export function CentralBalcao({
         </button>
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">PDV</p>
-          <h1 className="text-[18px] font-bold leading-tight text-text-main">Balcão</h1>
+          <h1 className="text-[18px] font-semibold leading-tight text-text-main">Balcão</h1>
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           {acoes}
@@ -143,7 +143,7 @@ export function CentralBalcao({
             type="button"
             onClick={() => setNovaAberta(true)}
             data-testid="balcao-novo"
-            className="rounded-menuzia bg-status-ready px-5 py-3 text-[14px] font-bold text-white shadow-sm transition-all hover:brightness-95 active:scale-[0.98]"
+            className="rounded-menuzia bg-status-ready px-5 py-3 text-[14px] font-semibold text-white shadow-sm transition-all hover:brightness-95 active:scale-[0.98]"
           >
             + Novo pedido
           </button>
@@ -180,7 +180,7 @@ export function CentralBalcao({
             data-testid="balcao-filtro-acertar"
             title="Pedidos já entregues cujo pagamento ainda não foi registrado no caixa"
             className={[
-              'rounded-menuzia border px-3 py-2 text-[12px] font-bold transition-colors',
+              'rounded-menuzia border px-3 py-2 text-[12px] font-semibold transition-colors',
               soAcertar ? 'border-warn bg-warn text-white' : 'border-warn bg-warn-bg text-text-main hover:bg-warn hover:text-white',
             ].join(' ')}
           >
@@ -206,7 +206,7 @@ export function CentralBalcao({
           </div>
         ) : (
           <div className="overflow-hidden rounded-menuzia border border-border bg-white">
-            <div className="hidden grid-cols-[70px_1.4fr_70px_70px_50px_100px_1fr_1fr_100px_80px] gap-2 border-b border-border bg-page/60 px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-text-subtle lg:grid">
+            <div className="hidden grid-cols-[70px_1.4fr_70px_70px_50px_100px_1fr_1fr_100px_80px] gap-2 border-b border-border bg-page/60 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-text-subtle lg:grid">
               <span>Senha</span>
               <span>Nome</span>
               <span>Aberta</span>
@@ -233,7 +233,7 @@ export function CentralBalcao({
                       data-testid={`balcao-linha-${l.senha}`}
                       className="grid w-full grid-cols-[60px_1fr_auto] items-center gap-2 px-3 py-3 text-left transition-colors hover:bg-page/60 lg:grid-cols-[70px_1.4fr_70px_70px_50px_100px_1fr_1fr_100px_80px]"
                     >
-                      <span className="text-[20px] font-extrabold leading-none text-text-main">{l.senha}</span>
+                      <span className="text-[20px] font-semibold leading-none text-text-main">{l.senha}</span>
                       <span className="min-w-0">
                         <span className="flex min-w-0 items-center gap-1.5">
                           <span className="truncate text-[14px] font-semibold text-text-main">{l.nome}</span>
@@ -259,7 +259,7 @@ export function CentralBalcao({
                       <span className="hidden text-[12px] text-text-subtle lg:block">{horaCurta(l.abertaEm)}</span>
                       <span className="hidden text-[12px] text-text-subtle lg:block">{encerrada ? horaCurta(l.fechadaEm) : tempoCurto(l.abertaEm, agora)}</span>
                       <span className="hidden text-[13px] text-text-main lg:block">{l.qtdPedidos}</span>
-                      <span className="text-right text-[14px] font-bold text-text-main lg:order-none">{formatBRL(l.total)}</span>
+                      <span className="text-right text-[14px] font-semibold text-text-main lg:order-none">{formatBRL(l.total)}</span>
                       <span className="hidden min-w-0 lg:block"><SeloCozinha dim={dim} total={l.pedidos.length} /></span>
                       <span className="hidden min-w-0 lg:block"><SeloAtendimento dim={dim} /></span>
                       <span className="hidden lg:block" data-testid={`balcao-financeiro-${l.senha}`}>
@@ -279,7 +279,7 @@ export function CentralBalcao({
                           type="button"
                           onClick={() => onAbrirConta(l.id, true)}
                           data-testid={`balcao-receber-fechar-${l.senha}`}
-                          className="flex-shrink-0 rounded-menuzia bg-status-ready px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-white hover:brightness-95"
+                          className="flex-shrink-0 rounded-menuzia bg-status-ready px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-white hover:brightness-95"
                         >
                           Receber e fechar
                         </button>
@@ -298,7 +298,7 @@ export function CentralBalcao({
 
 const CAMPO =
   'w-full rounded-menuzia border border-border px-3 py-2.5 text-[15px] text-text-main placeholder:text-text-subtle/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary'
-const ROTULO = 'mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle'
+const ROTULO = 'mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle'
 
 const ENTREGA_VAZIA = { cep: '', rua: '', numero: '', complemento: '', bairro: '', cidade: '', estado: '', referencia: '', observacao: '', taxa: '' }
 
@@ -424,7 +424,7 @@ function NovaComandaModal({ onCancelar, onAberta }: { onCancelar: () => void; on
       ].join(' ')}
     >
       {icone}
-      <span className="text-[14px] font-bold uppercase tracking-wide">{rotulo}</span>
+      <span className="text-[14px] font-semibold uppercase tracking-wide">{rotulo}</span>
       <span className="text-[11px] font-medium text-text-subtle">{dica}</span>
     </button>
   )
@@ -563,7 +563,7 @@ function NovaComandaModal({ onCancelar, onAberta }: { onCancelar: () => void; on
             type="submit"
             disabled={enviando || !modalidade}
             data-testid="balcao-abrir"
-            className="flex flex-[2] items-center justify-center gap-2 rounded-menuzia bg-status-ready py-3 text-[14px] font-bold text-white transition-all hover:brightness-95 disabled:opacity-50"
+            className="flex flex-[2] items-center justify-center gap-2 rounded-menuzia bg-status-ready py-3 text-[14px] font-semibold text-white transition-all hover:brightness-95 disabled:opacity-50"
           >
             <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden><path d={ICONES_PDV.mais} /></svg>
             {enviando ? 'Abrindo…' : 'Abrir e lançar'}

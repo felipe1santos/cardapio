@@ -156,9 +156,9 @@ export function PortalMotoboy({ apiBase, swUrl, swScope }: { apiBase: string; sw
     return (
       <div className="flex min-h-dvh items-center justify-center bg-page p-6">
         <div className="w-full max-w-sm rounded-menuzia border border-border bg-white p-5 text-center" data-testid="motoboy-erro">
-          <h1 className="text-sm font-bold text-danger">{error?.login ? 'Entre com o seu login' : apiBase === '/api/motoboy' ? 'Acesso não liberado' : 'Link inválido'}</h1>
+          <h1 className="text-sm font-semibold text-danger">{error?.login ? 'Entre com o seu login' : apiBase === '/api/motoboy' ? 'Acesso não liberado' : 'Link inválido'}</h1>
           <p className="mt-2 text-[13px] leading-relaxed text-text-subtle">{error?.texto ?? 'Não encontramos sua rota.'}</p>
-          {error?.login && <a href="/login" className="mt-3 inline-block rounded-menuzia bg-primary px-4 py-2 text-[12px] font-bold uppercase text-white">Entrar</a>}
+          {error?.login && <a href="/login" className="mt-3 inline-block rounded-menuzia bg-primary px-4 py-2 text-[12px] font-semibold uppercase text-white">Entrar</a>}
         </div>
       </div>
     )
@@ -169,20 +169,20 @@ export function PortalMotoboy({ apiBase, swUrl, swScope }: { apiBase: string; sw
       <header className="bg-sidebar-bg px-4 py-4 text-white">
         <div className="mx-auto max-w-[480px]">
           <div className="text-[11px] font-semibold uppercase tracking-wide text-sidebar-text">{data.entregador.restauranteNome}</div>
-          <h1 className="text-lg font-extrabold">Olá, {data.entregador.nome}</h1>
+          <h1 className="text-lg font-semibold">Olá, {data.entregador.nome}</h1>
           <div className="mt-3 flex gap-2">
             <div className="flex-1 rounded-menuzia bg-white/10 px-3 py-2">
               <div className="text-[10px] font-semibold uppercase tracking-wide text-sidebar-text">Em rota</div>
-              <div className="text-xl font-bold">{pedidos.length}</div>
+              <div className="text-xl font-semibold">{pedidos.length}</div>
             </div>
             <div className="flex-1 rounded-menuzia bg-white/10 px-3 py-2">
               <div className="text-[10px] font-semibold uppercase tracking-wide text-sidebar-text">Entregues hoje</div>
-              <div className="text-xl font-bold">{data.concluidosHoje}</div>
+              <div className="text-xl font-semibold">{data.concluidosHoje}</div>
             </div>
             {fin?.ativo && (
               <div className="flex-1 rounded-menuzia bg-white/10 px-3 py-2" data-testid="motoboy-comigo">
                 <div className="text-[10px] font-semibold uppercase tracking-wide text-sidebar-text">Dinheiro comigo</div>
-                <div className="text-xl font-bold text-status-ready">{brlC(fin.comigoCentavos)}</div>
+                <div className="text-xl font-semibold text-status-ready">{brlC(fin.comigoCentavos)}</div>
               </div>
             )}
           </div>
@@ -190,9 +190,9 @@ export function PortalMotoboy({ apiBase, swUrl, swScope }: { apiBase: string; sw
             <div className="mt-2 rounded-menuzia bg-white/10 px-3 py-2">
               <div className="text-[10px] font-semibold uppercase tracking-wide text-sidebar-text">Caixa em dinheiro hoje</div>
               <div className="mt-1 grid grid-cols-3 gap-2 text-center">
-                <div><div className="text-[10px] text-sidebar-text">Recebido</div><div className="text-sm font-bold">{brl(data.caixaHoje.recebido)}</div></div>
-                <div><div className="text-[10px] text-sidebar-text">Troco dado</div><div className="text-sm font-bold">{brl(data.caixaHoje.trocoDado)}</div></div>
-                <div><div className="text-[10px] text-sidebar-text">Devolver</div><div className="text-sm font-bold text-status-ready">{brl(data.caixaHoje.aDevolver)}</div></div>
+                <div><div className="text-[10px] text-sidebar-text">Recebido</div><div className="text-sm font-semibold">{brl(data.caixaHoje.recebido)}</div></div>
+                <div><div className="text-[10px] text-sidebar-text">Troco dado</div><div className="text-sm font-semibold">{brl(data.caixaHoje.trocoDado)}</div></div>
+                <div><div className="text-[10px] text-sidebar-text">Devolver</div><div className="text-sm font-semibold text-status-ready">{brl(data.caixaHoje.aDevolver)}</div></div>
               </div>
             </div>
           )}
@@ -229,11 +229,11 @@ export function PortalMotoboy({ apiBase, swUrl, swScope }: { apiBase: string; sw
                 <div key={order.id} className={`overflow-hidden rounded-menuzia border bg-white ${liberado ? 'border-status-ready' : 'border-border'}`} data-testid={`motoboy-pedido-${order.numero}`}>
                   <div className="flex items-center justify-between border-b border-border px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[11px] font-bold text-white">{index + 1}</span>
-                      <span className="text-sm font-bold">Pedido #{order.numero}</span>
-                      {order.saiuParaEntregaEm && <span className="rounded-menuzia bg-alert-bg px-1.5 text-[10px] font-bold uppercase text-alert-text">Saiu</span>}
+                      <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[11px] font-semibold text-white">{index + 1}</span>
+                      <span className="text-sm font-semibold">Pedido #{order.numero}</span>
+                      {order.saiuParaEntregaEm && <span className="rounded-menuzia bg-alert-bg px-1.5 text-[10px] font-semibold uppercase text-alert-text">Saiu</span>}
                     </div>
-                    <span className="text-sm font-bold text-price-text">{brl(order.total)}</span>
+                    <span className="text-sm font-semibold text-price-text">{brl(order.total)}</span>
                   </div>
 
                   <div className={`px-4 py-3 ${liberado ? '' : 'opacity-60'}`}>
@@ -248,15 +248,15 @@ export function PortalMotoboy({ apiBase, swUrl, swScope }: { apiBase: string; sw
                       <a href={`https://waze.com/ul?q=${encodeURIComponent(enderecoCompleto(order))}&navigate=yes`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[12px] font-semibold text-primary">Waze →</a>
                     </div>
                     <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <span className="rounded-menuzia bg-alert-bg px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-alert-text">{rotuloForma(order.formaPagamento, order.cartaoTipo)}</span>
+                      <span className="rounded-menuzia bg-alert-bg px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-alert-text">{rotuloForma(order.formaPagamento, order.cartaoTipo)}</span>
                       {!order.pago ? (
-                        <span className="rounded-menuzia bg-danger-bg px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-danger">Receber {brl(order.total)}</span>
+                        <span className="rounded-menuzia bg-danger-bg px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-danger">Receber {brl(order.total)}</span>
                       ) : (
-                        <span className="rounded-menuzia bg-price-bg px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-price-text" data-testid="entregador-ja-pago">Pago</span>
+                        <span className="rounded-menuzia bg-price-bg px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-price-text" data-testid="entregador-ja-pago">Pago</span>
                       )}
                     </div>
                     {order.formaPagamento === 'dinheiro' && !order.pago && (
-                      <div className="mt-2 rounded-menuzia bg-warn-bg px-3 py-2 text-[15px] font-extrabold text-[#92400E]" data-testid="motoboy-levar-troco">
+                      <div className="mt-2 rounded-menuzia bg-warn-bg px-3 py-2 text-[15px] font-semibold text-[#92400E]" data-testid="motoboy-levar-troco">
                         {levar > 0 ? <>Levar {brl(levar)} de troco <span className="text-[12px] font-semibold">(cliente paga c/ {brl(order.trocoPara!)})</span></> : 'Sem troco'}
                       </div>
                     )}
@@ -273,17 +273,17 @@ export function PortalMotoboy({ apiBase, swUrl, swScope }: { apiBase: string; sw
                     <div className="flex flex-col gap-2 border-t border-border p-3">
                       {!order.saiuParaEntregaEm && (
                         <button onClick={() => void enviar(order, 'saiu', {}, 'saiu')} disabled={busy === order.id} data-testid="motoboy-sai"
-                          className="flex items-center justify-center gap-1.5 rounded-menuzia border border-primary py-2.5 text-xs font-bold uppercase tracking-wide text-primary disabled:opacity-50">
+                          className="flex items-center justify-center gap-1.5 rounded-menuzia border border-primary py-2.5 text-xs font-semibold uppercase tracking-wide text-primary disabled:opacity-50">
                           <Navigation className="h-4 w-4" /> Saí para entrega
                         </button>
                       )}
                       <div className="flex gap-2">
                         <button onClick={() => setNaoEntreguei(order.id)} disabled={busy === order.id} data-testid="motoboy-nao-entreguei"
-                          className="rounded-menuzia border border-danger px-3 py-3 text-xs font-bold uppercase tracking-wide text-danger hover:bg-danger-bg disabled:opacity-50">
+                          className="rounded-menuzia border border-danger px-3 py-3 text-xs font-semibold uppercase tracking-wide text-danger hover:bg-danger-bg disabled:opacity-50">
                           Não consegui
                         </button>
                         <button onClick={() => (fin?.ativo ? setPagando(order.id) : void enviar(order, 'entregar', {}, 'entregue'))} disabled={busy === order.id} data-testid="motoboy-entregue"
-                          className="flex flex-1 items-center justify-center gap-1.5 rounded-menuzia bg-status-ready py-3 text-sm font-extrabold uppercase tracking-wide text-white transition-colors hover:brightness-95 disabled:opacity-50">
+                          className="flex flex-1 items-center justify-center gap-1.5 rounded-menuzia bg-status-ready py-3 text-sm font-semibold uppercase tracking-wide text-white transition-colors hover:brightness-95 disabled:opacity-50">
                           <Check className="h-4 w-4" /> {busy === order.id ? 'Enviando…' : 'Entregue'}
                         </button>
                       </div>
@@ -301,7 +301,7 @@ export function PortalMotoboy({ apiBase, swUrl, swScope }: { apiBase: string; sw
 
         {despachoAberto && disponiveis.length > 0 && (
           <div className={pedidos.length > 0 ? 'mt-5' : ''}>
-            <div className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-text-subtle">
+            <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
               <PackageCheck className="h-4 w-4 text-status-pending" /> Disponíveis para pegar
               <span className="rounded-full bg-page px-1.5 text-text-subtle">{disponiveis.length}</span>
             </div>
@@ -309,16 +309,16 @@ export function PortalMotoboy({ apiBase, swUrl, swScope }: { apiBase: string; sw
               {disponiveis.map((order) => (
                 <div key={order.id} className="overflow-hidden rounded-menuzia border border-border bg-white">
                   <div className="flex items-center justify-between border-b border-border bg-status-pending/5 px-4 py-3">
-                    <span className="text-sm font-bold">Pedido #{order.numero}</span><span className="text-sm font-bold text-price-text">{brl(order.total)}</span>
+                    <span className="text-sm font-semibold">Pedido #{order.numero}</span><span className="text-sm font-semibold text-price-text">{brl(order.total)}</span>
                   </div>
                   <div className="px-4 py-3">
                     <div className="text-sm font-semibold">{order.clienteNome || 'Cliente'}</div>
                     <div className="mt-1 flex items-start gap-1 text-[13px] leading-relaxed"><MapPin className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-text-subtle" />{enderecoCompleto(order)}</div>
-                    <div className="mt-2 text-[12px] font-bold uppercase text-alert-text">{rotuloForma(order.formaPagamento, order.cartaoTipo)}{order.formaPagamento === 'dinheiro' && order.trocoPara ? ` · troco p/ ${brl(order.trocoPara)}` : ''}</div>
+                    <div className="mt-2 text-[12px] font-semibold uppercase text-alert-text">{rotuloForma(order.formaPagamento, order.cartaoTipo)}{order.formaPagamento === 'dinheiro' && order.trocoPara ? ` · troco p/ ${brl(order.trocoPara)}` : ''}</div>
                   </div>
                   <div className="border-t border-border p-3">
                     <button onClick={() => void pegarPedido(order.id)} disabled={busy === order.id || pedidos.length > 0}
-                      className="flex w-full items-center justify-center gap-1.5 rounded-menuzia bg-status-pending py-3 text-sm font-extrabold uppercase tracking-wide text-white disabled:opacity-40">
+                      className="flex w-full items-center justify-center gap-1.5 rounded-menuzia bg-status-pending py-3 text-sm font-semibold uppercase tracking-wide text-white disabled:opacity-40">
                       <Bike className="h-4 w-4" /> {busy === order.id ? 'Pegando…' : 'Pegar entrega'}
                     </button>
                   </div>
@@ -378,15 +378,15 @@ function PainelPagamento({ pedido, busy, onCancelar, onConfirmar }: {
       <div className="space-y-2 border-t border-border p-3" data-testid="motoboy-pagamento">
         <p className="text-[13px] text-text-subtle">Este pedido já foi pago na loja. Só confirme a entrega.</p>
         <div className="flex gap-2">
-          <button onClick={onCancelar} className="rounded-menuzia border border-border px-3 py-3 text-xs font-bold uppercase">Voltar</button>
-          <button onClick={() => onConfirmar({ forma: 'cartao' })} disabled={busy} data-testid="motoboy-confirmar-pagamento" className="flex-1 rounded-menuzia bg-status-ready py-3 text-sm font-extrabold uppercase text-white disabled:opacity-50">Confirmar entrega</button>
+          <button onClick={onCancelar} className="rounded-menuzia border border-border px-3 py-3 text-xs font-semibold uppercase">Voltar</button>
+          <button onClick={() => onConfirmar({ forma: 'cartao' })} disabled={busy} data-testid="motoboy-confirmar-pagamento" className="flex-1 rounded-menuzia bg-status-ready py-3 text-sm font-semibold uppercase text-white disabled:opacity-50">Confirmar entrega</button>
         </div>
       </div>
     )
   }
   return (
     <div className="space-y-2 border-t border-border bg-page p-3" data-testid="motoboy-pagamento">
-      <p className="text-[12px] font-bold uppercase tracking-wide text-text-subtle">Como o cliente pagou?</p>
+      <p className="text-[12px] font-semibold uppercase tracking-wide text-text-subtle">Como o cliente pagou?</p>
       <div className="grid grid-cols-2 gap-2">
         {op('dinheiro', 'Dinheiro', Banknote)}{op('cartao', 'Cartão', CreditCard)}{op('pix', 'Pix', QrCode)}{op('nao_pago', 'Não pagou', Ban)}
       </div>
@@ -394,9 +394,9 @@ function PainelPagamento({ pedido, busy, onCancelar, onConfirmar }: {
         <div className="space-y-1">
           <label className="flex h-[44px] items-center rounded-menuzia border border-border bg-white px-2">
             <span className="mr-2 text-[13px] text-text-subtle">Recebi R$</span>
-            <input inputMode="decimal" className="h-full w-full bg-transparent text-[16px] font-bold outline-none" value={recebido} onChange={(e) => setRecebido(e.target.value.replace(/[^\d.,]/g, '').slice(0, 9))} data-testid="motoboy-recebido" />
+            <input inputMode="decimal" className="h-full w-full bg-transparent text-[16px] font-semibold outline-none" value={recebido} onChange={(e) => setRecebido(e.target.value.replace(/[^\d.,]/g, '').slice(0, 9))} data-testid="motoboy-recebido" />
           </label>
-          {troco > 0 && !erro && <p className="text-[15px] font-extrabold text-[#92400E]" data-testid="motoboy-troco-dar">Dar de troco: {brlC(troco)}</p>}
+          {troco > 0 && !erro && <p className="text-[15px] font-semibold text-[#92400E]" data-testid="motoboy-troco-dar">Dar de troco: {brlC(troco)}</p>}
         </div>
       )}
       {forma === 'cartao' && <input placeholder="NSU (se tiver)" value={nsu} onChange={(e) => setNsu(e.target.value.slice(0, 40))} className="h-[44px] w-full rounded-menuzia border border-border bg-white px-2 text-[14px]" data-testid="motoboy-nsu" />}
@@ -404,10 +404,10 @@ function PainelPagamento({ pedido, busy, onCancelar, onConfirmar }: {
       {forma === 'nao_pago' && <textarea placeholder="Por que não pagou?" value={motivo} onChange={(e) => setMotivo(e.target.value.slice(0, 300))} className="min-h-[64px] w-full rounded-menuzia border border-border bg-white p-2 text-[14px]" data-testid="motoboy-motivo-nao-pago" />}
       {erro && forma && <p className="text-[12.5px] font-semibold text-danger">{erro}</p>}
       <div className="flex gap-2">
-        <button onClick={onCancelar} className="rounded-menuzia border border-border bg-white px-3 py-3 text-xs font-bold uppercase">Voltar</button>
+        <button onClick={onCancelar} className="rounded-menuzia border border-border bg-white px-3 py-3 text-xs font-semibold uppercase">Voltar</button>
         <button disabled={busy || !!erro} data-testid="motoboy-confirmar-pagamento"
           onClick={() => onConfirmar({ forma, ...(forma === 'dinheiro' ? { recebidoCentavos: recC } : {}), ...(forma === 'cartao' && nsu ? { nsu } : {}), ...(forma === 'nao_pago' ? { motivo } : {}) })}
-          className="flex-1 rounded-menuzia bg-status-ready py-3 text-sm font-extrabold uppercase text-white disabled:opacity-50">
+          className="flex-1 rounded-menuzia bg-status-ready py-3 text-sm font-semibold uppercase text-white disabled:opacity-50">
           {busy ? 'Enviando…' : 'Confirmar entrega'}
         </button>
       </div>
@@ -419,12 +419,12 @@ function NaoEntreguei({ busy, onCancelar, onConfirmar }: { busy: boolean; onCanc
   const [motivo, setMotivo] = useState('')
   return (
     <div className="space-y-2 border-t border-border bg-page p-3" data-testid="motoboy-nao-entreguei-painel">
-      <p className="text-[12px] font-bold uppercase tracking-wide text-text-subtle">Por que não conseguiu entregar?</p>
+      <p className="text-[12px] font-semibold uppercase tracking-wide text-text-subtle">Por que não conseguiu entregar?</p>
       <textarea value={motivo} onChange={(e) => setMotivo(e.target.value.slice(0, 300))} placeholder="Cliente não atendeu, endereço errado…" className="min-h-[64px] w-full rounded-menuzia border border-border bg-white p-2 text-[14px]" data-testid="motoboy-motivo" />
       <div className="flex gap-2">
-        <button onClick={onCancelar} className="rounded-menuzia border border-border bg-white px-3 py-3 text-xs font-bold uppercase">Voltar</button>
+        <button onClick={onCancelar} className="rounded-menuzia border border-border bg-white px-3 py-3 text-xs font-semibold uppercase">Voltar</button>
         <button disabled={busy || motivo.trim().length < 3} onClick={() => onConfirmar(motivo.trim())} data-testid="motoboy-confirmar-nao-entreguei"
-          className="flex-1 rounded-menuzia bg-danger py-3 text-sm font-extrabold uppercase text-white disabled:opacity-50">Confirmar</button>
+          className="flex-1 rounded-menuzia bg-danger py-3 text-sm font-semibold uppercase text-white disabled:opacity-50">Confirmar</button>
       </div>
     </div>
   )

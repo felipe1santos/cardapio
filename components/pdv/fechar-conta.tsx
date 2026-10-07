@@ -241,7 +241,7 @@ export function FecharContaModal({
             disabled={!pronto || enviando}
             onClick={() => (zero && !confirmarZero ? setConfirmarZero(true) : void fechar())}
             data-testid="fechar-confirmar"
-            className={['flex min-h-[60px] flex-[2] items-center justify-center gap-2 rounded-menuzia text-[17px] font-bold text-white transition-all hover:brightness-95 disabled:opacity-50', zero && confirmarZero ? 'bg-warn' : 'bg-status-ready'].join(' ')}
+            className={['flex min-h-[60px] flex-[2] items-center justify-center gap-2 rounded-menuzia text-[17px] font-semibold text-white transition-all hover:brightness-95 disabled:opacity-50', zero && confirmarZero ? 'bg-warn' : 'bg-status-ready'].join(' ')}
           >
             <svg viewBox="0 0 24 24" className="h-6 w-6 fill-current" aria-hidden><path d={ICONES_PDV.check} /></svg>
             {enviando ? 'Fechando…' : zero ? (confirmarZero ? 'Confirmar: fechar com R$ 0,00' : 'Fechar conta (valor zero)') : 'Fechar conta'}
@@ -281,7 +281,7 @@ export function FecharContaModal({
 
             {temPendentes && (
               <section>
-                <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-text-subtle">1. Pedidos ainda na cozinha — decida cada um</p>
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">1. Pedidos ainda na cozinha — decida cada um</p>
                 <ul className="space-y-2">
                   {pendentes!.map((p) => {
                     const d = decisoes[p.id]
@@ -289,7 +289,7 @@ export function FecharContaModal({
                     return (
                       <li key={p.id} className={['rounded-menuzia border p-3', d?.acao ? 'border-border' : 'border-warn/60 bg-warn-bg/30'].join(' ')} data-testid={`fechar-pendencia-${p.numero}`}>
                         <div className="flex flex-wrap items-baseline justify-between gap-2">
-                          <span className="text-[14px] font-bold text-text-main">#{p.numero}</span>
+                          <span className="text-[14px] font-semibold text-text-main">#{p.numero}</span>
                           <Selo tom={p.categoria === 'aguardando_aceite' ? 'ambar' : p.categoria === 'em_preparo' ? 'azul' : 'verde'}>
                             {ROTULO_PENDENCIA[p.categoria] ?? p.status}
                           </Selo>
@@ -314,7 +314,7 @@ export function FecharContaModal({
                             onClick={() => decidir(p.id, 'entregue')}
                             data-testid={`fechar-pendencia-${p.numero}-entregue`}
                             className={[
-                              'flex min-h-[56px] flex-1 items-center justify-center gap-2 rounded-menuzia border text-[14px] font-bold disabled:opacity-40',
+                              'flex min-h-[56px] flex-1 items-center justify-center gap-2 rounded-menuzia border text-[14px] font-semibold disabled:opacity-40',
                               d?.acao === 'entregue' ? 'border-status-ready bg-status-ready text-white' : 'border-border bg-white text-text-main',
                             ].join(' ')}
                           >
@@ -327,7 +327,7 @@ export function FecharContaModal({
                             onClick={() => decidir(p.id, 'cancelar')}
                             data-testid={`fechar-pendencia-${p.numero}-cancelar`}
                             className={[
-                              'flex min-h-[56px] flex-1 items-center justify-center gap-2 rounded-menuzia border text-[14px] font-bold disabled:opacity-40',
+                              'flex min-h-[56px] flex-1 items-center justify-center gap-2 rounded-menuzia border text-[14px] font-semibold disabled:opacity-40',
                               d?.acao === 'cancelar' ? 'border-danger bg-danger text-white' : 'border-border bg-white text-text-main',
                             ].join(' ')}
                           >
@@ -356,7 +356,7 @@ export function FecharContaModal({
 
             {sim && (
               <section className="rounded-menuzia border border-border px-3 py-3 text-[13px]" data-testid="fechar-simulacao">
-                <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-text-subtle">{temPendentes ? '2. Conta com as decisões e taxas' : '2. Conta e taxas'}</p>
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">{temPendentes ? '2. Conta com as decisões e taxas' : '2. Conta e taxas'}</p>
                 {itensConta.length > 0 && (
                   <ul className="mb-2 max-h-[220px] space-y-1.5 overflow-y-auto border-b border-border pb-2" data-testid="fechar-itens">
                     {itensConta.map((i) => (
@@ -385,7 +385,7 @@ export function FecharContaModal({
                     type="button"
                     onClick={() => setTaxaAberta(true)}
                     data-testid="fechar-taxa-extra"
-                    className="mt-2 min-h-[48px] w-full rounded-menuzia border border-dashed border-primary text-[13px] font-bold text-primary hover:bg-primary hover:text-white"
+                    className="mt-2 min-h-[48px] w-full rounded-menuzia border border-dashed border-primary text-[13px] font-semibold text-primary hover:bg-primary hover:text-white"
                   >
                     {Number(sim.taxa_extra) > 0 ? 'Alterar taxas' : '+ Adicionar taxa'}
                   </button>
@@ -401,12 +401,12 @@ export function FecharContaModal({
 
           {/* DIREITA: pagamento (toque) */}
           <div className="flex-shrink-0 border-t border-border bg-page/50 px-4 py-4 lg:w-[400px] lg:overflow-y-auto lg:border-l lg:border-t-0">
-            <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-text-subtle">3. Pagamento</p>
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">3. Pagamento</p>
             {!sim && <p className="rounded-menuzia bg-white px-3 py-6 text-center text-[13px] text-text-subtle">Decida as pendências para liberar o pagamento.</p>}
             {sim && (
               <div className="mb-3 flex items-center justify-between rounded-menuzia bg-white px-3 py-2.5" data-testid="fechar-restante-topo">
                 <span className="text-[13px] font-semibold text-text-subtle">Restante a pagar</span>
-                <span className={['text-[24px] font-extrabold', Math.abs(falta) < 0.005 ? 'text-price-text' : 'text-text-main'].join(' ')}>{formatBRL(Math.max(0, falta))}</span>
+                <span className={['text-[24px] font-semibold', Math.abs(falta) < 0.005 ? 'text-price-text' : 'text-text-main'].join(' ')}>{formatBRL(Math.max(0, falta))}</span>
               </div>
             )}
             {sim && zero && sim.excedente <= 0 && (
@@ -429,7 +429,7 @@ export function FecharContaModal({
                               onClick={() => { setPags((x) => x.map((l, k) => (k === i ? { ...l, forma: f } : l))); setAtivo({ i, campo: 'valor' }) }}
                               data-testid={`fechar-pag-${i}-forma-${f}`}
                               className={[
-                                'flex min-h-[56px] items-center gap-2 rounded-menuzia border px-3 text-[14px] font-bold',
+                                'flex min-h-[56px] items-center gap-2 rounded-menuzia border px-3 text-[14px] font-semibold',
                                 p.forma === f ? 'border-primary bg-primary text-white' : 'border-border bg-white text-text-main',
                               ].join(' ')}
                             >
@@ -446,7 +446,7 @@ export function FecharContaModal({
                             onChange={(e) => setPags((x) => x.map((l, k) => (k === i ? { ...l, valor: e.target.value } : l)))}
                             placeholder="Valor"
                             data-testid={`fechar-pag-${i}-valor`}
-                            className={['min-h-[52px] w-full rounded-menuzia border px-3 text-[18px] font-bold focus:outline-none', ativo.i === i && ativo.campo === 'valor' ? 'border-primary' : 'border-border'].join(' ')}
+                            className={['min-h-[52px] w-full rounded-menuzia border px-3 text-[18px] font-semibold focus:outline-none', ativo.i === i && ativo.campo === 'valor' ? 'border-primary' : 'border-border'].join(' ')}
                           />
                           {p.forma === 'dinheiro' && (
                             <input
@@ -456,7 +456,7 @@ export function FecharContaModal({
                               onChange={(e) => setPags((x) => x.map((l, k) => (k === i ? { ...l, recebido: e.target.value } : l)))}
                               placeholder="Recebido"
                               data-testid={`fechar-pag-${i}-recebido`}
-                              className={['min-h-[52px] w-full rounded-menuzia border px-3 text-[18px] font-bold focus:outline-none', ativo.i === i && ativo.campo === 'recebido' ? 'border-primary' : 'border-border'].join(' ')}
+                              className={['min-h-[52px] w-full rounded-menuzia border px-3 text-[18px] font-semibold focus:outline-none', ativo.i === i && ativo.campo === 'recebido' ? 'border-primary' : 'border-border'].join(' ')}
                             />
                           )}
                           {pags.length > 1 && (
@@ -471,7 +471,7 @@ export function FecharContaModal({
                     {/* Atalhos e teclado numérico grande (toque) */}
                     <div className="grid grid-cols-4 gap-1.5" data-testid="fechar-atalhos">
                       {(['exato', 50, 100, 200] as const).map((v) => (
-                        <button key={String(v)} type="button" onClick={() => atalho(v)} className="min-h-[52px] rounded-menuzia border border-border bg-white text-[14px] font-bold text-text-main active:scale-[0.97]">
+                        <button key={String(v)} type="button" onClick={() => atalho(v)} className="min-h-[52px] rounded-menuzia border border-border bg-white text-[14px] font-semibold text-text-main active:scale-[0.97]">
                           {v === 'exato' ? 'Exato' : `R$ ${v}`}
                         </button>
                       ))}
@@ -479,7 +479,7 @@ export function FecharContaModal({
                     <div className="grid grid-cols-3 gap-1.5" data-testid="fechar-teclado">
                       {['1', '2', '3', '4', '5', '6', '7', '8', '9', ',', '0', '⌫'].map((t) => (
                         <button key={t} type="button" onClick={() => tecla(t)} aria-label={t === '⌫' ? 'Apagar' : t}
-                          className="min-h-[56px] rounded-menuzia border border-border bg-white text-[20px] font-bold text-text-main active:bg-page">
+                          className="min-h-[56px] rounded-menuzia border border-border bg-white text-[20px] font-semibold text-text-main active:bg-page">
                           {t}
                         </button>
                       ))}
@@ -487,7 +487,7 @@ export function FecharContaModal({
                     {troco !== null && (
                       <div className={['flex items-center justify-between rounded-menuzia px-3 py-2.5', troco >= 0 ? 'bg-price-bg' : 'bg-danger-bg'].join(' ')} data-testid="fechar-troco">
                         <span className="text-[13px] font-semibold text-text-main">{troco >= 0 ? 'Troco' : 'Falta receber'}</span>
-                        <span className={['text-[22px] font-extrabold', troco >= 0 ? 'text-price-text' : 'text-danger'].join(' ')}>{formatBRL(Math.abs(troco))}</span>
+                        <span className={['text-[22px] font-semibold', troco >= 0 ? 'text-price-text' : 'text-danger'].join(' ')}>{formatBRL(Math.abs(troco))}</span>
                       </div>
                     )}
                     <button
@@ -539,8 +539,8 @@ export function FecharContaModal({
 function Linha({ rotulo, valor, forte, fraco, testid }: { rotulo: string; valor: number; forte?: boolean; fraco?: boolean; testid?: string }) {
   return (
     <div className="flex items-center justify-between py-0.5">
-      <span className={forte ? 'font-bold text-text-main' : fraco ? 'text-text-subtle' : 'text-text-subtle'}>{rotulo}</span>
-      <span className={[forte ? 'font-bold text-text-main' : 'text-text-main', fraco ? 'text-text-subtle line-through' : ''].join(' ')} data-testid={testid}>
+      <span className={forte ? 'font-semibold text-text-main' : fraco ? 'text-text-subtle' : 'text-text-subtle'}>{rotulo}</span>
+      <span className={[forte ? 'font-semibold text-text-main' : 'text-text-main', fraco ? 'text-text-subtle line-through' : ''].join(' ')} data-testid={testid}>
         {formatBRL(valor)}
       </span>
     </div>

@@ -194,7 +194,7 @@ function DiasChips({ dias, onChange }: { dias: number[]; onChange: (dias: number
           onClick={() => toggle(dia)}
           className={[
             // Mesmo tamanho de dedo do gestor de cardápio: 21px é alvo de mouse.
-            'flex h-6 w-6 max-lg:h-10 max-lg:w-10 max-lg:text-[13px] select-none items-center justify-center rounded-menuzia border text-[11px] font-bold transition-colors',
+            'flex h-6 w-6 max-lg:h-10 max-lg:w-10 max-lg:text-[13px] select-none items-center justify-center rounded-menuzia border text-[11px] font-semibold transition-colors',
             ativos.has(dia)
               ? 'border-[var(--adm-azul)] bg-[var(--adm-azul)] text-white'
               : 'border-border bg-white text-text-subtle hover:border-[var(--adm-azul)]',
@@ -213,7 +213,7 @@ function ItemThumb({ nome, imagemUrl, size = 'h-8 w-8' }: { nome: string; imagem
     return <img src={imagemUrl} alt={nome} loading="lazy" decoding="async" className={`${size} flex-shrink-0 rounded-menuzia border border-border object-cover`} />
   }
   return (
-    <div className={`${size} flex flex-shrink-0 items-center justify-center rounded-menuzia border border-border bg-page text-[12px] font-bold text-text-subtle`}>
+    <div className={`${size} flex flex-shrink-0 items-center justify-center rounded-menuzia border border-border bg-page text-[12px] font-semibold text-text-subtle`}>
       {nome.charAt(0).toUpperCase()}
     </div>
   )
@@ -686,7 +686,7 @@ export default function FidelidadePage() {
                   <Card key={c.id} className="p-3.5">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="break-words text-[14px] font-bold text-text-main">{c.nome}</p>
+                        <p className="break-words text-[14px] font-semibold text-text-main">{c.nome}</p>
                         {c.descricao && <p className="mt-0.5 text-[11px] text-text-subtle">{c.descricao}</p>}
                       </div>
                       <ToggleSwitch checked={c.ativa} onChange={() => toggleCampanhaAtiva(c)} rotulo={`Ativar a campanha ${c.nome}`} />
@@ -815,7 +815,7 @@ export default function FidelidadePage() {
                 {cupons.map((c) => (
                   <Card key={c.id} className="p-3.5">
                     <div className="flex items-start justify-between gap-3">
-                      <span className="inline-flex items-center rounded border border-border bg-page px-2 py-0.5 font-mono text-[13px] font-bold tracking-wide text-text-main">
+                      <span className="inline-flex items-center rounded border border-border bg-page px-2 py-0.5 font-mono text-[13px] font-semibold tracking-wide text-text-main">
                         {c.codigo}
                       </span>
                       <ToggleSwitch checked={c.ativo} onChange={() => toggleCupomAtivo(c)} rotulo={`Ativar o cupom ${c.codigo}`} />
@@ -883,7 +883,7 @@ export default function FidelidadePage() {
                     {cupons.map((c) => (
                       <tr key={c.id} className="hover:bg-page/60">
                         <td className="px-4 py-3">
-                          <span className="inline-flex items-center rounded bg-page px-2 py-0.5 font-mono text-[12px] font-bold tracking-wide text-text-main border border-border">
+                          <span className="inline-flex items-center rounded bg-page px-2 py-0.5 font-mono text-[12px] font-semibold tracking-wide text-text-main border border-border">
                             {c.codigo}
                           </span>
                           {c.descricao && <p className="mt-1 max-w-[220px] truncate text-[11px] text-text-subtle">{c.descricao}</p>}
@@ -940,7 +940,7 @@ export default function FidelidadePage() {
       {drawerCampanha && <div className="fixed inset-0 z-40 bg-[#111827]/40" onClick={() => setDrawerCampanha(false)} />}
       <div className={['fixed right-0 top-0 z-50 flex h-full w-full max-w-[520px] flex-col bg-white shadow-2xl transition-transform duration-300', drawerCampanha ? 'translate-x-0' : 'translate-x-full'].join(' ')}>
         <div className="flex flex-shrink-0 items-center justify-between border-b border-border px-5 py-4">
-          <h2 className="text-[15px] font-bold text-text-main">{editandoCampanhaId ? 'Editar campanha de fidelidade' : 'Nova campanha de fidelidade'}</h2>
+          <h2 className="text-[15px] font-semibold text-text-main">{editandoCampanhaId ? 'Editar campanha de fidelidade' : 'Nova campanha de fidelidade'}</h2>
           <button onClick={() => setDrawerCampanha(false)} className="flex h-8 w-8 items-center justify-center rounded-full bg-page text-xl font-light text-text-subtle hover:text-text-main">×</button>
         </div>
 
@@ -1073,7 +1073,7 @@ export default function FidelidadePage() {
       {drawerCupom && <div className="fixed inset-0 z-40 bg-[#111827]/40" onClick={() => setDrawerCupom(false)} />}
       <div className={['fixed right-0 top-0 z-50 flex h-full w-full max-w-[520px] flex-col bg-white shadow-2xl transition-transform duration-300', drawerCupom ? 'translate-x-0' : 'translate-x-full'].join(' ')}>
         <div className="flex flex-shrink-0 items-center justify-between border-b border-border px-5 py-4">
-          <h2 className="text-[15px] font-bold text-text-main">{editandoCupomId ? 'Editar cupom' : 'Novo cupom'}</h2>
+          <h2 className="text-[15px] font-semibold text-text-main">{editandoCupomId ? 'Editar cupom' : 'Novo cupom'}</h2>
           <button onClick={() => setDrawerCupom(false)} className="flex h-8 w-8 items-center justify-center rounded-full bg-page text-xl font-light text-text-subtle hover:text-text-main">×</button>
         </div>
 
@@ -1084,7 +1084,7 @@ export default function FidelidadePage() {
                 value={formCupom.codigo}
                 onChange={(e) => setFormCupom((f) => ({ ...f, codigo: e.target.value.toUpperCase().replace(/\s+/g, '') }))}
                 placeholder="Ex: VOLTA10"
-                className={`${INPUT_CLS} font-mono font-bold tracking-wide uppercase`}
+                className={`${INPUT_CLS} font-mono font-semibold tracking-wide uppercase`}
               />
             </Field>
 

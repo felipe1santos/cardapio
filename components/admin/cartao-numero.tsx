@@ -44,7 +44,7 @@ export function CartaoNumero({
       </span>
       <div className="min-w-0">
         <p className="line-clamp-2 break-words text-[12px] leading-[15px] text-[var(--adm-texto-medio)]" title={rotulo}>{rotulo}</p>
-        <p className="whitespace-nowrap text-[20px] font-bold leading-tight text-[var(--adm-texto)]">{valor}</p>
+        <p className="whitespace-nowrap text-[20px] font-semibold leading-tight text-[var(--adm-texto)]">{valor}</p>
         {detalhe && <p className="truncate text-[11px] text-[var(--adm-texto-suave)]">{detalhe}</p>}
       </div>
     </div>

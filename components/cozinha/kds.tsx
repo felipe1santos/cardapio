@@ -105,7 +105,7 @@ export function Desfazer({ texto, onDesfazer, onFim }: { texto: string; onDesfaz
   return (
     <div role="status" data-testid="kds-desfazer" className="fixed bottom-5 left-1/2 z-[70] flex -translate-x-1/2 items-center gap-4 rounded-full border border-[#2A3547] bg-[#1F2937] px-5 py-3 text-[15px] font-semibold text-white shadow-2xl">
       {texto}
-      <button type="button" onClick={onDesfazer} className="rounded-full bg-white px-4 py-1.5 text-[13px] font-extrabold uppercase tracking-wide text-[#111827]">Desfazer</button>
+      <button type="button" onClick={onDesfazer} className="rounded-full bg-white px-4 py-1.5 text-[13px] font-semibold uppercase tracking-wide text-[#111827]">Desfazer</button>
     </div>
   )
 }
@@ -120,10 +120,10 @@ export function ItemKds({ item, feito, onAlternar, onComoFazer, grande = false }
       <div className="flex items-start gap-3">
         {onAlternar && (
           <button type="button" onClick={onAlternar} aria-label={feito ? 'Desmarcar item' : 'Marcar item como feito'} data-testid="kds-item-marcar"
-            className={['mt-0.5 grid h-8 w-8 flex-shrink-0 place-items-center rounded-[6px] border-2 text-[18px] font-black', feito ? 'border-[#10B981] bg-[#10B981] text-white' : 'border-[#4B5563] text-transparent'].join(' ')}>✓</button>
+            className={['mt-0.5 grid h-8 w-8 flex-shrink-0 place-items-center rounded-[6px] border-2 text-[18px] font-semibold', feito ? 'border-[#10B981] bg-[#10B981] text-white' : 'border-[#4B5563] text-transparent'].join(' ')}>✓</button>
         )}
         <button type="button" onClick={onComoFazer} disabled={!onComoFazer} className="min-w-0 flex-1 text-left disabled:cursor-default" data-testid="kds-item-abrir">
-          <p className={[grande ? 'text-[24px]' : 'text-[19px]', 'font-extrabold leading-tight text-white', feito ? 'line-through decoration-2' : ''].join(' ')}>
+          <p className={[grande ? 'text-[24px]' : 'text-[19px]', 'font-semibold leading-tight text-white', feito ? 'line-through decoration-2' : ''].join(' ')}>
             <span className="mr-1 text-[#FBBF24]">{item.quantidade}×</span> {item.nome}
           </p>
           {(item.tamanhoNome || item.saborNome || item.bordaNome || item.massaNome) && (
@@ -134,13 +134,13 @@ export function ItemKds({ item, feito, onAlternar, onComoFazer, grande = false }
             <ul className="mt-1.5 space-y-0.5">
               {item.complementos.map((c, i) => (
                 SEM.test(c.nome)
-                  ? <li key={i} className="text-[17px] font-black uppercase tracking-wide text-[#F87171]">{c.nome}</li>
-                  : <li key={i} className="text-[16px] font-bold text-[#6EE7B7]">+ {c.nome}</li>
+                  ? <li key={i} className="text-[17px] font-semibold uppercase tracking-wide text-[#F87171]">{c.nome}</li>
+                  : <li key={i} className="text-[16px] font-semibold text-[#6EE7B7]">+ {c.nome}</li>
               ))}
             </ul>
           )}
           {item.observacao && (
-            <p className="mt-2 flex items-start gap-2 rounded-[6px] bg-[#7F1D1D]/50 px-2.5 py-1.5 text-[16px] font-extrabold uppercase text-[#FECACA]" data-testid="kds-obs">
+            <p className="mt-2 flex items-start gap-2 rounded-[6px] bg-[#7F1D1D]/50 px-2.5 py-1.5 text-[16px] font-semibold uppercase text-[#FECACA]" data-testid="kds-obs">
               <span aria-hidden>⚠️</span>{item.observacao}
             </p>
           )}
@@ -201,8 +201,8 @@ export function ComoFazerModal({ token, item, podeEditar = false, onFechar }: { 
             ? <img src={dados.imagemUrl} alt="" className="h-[84px] w-[84px] rounded-[8px] object-cover" />
             : <IlustracaoPreparo />}
           <div className="min-w-0 flex-1">
-            <p className="text-[12px] font-bold uppercase tracking-wide text-[#7DD3FC]">Como fazer</p>
-            <h2 className="truncate text-[28px] font-extrabold leading-tight">{item.nome}</h2>
+            <p className="text-[12px] font-semibold uppercase tracking-wide text-[#7DD3FC]">Como fazer</p>
+            <h2 className="truncate text-[28px] font-semibold leading-tight">{item.nome}</h2>
             {dados?.ficha?.tempoMin && <p className="text-[15px] font-semibold text-[#FBBF24]">⏱ {dados.ficha.tempoMin} min</p>}
           </div>
           {dados?.imagemUrl && <IlustracaoPreparo />}
@@ -210,11 +210,11 @@ export function ComoFazerModal({ token, item, podeEditar = false, onFechar }: { 
         </div>
         <div className="grid flex-1 gap-4 overflow-y-auto p-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
           <section>
-            <h3 className="mb-2 text-[13px] font-bold uppercase tracking-wide text-[#A3ACBA]">Este pedido</h3>
+            <h3 className="mb-2 text-[13px] font-semibold uppercase tracking-wide text-[#A3ACBA]">Este pedido</h3>
             <ItemKds item={item} feito={false} grande />
             {dados?.ficha && dados.ficha.ingredientes.length > 0 && (
               <>
-                <h3 className="mb-2 mt-4 text-[13px] font-bold uppercase tracking-wide text-[#A3ACBA]">Ingredientes</h3>
+                <h3 className="mb-2 mt-4 text-[13px] font-semibold uppercase tracking-wide text-[#A3ACBA]">Ingredientes</h3>
                 <ul className="space-y-1" data-testid="como-fazer-ingredientes">
                   {dados.ficha.ingredientes.map((i, k) => (
                     <li key={k} className="flex justify-between gap-3 border-b border-[#2A3547] py-1.5 text-[18px]"><span className="font-semibold">{i.nome}</span><span className="text-[#CBD5E1]">{i.quantidade}</span></li>
@@ -226,17 +226,17 @@ export function ComoFazerModal({ token, item, podeEditar = false, onFechar }: { 
           <section>
             {erro ? <p className="text-[16px] text-[#FCA5A5]">Não foi possível carregar a ficha.</p> : !dados ? <div className="h-40 animate-pulse rounded-[8px] bg-white/5" /> : !dados.ficha || passos.length === 0 ? (
               <div className="rounded-[8px] border border-dashed border-[#2A3547] p-6 text-center" data-testid="como-fazer-sem-ficha">
-                <p className="text-[20px] font-bold">Ficha de preparo ainda não cadastrada</p>
+                <p className="text-[20px] font-semibold">Ficha de preparo ainda não cadastrada</p>
                 <p className="mt-1 text-[15px] text-[#A3ACBA]">Siga o que o pedido pede, ao lado.</p>
                 {podeEditar && <p className="mt-3 text-[14px] text-[#7DD3FC]">Para cadastrar: painel › Cardápio › editar o item › Exibição › Ficha de preparo.</p>}
               </div>
             ) : (
               <div data-testid="como-fazer-passos">
-                <h3 className="mb-2 text-[13px] font-bold uppercase tracking-wide text-[#A3ACBA]">Modo de preparo · passo {atual + 1} de {passos.length}</h3>
+                <h3 className="mb-2 text-[13px] font-semibold uppercase tracking-wide text-[#A3ACBA]">Modo de preparo · passo {atual + 1} de {passos.length}</h3>
                 <div className="rounded-[8px] border border-[#2A3547] bg-[#0F1726] p-5">
                   <div className="flex items-start gap-4">
                     <button type="button" onClick={() => setFeitos((f) => { const n = new Set(f); if (n.has(atual)) n.delete(atual); else n.add(atual); return n })}
-                      className={['grid h-12 w-12 flex-shrink-0 place-items-center rounded-full border-2 text-[22px] font-black', feitos.has(atual) ? 'border-[#10B981] bg-[#10B981]' : 'border-[#4B5563]'].join(' ')}>{feitos.has(atual) ? '✓' : atual + 1}</button>
+                      className={['grid h-12 w-12 flex-shrink-0 place-items-center rounded-full border-2 text-[22px] font-semibold', feitos.has(atual) ? 'border-[#10B981] bg-[#10B981]' : 'border-[#4B5563]'].join(' ')}>{feitos.has(atual) ? '✓' : atual + 1}</button>
                     <p className={['text-[26px] font-semibold leading-snug', feitos.has(atual) ? 'text-[#A3ACBA] line-through' : ''].join(' ')}>{passos[atual].texto}</p>
                   </div>
                   {passos[atual].fotoUrl && (
@@ -245,12 +245,12 @@ export function ComoFazerModal({ token, item, podeEditar = false, onFechar }: { 
                   )}
                 </div>
                 <div className="mt-3 flex gap-3">
-                  <button type="button" disabled={atual === 0} onClick={() => setPasso(Math.max(0, atual - 1))} className="flex-1 rounded-[8px] bg-white/10 py-4 text-[16px] font-extrabold uppercase disabled:opacity-30">‹ Anterior</button>
-                  <button type="button" disabled={atual >= passos.length - 1} onClick={() => setPasso(atual + 1)} className="flex-1 rounded-[8px] bg-[#0688D4] py-4 text-[16px] font-extrabold uppercase disabled:opacity-30">Próximo ›</button>
+                  <button type="button" disabled={atual === 0} onClick={() => setPasso(Math.max(0, atual - 1))} className="flex-1 rounded-[8px] bg-white/10 py-4 text-[16px] font-semibold uppercase disabled:opacity-30">‹ Anterior</button>
+                  <button type="button" disabled={atual >= passos.length - 1} onClick={() => setPasso(atual + 1)} className="flex-1 rounded-[8px] bg-[#0688D4] py-4 text-[16px] font-semibold uppercase disabled:opacity-30">Próximo ›</button>
                 </div>
                 <ol className="mt-4 space-y-1">
                   {passos.map((p, k) => (
-                    <li key={k}><button type="button" onClick={() => setPasso(k)} className={['w-full truncate rounded-[6px] px-3 py-1.5 text-left text-[15px]', k === atual ? 'bg-white/10 font-bold' : 'text-[#A3ACBA]', feitos.has(k) ? 'line-through' : ''].join(' ')}>{k + 1}. {p.texto}</button></li>
+                    <li key={k}><button type="button" onClick={() => setPasso(k)} className={['w-full truncate rounded-[6px] px-3 py-1.5 text-left text-[15px]', k === atual ? 'bg-white/10 font-semibold' : 'text-[#A3ACBA]', feitos.has(k) ? 'line-through' : ''].join(' ')}>{k + 1}. {p.texto}</button></li>
                   ))}
                 </ol>
               </div>

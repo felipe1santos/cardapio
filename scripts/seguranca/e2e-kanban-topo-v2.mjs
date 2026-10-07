@@ -143,8 +143,9 @@ try {
       await p.mouse.click(5, 700)
       ok(`${nome}: clique fora fecha os avisos`, !(await vis('avisos-painel')))
     } else {
-      const tam = await p.evaluate(() => ['kanban-som', 'kanban-silenciar', 'kanban-aceite', 'kanban-rotas', 'kanban-mais', 'avisos-icone'].map((id) => document.querySelector(`[data-testid="${id}"]`)).filter(Boolean).map((el) => { const r = el.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height), el.textContent.trim()] }))
-      ok(`${nome}: Som/Aceite/Rotas/Mais/avisos só ícone, quadrados de 44 px`, tam.length >= 5 && tam.every(([w, h, t]) => w === 44 && h === 44 && /^\d*$/.test(t)), texto(tam))
+      // Item 58: o capacete saiu da barra (virou o botão "Despachar" no canto) e entrou a tela cheia (só a partir de lg).
+      const tam = await p.evaluate(() => ['kanban-som', 'kanban-silenciar', 'kanban-aceite', 'kanban-tela-cheia', 'kanban-mais', 'avisos-icone'].map((id) => document.querySelector(`[data-testid="${id}"]`)).filter((el) => el && el.getBoundingClientRect().width > 0).map((el) => { const r = el.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height), el.textContent.trim()] }))
+      ok(`${nome}: Som/Aceite/Tela cheia/Mais/avisos só ícone, quadrados de 44 px`, tam.length >= 4 && tam.every(([w, h, t]) => w === 44 && h === 44 && /^\d*$/.test(t)), texto(tam))
       for (const id of ['avisos-icone', 'kanban-mais']) {
         await p.getByTestId(id).click()
         const alvo = id === 'avisos-icone' ? 'avisos-painel' : 'kanban-mais-menu'
@@ -181,20 +182,20 @@ try {
     const d2 = await dicaDe(p, somId)
     ok('clicar alterna o Som (aria-pressed, cor e dica mudam)', ligado1 !== ligado2 && cor1.fundo !== cor2.fundo && d1.t !== d2.t, `${cor1.fundo} → ${cor2.fundo}`)
     const azul = ligado2 ? cor2 : cor1, cinza = ligado2 ? cor1 : cor2
-    ok('Som ligado = azul vivo sólido; desligado = cinza-escuro, ambos com ícone claro', azul.fundo === 'rgb(3, 105, 161)' && cinza.fundo === 'rgb(75, 85, 99)' && azul.cor === 'rgb(255, 255, 255)', texto({ azul, cinza }))
+    // Item 58: estilo dos cards do Fluxo de caixa — fundo clarinho e ícone colorido.
+    ok('Som ligado = azul claro com ícone azul; desligado = cinza claro com ícone cinza', azul.fundo === 'rgb(224, 242, 254)' && azul.cor === 'rgb(3, 105, 161)' && cinza.fundo === 'rgb(241, 242, 244)' && cinza.cor === 'rgb(75, 85, 99)', texto({ azul, cinza }))
     if (ligado2 !== ligado1) await p.getByTestId(somId).click() // volta como estava
     const da = await dicaDe(p, 'kanban-aceite')
     ok('dica do Aceite automático diz o estado', /Aceite automático (ligado|desligado) – /.test(da.t), da.t)
     const dm = await dicaDe(p, 'kanban-mais')
     ok('dica do Mais', /Mais opções/.test(dm.t), dm.t)
-    const rotas = (await p.getByTestId('kanban-rotas').count()) ? 'kanban-rotas' : 'kanban-rotas-desligado'
-    const dr = await dicaDe(p, rotas)
-    ok('dica do Rotas (capacete)', /Rotas/.test(dr.t), dr.t)
+    const dr = await dicaDe(p, 'kanban-tela-cheia')
+    ok('dica da Tela cheia', /Tela cheia/.test(dr.t), dr.t)
     const rotulos = await p.evaluate(() => ['kanban-status-loja', 'kanban-som|kanban-silenciar', 'kanban-aceite', 'kanban-mais', 'avisos-icone', 'topo-impressora', 'topo-duvidas', 'topo-conta'].map((ids) => [ids, ids.split('|').map((id) => document.querySelector(`[data-testid="${id}"]`)?.getAttribute('aria-label')).find(Boolean) ?? '']))
     ok('todos os botões com aria-label', rotulos.every(([, l]) => l.length > 3), texto(rotulos.filter(([, l]) => l.length <= 3)))
     const st = await p.evaluate(contraste, '[data-testid="kanban-status-loja"]')
     const stTexto = await p.getByTestId('kanban-status-loja').innerText()
-    ok('status com texto (Recebendo pedidos/Loja fechada + Manual/Automático) em verde/vermelho vivo', /Recebendo pedidos|Loja fechada/.test(stTexto) && /Manual|Automático/.test(stTexto) && ['rgb(21, 128, 61)', 'rgb(185, 28, 28)'].includes(st.fundo), `${stTexto.replace(/\s+/g, ' ')} ${st.fundo}`)
+    ok('status com texto (Recebendo pedidos/Loja fechada · Manual/Automático) em verde/vermelho claro', /Recebendo pedidos|Loja fechada/.test(stTexto) && /Manual|Automático/.test(stTexto) && ['rgb(220, 252, 231)', 'rgb(254, 226, 226)'].includes(st.fundo), `${stTexto.replace(/\s+/g, ' ')} ${st.fundo}`)
     const contrastes = {}
     for (const sel of ['kanban-status-loja', 'kanban-som', 'kanban-silenciar', 'kanban-aceite', 'kanban-mais', 'avisos-icone', 'topo-duvidas']) { const c = await p.evaluate(contraste, `[data-testid="${sel}"]`); if (c) contrastes[sel] = c.razao }
     ok('contraste ≥ 4,5:1 em todos os botões coloridos', Object.keys(contrastes).length >= 6 && Object.values(contrastes).every((r) => r >= 4.5), texto(contrastes))
@@ -203,26 +204,25 @@ try {
     await p.getByTestId('kanban-aceite').click(); await p.waitForTimeout(600)
     const ac2 = (await p.getByTestId('kanban-aceite').getAttribute('aria-pressed')) === 'true'
     const cAc = await p.evaluate(contraste, '[data-testid="kanban-aceite"]')
-    ok('Aceite alterna e muda de cor (roxo vivo / cinza-escuro)', ac1 !== ac2 && cAc.fundo === (ac2 ? 'rgb(126, 34, 206)' : 'rgb(75, 85, 99)') && cAc.razao >= 4.5, texto(cAc))
+    ok('Aceite alterna e muda de cor (roxo claro / cinza claro)', ac1 !== ac2 && cAc.fundo === (ac2 ? 'rgb(243, 232, 255)' : 'rgb(241, 242, 244)') && cAc.razao >= 4.5, texto(cAc))
     await p.getByTestId('kanban-aceite').click(); await p.waitForTimeout(600)
-    // Métricas, Entregas e Tela cheia moram no Mais.
+    // Métricas e Entregas moram no Mais; a Tela cheia virou botão da barra (item 58), e o Mais
+    // ganhou Despacho aberto e Entregar sem entregador.
     await p.getByTestId('kanban-mais').click()
-    ok('Mais tem Testar som, repetição, Métricas, Entregas e Tela cheia', await p.getByTestId('kanban-testar-som').isVisible() && await p.getByTestId('kanban-metricas').isVisible() && await p.getByTestId('kanban-entregas').isVisible() && await p.getByTestId('kanban-tela-cheia').isVisible())
+    ok('Mais tem Testar som, repetição, Métricas, Entregas, Despacho aberto e Entregar sem entregador', await p.getByTestId('kanban-testar-som').isVisible() && await p.getByTestId('kanban-metricas').isVisible() && await p.getByTestId('kanban-entregas').isVisible() && await p.getByTestId('kanban-despacho-aberto').isVisible() && await p.getByTestId('kanban-sem-entregador').isVisible())
     const resumo = async () => p.getByTestId('cards-resumo-pedidos').isVisible().catch(() => false)
     const antes = await resumo()
     await p.getByTestId('kanban-metricas').click()
     ok('Métricas pelo Mais alterna a barra de métricas', (await resumo()) !== antes)
     await p.getByTestId('kanban-mais').click(); await p.getByTestId('kanban-metricas').click()
-    // Tela cheia (modo foco): continua uma linha só, sistema à direita.
-    await p.getByTestId('kanban-mais').click(); await p.getByTestId('kanban-tela-cheia').click()
-    await p.waitForTimeout(800)
-    const gf = await p.evaluate(medirTopo)
-    ok('tela cheia: uma linha, controles à esquerda, sistema à direita', gf.umaLinha && gf.sistemaADireita && gf.sobrepostos === 0 && !gf.rolagemLateral, texto(gf))
-    await p.getByTestId('avisos-icone').click()
-    const af = await p.evaluate(medirPopup, 'avisos-painel')
-    ok('tela cheia: avisos por cima', af.existe && af.dentro && af.porCima, texto(af))
+    // Tela cheia (item 58): só as colunas e o Despachar — sem topo; sai pelo botão ou pelo Esc.
     await p.keyboard.press('Escape')
-    await p.getByTestId('kanban-mais').click(); await p.getByTestId('kanban-tela-cheia').click()
+    await p.getByTestId('kanban-tela-cheia').click()
+    await p.waitForTimeout(800)
+    ok('tela cheia: sem a barra de cima, com o botão de sair', (await p.locator('[data-testid="topo"]').count()) === 0 && await p.getByTestId('sair-tela-cheia-kanban').isVisible())
+    await p.getByTestId('sair-tela-cheia-kanban').click()
+    await p.waitForTimeout(800)
+    ok('sair da tela cheia devolve a barra', await p.locator('[data-testid="topo"]').isVisible())
     // Regressão: o card abre o painel lateral, e o Esc fecha (o Mais não rouba o Esc).
     const card = p.locator('[data-testid^="pedido-"]').first()
     if (await card.count()) {

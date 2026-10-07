@@ -6,7 +6,7 @@ import { getBrowserSupabase } from '@/lib/supabase/client'
 import type { PropsCentral } from '@/components/atendimento/central'
 
 /**
- * Botão flutuante da central de atendimento do WhatsApp (canto inferior direito).
+ * Botão flutuante da central de atendimento do WhatsApp (canto inferior direito; no Kanban, esquerdo).
  *
  * LEVE de propósito: fechado, só existe este botão com o número (conversas aguardando +
  * não lidas). O painel inteiro (central.tsx) é carregado sob demanda, no clique.
@@ -38,7 +38,9 @@ function tocarAviso() {
   }
 }
 
-export function LancadorAtendimento({ restauranteId }: { restauranteId: string }) {
+/** `lado`: no Kanban fica à ESQUERDA, para não brigar com o botão "Despachar" (item 58). */
+export function LancadorAtendimento({ restauranteId, lado = 'direita' }: { restauranteId: string; lado?: 'direita' | 'esquerda' }) {
+  const canto = lado === 'esquerda' ? 'left-4' : 'right-4'
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [resumo, setResumo] = useState<{ aguardando: number; naoLidas: number } | null>(null)
   const [aberto, setAberto] = useState(false)
@@ -134,18 +136,18 @@ export function LancadorAtendimento({ restauranteId }: { restauranteId: string }
           aria-label={total ? `Atendimento WhatsApp: ${resumo.aguardando} aguardando, ${resumo.naoLidas} com mensagem nova` : 'Abrir atendimento WhatsApp'}
           title="Atendimento WhatsApp"
           data-testid="atendimento-lancador"
-          className={['fixed bottom-4 right-4 z-40 flex h-[54px] w-[54px] items-center justify-center rounded-full bg-[#25D366] text-white shadow-[0_6px_20px_rgba(15,23,42,0.25)] transition-transform hover:scale-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0688D4]', pulso ? 'animate-bounce' : ''].join(' ')}
+          className={['fixed bottom-4', canto, 'z-40 flex h-[54px] w-[54px] items-center justify-center rounded-full bg-[#25D366] text-white shadow-[0_6px_20px_rgba(15,23,42,0.25)] transition-transform hover:scale-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0688D4]', pulso ? 'animate-bounce' : ''].join(' ')}
         >
           <MessageCircle className="h-[26px] w-[26px]" strokeWidth={2.2} />
           {total > 0 && (
-            <span className="absolute -right-1 -top-1 flex h-[22px] min-w-[22px] items-center justify-center rounded-full border-2 border-white bg-[#DC2626] px-1 text-[11.5px] font-bold tabular-nums" data-testid="atendimento-badge">
+            <span className="absolute -right-1 -top-1 flex h-[22px] min-w-[22px] items-center justify-center rounded-full border-2 border-white bg-[#DC2626] px-1 text-[11.5px] font-semibold tabular-nums" data-testid="atendimento-badge">
               {total > 99 ? '99+' : total}
             </span>
           )}
         </button>
       )}
       {aberto && carregando && !Central && (
-        <div className="fixed bottom-4 right-4 z-40 flex h-[54px] items-center gap-2 rounded-full bg-white px-4 text-[13px] text-[#4B5563] shadow-lg" role="status">Abrindo atendimento…</div>
+        <div className={`fixed bottom-4 ${canto} z-40 flex h-[54px] items-center gap-2 rounded-full bg-white px-4 text-[13px] text-[#4B5563] shadow-lg`} role="status">Abrindo atendimento…</div>
       )}
       {aberto && Central && (
         <Central

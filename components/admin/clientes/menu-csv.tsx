@@ -100,7 +100,7 @@ function Historico({ onFechar, onToast, onMudou }: { onFechar: () => void; onToa
       {confirmar && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30 p-4" onMouseDown={() => setConfirmar(null)}>
           <div role="alertdialog" className="w-full max-w-[420px] rounded-[8px] bg-white p-5 shadow-2xl" onMouseDown={(e) => e.stopPropagation()} data-testid="confirmar-desfazer">
-            <h3 className="text-[15px] font-bold text-[#1f2937]">Desfazer importação?</h3>
+            <h3 className="text-[15px] font-semibold text-[#1f2937]">Desfazer importação?</h3>
             <p className="mt-1.5 text-[13px] leading-relaxed text-[#4b5563]">Os {confirmar.criados} clientes criados por <b>{confirmar.arquivo_nome}</b> saem da base (menos quem já fez pedido). Os {confirmar.atualizados} atualizados voltam aos dados de antes.</p>
             <div className="mt-4 flex justify-end gap-2">
               <button type="button" className={BTN.sec} onClick={() => setConfirmar(null)}>Voltar</button>

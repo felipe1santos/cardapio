@@ -87,7 +87,7 @@ export function ConfigConta({ onFechar, embutida = false }: { onFechar?: () => v
   const conteudo = (
     <>
         <div className="flex items-center justify-between">
-          <h2 className="text-[15px] font-bold text-text-main">Conta e pagamentos</h2>
+          <h2 className="text-[15px] font-semibold text-text-main">Conta e pagamentos</h2>
           {!embutida && (
             <button onClick={onFechar} aria-label="Fechar" className="-mr-2 grid h-[40px] w-[40px] place-items-center text-text-subtle hover:text-text-main">
               <X className="h-4 w-4" />
@@ -96,7 +96,7 @@ export function ConfigConta({ onFechar, embutida = false }: { onFechar?: () => v
         </div>
 
         <label className="mt-4 block">
-          <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Taxa de serviço padrão (%)</span>
+          <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Taxa de serviço padrão (%)</span>
           <input
             value={taxa}
             inputMode="decimal"
@@ -110,7 +110,7 @@ export function ConfigConta({ onFechar, embutida = false }: { onFechar?: () => v
         </label>
 
         <div className="mt-4" data-testid="config-taxas-padrao">
-          <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-text-subtle">Taxas padrão (atalhos na conta)</span>
+          <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Taxas padrão (atalhos na conta)</span>
           <div className="flex flex-wrap items-center gap-1.5">
             {taxasPadrao.length === 0 && <span className="text-[12px] text-text-subtle">Nenhuma — a conta sugere Couvert e Taxa de rolha.</span>}
             {taxasPadrao.map((t, i) => (
@@ -133,7 +133,7 @@ export function ConfigConta({ onFechar, embutida = false }: { onFechar?: () => v
         </div>
 
         <fieldset className="mt-4">
-          <legend className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-text-subtle">Formas de pagamento aceitas</legend>
+          <legend className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Formas de pagamento aceitas</legend>
           <div className="grid grid-cols-2 gap-1.5">
             {disponiveis.map((f) => (
               <label key={f} className="flex min-h-[40px] items-center gap-2 rounded-menuzia border border-border px-2.5 py-2 text-[13px] lg:min-h-0">
@@ -153,7 +153,7 @@ export function ConfigConta({ onFechar, embutida = false }: { onFechar?: () => v
 
         {regras && (
           <fieldset className="mt-4">
-            <legend className="mb-1.5 text-[11px] font-bold uppercase tracking-wide text-text-subtle">
+            <legend className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
               Quem pode o quê no salão {podeEditarRegras ? '' : '(só o dono altera)'}
             </legend>
             <div className="space-y-1.5">

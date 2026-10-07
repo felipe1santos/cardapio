@@ -13,7 +13,7 @@ import { PwaRegister } from "@/components/pwa-register";
  * fonts.googleapis.com nem a fonts.gstatic.com, nem no navegador nem no build.
  *
  * Os pesos são exatamente os que já vinham (400–800). Existem 8 usos de
- * `font-light` e 1 de `font-black` no código, mas 300 e 900 nunca foram
+ * `font-light` e 1 de `font-semibold` no código, mas 300 e 900 nunca foram
  * carregados — o navegador já sintetizava. Mantendo o mesmo conjunto, nada muda
  * de aparência.
  */

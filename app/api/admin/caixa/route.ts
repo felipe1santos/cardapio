@@ -65,7 +65,8 @@ async function blocoFinanceiro(admin: SupabaseClient, loja: string, userId: stri
       .eq('restaurante_id', loja).in('status', ['pronto', 'em_rota']).eq('forma_pagamento', 'dinheiro').eq('pago', false)
       .not('entregador_id', 'is', null).not('troco_para', 'is', null)
       // Só o despacho de agora: pedido esquecido em rota há dias não vira troco a entregar.
-      .gte('criado_em', new Date(Date.now() - 12 * 3600_000).toISOString()).limit(100),
+      // Mais novos primeiro: sem ordem, com mais de 100 em rota o pedido recém-despachado podia ficar de fora.
+      .gte('criado_em', new Date(Date.now() - 12 * 3600_000).toISOString()).order('criado_em', { ascending: false }).limit(100),
   ])
   const ve = veValoresFin(papel, normalizarAcessos((usu as { acessos?: unknown } | null)?.acessos))
   const candidatos = (peds ?? []).map((p) => ({

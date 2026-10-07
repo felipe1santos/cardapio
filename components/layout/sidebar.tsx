@@ -59,7 +59,7 @@ const NAV_ICONS: Record<string, string[]> = {
   '/admin/pdv': ICONES.pdv,
   '/admin/mesas': ICONES.mesas,
   '/admin/cozinha': ICONES.cozinha,
-  '/admin/logistica': ICONES.logistica,
+  '/admin/lista-pedidos': ICONES.lista,
   '/admin/financeiro': ICONES.dinheiro,
   '/admin/cardapio': ICONES.cardapio,
   '/admin/clientes': ICONES.clientes,
@@ -116,7 +116,7 @@ export function Sidebar({
             {ICONES.aviso.map((d) => (<path key={d} d={d} />))}
           </svg>
           {pendencias > 0 && (
-            <span data-testid="menu-alerta-badge" className="absolute -right-0.5 top-0 flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-[var(--adm-vermelho)] px-1 text-[9.5px] font-bold leading-none text-white">
+            <span data-testid="menu-alerta-badge" className="absolute -right-0.5 top-0 flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-[var(--adm-vermelho)] px-1 text-[9.5px] font-semibold leading-none text-white">
               {pendencias > 9 ? '9+' : pendencias}
             </span>
           )}
@@ -155,7 +155,7 @@ export function Sidebar({
                 className="h-8 w-8 flex-shrink-0 rounded-[3px] border border-[var(--adm-borda)] object-cover"
               />
             ) : (
-              <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[3px] bg-[var(--adm-azul-claro)] text-[13px] font-bold text-[var(--adm-azul-escuro)]">
+              <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[3px] bg-[var(--adm-azul-claro)] text-[13px] font-semibold text-[var(--adm-azul-escuro)]">
                 {loja.nome.charAt(0).toUpperCase()}
               </span>
             )}

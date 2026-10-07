@@ -33,7 +33,7 @@ export function TituloBloco({ titulo, subtitulo, acao }: { titulo: string; subti
   return (
     <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
       <div className="min-w-0">
-        <h3 className="text-[14px] font-bold text-[var(--adm-texto-forte)]">{titulo}</h3>
+        <h3 className="text-[14px] font-semibold text-[var(--adm-texto-forte)]">{titulo}</h3>
         {subtitulo && <p className="mt-0.5 text-[12px] text-[var(--adm-texto-suave)]">{subtitulo}</p>}
       </div>
       {acao}

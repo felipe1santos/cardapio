@@ -117,7 +117,7 @@ export function IndicadorSalvar() {
         )}
         {fase === 'erro' && (
           <>
-            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#EF4444] text-[18px] font-bold text-white" aria-hidden="true">
+            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#EF4444] text-[18px] font-semibold text-white" aria-hidden="true">
               !
             </span>
             <span className="text-[13px] font-semibold text-[#B91C1C]">Não foi possível salvar</span>

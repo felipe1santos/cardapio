@@ -51,7 +51,7 @@ export function TopBar({ title, breadcrumb, right, voltar, controles, sistema, s
             className="-ml-1 flex h-[44px] flex-shrink-0 items-center gap-1 rounded-menuzia px-2 text-primary hover:bg-primary/10"
           >
             <ArrowLeft className="h-5 w-5" />
-            <span className="hidden text-[12px] font-bold uppercase tracking-wide sm:inline">{voltar.rotulo}</span>
+            <span className="hidden text-[12px] font-semibold uppercase tracking-wide sm:inline">{voltar.rotulo}</span>
           </button>
         )}
         {menu && (

@@ -28,17 +28,17 @@ export function ResumoEncerramentoModal({
   const linha = (rotulo: string, valor: string, forte?: boolean, tom?: string) => (
     <div className="flex items-baseline justify-between py-1">
       <span className="text-[13px] text-text-subtle">{rotulo}</span>
-      <span className={`text-[14px] ${forte ? 'font-bold' : 'font-semibold'} ${tom ?? 'text-text-main'}`}>{valor}</span>
+      <span className={`text-[14px] ${forte ? 'font-semibold' : 'font-semibold'} ${tom ?? 'text-text-main'}`}>{valor}</span>
     </div>
   )
   return (
     <TelaPdv titulo={cancelada ? 'Conta cancelada' : 'Conta fechada'} onVoltar={onOk} livre larguraMax={640} testid="resumo-encerramento" pequena>
       <div>
         <div className={`border-b border-border px-4 py-3 ${cancelada ? 'bg-danger-bg' : 'bg-price-bg'}`}>
-          <p className={`text-[11px] font-bold uppercase tracking-wide ${cancelada ? 'text-danger' : 'text-price-text'}`}>
+          <p className={`text-[11px] font-semibold uppercase tracking-wide ${cancelada ? 'text-danger' : 'text-price-text'}`}>
             {cancelada ? 'Conta cancelada' : 'Conta fechada'}
           </p>
-          <h2 className="text-[15px] font-bold text-text-main">{titulo}</h2>
+          <h2 className="text-[15px] font-semibold text-text-main">{titulo}</h2>
         </div>
         <div className="px-4 py-3">
           {linha(cancelada ? 'Total cancelado' : 'Total', formatBRL(resumo.total), true)}

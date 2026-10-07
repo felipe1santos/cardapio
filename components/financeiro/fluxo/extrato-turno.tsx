@@ -125,7 +125,7 @@ export function ExtratoTurno({ turnoId, podeExportar, onFechar, onAbrirTurno, on
                       </p>
                     )}
                   </div>
-                  <span className="whitespace-nowrap font-bold" style={{ color: contra ? '#465A69' : l.valor >= 0 ? '#006B4E' : '#D93616' }} data-testid="extrato-valor">{l.valor >= 0 ? '+' : '−'}{formatarCentavos(Math.abs(l.valor))}</span>
+                  <span className="whitespace-nowrap font-semibold" style={{ color: contra ? '#465A69' : l.valor >= 0 ? '#006B4E' : '#D93616' }} data-testid="extrato-valor">{l.valor >= 0 ? '+' : '−'}{formatarCentavos(Math.abs(l.valor))}</span>
                 </div>
               )
             })}
