@@ -172,6 +172,7 @@ export const ROTULO_EVENTO: Record<string, string> = {
   'caixa.retirada': 'Fez retirada do caixa',
   'caixa.perda': 'Registrou perda no caixa',
   'impressao.codigo_gerado': 'Gerou código de pareamento de computador',
+  'impressao.convite_gerado': 'Gerou link/instalador para conectar computador (sem código)',
   'impressao.agente_pareado': 'Computador pareado ao Assistente de Impressão',
   'impressao.agente_renomeado': 'Renomeou computador de impressão',
   'impressao.agente_revogado': 'Revogou computador de impressão',

@@ -42,6 +42,23 @@ export function codigoValido(digitado: unknown): digitado is string {
   return n.length === 8 && [...n].every((c) => ALFABETO_CODIGO.includes(c))
 }
 
+/**
+ * Convite de pareamento SEM código (noite 5, Assistente 0.2.0-beta.10): 24 caracteres do mesmo
+ * alfabeto, vale 24 h e uma vez. Viaja dentro do link menuzia://parear?c=… ou no nome do
+ * instalador baixado pelo painel — ninguém digita. Mesmo hash e mesma tabela do código.
+ */
+export const VALIDADE_CONVITE_H = 24
+export function gerarConvitePareamento(): { convite: string; hash: string } {
+  let bruto = ''
+  for (let i = 0; i < 24; i++) bruto += ALFABETO_CODIGO[randomInt(ALFABETO_CODIGO.length)]
+  return { convite: bruto, hash: hashCodigo(bruto) }
+}
+export function conviteValido(v: unknown): v is string {
+  if (typeof v !== 'string') return false
+  const n = v.toUpperCase().replace(/[^A-Z0-9]/g, '')
+  return n.length === 24 && [...n].every((c) => ALFABETO_CODIGO.includes(c))
+}
+
 export function gerarCredencial(): { credencial: string; hash: string } {
   const credencial = PREFIXO_CREDENCIAL + randomBytes(32).toString('base64url')
   return { credencial, hash: hashSha256(credencial) }

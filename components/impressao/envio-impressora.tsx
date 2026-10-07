@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import type { DispositivoVisao } from '@/lib/impressao/servico'
 import {
-  avisoDriver, ehIpv4, envioDiretoSugerido, LARGURAS_PONTOS, ROTULO_ENVIO, ROTULO_INTENSIDADE, ROTULO_MODO,
+  avisoDriver, ehIpv4, envioDiretoSugerido, LARGURAS_PONTOS, ROTULO_CAMINHO, ROTULO_ENVIO, ROTULO_INTENSIDADE, ROTULO_MODO,
   type Envio, type Intensidade, type ModoImpressao,
 } from '@/lib/impressao/regras-calibracao'
 
@@ -97,6 +97,16 @@ export function EnvioImpressora({ d, ocupado, agir, onImprimirTeste }: { d: Disp
             </button>
           ))}
         </div>
+        {d.envio === 'auto' && (
+          <p className="mt-1 text-[11.5px] text-text-subtle" data-testid="calibrar-auto-explica">
+            Tenta o envio direto (pela rede, se a impressora tiver IP; senão pela fila USB, quando o driver é de térmica) e, se falhar, imprime pelo driver do Windows. Precisa do Assistente 0.2.0-beta.10; nas versões anteriores sai pelo driver.
+          </p>
+        )}
+        <p className="mt-1 text-[11.5px] text-text-subtle" data-testid="calibrar-caminho">
+          {d.envioCaminho
+            ? <>Última impressão saiu <b>{ROTULO_CAMINHO[d.envioCaminho]}</b>{d.envioCaminhoEm ? ` em ${new Date(d.envioCaminhoEm).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : ''}{d.envioCaminhoObs ? ` (${d.envioCaminhoObs})` : ''}.</>
+            : 'O caminho usado aparece aqui depois da próxima impressão (Assistente 0.2.0-beta.10).'}
+        </p>
         {querRede && (
           <div className="mt-2 flex flex-wrap items-end gap-2">
             <label className="min-w-0 flex-1 text-[12px]">

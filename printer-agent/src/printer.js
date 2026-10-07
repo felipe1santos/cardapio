@@ -49,6 +49,9 @@ async function pelaImpressora(nomeImpressora, pedido, logNome, argsReserva) {
 }
 const { imagemEscpos, textoEscpos } = require('./escpos')
 const { enviarRede } = require('./envio-direto')
+const { escolherEnvioAuto } = require('./envio-auto')
+/** Envio automático: quando o direto falhou em cada impressora (some em 10 min). */
+const falhaDireto = new Map()
 const { larguraEmPontos } = require('./ticket-canvas')
 
 function runPowershell(args, opcoesExec = {}) {
@@ -243,12 +246,31 @@ async function imprimirDocumentoBeta(nomeImpressora, doc, paperWidthMm = 80, per
     intensidade: perfil.intensidade === 'escura' || perfil.intensidade === 'mais_escura' ? perfil.intensidade : 'normal',
   }
   // Envio direto: pela fila (RAW) ou pela rede; modo texto é sempre direto (ESC/POS).
-  const envio = perfil.envio === 'raw_fila' || perfil.envio === 'raw_rede' ? perfil.envio : 'driver'
   const modo = perfil.modoImpressao === 'texto' ? 'texto' : 'imagem'
-  if (envio !== 'driver' || modo === 'texto') {
-    return imprimirDireto(nomeImpressora, doc, opcoes, perfil, envio === 'driver' ? 'raw_fila' : envio, modo, prefixo)
-  }
   const tempos = perfil.tempos || {}
+  if (!perfil.tempos) perfil.tempos = tempos
+  // Automático (0.2.0-beta.10): tenta o direto (rede ou fila USB, conforme a impressora) e,
+  // se falhar, sai pelo driver logo abaixo. O caminho usado fica em tempos.via/tempos.obs.
+  if (perfil.envio === 'auto' && modo !== 'texto') {
+    const escolha = escolherEnvioAuto({ nomeSistema: nomeImpressora, redeIp: perfil.redeIp, diagnostico: perfil.diagnostico, falhouEm: falhaDireto.get(nomeImpressora) })
+    tempos.obs = `automático: ${escolha.motivo}`
+    if (escolha.envio !== 'driver') {
+      try {
+        const saida = await imprimirDireto(nomeImpressora, doc, opcoes, perfil, escolha.envio, modo, prefixo)
+        falhaDireto.delete(nomeImpressora)
+        return saida
+      } catch (e) {
+        falhaDireto.set(nomeImpressora, Date.now())
+        tempos.obs = `automático: o direto falhou (${String(e?.message || e).slice(0, 120)}); saiu pelo driver`
+        tempos._t0 = Date.now()
+      }
+    }
+  } else {
+    const envio = perfil.envio === 'raw_fila' || perfil.envio === 'raw_rede' ? perfil.envio : 'driver'
+    if (envio !== 'driver' || modo === 'texto') {
+      return imprimirDireto(nomeImpressora, doc, opcoes, perfil, envio === 'driver' ? 'raw_fila' : envio, modo, prefixo)
+    }
+  }
   let png = null
   let txt = null
   let erroDesenho = null

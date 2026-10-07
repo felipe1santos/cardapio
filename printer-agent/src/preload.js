@@ -13,4 +13,6 @@ contextBridge.exposeInMainWorld('agente', {
   parearCodigo: (args) => ipcRenderer.invoke('parear-codigo', args),
   desparear: () => ipcRenderer.invoke('desparear'),
   onLog: (callback) => ipcRenderer.on('log', (_e, payload) => callback(payload)),
+  // 0.2.0-beta.10: pareou sozinho (link menuzia:// ou instalador da loja) — a tela se atualiza.
+  onEstadoMudou: (callback) => ipcRenderer.on('estado-mudou', () => callback()),
 })

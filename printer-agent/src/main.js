@@ -13,6 +13,7 @@ const { FilasPorDispositivo } = require('./fila-dispositivos')
 const { montarCalibracao, montarTesteLargura } = require('./calibracao')
 // Modelo oficial v3 (0.2.0-beta.9): comanda, pré-conta e via da cozinha.
 const { montarComandaV3, montarPreContaV3, textoDoV3 } = require('./v3')
+const { conviteDosArgumentos, conviteNosDownloads } = require('./convite')
 
 // Variante do build (electron-builder grava `menuziaAmbiente` no package.json empacotado):
 //   · sem o campo   → o Assistente de sempre, exatamente como sempre;
@@ -287,7 +288,7 @@ async function cicloDePolling() {
         }
 
         const perfilCozinha = EH_BETA && destino
-          ? { ...PERFIL_LOG, ...perfilEnvio(destino), tempos: { _t0: Date.now() }, pausaFaixasMs: config.pausaFaixasMs ?? 0, larguraPontos: destino.larguraPontos ?? null, deslocamentoPontos: destino.deslocamentoPontos ?? 0, tamanhoFonte: destino.tamanhoFonte, imprimirLogo: configImpressao.imprimirLogo !== false }
+          ? { ...PERFIL_LOG, ...perfilEnvio(destino), diagnostico: diagnosticos[impressoraAlvo] || null, tempos: { _t0: Date.now() }, pausaFaixasMs: config.pausaFaixasMs ?? 0, larguraPontos: destino.larguraPontos ?? null, deslocamentoPontos: destino.deslocamentoPontos ?? 0, tamanhoFonte: destino.tamanhoFonte, imprimirLogo: configImpressao.imprimirLogo !== false }
           : null
         let saida
         if (perfilCozinha) {
@@ -323,6 +324,7 @@ async function cicloDePolling() {
         if (perfilCozinha?.tempos) {
           perfilCozinha.tempos.totalMs = Date.now() - recebidoEm
           registrarTempos('comanda', pedido.id, perfilCozinha.tempos)
+          informarCaminho(impressoraAlvo, perfilCozinha.tempos)
         }
 
         // A partir daqui o papel pode já ter saído: registra local ANTES de
@@ -391,6 +393,26 @@ async function informarResultado(id, ok, erro, tempos) {
     headers: { ...headers, 'Content-Type': 'application/json' },
     body: JSON.stringify(tempos ? { ok, erro, tempos } : { ok, erro }),
   })
+}
+
+// ─── caminho usado por impressora (0.2.0-beta.10, 0157) ───────────────────────
+// Depois de imprimir, conta ao servidor por onde saiu (direto pela fila/rede ou driver) — é o
+// que o painel mostra em Impressão › Avançado. Só quando muda (ou a cada 15 min), sem esperar.
+const caminhoInformado = new Map()
+function informarCaminho(nomeSistema, tempos) {
+  if (!EH_BETA || !nomeSistema || !tempos || !tempos.via) return
+  const chave = `${tempos.via}|${tempos.obs || ''}`
+  const antes = caminhoInformado.get(nomeSistema)
+  if (antes && antes.chave === chave && Date.now() - antes.em < 15 * 60_000) return
+  const headers = cabecalhosAgente()
+  if (!headers) return
+  caminhoInformado.set(nomeSistema, { chave, em: Date.now() })
+  fetch(`${API_BASE_URL}/api/agente/caminho`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nomeSistema, caminho: tempos.via, obs: tempos.obs || null }),
+    signal: AbortSignal.timeout(8000),
+  }).catch(() => caminhoInformado.delete(nomeSistema))
 }
 
 // ─── tempos da impressão (0.2.0-beta.7) ──────────────────────────────────────
@@ -487,6 +509,7 @@ const filas = new FilasPorDispositivo(
       ? {
           ...PERFIL_LOG,
           ...perfilEnvio(t),
+          diagnostico: diagnosticos[t.nomeSistema] || null,
           tempos: t.tempos,
           pausaFaixasMs: carregarConfig().pausaFaixasMs ?? 0,
           larguraPontos: calibracao ? (t.snapshot.largura_pontos ?? null) : (t.larguraPontos ?? null),
@@ -521,8 +544,10 @@ const filas = new FilasPorDispositivo(
         : await imprimirTexto(t.nomeSistema, texto, 1, colsPreConta(largura), null, largura, false)
     }
     mostrarDiagnostico(saida)
+    informarCaminho(t.nomeSistema, t.tempos)
     const rotulo = t.tipo === 'pre_conta' ? `Recibo/Extrato (${t.via}ª via)` : reciboTeste ? 'Recibo/Extrato de teste' : cozinhaTeste ? 'Comanda de teste' : calibracao ? (EH_BETA ? 'Teste de largura' : 'Página de calibração') : 'Teste'
-    const pela = perfil?.envio === 'raw_rede' ? `pela rede (${perfil.redeIp}:${perfil.redePorta})` : perfil && (perfil.envio === 'raw_fila' || perfil.modoImpressao === 'texto') ? 'direto pela fila (ESC/POS)' : 'o Windows aceitou'
+    const via = t.tempos?.via || (perfil?.envio === 'raw_rede' ? 'raw_rede' : perfil && (perfil.envio === 'raw_fila' || perfil.modoImpressao === 'texto') ? 'raw_fila' : 'driver')
+    const pela = via === 'raw_rede' ? `pela rede (${perfil.redeIp}:${perfil.redePorta})` : via === 'raw_fila' ? 'direto pela fila (ESC/POS)' : 'o Windows aceitou'
     log(`${rotulo} enviado para "${t.nomeSistema}" — ${pela} (confira se o papel saiu).`)
   },
   async (id, ok, erro, t) => {
@@ -680,7 +705,11 @@ function pararPolling() {
 }
 
 // Se já há uma instância rodando, traz a janela dela pra frente em vez de abrir outra.
-app.on('second-instance', () => {
+// Beta 0.2.0-beta.10: o link menuzia://parear?c=… do painel chega aqui (o Windows abre uma
+// segunda instância com o link no argv) — conecta sem código.
+app.on('second-instance', (_e, argv) => {
+  const convite = EH_BETA ? conviteDosArgumentos(argv) : null
+  if (convite) void parearComConvite(convite, 'link do painel')
   if (mainWindow) {
     if (!mainWindow.isVisible()) mainWindow.show()
     if (mainWindow.isMinimized()) mainWindow.restore()
@@ -699,9 +728,19 @@ app.whenReady().then(() => {
   } else if (app.isPackaged && !EH_TESTE_LOCAL && !EH_BETA) {
     app.setLoginItemSettings({ openAtLogin: true, args: ['--hidden'] })
   }
+  // Pareamento sem código (beta.10): registra o link menuzia:// (só no app empacotado) e, se
+  // este computador ainda não está conectado, usa o convite do link ou do nome do instalador.
+  if (EH_BETA && app.isPackaged && !EH_TESTE_LOCAL) {
+    try { app.setAsDefaultProtocolClient('menuzia') } catch { /* sem o link: o código continua valendo */ }
+  }
   criarJanela()
   iniciarPolling()
   iniciarTrabalhos()
+  if (EH_BETA && !lerCredencial()) {
+    const doLink = conviteDosArgumentos(process.argv)
+    const doInstalador = doLink ? null : conviteNosDownloads(app.getPath('downloads'))
+    if (doLink || doInstalador) setTimeout(() => void parearComConvite(doLink || doInstalador, doLink ? 'link do painel' : 'instalador da loja'), 1500)
+  }
   if (EH_BETA) log(`Assistente Menuzia Beta ${app.getVersion()} — convive com o Assistente de Impressão atual, que continua funcionando.`)
 })
 
@@ -807,14 +846,13 @@ ipcMain.handle('estado-agente', () => {
   return { pareado: Boolean(lerCredencial()), nome: cfg.agenteNome || '', sugestaoNome: os.hostname() }
 })
 
-ipcMain.handle('parear-codigo', async (_e, { codigo, nome }) => {
-  const c = String(codigo || '').trim()
-  if (!c) return { ok: false, erro: 'Digite o código de pareamento.' }
+/** Troca código (8) ou convite (24, beta.10) pela credencial deste computador. */
+async function parearNoServidor(corpo, nome) {
   try {
     const res = await fetch(`${API_BASE_URL}/api/agente/parear`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ codigo: c, nome: String(nome || os.hostname()).slice(0, 60), versao: app.getVersion() }),
+      body: JSON.stringify({ ...corpo, nome: String(nome || os.hostname()).slice(0, 60), versao: app.getVersion() }),
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) return { ok: false, erro: data.error || `O servidor respondeu HTTP ${res.status}.` }
@@ -824,10 +862,32 @@ ipcMain.handle('parear-codigo', async (_e, { codigo, nome }) => {
     iniciarTrabalhos()
     pararPolling()
     iniciarPolling()
+    try { if (mainWindow) mainWindow.webContents.send('estado-mudou', { mensagem: '' }) } catch { /* só a tela */ }
     return { ok: true, nome: data.nome }
   } catch (err) {
     return { ok: false, erro: `Sem conexão com ${API_BASE_URL} (${descreverErro(err)}).` }
   }
+}
+
+/** Convite do link menuzia:// ou do nome do instalador (beta.10): conecta sem código. */
+let pareandoConvite = false
+async function parearComConvite(convite, origem) {
+  if (pareandoConvite) return
+  if (lerCredencial()) { log(`Este computador já está conectado à loja (convite do ${origem} ignorado).`); return }
+  pareandoConvite = true
+  try {
+    log(`Conectando à loja pelo ${origem}…`)
+    const r = await parearNoServidor({ convite }, os.hostname())
+    if (!r.ok) log(`Não deu para conectar pelo ${origem}: ${r.erro} Peça um link novo no painel (Impressão) ou use o código.`)
+  } finally {
+    pareandoConvite = false
+  }
+}
+
+ipcMain.handle('parear-codigo', async (_e, { codigo, nome }) => {
+  const c = String(codigo || '').trim()
+  if (!c) return { ok: false, erro: 'Digite o código de pareamento.' }
+  return parearNoServidor({ codigo: c }, nome)
 })
 
 ipcMain.handle('desparear', () => {

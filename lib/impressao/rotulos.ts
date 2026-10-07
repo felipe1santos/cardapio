@@ -1,3 +1,4 @@
+import { compararVersao } from '@/lib/avisos-painel'
 /**
  * Rótulos dos estados de impressão — usados no painel e no PDV.
  *
@@ -63,3 +64,10 @@ export const DOWNLOAD_ASSISTENTE_BETA = {
   versao: '0.2.0-beta.9',
   url: 'https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.2.0-beta.9/AssistenteMenuziaBeta-Setup-0.2.0-beta.9.exe',
 }
+
+/**
+ * Pareamento sem código (noite 5): o Assistente lê o convite do link menuzia:// e do nome do
+ * instalador a partir desta versão. Enquanto o link oficial for anterior, o painel não oferece.
+ */
+export const VERSAO_CONVITE = '0.2.0-beta.10'
+export const instaladorConectado = (versao: string = DOWNLOAD_ASSISTENTE_BETA.versao) => compararVersao(versao, VERSAO_CONVITE) >= 0

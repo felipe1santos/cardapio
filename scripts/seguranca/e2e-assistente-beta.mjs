@@ -206,7 +206,11 @@ try {
   ok('Assistente antigo nunca recebe calibração', ANTIGO.impressos().every((i) => i.tipo === 'ficha_cozinha'))
 
   secao('"Somente Caixa": Recibo/Extrato no Beta, cozinha no 0.1.23')
-  ok('muda para "Somente Caixa"', (await modo('caixa')).status === 200)
+  // Noite 5: o modo misto não se escolhe mais pela tela/API; loja antiga que já está nele segue igual.
+  const recusa = await modo('caixa')
+  ok('API recusa escolher o modo misto ("Somente Caixa")', recusa.status === 400 && recusa.json?.codigo === 'modo_misto_descontinuado', JSON.stringify(recusa.json))
+  await q(`select public.impressao_modo_definir($1, 'caixa', null, 'Loja antiga (e2e)')`, [loja])
+  ok('loja antiga em "Somente Caixa": repetir o modo atual continua aceito', (await modo('caixa')).status === 200)
   const c1 = await lancar()
   const pend = await api(pAt, `/api/admin/comandas/${balcao}/pre-conta`, 'POST', { chave: uuid() })
   ok('Recibo/Extrato pendente pedido', pend.status === 201, pend.json?.error)

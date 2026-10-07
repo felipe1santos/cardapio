@@ -5,7 +5,7 @@ import type { AgenteVisao, DispositivoVisao } from './servico'
 const agente = (x: Partial<AgenteVisao> = {}): AgenteVisao => ({ id: 'a1', nome: 'PC Cozinha', versao: '0.2.0-beta.9', vistoEm: '2026-10-05T12:00:00Z', online: true, revogado: false, criadoEm: '2026-09-01T00:00:00Z', criadoPorNome: null, ...x })
 const disp = (id: string, x: Partial<DispositivoVisao> = {}): DispositivoVisao => ({
   id, agenteId: 'a1', nomeSistema: id === 'd1' ? 'POS-80' : 'POS-58', apelido: null, larguraMm: 80, tamanhoFonte: 'grande', larguraPontos: null, deslocamentoPontos: 0,
-  diagnostico: null, calibradoEm: null, calibradoPorNome: null, disponivel: true, vistoEm: null, ultimoUsoEm: '2026-10-05T11:00:00Z', ultimoErro: null, ultimoErroEm: null, funcoes: [],
+  diagnostico: null, calibradoEm: null, calibradoPorNome: null, disponivel: true, vistoEm: null, ultimoUsoEm: '2026-10-05T11:00:00Z', ultimoErro: null, ultimoErroEm: null, funcoes: [], envioCaminho: null, envioCaminhoEm: null, envioCaminhoObs: null,
   intensidade: 'normal', envio: 'driver', modoImpressao: 'imagem', redeIp: null, redePorta: 9100, ...x,
 })
 const pronto = (x: Partial<DadosBeta> = {}): DadosBeta => ({ agentes: [agente()], dispositivos: [disp('d1'), disp('d2')], funcoes: { cozinha: 'd1', caixa: 'd2' }, trabalhos: [], modo: 'cozinha_caixa', betaLiberado: true, ...x })

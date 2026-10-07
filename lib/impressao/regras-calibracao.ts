@@ -5,7 +5,9 @@
  */
 
 export type Intensidade = 'normal' | 'escura' | 'mais_escura'
-export type Envio = 'driver' | 'raw_fila' | 'raw_rede'
+export type Envio = 'driver' | 'raw_fila' | 'raw_rede' | 'auto'
+/** Caminho que a impressão realmente usou (o "auto" vira um destes). */
+export type CaminhoEnvio = 'driver' | 'raw_fila' | 'raw_rede'
 export type ModoImpressao = 'imagem' | 'texto'
 
 export interface PerfilEnvio {
@@ -25,6 +27,8 @@ export const ROTULO_INTENSIDADE: Record<Intensidade, string> = { normal: 'Normal
 // recomendado — quem manda na largura e no preto e branco é o sistema, não o driver. O
 // padrão gravado continua "driver" (comportamento de sempre); a tela recomenda o direto.
 export const ROTULO_ENVIO: Record<Envio, string> = {
+  // Automático (0157, Assistente 0.2.0-beta.10+): direto ESC/POS e, se falhar, o driver.
+  auto: 'Automático — direto (ESC/POS) e, se falhar, pelo driver do Windows',
   raw_fila: 'Direto pela fila (USB, ESC/POS) — recomendado',
   raw_rede: 'Direto pela rede (IP:9100, ESC/POS) — recomendado',
   driver: 'Driver do Windows (alternativa)',
@@ -53,12 +57,19 @@ export function papelDoDriver(diag: Record<string, unknown> | null | undefined):
 export function perfilEnvio(d: Record<string, unknown> | null | undefined): PerfilEnvio {
   const r = d ?? {}
   const intensidade = r.intensidade === 'escura' || r.intensidade === 'mais_escura' ? r.intensidade : 'normal'
-  const envio = r.envio === 'raw_fila' || r.envio === 'raw_rede' ? r.envio : 'driver'
+  const envio = r.envio === 'raw_fila' || r.envio === 'raw_rede' || r.envio === 'auto' ? r.envio : 'driver'
   const modoImpressao = r.modo_impressao === 'texto' ? 'texto' : 'imagem'
   const redeIp = typeof r.rede_ip === 'string' && ehIpv4(r.rede_ip) ? r.rede_ip : null
   const porta = Number(r.rede_porta)
   return { intensidade, envio, modoImpressao, redeIp, redePorta: Number.isInteger(porta) && porta >= 1 && porta <= 65535 ? porta : 9100 }
 }
+
+export const ROTULO_CAMINHO: Record<CaminhoEnvio, string> = {
+  raw_fila: 'direto pela fila USB (ESC/POS)',
+  raw_rede: 'direto pela rede (ESC/POS)',
+  driver: 'pelo driver do Windows',
+}
+export const ehCaminho = (v: unknown): v is CaminhoEnvio => v === 'driver' || v === 'raw_fila' || v === 'raw_rede'
 
 export function ehIpv4(v: unknown): v is string {
   if (typeof v !== 'string') return false
@@ -80,7 +91,7 @@ export function validarPerfilEnvio(
     patch.intensidade = a.intensidade
   }
   if (a.envio !== undefined) {
-    if (a.envio !== 'driver' && a.envio !== 'raw_fila' && a.envio !== 'raw_rede') return { ok: false, erro: 'Forma de envio inválida.' }
+    if (a.envio !== 'driver' && a.envio !== 'raw_fila' && a.envio !== 'raw_rede' && a.envio !== 'auto') return { ok: false, erro: 'Forma de envio inválida.' }
     patch.envio = a.envio
   }
   if (a.modoImpressao !== undefined) {
@@ -114,7 +125,8 @@ export function avisoDriver(d: {
   envio?: Envio
   diagnostico: Record<string, unknown> | null
 }): string | null {
-  if ((d.envio ?? 'driver') !== 'driver' || !d.diagnostico) return null
+  // No automático o driver é a reserva: o aviso continua valendo.
+  if (((d.envio ?? 'driver') !== 'driver' && d.envio !== 'auto') || !d.diagnostico) return null
   const papel = papelDoDriver(d.diagnostico)
   const pontos = Number(d.diagnostico.pontosImprimiveis)
   const aplicada = d.larguraPontos ?? (d.larguraMm <= 58 ? 384 : 576)

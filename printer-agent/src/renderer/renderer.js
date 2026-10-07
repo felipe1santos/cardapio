@@ -275,3 +275,58 @@ window.agente.ambiente().then((a) => {
   document.getElementById('servidorUrl').textContent = a.servidor
   document.title = 'Menuzia Impressão — TESTE LOCAL'
 }).catch(() => {})
+
+// ─── Beta 0.2.0-beta.10: tela simples ────────────────────────────────────────
+// Um estado grande (conectado ou não), o que fazer, a última impressão e, escondidos, o código
+// de pareamento e o registro técnico. Conectar é pelo painel (link ou instalador da loja).
+let ultimaImpressao = null
+async function pintarSimples() {
+  const e = await window.agente.estadoAgente()
+  const caixa = document.getElementById('simplesEstado')
+  caixa.className = 'estado ' + (e.pareado ? 'ok' : 'off')
+  document.getElementById('simplesBola').textContent = e.pareado ? '✓' : '!'
+  document.getElementById('simplesTitulo').textContent = e.pareado ? 'Conectado à sua loja' : 'Este computador ainda não está conectado'
+  document.getElementById('simplesTexto').innerHTML = e.pareado
+    ? 'Este computador (<b></b>) imprime sozinho os pedidos da loja. Pode fechar esta janela: o Assistente continua ligado e abre junto com o Windows.'
+    : 'No painel da Menuzia, abra <b>Impressão</b> e toque em <b>Conectar este computador</b> — ou baixe por lá o instalador da loja. Nada para digitar.'
+  if (e.pareado) document.querySelector('#simplesTexto b').textContent = e.nome || 'este computador'
+  document.getElementById('simplesDesconectar').style.display = e.pareado ? 'inline-block' : 'none'
+  document.getElementById('simplesCodigo').style.display = e.pareado ? 'none' : 'block'
+  const ult = document.getElementById('simplesUltima')
+  ult.style.display = e.pareado && ultimaImpressao ? 'block' : 'none'
+  if (ultimaImpressao) ult.textContent = ultimaImpressao
+}
+
+function ligarTelaSimples() {
+  document.getElementById('simples').style.display = 'block'
+  document.getElementById('cardVarias').style.display = 'none'
+  // O formulário de código (o mesmo de sempre) vai para dentro de "Tenho um código".
+  document.getElementById('simplesCodigoCorpo').appendChild(document.getElementById('variasForm'))
+  document.getElementById('simplesCodigoCorpo').appendChild(document.getElementById('statusVarias'))
+  // Registro técnico recolhido.
+  const det = document.createElement('details')
+  const sum = document.createElement('summary')
+  sum.textContent = 'Detalhes técnicos'
+  det.appendChild(sum)
+  const bloco = document.getElementById('blocoLog')
+  bloco.parentNode.insertBefore(det, bloco)
+  det.appendChild(bloco)
+  document.getElementById('simplesDesconectar').addEventListener('click', async () => {
+    if (!confirm('Desconectar este computador da loja? Ele para de imprimir até ser conectado de novo pelo painel.')) return
+    await window.agente.desparear()
+    await atualizarCartaoVarias()
+    await pintarSimples()
+  })
+  document.getElementById('parearCodigo').addEventListener('click', () => setTimeout(() => void pintarSimples(), 300))
+  window.agente.onLog(({ ts, mensagem }) => {
+    if (/enviado para|Pedido #\d+.*(impress|saiu)/i.test(mensagem) && !/falh|não/i.test(mensagem)) {
+      ultimaImpressao = `Última impressão: ${new Date(ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} — ${mensagem}`
+    }
+    if (/Computador pareado|Não deu para conectar/i.test(mensagem)) void pintarSimples()
+    else if (ultimaImpressao) void pintarSimples()
+  })
+  if (window.agente.onEstadoMudou) window.agente.onEstadoMudou(() => { void atualizarCartaoVarias(); void pintarSimples() })
+  void pintarSimples()
+}
+
+window.agente.ambiente().then((a) => { if (a && a.beta) ligarTelaSimples() }).catch(() => {})

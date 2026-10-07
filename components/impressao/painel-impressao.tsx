@@ -12,7 +12,7 @@ import { EnvioImpressora } from '@/components/impressao/envio-impressora'
 import { ModalPrevia, type LojaPrevia, type PapelPrevia } from '@/components/impressao/modal-previa'
 import { ModalImpressoras, ModalPareamento, ModalTestes, nomeDisp, TAMANHOS_LETRA, type PainelDados, type ResultadoTeste, type TamanhoLetra, type TipoTeste } from '@/components/impressao/beta-cards'
 import { ModalCentral, NoTopo } from '@/components/ui/flutuante'
-import { ROTULO_MODO_BETA, DOWNLOAD_ASSISTENTE_ATUAL, DOWNLOAD_ASSISTENTE_BETA } from '@/lib/impressao/rotulos'
+import { ROTULO_MODO_BETA, DOWNLOAD_ASSISTENTE_ATUAL, DOWNLOAD_ASSISTENTE_BETA, instaladorConectado } from '@/lib/impressao/rotulos'
 import { modoDependeDoAgente, ehImpressoraVirtual } from '@/lib/impressao/regras-modo'
 import { avisoDriver, envioDiretoSugerido } from '@/lib/impressao/regras-calibracao'
 import { CONFIRMACAO_OPCAO, MODO_DA_OPCAO, opcaoDaLoja, prontidaoBeta, versaoInstalada, type OpcaoImpressao } from '@/lib/impressao/opcao'
@@ -54,7 +54,7 @@ const quando = (iso: string | null) => {
   return hoje ? `Hoje, ${hora}` : `${d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit' })}, ${hora}`
 }
 const diasDesde = (iso: string | null) => (iso ? Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000) : null)
-const descricaoEnvio = (d: DispositivoVisao) => (d.envio === 'raw_rede' ? `Rede ${d.redeIp ?? ''}`.trim() : d.envio === 'raw_fila' ? 'USB, envio direto' : 'pelo Windows')
+const descricaoEnvio = (d: DispositivoVisao) => (d.envio === 'raw_rede' ? `Rede ${d.redeIp ?? ''}`.trim() : d.envio === 'raw_fila' ? 'USB, envio direto' : d.envio === 'auto' ? 'automático' : 'pelo Windows')
 type Estado = 'ok' | 'warn' | 'bad' | 'off'
 const Ponto = ({ e }: { e: Estado }) => <i className={`ti-dot ${e === 'ok' ? '' : e}`} aria-hidden />
 const Aviso = ({ children, acao, erro, testid }: { children: React.ReactNode; acao?: React.ReactNode; erro?: boolean; testid?: string }) => (
@@ -199,6 +199,18 @@ export function PainelImpressao() {
     else setAviso({ tom: 'ok', texto: sucesso })
     await carregar()
     return r
+  }
+
+  /**
+   * Pareamento sem código (noite 5, Assistente 0.2.0-beta.10): convite de 24 h no link
+   * menuzia://parear — aberto NESTE computador, o Assistente instalado se conecta sozinho.
+   */
+  async function conectarEsteComputador() {
+    const r = await chamar<{ link: string }>('/api/admin/impressao/convite', { method: 'POST' })
+    if (!r.ok || !r.dados?.link) return setAviso({ tom: 'erro', texto: r.erro ?? 'Não foi possível gerar o link.' })
+    window.location.href = r.dados.link
+    setAviso({ tom: 'ok', texto: 'Se o Assistente novo estiver instalado neste computador, ele abre e se conecta sozinho em alguns segundos. Se nada abrir, baixe o instalador da loja.' })
+    setTimeout(() => void carregar(), 6000)
   }
 
   async function abrirPareamento() {
@@ -427,9 +439,19 @@ export function PainelImpressao() {
                     itens={p.modo === 'caixa' ? ['Pré-conta de mesas e balcão', 'Comanda da cozinha (hoje pelo antigo)'] : ['Comanda da cozinha', 'Pré-conta de mesas e balcão']}
                   />
                 </div>
+                {/* Modo misto (noite 5): só lojas antigas ainda estão nele (a tela não oferece mais).
+                    Fica escrito com todas as letras — e em vermelho quando o antigo, que imprime a
+                    comanda, está desligado ou sem sinal: aí a comanda da cozinha não sai. */}
                 {beta && p.modo === 'caixa' && (
-                  <Aviso testid="aviso-so-caixa" acao={<button type="button" className="ti-btn" onClick={() => setTrocar('beta')}>Passar a comanda</button>}>
-                    Hoje o Assistente novo imprime só a pré-conta; a comanda ainda sai pelo antigo.
+                  <Aviso
+                    testid="aviso-so-caixa"
+                    erro={config?.ativarAssistente === false || !atualOnline}
+                    acao={<button type="button" className="ti-btn pri" onClick={() => setTrocar('beta')} data-testid="passar-comanda">Passar a comanda para o novo</button>}
+                  >
+                    <b>Modo misto:</b> o Assistente novo imprime só a pré-conta; a <b>comanda da cozinha</b> sai pelo Assistente antigo.
+                    {config?.ativarAssistente === false
+                      ? <> O Assistente antigo está <b>desativado</b>: a comanda da cozinha não está saindo.</>
+                      : !atualOnline ? <> O Assistente antigo está <b>sem sinal</b>: a comanda da cozinha pode não estar saindo.</> : null}
                   </Aviso>
                 )}
               </Passo>
@@ -525,8 +547,21 @@ export function PainelImpressao() {
                     : (atualOnline ? 'Assistente antigo conectado agora' : atualVistoEm ? `Sem sinal desde ${quando(atualVistoEm)}` : 'O Assistente antigo ainda não se conectou.')} testid="bloco-computador">
                     {beta ? (
                       <>
-                        <span className={`ti-estado ${online.length ? 'ok' : 'bad'}`}><Ponto e={online.length ? 'ok' : 'bad'} />{online.length ? 'Conectado' : 'Desconectado'}</span>
-                        <button type="button" className="ti-btn sm" onClick={() => void abrirPareamento()} disabled={ocupado} data-testid="trocar-computador">{ativos.length ? 'Trocar computador' : 'Conectar computador'}</button>
+                        <span className={`ti-estado ${online.length ? 'ok' : 'bad'}`}><Ponto e={online.length ? 'ok' : 'bad'} />{online.length ? `Computador ${online[0].nome} conectado` : 'Desconectado'}</span>
+                        {instaladorConectado() ? (
+                          <>
+                            {!ativos.length && <button type="button" className="ti-btn sm pri" onClick={() => void conectarEsteComputador()} disabled={ocupado} data-testid="conectar-este-computador">Conectar este computador</button>}
+                            {!ativos.length && (
+                              <form method="post" action="/api/admin/impressao/instalador" className="contents">
+                                <button type="submit" className="ti-btn sm" disabled={ocupado} data-testid="baixar-instalador-loja"><Download aria-hidden /> Baixar instalador da loja</button>
+                              </form>
+                            )}
+                            {ativos.slice(0, 1).map((a) => <button key={a.id} type="button" className="ti-btn sm" onClick={() => revogar(a)} disabled={ocupado} data-testid="desconectar-computador">Desconectar</button>)}
+                            <button type="button" className="ti-btn sm" onClick={() => void abrirPareamento()} disabled={ocupado} data-testid="trocar-computador">{ativos.length ? 'Trocar computador' : 'Usar código'}</button>
+                          </>
+                        ) : (
+                          <button type="button" className="ti-btn sm" onClick={() => void abrirPareamento()} disabled={ocupado} data-testid="trocar-computador">{ativos.length ? 'Trocar computador' : 'Conectar computador'}</button>
+                        )}
                       </>
                     ) : (
                       <>

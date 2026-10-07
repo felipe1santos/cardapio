@@ -1,11 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { registrarAuditoria } from '@/lib/auditoria'
 import { traduzirErro } from '@/lib/servicos/conta-presencial'
-import { gerarCodigoPareamento, gerarCredencial, hashCodigo, VALIDADE_CODIGO_MIN } from './credenciais'
+import { gerarCodigoPareamento, gerarConvitePareamento, gerarCredencial, hashCodigo, VALIDADE_CODIGO_MIN, VALIDADE_CONVITE_H } from './credenciais'
 import { snapshotCozinhaTeste, snapshotReciboTeste } from './recibo-teste'
 import { COLUNAS_LOJA_IMPRESSAO, dadosLojaImpressao, qrDaCozinha, type LojaImpressao } from './cozinha-beta'
 import { avaliarModos } from './regras-modo'
-import { COLUNAS_ENVIO, perfilEnvio, validarPerfilEnvio, type PerfilEnvio } from './regras-calibracao'
+import { COLUNAS_ENVIO, ehCaminho, perfilEnvio, validarPerfilEnvio, type CaminhoEnvio, type PerfilEnvio } from './regras-calibracao'
 
 /**
  * Impressão com vários computadores e impressoras — leitura e operações de servidor.
@@ -96,6 +96,26 @@ export async function gerarPareamento(admin: SupabaseClient, op: Operador): Prom
   return { ok: true, valor: { codigo, expiraEm } }
 }
 
+/**
+ * Convite de pareamento sem código (24 h, uso único): o painel entrega no link
+ * menuzia://parear?c=… ou no nome do instalador. Mesma tabela e mesma troca do código.
+ */
+export async function gerarConvite(admin: SupabaseClient, op: Operador, via: 'link' | 'instalador'): Promise<Resultado<{ convite: string; expiraEm: string }>> {
+  const { data: loja } = await admin.from('restaurantes').select('impressao_beta_liberado').eq('id', op.restauranteId).maybeSingle()
+  if (loja?.impressao_beta_liberado !== true) return falha(MENSAGENS.beta_nao_liberado, 403, 'beta_nao_liberado')
+  const { convite, hash } = gerarConvitePareamento()
+  const expiraEm = new Date(Date.now() + VALIDADE_CONVITE_H * 3_600_000).toISOString()
+  const { error } = await admin.from('impressao_pareamentos').insert({
+    restaurante_id: op.restauranteId, codigo_hash: hash, expira_em: expiraEm, criado_por: op.userId, criado_por_nome: op.nome,
+  })
+  if (error) throw error
+  await registrarAuditoria(admin, {
+    restauranteId: op.restauranteId, usuarioId: op.userId, usuarioNome: op.nome,
+    acao: 'impressao.convite_gerado', entidade: 'restaurante', entidadeId: op.restauranteId, dados: { validade_h: VALIDADE_CONVITE_H, via },
+  })
+  return { ok: true, valor: { convite, expiraEm } }
+}
+
 export async function parear(admin: SupabaseClient, a: { codigo: string; nome: string; versao: string | null }) {
   const { credencial, hash } = gerarCredencial()
   const r = await rpc<{ agente_id: string; restaurante_id: string; nome: string }>(admin, 'impressao_parear', {
@@ -137,6 +157,10 @@ export interface DispositivoVisao extends PerfilEnvio {
   ultimoErro: string | null
   ultimoErroEm: string | null
   funcoes: Funcao[]
+  /** Último caminho que a impressão usou (0157, Assistente beta.10+): nulo = ainda não informado. */
+  envioCaminho: CaminhoEnvio | null
+  envioCaminhoEm: string | null
+  envioCaminhoObs: string | null
 }
 
 export interface TrabalhoVisao {
@@ -158,7 +182,7 @@ export interface TrabalhoVisao {
 export async function painelImpressao(admin: SupabaseClient, restauranteId: string) {
   const [{ data: ags }, { data: dsp }, { data: fns }, { data: tbs }, { data: loja }] = await Promise.all([
     admin.from('impressao_agentes').select('id, nome, versao, visto_em, revogado_em, criado_em, criado_por_nome').eq('restaurante_id', restauranteId).order('criado_em'),
-    admin.from('impressao_dispositivos').select(`id, agente_id, nome_sistema, apelido, largura_mm, tamanho_fonte, largura_pontos, deslocamento_pontos, diagnostico, calibrado_em, calibrado_por_nome, disponivel, visto_em, ultimo_uso_em, ultimo_erro, ultimo_erro_em, ${COLUNAS_ENVIO}`).eq('restaurante_id', restauranteId).order('criado_em'),
+    admin.from('impressao_dispositivos').select(`id, agente_id, nome_sistema, apelido, largura_mm, tamanho_fonte, largura_pontos, deslocamento_pontos, diagnostico, calibrado_em, calibrado_por_nome, disponivel, visto_em, ultimo_uso_em, ultimo_erro, ultimo_erro_em, envio_caminho, envio_caminho_em, envio_caminho_obs, ${COLUNAS_ENVIO}`).eq('restaurante_id', restauranteId).order('criado_em'),
     admin.from('impressao_funcoes').select('funcao, dispositivo_id').eq('restaurante_id', restauranteId),
     admin.from('impressao_trabalhos').select('id, tipo, via, estado, erro, tentativas, criado_em, enviado_em, criado_por_nome, comanda_id, calibracao:snapshot->>calibracao, recibo_teste:snapshot->>recibo_teste, cozinha_teste:snapshot->>cozinha_teste, impressao_dispositivos ( apelido, nome_sistema )').eq('restaurante_id', restauranteId).order('criado_em', { ascending: false }).limit(30),
     admin.from('restaurantes').select('impressao_cozinha_por_funcao, impressao_agente_visto_em, impressao_beta_liberado, impressao_beta_modo, impressao_cozinha_transferida_em').eq('id', restauranteId).maybeSingle(),
@@ -193,6 +217,9 @@ export async function painelImpressao(admin: SupabaseClient, restauranteId: stri
     ultimoErro: (d.ultimo_erro as string | null) ?? null,
     ultimoErroEm: (d.ultimo_erro_em as string | null) ?? null,
     funcoes: funcoes.filter((f) => f.dispositivo_id === d.id).map((f) => f.funcao),
+    envioCaminho: ehCaminho(d.envio_caminho) ? d.envio_caminho : null,
+    envioCaminhoEm: (d.envio_caminho_em as string | null) ?? null,
+    envioCaminhoObs: (d.envio_caminho_obs as string | null) ?? null,
     ...perfilEnvio(d),
   }))
   const trabalhos: TrabalhoVisao[] = ((tbs ?? []) as unknown as (Record<string, unknown> & { impressao_dispositivos: { apelido: string | null; nome_sistema: string } | null })[]).map((t) => ({
@@ -574,6 +601,22 @@ export async function reservarTrabalhos(admin: SupabaseClient, agenteId: string)
       tentativas: t.tentativas as number,
     })),
   }
+}
+
+/**
+ * Caminho que a impressão usou nesta impressora (0157): o Assistente beta.10+ informa depois de
+ * imprimir — no envio automático, se saiu direto (ESC/POS) ou caiu no driver, e por quê.
+ * Só mexe nas impressoras do próprio computador.
+ */
+export async function registrarCaminho(admin: SupabaseClient, agenteId: string, nomeSistema: unknown, caminho: unknown, obs: unknown): Promise<Resultado<null>> {
+  if (typeof nomeSistema !== 'string' || !nomeSistema.trim() || nomeSistema.length > 200) return falha('Impressora inválida.', 400, 'impressora_invalida')
+  if (!ehCaminho(caminho)) return falha('Caminho inválido.', 400, 'caminho_invalido')
+  const texto = typeof obs === 'string' && obs.trim() ? obs.trim().slice(0, 200) : null
+  const { error } = await admin.from('impressao_dispositivos')
+    .update({ envio_caminho: caminho, envio_caminho_em: new Date().toISOString(), envio_caminho_obs: texto })
+    .eq('agente_id', agenteId).eq('nome_sistema', nomeSistema)
+  if (error) return falha('Não foi possível registrar.', 500, 'erro_banco')
+  return { ok: true, valor: null }
 }
 
 export async function informarResultado(admin: SupabaseClient, agenteId: string, trabalhoId: string, ok: boolean, erro: string | null) {
