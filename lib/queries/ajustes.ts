@@ -360,10 +360,14 @@ export async function buscarFluxoLoja(supabase: SupabaseClient, restauranteId: s
   }
 }
 
-/** Toggle rápido usado no Kanban: força a loja aberta/fechada, ou devolve pro modo automático (segue a grade de horário). */
-export async function definirStatusLoja(supabase: SupabaseClient, restauranteId: string, status: StatusLoja): Promise<void> {
-  const { error } = await supabase.from('restaurantes').update({ status_loja: status }).eq('id', restauranteId)
-  if (error) throw error
+/**
+ * Toggle rápido usado no Kanban: força a loja aberta/fechada, ou devolve pro modo automático (segue a
+ * grade de horário). Vai pela rota do servidor (mesma sessão e RLS) para a auditoria saber de onde
+ * veio (0156). Os dois primeiros parâmetros ficam pela compatibilidade de quem chama.
+ */
+export async function definirStatusLoja(_supabase: SupabaseClient, _restauranteId: string, status: StatusLoja, origem: 'kanban' | 'ajustes' | 'painel' | 'app' = 'kanban'): Promise<void> {
+  const r = await fetch('/api/admin/pedidos/status-loja', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status, origem }) })
+  if (!r.ok) throw new Error(((await r.json().catch(() => null)) as { error?: string } | null)?.error ?? 'Não foi possível mudar o status da loja.')
 }
 
 /** Leitura leve (sem o resto do ConfigLoja) usada pra calcular "aberto agora" — Kanban, vitrine, criarPedido. */

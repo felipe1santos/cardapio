@@ -147,6 +147,9 @@ export const ROTULO_EVENTO: Record<string, string> = {
   'pix_online.conexao_recusada': 'Conexão com o Mercado Pago recusada',
   'pix_online.conta_desconectada': 'Desconectou a conta do Mercado Pago',
   'pix_online.validade': 'Mudou o prazo do Pix online',
+  'loja.status': 'Abriu/fechou a loja manualmente',
+  'loja.abriu_horario': 'Loja abriu pelo horário de funcionamento',
+  'loja.fechou_horario': 'Loja fechou pelo horário de funcionamento',
   'fin.pix_nao_caiu': 'Marcou Pix que não caiu',
   'fin.repasse_nexta': 'Registrou repasse do Nexta',
   'integracoes.meta_capi': 'Configurou a API de Conversões do Meta',
@@ -224,6 +227,7 @@ export const GRUPOS_EVENTO: { id: string; label: string; prefixos: string[] }[] 
   { id: 'sessao', label: 'Acessos e segurança', prefixos: ['sessao.', 'seguranca.'] },
   { id: 'financeiro', label: 'Financeiro', prefixos: ['fin.'] },
   { id: 'pix_online', label: 'Pix online', prefixos: ['pix_online.'] },
+  { id: 'loja', label: 'Loja aberta/fechada', prefixos: ['loja.'] },
   { id: 'entrega', label: 'Entregas e motoboys', prefixos: ['entrega.', 'entregador.'] },
   { id: 'integracoes', label: 'Integrações', prefixos: ['integracoes.'] },
   { id: 'clientes', label: 'Clientes', prefixos: ['clientes.'] },
@@ -233,6 +237,13 @@ export const GRUPOS_EVENTO: { id: string; label: string; prefixos: string[] }[] 
   { id: 'contas', label: 'Contas e compras', prefixos: ['contas.', 'compras.'] },
   { id: 'plataforma', label: 'Plataforma (Menuzia)', prefixos: ['plataforma.'] },
 ]
+
+const STATUS_LOJA_ROTULO: Record<string, string> = {
+  automatico: 'Automático (horário)', aberto_manual: 'Aberta (manual)', fechado_manual: 'Fechada (manual)',
+}
+const ORIGEM_ROTULO: Record<string, string> = {
+  kanban: 'pelo Painel de Pedidos', ajustes: 'por Ajustes', painel: 'pelo painel', horario: 'pela grade de horário', sistema: 'pelo sistema', outro: 'por outro acesso',
+}
 
 export function rotuloEvento(acao: string): string {
   return ROTULO_EVENTO[acao] ?? acao
@@ -247,7 +258,12 @@ export function resumoEvento(dados: Record<string, unknown>): string {
   if (mesa) partes.push(mesa)
   const de = texto(dados.de)
   const para = texto(dados.para)
-  if (de && para) partes.push(`${de} → ${para}`)
+  if (de && para) partes.push(`${STATUS_LOJA_ROTULO[de] ?? de} → ${STATUS_LOJA_ROTULO[para] ?? para}`)
+  // Abrir/fechar a loja (0156): de onde veio e em que aparelho.
+  const origem = texto(dados.origem)
+  if (origem) partes.push(ORIGEM_ROTULO[origem] ?? origem)
+  const aparelho = texto(dados.aparelho)
+  if (aparelho) partes.push(aparelho)
   const resumo = texto(dados.resumo)
   if (resumo) partes.push(resumo)
   const motivo = texto(dados.motivo)
