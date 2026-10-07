@@ -122,3 +122,36 @@ Plano e inventário em `docs/impressao/remocao-assistente-antigo.md`.
 4. Publicar o beta.10 (checklist acima).
 5. Teste de push do app: rodar depois das 8h (regra de horário).
 6. Melhoria do IP na auditoria de abrir/fechar (opcional).
+
+---
+
+# Publicação da manhã (07/10, 08:30–09:50 BRT)
+
+## 0 — Disco do servidor (limpeza autorizada pelo dono)
+- Antes: 96 GB, **95 GB usados, 985 MB livres (99%)**; imagens 97,5 GB (62 GB recuperáveis), cache de build 40 GB. Produção na imagem `44579c9`.
+- Coolify › Servidor › Docker Cleanup › Run Cleanup (11:34 UTC, 4 min 57 s, sucesso), mantendo volumes, redes e imagens retidas.
+- Depois: **25 GB usados, 72 GB livres (26%)**; imagens 21,4 GB, cache de build 0, volumes 16 → 16 (intactos). Do app ficaram a imagem de produção e a anterior. Site 200 e tarefas agendadas ok durante toda a limpeza.
+- Automático: limpeza a cada 6 h (`0 */6 * * *`, era 1×/dia), mantendo as imagens retidas (o app guarda 2 = produção + anterior) e limpando o cache de build; checagem do disco a cada hora (`0 * * * *`, era 1×/dia) com alerta acima de 80%.
+- **Alerta**: o Coolify não tem nenhum canal de aviso ligado (e-mail, Telegram etc. desligados) — falta configurar um (precisa de token/senha: feito por você).
+- Não precisa aumentar o disco agora: 25 GB em uso normal; o que encheu foram ~40 GB de cache de build + imagens de vários deploys no mesmo dia, com limpeza só 1×/dia.
+
+## 1 — Item 5 publicado
+- Deploy `g7w0zsl8…` concluído 11:52 UTC (main `4e1a794`). Fontes ok (classes `fonte-*` no CSS, arquivos `/fontes/*.woff2` 200).
+- Conferência na Menuzia (Angus Burguer): menu em Nunito, ativo "Dashboard" com fundo #EEF0F3, mesmos 15 itens e selo "Novo". Print `item5/producao-menuzia-menu.jpg`.
+- Acompanhamento 20 min (11:58–12:13 UTC): sem problema.
+
+## 3 — Item 6 publicado
+- 0157 aplicada antes do deploy: backup `menuzia-backups/impressao-dispositivos-antes-0157-2026-10-07.json` (40 impressoras), ensaio ok, aplicada, 0 impressoras mudadas.
+- main `867b765` (fast-forward da `noite5-item6-impressao`), deploy `jo8xj5if…` concluído 12:27 UTC. Fontes ok; `/api/agente/caminho` sem credencial = 401.
+- Conferência na Menuzia: aviso "Modo misto" em amarelo (antigo com sinal), "Computador DESKTOP-BIE4TTM conectado"; botões de conectar sem código escondidos (link ainda é o beta.9). Print `item6/producao-menuzia-modo-misto.jpg`.
+
+## 4 — Menuzia no Assistente novo completo
+- Cozinha e Recibo/Extrato estavam no pareamento antigo deste PC (sem sinal desde 05:23 UTC); passados para o pareamento ativo (mesma impressora "Microsoft Print to PDF") e modo "Cozinha e Caixa". Tela: Cozinha pronta, Caixa pronto, sem aviso de modo misto. Print `item6/producao-menuzia-beta-completo.jpg`.
+- Atenção: a comanda dos pedidos de teste da Menuzia agora sai pelo Beta neste PC, numa impressora PDF (abre a janela de salvar).
+- O pareamento antigo do mesmo PC (sem sinal) continua lá; dá para "Desconectar" depois.
+
+## 5 — Teste de push
+Não rodado: a memória do PC estava em 0,1–0,2 GB livres.
+
+## Pizza do Rosa
+Ignorada a pedido do dono (só usa o cardápio pelo QR Code). Configuração não mexida.
