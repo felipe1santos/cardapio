@@ -4,6 +4,7 @@ import { TelaPixOnline, type PixAguardando } from '@/components/vitrine/tela-pix
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { UtensilsCrossed, HandPlatter, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, ChevronRight, ChevronLeft, Clock, Gift, Ticket, Percent, Check, RotateCcw, Store, User } from 'lucide-react'
 import { BarraTotal, DiamanteRoxo, LinhaValor, OpcaoRadio, SeloRoxo, StepperRedondo, TituloSecao, VERDE_DESCONTO } from '@/components/vitrine/sacola-ifood'
+import { FichaLoja } from '@/components/vitrine/ficha-loja'
 import { EstadoVazioIlustrado, FotoItemPedido, ILUSTRACOES, IlustracaoStatus, ModalSaiuParaEntrega, usePedidoSaiuParaAvisar } from '@/components/vitrine/ilustracoes-pedido'
 import { fonteVitrine as fonteVitrineCss } from '@/lib/fonte-vitrine'
 import { CAMADA_MAXIMA } from '@/components/ui/flutuante'
@@ -3852,11 +3853,13 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         {tab === 'pedidos' && (
           <div className="px-4 pt-6 lg:mx-auto lg:max-w-2xl lg:px-8 lg:pt-10">
             {!clienteSessao ? (
-              <EstadoVazio
-                emoji="🔒"
+              <EstadoVazioIlustrado
+                src={ILUSTRACOES.pedidosVazio}
                 titulo="Entre para ver seus pedidos"
                 texto="Confirme seu telefone para acompanhar o status e o histórico dos seus pedidos nesta loja."
                 acao={{ label: 'Entrar com WhatsApp', onClick: () => setContaOpen(true) }}
+                acaoSecundaria={{ label: 'Ver cardápio', onClick: () => setTab('home') }}
+                testid="pedidos-deslogado"
               />
             ) : pedidosLoading && meusPedidos.length === 0 ? (
               <div className="py-20 text-center text-[13px] text-text-subtle">Carregando seus pedidos…</div>
@@ -4090,8 +4093,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
           const nadaParaMostrar = recompensas.length === 0 && missoes.length === 0 && cuponsLoja.length === 0
           return (
             <div className="space-y-6 px-4 pb-8 pt-5 lg:mx-auto lg:max-w-2xl lg:px-8 lg:pt-10">
-              {/* Não logado: cupons públicos aparecem, progresso exige sessão */}
-              {!clienteSessao && (
+              {/* Não logado: cupons públicos aparecem, progresso exige sessão. Sem nada para mostrar,
+                  o estado vazio ilustrado (abaixo) já traz o "Entrar". */}
+              {!clienteSessao && !nadaParaMostrar && (
                 <button
                   onClick={() => setContaOpen(true)}
                   className="flex w-full items-center gap-3.5 rounded-md border border-border bg-white p-4 text-left shadow-sm transition-all hover:border-[var(--tema-primaria)] active:scale-[0.99]"
@@ -4245,7 +4249,17 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
               )}
 
               {/* Estado vazio */}
-              {nadaParaMostrar && (
+              {nadaParaMostrar && !clienteSessao && (
+                <EstadoVazioIlustrado
+                  src={ILUSTRACOES.cuponsVazio}
+                  titulo="Entre para ver seus cupons"
+                  texto="Confirme seu telefone para ver os cupons e os prêmios de fidelidade desta loja."
+                  acao={{ label: 'Entrar com WhatsApp', onClick: () => setContaOpen(true) }}
+                  acaoSecundaria={{ label: 'Ver cardápio', onClick: () => setTab('home') }}
+                  testid="cupons-deslogado"
+                />
+              )}
+              {nadaParaMostrar && clienteSessao && (
                 <EstadoVazioIlustrado
                   src={ILUSTRACOES.cuponsVazio}
                   titulo="Nenhum cupom disponível agora"
@@ -5445,14 +5459,17 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 )
               ) : contaEditando ? (
                 <>
-                  <div className="mb-4 flex items-center justify-between rounded border border-border p-3.5">
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
-                        {clienteSessao?.verificado === false ? 'Seu telefone' : 'Telefone confirmado'}
-                      </p>
-                      <p className="text-sm font-bold">{mascararTelefoneBR(perfilCliente.telefone)}</p>
+                  <div className="mb-4 rounded-[12px] border border-[#EFEFEF] bg-[#FAFAFA] p-[14px]" data-testid="perfil-telefone-fixo">
+                    <div className="flex items-center justify-between gap-[12px]">
+                      <div>
+                        <p className="text-[12px] leading-[16px] text-[#5C5C5C]">
+                          {clienteSessao?.verificado === false ? 'Seu telefone' : 'Telefone confirmado'}
+                        </p>
+                        <p className="text-[15px] font-semibold text-[#1F1F1F]">{mascararTelefoneBR(perfilCliente.telefone)}</p>
+                      </div>
+                      <button onClick={sairConta} className="min-h-[40px] px-[4px] text-[13px] font-semibold text-[#B42318]">Sair</button>
                     </div>
-                    <button onClick={sairConta} className="text-[13px] font-semibold text-danger">Sair</button>
+                    <p className="mt-[6px] text-[12px] leading-[16px] text-[#5C5C5C]">O telefone é confirmado pelo WhatsApp e não muda aqui. Para usar outro número, saia e entre com ele.</p>
                   </div>
 
                   <label className="mb-1.5 block text-xs font-semibold text-text-subtle">Nome</label>
@@ -5529,54 +5546,63 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   )}
                 </>
               ) : (
-                <>
-                  <div className="mb-4 flex items-center justify-between rounded border border-border p-3.5">
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
-                        {clienteSessao?.verificado === false ? 'Seu telefone' : 'Telefone confirmado'}
-                      </p>
-                      <p className="text-sm font-bold">{mascararTelefoneBR(perfilCliente.telefone)}</p>
+                <div data-testid="perfil-cliente">
+                  <div className="flex items-center gap-[14px] rounded-[12px] border border-[#EFEFEF] bg-white p-[16px]" data-testid="perfil-cabecalho">
+                    <span className="flex h-[56px] w-[56px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--tema-light)] text-[22px] font-semibold text-[var(--tema-primaria)]" aria-hidden>
+                      {(perfilCliente.nome.trim().charAt(0) || '?').toUpperCase()}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[17px] font-semibold leading-[22px] text-[#1F1F1F]">{perfilCliente.nome || 'Cliente'}</p>
+                      <div className="mt-[4px] flex flex-wrap items-center gap-[8px]">
+                        <span className="text-[13px] text-[#5C5C5C]">{mascararTelefoneBR(perfilCliente.telefone)}</span>
+                        {clienteSessao?.verificado !== false && (
+                          <span className="inline-flex items-center gap-[4px] rounded-full bg-[#E8F5EE] px-[8px] py-[2px] text-[11.5px] font-semibold text-[#0B7A3E]">
+                            <Check className="h-[12px] w-[12px]" strokeWidth={3} /> Confirmado
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <button onClick={sairConta} className="text-[13px] font-semibold text-danger">Sair</button>
                   </div>
 
-                  {contaSaved && <p className="mb-3 text-[13px] font-medium text-[#16A34A]">Dados salvos!</p>}
+                  {contaSaved && <p className="mt-[10px] text-[13px] font-semibold text-[#0B7A3E]" data-testid="perfil-salvo">Dados salvos!</p>}
 
-                  <div className="overflow-hidden rounded border border-border">
-                    <div className="flex items-center justify-between border-b border-border px-3.5 py-2.5">
-                      <span className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Nome</span>
-                      <span className="text-sm font-semibold">{perfilCliente.nome || '—'}</span>
+                  <div className="mt-[12px] divide-y divide-[#EFEFEF] overflow-hidden rounded-[12px] border border-[#EFEFEF] bg-white">
+                    <div className="flex items-start gap-[12px] px-[14px] py-[12px]">
+                      <span className="flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-[10px] bg-[#F5F5F5]"><User className="h-[18px] w-[18px] text-[#3D3D3D]" strokeWidth={2} /></span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[12px] leading-[16px] text-[#5C5C5C]">Nome</p>
+                        <p className="truncate text-[14px] font-semibold leading-[20px] text-[#1F1F1F]">{perfilCliente.nome || 'Não informado'}</p>
+                      </div>
                     </div>
-                    <div className="px-3.5 py-2.5">
-                      <span className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Endereço</span>
-                      <p className="mt-1 text-sm">
-                        {perfilCliente.endereco.rua
-                          ? `${perfilCliente.endereco.rua}, ${perfilCliente.endereco.numero}${perfilCliente.endereco.complemento ? ` · ${perfilCliente.endereco.complemento}` : ''}`
-                          : '—'}
-                      </p>
-                      {(perfilCliente.endereco.bairro || perfilCliente.endereco.cep) && (
-                        <p className="mt-0.5 text-[13px] text-text-subtle">
-                          {perfilCliente.endereco.bairro}{perfilCliente.endereco.bairro && perfilCliente.endereco.cep ? ' · ' : ''}{perfilCliente.endereco.cep}
+                    <div className="flex items-start gap-[12px] px-[14px] py-[12px]" data-testid="perfil-endereco">
+                      <span className="flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-[10px] bg-[#F5F5F5]"><MapPin className="h-[18px] w-[18px] text-[#3D3D3D]" strokeWidth={2} /></span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[12px] leading-[16px] text-[#5C5C5C]">Endereço de entrega</p>
+                        <p className="text-[14px] font-semibold leading-[20px] text-[#1F1F1F]">
+                          {perfilCliente.endereco.rua
+                            ? `${perfilCliente.endereco.rua}, ${perfilCliente.endereco.numero}${perfilCliente.endereco.complemento ? ` · ${perfilCliente.endereco.complemento}` : ''}`
+                            : 'Nenhum endereço salvo'}
                         </p>
-                      )}
+                        {(perfilCliente.endereco.bairro || perfilCliente.endereco.cep) && (
+                          <p className="mt-[2px] text-[13px] leading-[18px] text-[#5C5C5C]">
+                            {[perfilCliente.endereco.bairro, perfilCliente.endereco.cidade, perfilCliente.endereco.cep].filter(Boolean).join(' · ')}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </div>
 
-                  <div className="mt-4 flex gap-2.5">
-                    <button
-                      onClick={() => setContaOpen(false)}
-                      className="flex-1 rounded bg-[var(--tema-primaria)] px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-[var(--tema-dark)]"
-                    >
-                      Usar estes dados
-                    </button>
-                    <button
-                      onClick={() => { setContaSaved(false); setContaEditando(true) }}
-                      className="flex-1 rounded bg-[#F3F4F6] px-4 py-3 text-sm font-bold text-text-main transition-colors hover:bg-border"
-                    >
-                      Editar dados
-                    </button>
-                  </div>
-                </>
+                  <button
+                    onClick={() => { setContaSaved(false); setContaEditando(true) }}
+                    className="mt-[16px] flex min-h-[48px] w-full items-center justify-center gap-[8px] rounded-[10px] bg-[var(--tema-dark)] px-[16px] text-[15px] font-semibold text-white transition-all hover:brightness-95 active:scale-[0.99]"
+                    data-testid="perfil-editar"
+                  >
+                    <Pencil className="h-[16px] w-[16px]" strokeWidth={2.2} /> Editar dados
+                  </button>
+                  <button onClick={sairConta} className="mt-[8px] min-h-[44px] w-full text-center text-[14px] font-semibold text-[#B42318]" data-testid="perfil-sair">
+                    Sair da conta
+                  </button>
+                </div>
               )}
               {/* Perfil › Notificações (push do app, 0127): só aparece se a loja oferece. */}
               <div className="mt-4">
@@ -5587,110 +5613,27 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         </div>
       )}
 
-      {/* ── Informações da empresa (modal centralizado) ─────────────────── */}
+      {/* ── Sobre a loja (ficha nova, 2026-10-07) ───────────────────────── */}
       {infoOpen && (
-        <>
-          <div className="fixed inset-0 z-[64] bg-[#111827]/60" onClick={() => setInfoOpen(false)} />
-          <div className="fixed inset-0 z-[65] flex items-center justify-center p-4">
-            <div className="max-h-[85vh] w-full max-w-[420px] overflow-y-auto rounded-md bg-white">
-              <div className="flex items-center justify-between border-b border-border p-4.5">
-                <h2 className="text-base font-bold">Sobre {storeName}</h2>
-                <button onClick={() => setInfoOpen(false)} className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-[#F3F4F6] text-xl font-light">×</button>
-              </div>
-              <div className="p-4.5">
-                {/* Resumo em cartões: quem abre isso quer decidir "dá pra pedir
-                    daqui?" — status, tempo e taxa vêm antes da lista de bairros. */}
-                <div className="mb-4 grid grid-cols-2 gap-2">
-                  <div className={['rounded-md border p-3', restaurante.lojaAberta ? 'border-promo/30 bg-promo-bg' : 'border-danger/30 bg-danger-bg'].join(' ')}>
-                    <div className="text-[10px] font-bold uppercase tracking-wide text-text-subtle">Agora</div>
-                    <div className={['mt-0.5 text-[14px] font-bold', restaurante.lojaAberta ? 'text-promo' : 'text-[#B91C1C]'].join(' ')}>
-                      {restaurante.lojaAberta ? 'Aberta' : 'Fechada'}
-                    </div>
-                    {horarioTexto && <div className="mt-0.5 text-[11.5px] font-medium text-text-subtle">{horarioTexto}</div>}
-                  </div>
-                  <div className="rounded-md border border-petrol/20 bg-petrol-bg p-3">
-                    <div className="text-[10px] font-bold uppercase tracking-wide text-text-subtle">Entrega em</div>
-                    <div className="mt-0.5 text-[14px] font-bold text-petrol">30–45 min</div>
-                    <div className="mt-0.5 text-[11.5px] font-medium text-text-subtle">
-                      {restaurante.taxaEntregaPadrao > 0 ? `Taxa a partir de ${brl(menorTaxaEntrega)}` : 'Taxa a combinar'}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mb-4 flex flex-wrap gap-1.5">
-                  {restaurante.aceitaEntrega && (
-                    <span className="inline-flex items-center gap-1.5 rounded bg-[var(--tema-light)] px-2.5 py-1 text-[12px] font-semibold text-[var(--tema-primaria)]">
-                      <Truck className="h-3.5 w-3.5" strokeWidth={2.5} /> Entrega
-                    </span>
-                  )}
-                  {restaurante.aceitaRetirada && (
-                    <span className="inline-flex items-center gap-1.5 rounded bg-[var(--tema-light)] px-2.5 py-1 text-[12px] font-semibold text-[var(--tema-primaria)]">
-                      <MapPin className="h-3.5 w-3.5" strokeWidth={2.5} /> Retirada no balcão
-                    </span>
-                  )}
-                  {freteGratisMinimo !== null && (
-                    <span className="inline-flex items-center gap-1.5 rounded bg-promo-bg px-2.5 py-1 text-[12px] font-semibold text-promo">
-                      Frete grátis acima de {brl(freteGratisMinimo)}
-                    </span>
-                  )}
-                </div>
-
-                {restaurante.endereco && (
-                  <div className="mb-4 rounded-md border border-border p-3.5">
-                    <h3 className="mb-1 text-[10px] font-bold uppercase tracking-wide text-text-subtle">Onde ficamos</h3>
-                    <p className="text-[13.5px] font-semibold leading-snug text-text-main">{capitalizarTexto(restaurante.endereco)}</p>
-                    <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
-                      <a
-                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(restaurante.endereco)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-wide text-[var(--tema-primaria)]"
-                      >
-                        <MapPin className="h-3.5 w-3.5" strokeWidth={2.5} /> Ver no mapa
-                      </a>
-                      {restaurante.telefone && (
-                        <a href={`tel:${restaurante.telefone.replace(/\D/g, '')}`} className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-text-subtle">
-                          <Phone className="h-3.5 w-3.5" strokeWidth={2.5} /> {mascararTelefoneBR(restaurante.telefone)}
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                <div>
-                  <div className="mb-2 flex items-baseline justify-between gap-2">
-                    <h3 className="text-[10px] font-bold uppercase tracking-wide text-text-subtle">Taxa por bairro</h3>
-                    {bairros.length > 6 && <span className="text-[11px] text-text-subtle">{bairros.length} bairros</span>}
-                  </div>
-                  {bairros.length > 0 ? (
-                    <div className="max-h-[38vh] overflow-y-auto overscroll-contain rounded-md border border-border">
-                      {bairros.map((b) => (
-                        <div key={b.bairro} className="flex items-center justify-between gap-3 border-b border-border px-3.5 py-2.5 text-[13.5px] last:border-none">
-                          <span className="min-w-0 truncate font-medium">{capitalizarTexto(b.bairro)}</span>
-                          <span className={['flex-shrink-0 font-bold', b.taxa === 0 ? 'text-promo' : 'text-text-main'].join(' ')}>{b.taxa === 0 ? 'Grátis' : brl(b.taxa)}</span>
-                        </div>
-                      ))}
-                      <div className="flex items-center justify-between gap-3 border-t border-border bg-[#F9FAFB] px-3.5 py-2.5 text-[13.5px]">
-                        <span className="text-text-subtle">Demais bairros</span>
-                        <span className="font-bold">{brl(restaurante.taxaEntregaPadrao)}</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="rounded-md border border-border px-3.5 py-2.5 text-[13.5px] text-text-subtle">
-                      Taxa única de entrega: <span className="font-bold text-text-main">{brl(restaurante.taxaEntregaPadrao)}</span>
-                    </p>
-                  )}
-                  <button
-                    onClick={() => { setInfoOpen(false); setFreteOpen(true) }}
-                    className="mt-3 w-full rounded-md bg-[var(--tema-primaria)] px-4 py-3 text-[12px] font-bold uppercase tracking-wide text-white transition-colors hover:bg-[var(--tema-dark)]"
-                  >
-                    Calcular taxa pelo meu CEP
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </>
+        <FichaLoja
+          nome={storeName}
+          logoUrl={restaurante.logoUrl}
+          aberta={restaurante.lojaAberta}
+          horarioTexto={horarioTexto}
+          endereco={restaurante.endereco}
+          telefone={restaurante.telefone}
+          whatsapp={numeroWaLoja()}
+          instagramUrl={restaurante.instagramUrl}
+          aceitaEntrega={restaurante.aceitaEntrega}
+          aceitaRetirada={restaurante.aceitaRetirada}
+          prazoEntrega={PRAZO_ENTREGA}
+          freteGratisAcima={freteGratisMinimo}
+          taxaPadrao={restaurante.taxaEntregaPadrao}
+          menorTaxa={menorTaxaEntrega}
+          bairros={bairros}
+          onFechar={() => setInfoOpen(false)}
+          onCalcularFrete={() => { setInfoOpen(false); setFreteOpen(true) }}
+        />
       )}
 
       {/* ── Lembrete de prêmio na sacola: usar agora é um clique ────────── */}

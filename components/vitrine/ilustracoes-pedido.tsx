@@ -63,8 +63,10 @@ export function IlustracaoStatus({ pedido, className = '' }: { pedido: StatusDoP
 }
 
 /** Estado vazio com ilustração (Pedidos e Cupons da vitrine nova). */
-export function EstadoVazioIlustrado({ src, titulo, texto, acao, testid }: {
-  src: string; titulo: string; texto: string; acao?: { label: string; onClick: () => void }; testid?: string
+export function EstadoVazioIlustrado({ src, titulo, texto, acao, acaoSecundaria, testid }: {
+  src: string; titulo: string; texto: string; acao?: { label: string; onClick: () => void }
+  /** Link discreto abaixo do botão (ex.: "Ver cardápio" quando o principal é entrar). */
+  acaoSecundaria?: { label: string; onClick: () => void }; testid?: string
 }) {
   return (
     <div className="flex min-h-[60dvh] flex-col items-center justify-center px-6 pb-6 text-center" data-testid={testid}>
@@ -80,6 +82,16 @@ export function EstadoVazioIlustrado({ src, titulo, texto, acao, testid }: {
           data-testid={testid ? `${testid}-acao` : undefined}
         >
           {acao.label}
+        </button>
+      )}
+      {acaoSecundaria && (
+        <button
+          type="button"
+          onClick={acaoSecundaria.onClick}
+          className="mt-2 min-h-[44px] px-6 text-[14px] font-semibold text-[var(--v-acao)]"
+          data-testid={testid ? `${testid}-secundaria` : undefined}
+        >
+          {acaoSecundaria.label}
         </button>
       )}
     </div>
