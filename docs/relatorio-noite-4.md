@@ -106,3 +106,14 @@ teste de R$ 1,00 e o que fazer em cada problema.
   WSL desligado no fim (religar: `npx supabase start` na pasta do projeto). O Supabase do
   "painel-engenharia" foi parado (religar na pasta dele).
 - Nenhuma outra loja teve configuração alterada.
+
+## Fechamento (início da noite 5, 2026-10-07 ~05:00)
+
+- **#170**: venceu às 04:50:17 e às 04:52 estava `cancelado` / `pix_expirado`, cobrança
+  `cancelled` no MP. Tela do QR em produção: às 04:35 mostrou "Pague até 04:50 (horário de
+  Brasília)" e "Faltam 14:52" — horário e contador corretos.
+- **#171** (teste do dono pelo celular, 04:43): venceu às 04:58:20 e foi cancelado sozinho
+  (`pix_expirado`, MP `cancelled`).
+- **Checagem da chave Pix em produção**: "Verificar de novo" na Menuzia (Angus Burguer /
+  Administrador) respondeu `{"resultado":"ok"}` — sondagem criada e cancelada no MP.
+- Menuzia: loja **fechada manual**, item de teste **pausado**, Gerente TESTE **pausado**.
