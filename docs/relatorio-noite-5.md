@@ -8,7 +8,7 @@
 4. **Auditoria de abrir/fechar a loja** (0156, 06:25, `47c3e2b`): quem, quando, de→para e de onde (Kanban/Ajustes/sistema/horário). Conferido na Menuzia.
 5. **Campanhas sem o botão "Envio automático"** (06:54, `44579c9`): nenhuma loja tinha o envio desligado. Conferido na Menuzia.
 6. **Menu principal no desenho dos submenus**: pronto e testado, enviado à main (`c862fd1`), **não publicado** — o build falhou: **disco do servidor cheio**.
-7. **Impressão (item 6)**: sem modo misto escondido, envio automático (0157), pareamento sem código e tela simples do Assistente — pronto e testado na branch `noite5-item6-impressao` (`c1fa10f`), **não publicado** (mesmo motivo). 0157 só ensaiada em produção.
+7. **Impressão (item 6)**: sem modo misto escondido, envio automático (0157), pareamento sem código e tela simples do Assistente — pronto e testado na branch `noite5-item6-impressao`, **não publicado** (mesmo motivo). 0157 só ensaiada em produção.
 8. **Assistente beta.10** gerado só no computador (sem release, link não trocado). Checklist e plano de remoção do antigo em `docs/impressao/remocao-assistente-antigo.md`.
 9. **Modo misto**: Menuzia e Pizza do Rosa. Pizza do Rosa está com o antigo desativado — se voltar a imprimir, **a comanda não sai**. Nenhuma configuração de loja foi mudada.
 10. **Precisa de você**: liberar espaço no servidor (Coolify) e redeploy; aplicar a 0157 antes do deploy do item 6; decidir o modo das duas lojas mistas; publicar o beta.10.
@@ -58,7 +58,7 @@ Nenhum rollback foi necessário. Pedidos de teste: nenhum criado nesta noite (co
 - Para publicar: liberar o disco e clicar Redeploy (a main já tem o commit).
 
 ## Item 6 — Impressão
-**NÃO publicado** (disco cheio). Branch `noite5-item6-impressao`, commit `c1fa10f` (sobre o item 5).
+**NÃO publicado** (disco cheio). Branch `noite5-item6-impressao` (último commit da branch, sobre o item 5).
 
 ### 6a — Modo misto
 O produto não deixa mais **escolher** "Somente Caixa" (API devolve `modo_misto_descontinuado`); loja que já está nele continua igual e vê **"Modo misto"** escrito em destaque, em vermelho quando o antigo está desligado ou sem sinal ("a comanda da cozinha não está saindo"), com "Passar a comanda para o novo". Print: `item6/modo-misto-1366.png`. Nenhuma loja real foi alterada.
