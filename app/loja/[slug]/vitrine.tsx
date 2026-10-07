@@ -4,6 +4,8 @@ import { TelaPixOnline, type PixAguardando } from '@/components/vitrine/tela-pix
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { UtensilsCrossed, HandPlatter, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, ChevronRight, ChevronLeft, Clock, Gift, Ticket, Percent, Check, RotateCcw, Store, User } from 'lucide-react'
 import { BarraTotal, DiamanteRoxo, LinhaValor, OpcaoRadio, SeloRoxo, StepperRedondo, TituloSecao, VERDE_DESCONTO } from '@/components/vitrine/sacola-ifood'
+import { EstadoVazioIlustrado, FotoItemPedido, ILUSTRACOES, IlustracaoStatus, ModalSaiuParaEntrega, usePedidoSaiuParaAvisar } from '@/components/vitrine/ilustracoes-pedido'
+import { fonteVitrine as fonteVitrineCss } from '@/lib/fonte-vitrine'
 import { CAMADA_MAXIMA } from '@/components/ui/flutuante'
 import { normalizarBairro } from '@/lib/frete'
 import { pedacosDaDescricao } from '@/lib/descricao-rica'
@@ -172,8 +174,8 @@ function PedidoTimeline({ status, tipo, semConfirmacao = false }: { status: stri
             </span>
             <div>
               <div className={`text-[13px] font-semibold ${state === 'pending' ? 'text-text-subtle' : 'text-text-main'}`}>{step.l}</div>
-              {state === 'active' && <div className="mt-0.5 text-[12px] text-[var(--tema-primaria)]">Em andamento…</div>}
-              {state === 'done' && <div className="mt-0.5 text-[12px] text-status-ready">Concluído</div>}
+              {state === 'active' && <div className="mt-0.5 text-[12px] text-[var(--tema-dark)]">Em andamento…</div>}
+              {state === 'done' && <div className="mt-0.5 text-[12px] text-[#15803D]">Concluído</div>}
             </div>
           </div>
         )
@@ -2362,6 +2364,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     return () => clearInterval(t)
   }, [])
   const [pedidosLoading, setPedidosLoading] = useState(false)
+  const detalheAberto = pedidoDetalhe !== null
+  const entregaRolando = meusPedidos.some((p) => p.tipo === 'entrega' && ['recebido', 'preparando', 'pronto', 'em_rota'].includes(p.status))
 
   useEffect(() => {
     // Os pedidos são carregados com a sessão, não só na aba Pedidos: a faixa de
@@ -2402,9 +2406,14 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       finally { if (active) setPedidosLoading(false) }
     }
     load(tab === 'pedidos')
-    const interval = setInterval(() => load(false), tab === 'pedidos' ? 8000 : 30000)
+    // Item 57: com o detalhe aberto ou uma entrega em andamento, o status (e a ilustração, e o aviso de
+    // "saiu para entrega") chegam em até 15 s mesmo fora da aba Pedidos.
+    const interval = setInterval(() => load(false), tab === 'pedidos' || detalheAberto ? 8000 : entregaRolando ? 15000 : 30000)
     return () => { active = false; clearInterval(interval) }
-  }, [tab, clienteSessao, slug])
+  }, [tab, clienteSessao, slug, detalheAberto, entregaRolando])
+
+  // Item 57: "Seu pedido saiu para entrega!" — uma vez por pedido; espera checkout/ficha fecharem.
+  const [pedidoSaiu, marcarSaiuVisto] = usePedidoSaiuParaAvisar(meusPedidos, slug, checkoutOpen || productSheet !== null)
 
   // Mantém o modal de detalhe sincronizado com os dados mais recentes (status ao vivo).
   useEffect(() => {
@@ -2569,7 +2578,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         const novo = pedidoLocal({
           id: data.id, numero: Number(data.numero) || 0, tipo: tipoPedido, formaPagamento: payload.pagamento as PedidoCliente['formaPagamento'],
           subtotal, desconto, taxaEntrega: tipoPedido === 'retirada' ? 0 : fee, total,
-          itens: cart.map((l) => ({ nome: l.name, quantidade: l.qty, tamanhoNome: l.tamanhoNome, saborNome: l.saborNome, precoUnitario: l.unit, descricao: '', complementos: l.addons.map((a) => a.nome), observacao: l.obs })),
+          itens: cart.map((l) => ({ nome: l.name, quantidade: l.qty, tamanhoNome: l.tamanhoNome, saborNome: l.saborNome, precoUnitario: l.unit, descricao: '', complementos: l.addons.map((a) => a.nome), observacao: l.obs, imagemUrl: l.imagemUrl })),
           agendadoPara: payload.agendadoPara ?? null,
         })
         try {
@@ -3843,11 +3852,12 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             ) : pedidosLoading && meusPedidos.length === 0 ? (
               <div className="py-20 text-center text-[13px] text-text-subtle">Carregando seus pedidos…</div>
             ) : meusPedidos.length === 0 ? (
-              <EstadoVazio
-                emoji="📦"
-                titulo="Nenhum pedido ainda"
-                texto="Quando você finalizar um pedido, o acompanhamento aparece aqui."
+              <EstadoVazioIlustrado
+                src={ILUSTRACOES.pedidosVazio}
+                titulo="Você ainda não fez nenhum pedido"
+                texto="Escolha seus favoritos no cardápio. Quando você pedir, o acompanhamento aparece aqui."
                 acao={{ label: 'Ver cardápio', onClick: () => setTab('home') }}
+                testid="pedidos-vazio"
               />
             ) : (
               <div className="space-y-4 pb-4">
@@ -3923,6 +3933,17 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
           </div>
         )}
 
+        {/* ── Item 57: aviso central "Seu pedido saiu para entrega!" ─────── */}
+        <ModalSaiuParaEntrega
+          pedido={pedidoSaiu}
+          onFechar={() => { if (pedidoSaiu) marcarSaiuVisto(pedidoSaiu.id) }}
+          onVerResumo={() => { if (pedidoSaiu) { marcarSaiuVisto(pedidoSaiu.id); setPedidoDetalhe(pedidoSaiu) } }}
+          tema={{
+            className: `${fonteVitrineCss.variable} font-loja${restaurante.fonteVitrine === 'ifood' ? ' vitrine-fonte-ifood' : ''}`,
+            style: { '--tema-primaria': paleta.primaria, '--tema-dark': paleta.dark, '--tema-light': paleta.light } as React.CSSProperties,
+          }}
+        />
+
         {/* ── Modal: detalhes do pedido ─────────────────────────────────── */}
         {pedidoDetalhe && (() => {
           const p = pedidoDetalhe
@@ -3953,9 +3974,22 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                       Agendado para {textoAgendado(p.agendadoPara)}
                     </p>
                   )}
-                  {ativo && <div className="mt-4"><PedidoTimeline status={p.status} tipo={p.tipo} semConfirmacao={p.saidaSemConfirmacao} /></div>}
-                  {p.status === 'cancelado' && (
-                    <div className="mt-4 rounded bg-danger-bg px-3 py-2 text-[12px] font-medium text-danger">Este pedido foi cancelado.</div>
+                  {ativo && (
+                    // Item 57: ilustração da ÚLTIMA atualização no canto direito; troca sozinha com o status.
+                    <div className="mt-4 flex items-start gap-3" data-testid="detalhe-acompanhamento">
+                      <div className="min-w-0 flex-1"><PedidoTimeline status={p.status} tipo={p.tipo} semConfirmacao={p.saidaSemConfirmacao} /></div>
+                      <IlustracaoStatus pedido={p} className="mt-[26px] w-[100px] min-[400px]:w-[116px] sm:w-[132px]" />
+                    </div>
+                  )}
+                  {!ativo && (p.status === 'cancelado' || p.status === 'entregue') && (
+                    <div className="mt-4 flex items-center gap-3" data-testid="detalhe-acompanhamento">
+                      <IlustracaoStatus pedido={p} className="w-[96px]" />
+                      <p className={['text-[14px] font-semibold leading-[20px]', p.status === 'cancelado' ? 'text-danger' : 'text-[#15803D]'].join(' ')}>
+                        {p.status === 'cancelado'
+                          ? 'Este pedido foi cancelado.'
+                          : p.tipo === 'entrega' && p.saidaSemConfirmacao ? 'Seu pedido saiu para entrega.' : p.tipo === 'retirada' ? 'Pedido retirado. Bom apetite!' : 'Pedido entregue. Bom apetite!'}
+                      </p>
+                    </div>
                   )}
 
                   <div className="my-4 border-t border-border" />
@@ -3966,7 +4000,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                       const variacao = nomeLimpo([i.tamanhoNome, i.saborNome].filter(Boolean).join(' - '))
                       return (
                         <li key={idx} className="flex gap-3 border-b border-border pb-3 last:border-none">
-                          <span className="flex h-7 min-w-[30px] items-center justify-center rounded border border-border px-1.5 text-[12px] font-bold text-text-main">{i.quantidade}x</span>
+                          <FotoItemPedido src={i.imagemUrl} quantidade={i.quantidade} />
                           <div className="min-w-0 flex-1">
                             <p className="text-[14px] font-semibold text-text-main">{i.nome}</p>
                             {(variacao || i.descricao) && (
@@ -4203,10 +4237,12 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
               {/* Estado vazio */}
               {nadaParaMostrar && (
-                <EstadoVazio
-                  emoji="🏷️"
-                  titulo="Nenhum cupom por aqui ainda"
-                  texto="Quando a loja criar cupons ou campanhas de fidelidade, eles aparecem aqui."
+                <EstadoVazioIlustrado
+                  src={ILUSTRACOES.cuponsVazio}
+                  titulo="Nenhum cupom disponível agora"
+                  texto="Fique de olho: quando a loja lançar cupons ou campanhas de fidelidade, eles aparecem aqui."
+                  acao={{ label: 'Ver cardápio', onClick: () => setTab('home') }}
+                  testid="cupons-vazio"
                 />
               )}
             </div>

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" role="img" aria-label="Pedido cancelado">
+<path d="M300 78c112-4 214 46 246 140 34 100-6 214-104 262-92 46-224 52-314 6C42 438 22 334 56 244 92 150 188 82 300 78z" fill="#EFEFEF"/>
+<path d="M96 196h120a22 22 0 0 0-18-38 34 34 0 0 0-64-4 26 26 0 0 0-38 42z" fill="#FFFFFF"/>
+<path d="M400 142h104a20 20 0 0 0-16-34 30 30 0 0 0-56-4 24 24 0 0 0-32 38z" fill="#FFFFFF"/>
+<path d="M432 268h88a18 18 0 0 0-14-30 26 26 0 0 0-48-4 20 20 0 0 0-26 34z" fill="#FFFFFF"/>
+<ellipse cx="300" cy="500" rx="190" ry="16" fill="#DADADA" opacity=".7"/>
+<path d="M206 140h190v320l-24-16-24 16-24-16-24 16-24-16-24 16-24-16-22 16z" fill="#FFFFFF" stroke="#262626" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M236 196h130M236 232h100M236 268h120M236 304h80" stroke="#9A9A9A" stroke-width="4" stroke-linecap="round"/>
+<path d="M236 352h60M330 352h36" stroke="#262626" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="404" cy="380" r="56" fill="#E8231F" stroke="#262626" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M384 360l40 40M424 360l-40 40" stroke="#FFFFFF" stroke-width="12" stroke-linecap="round"/>
+<path d="M150 220c-30 30-40 70-30 110" fill="none" stroke="#262626" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="10 12"/>
+<path d="M470 236h44M484 262h30" stroke="#BDBDBD" stroke-width="4" stroke-linecap="round"/></svg>

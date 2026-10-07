@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" role="img" aria-label="Pedido recebido">
+<path d="M300 78c112-4 214 46 246 140 34 100-6 214-104 262-92 46-224 52-314 6C42 438 22 334 56 244 92 150 188 82 300 78z" fill="#EFEFEF"/>
+<path d="M96 196h120a22 22 0 0 0-18-38 34 34 0 0 0-64-4 26 26 0 0 0-38 42z" fill="#FFFFFF"/>
+<path d="M400 142h104a20 20 0 0 0-16-34 30 30 0 0 0-56-4 24 24 0 0 0-32 38z" fill="#FFFFFF"/>
+<path d="M432 268h88a18 18 0 0 0-14-30 26 26 0 0 0-48-4 20 20 0 0 0-26 34z" fill="#FFFFFF"/>
+<ellipse cx="300" cy="500" rx="190" ry="16" fill="#DADADA" opacity=".7"/>
+<path d="M120 300c40-60 70-80 110-92" fill="none" stroke="#262626" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="10 12"/>
+<rect x="200" y="140" width="190" height="330" rx="30" fill="#FFFFFF" stroke="#262626" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="222" y="178" width="146" height="248" rx="10" fill="#F6F6F6" stroke="#262626" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M270 160h50" stroke="#262626" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="295" cy="262" r="40" fill="#F7C23C" stroke="#262626" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M278.2 262.8l12 12 22.400000000000002-24" fill="none" stroke="#262626" stroke-width="6.4" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M248 334h94M258 360h74M266 386h58" stroke="#9A9A9A" stroke-width="4" stroke-linecap="round"/>
+<path d="M368 128c0-26 22-46 50-46s50 20 50 46-22 46-50 46c-8 0-16-2-22-5l-26 12 8-24c-6-8-10-18-10-29z" fill="#F7C23C" stroke="#262626" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M408 114l12-8v44" fill="none" stroke="#262626" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+<g stroke="#262626" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none" transform="translate(470 230) scale(0.9)"><path d="M0-34v-18"/><path d="M-26-22l-12-12"/><path d="M26-22l12-12"/></g>
+<path d="M140 420h36M120 444h56" stroke="#BDBDBD" stroke-width="4" stroke-linecap="round"/></svg>

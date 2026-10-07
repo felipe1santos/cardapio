@@ -1812,6 +1812,8 @@ export interface PedidoClienteItem {
   descricao: string
   complementos: string[]
   observacao: string
+  /** Foto do item (miniatura, se houver) para o resumo do pedido da vitrine (item 57). */
+  imagemUrl?: string | null
 }
 
 export interface PedidoCliente {
@@ -1844,7 +1846,7 @@ export async function listarPedidosDoCliente(admin: SupabaseClient, restauranteI
   const semEntregador = Boolean(loja) && (loja?.usa_logistica === false || Boolean(loja?.entrega_sem_entregador))
   const { data, error } = await admin
     .from('pedidos')
-    .select('id, numero, status, tipo, subtotal, desconto, total, taxa_entrega, forma_pagamento, observacao, criado_em, agendado_para, pedido_itens ( nome, quantidade, tamanho_nome, sabor_nome, preco_unitario, observacao, complementos, item:itens_cardapio ( descricao ) )')
+    .select('id, numero, status, tipo, subtotal, desconto, total, taxa_entrega, forma_pagamento, observacao, criado_em, agendado_para, pedido_itens ( nome, quantidade, tamanho_nome, sabor_nome, preco_unitario, observacao, complementos, item:itens_cardapio ( descricao, imagem_url, imagem_thumb_url ) )')
     .eq('restaurante_id', restauranteId)
     .eq('cliente_telefone', telefone)
     // Pix online ainda não pago (0148): aparece na lista do cliente depois que a API confirmar.
@@ -1873,7 +1875,7 @@ export async function listarPedidosDoCliente(admin: SupabaseClient, restauranteI
       preco_unitario: number
       observacao: string | null
       complementos: PedidoComplementoSnapshot[] | null
-      item: { descricao: string } | null
+      item: { descricao: string; imagem_url: string | null; imagem_thumb_url: string | null } | null
     }[]
   }[]).map((p) => ({
     id: p.id,
@@ -1898,6 +1900,7 @@ export async function listarPedidosDoCliente(admin: SupabaseClient, restauranteI
       descricao: i.item?.descricao ?? '',
       complementos: (i.complementos ?? []).map((c) => c.nome),
       observacao: i.observacao ?? '',
+      imagemUrl: i.item?.imagem_thumb_url ?? i.item?.imagem_url ?? null,
     })),
   }))
 }

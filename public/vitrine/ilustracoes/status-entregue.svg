@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" role="img" aria-label="Pedido entregue">
+<path d="M300 78c112-4 214 46 246 140 34 100-6 214-104 262-92 46-224 52-314 6C42 438 22 334 56 244 92 150 188 82 300 78z" fill="#EFEFEF"/>
+<path d="M96 196h120a22 22 0 0 0-18-38 34 34 0 0 0-64-4 26 26 0 0 0-38 42z" fill="#FFFFFF"/>
+<path d="M400 142h104a20 20 0 0 0-16-34 30 30 0 0 0-56-4 24 24 0 0 0-32 38z" fill="#FFFFFF"/>
+<path d="M432 268h88a18 18 0 0 0-14-30 26 26 0 0 0-48-4 20 20 0 0 0-26 34z" fill="#FFFFFF"/>
+<ellipse cx="300" cy="500" rx="190" ry="16" fill="#DADADA" opacity=".7"/>
+<path d="M150 260l150-110 150 110" fill="#E8231F" stroke="#262626" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M176 248v222h248V248" fill="#FFFFFF" stroke="#262626" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="256" y="330" width="88" height="140" rx="6" fill="#F7C23C" stroke="#262626" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="328" cy="404" r="6" fill="#262626"/>
+<rect x="196" y="284" width="44" height="44" rx="4" fill="#F6F6F6" stroke="#262626" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M218 284v44M196 306h44" stroke="#262626" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="360" y="284" width="44" height="44" rx="4" fill="#F6F6F6" stroke="#262626" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M382 284v44M360 306h44" stroke="#262626" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M354 470l8-62h56l8 62z" fill="#E8231F" stroke="#262626" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M374 408v-10a16 16 0 0 1 32 0v10" fill="none" stroke="#262626" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="456" cy="196" r="46" fill="#F7C23C" stroke="#262626" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M436.68 196.92l13.799999999999999 13.799999999999999 25.76-27.599999999999998" fill="none" stroke="#262626" stroke-width="7.36" stroke-linecap="round" stroke-linejoin="round"/>
+<g stroke="#262626" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none" transform="translate(456 136) scale(0.8)"><path d="M0-34v-18"/><path d="M-26-22l-12-12"/><path d="M26-22l12-12"/></g>
+<path d="M90 420h50M100 446h40" stroke="#BDBDBD" stroke-width="4" stroke-linecap="round"/></svg>

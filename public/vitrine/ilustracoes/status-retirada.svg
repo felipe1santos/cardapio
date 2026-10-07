@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" role="img" aria-label="Pronto para retirada">
+<path d="M300 78c112-4 214 46 246 140 34 100-6 214-104 262-92 46-224 52-314 6C42 438 22 334 56 244 92 150 188 82 300 78z" fill="#EFEFEF"/>
+<path d="M96 196h120a22 22 0 0 0-18-38 34 34 0 0 0-64-4 26 26 0 0 0-38 42z" fill="#FFFFFF"/>
+<path d="M400 142h104a20 20 0 0 0-16-34 30 30 0 0 0-56-4 24 24 0 0 0-32 38z" fill="#FFFFFF"/>
+<path d="M432 268h88a18 18 0 0 0-14-30 26 26 0 0 0-48-4 20 20 0 0 0-26 34z" fill="#FFFFFF"/>
+<ellipse cx="300" cy="500" rx="190" ry="16" fill="#DADADA" opacity=".7"/>
+<path d="M80 446h440" stroke="#262626" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="96" y="446" width="408" height="26" rx="6" fill="#FFFFFF" stroke="#262626" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M150 300h170l-14 146H164z" fill="#F7C23C" stroke="#262626" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M196 300v-22a40 40 0 0 1 80 0v22" fill="none" stroke="#262626" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="235" cy="376" r="34" fill="#E8231F" stroke="#262626" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M220.72 376.68l10.2 10.2 19.040000000000003-20.4" fill="none" stroke="#262626" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M370 432a62 62 0 0 1 124 0z" fill="#F7C23C" stroke="#262626" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M356 432h152" stroke="#262626" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M432 370v-14M420 352h24" stroke="#262626" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M392 404c6-14 16-22 28-26" fill="none" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round"/>
+<g stroke="#262626" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M396 330l-14-18"/><path d="M432 316v-22"/><path d="M468 330l14-18"/></g>
+<path d="M120 250c30-40 70-56 110-60" fill="none" stroke="#262626" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="10 12"/></svg>
