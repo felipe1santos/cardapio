@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { AprovacaoPin, Janela, type AprovacaoDada } from '@/components/financeiro/apoio'
 
 /**
@@ -38,9 +38,12 @@ export function MercadoPagoCard({ avisar }: { avisar: (m: string) => void }) {
     if (r?.ok) setE(await r.json())
   }, [])
   useEffect(() => { void carregar() }, [carregar])
+  // A volta do Mercado Pago (?mercadopago=…) avisa UMA vez, mesmo que `avisar` mude.
+  const avisouRetorno = useRef(false)
   useEffect(() => {
     const q = new URLSearchParams(window.location.search).get('mercadopago')
-    if (!q) return
+    if (!q || avisouRetorno.current) return
+    avisouRetorno.current = true
     const msg: Record<string, string> = { conectado: 'Conta do Mercado Pago conectada.', falhou: 'Não foi possível conectar. Tente de novo.', cancelado: 'Conexão cancelada.', sem_permissao: 'Só o dono conecta a conta de pagamentos.', nao_configurado: 'O Pix online ainda não foi configurado no servidor.' }
     avisar(msg[q] ?? q)
   }, [avisar])

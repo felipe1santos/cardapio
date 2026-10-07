@@ -171,6 +171,9 @@ function ConexaoWhatsapp({ wa, falhou, onMudou }: { wa: WaStatus | null; falhou:
 export default function IntegracoesPage() {
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const toasts = useToasts()
+  // `toasts` é um objeto novo a cada render; só `mostrar` é estável. Depender do objeto recriava
+  // lerWhatsapp a cada render e o efeito de leitura entrava em loop (centenas de requisições/s).
+  const mostrarToast = toasts.mostrar
   const [restauranteId, setRestauranteId] = useState<string | null>(null)
   const [sit, setSit] = useState<Situacao>({ wa: null, waFalhou: false, pixels: null, capi: null, mp: null, nexta: null })
   const [aberta, setAberta] = useState<IdIntegracao | null>(null)
@@ -183,7 +186,7 @@ export default function IntegracoesPage() {
       if (!r.ok) throw new Error('status')
       const d: WaStatus = await r.json()
       setSit((s) => {
-        if (s.wa && !s.wa.connected && d.connected) toasts.mostrar('ok', 'WhatsApp conectado.')
+        if (s.wa && !s.wa.connected && d.connected) mostrarToast('ok', 'WhatsApp conectado.')
         return { ...s, wa: d, waFalhou: false }
       })
       return d
@@ -191,7 +194,7 @@ export default function IntegracoesPage() {
       setSit((s) => ({ ...s, waFalhou: true }))
       return null
     }
-  }, [toasts])
+  }, [mostrarToast])
 
   const lerOutras = useCallback(async () => {
     const [capi, mp, nexta] = await Promise.all([
@@ -260,6 +263,8 @@ export default function IntegracoesPage() {
   }
 
   const def = aberta ? INTEGRACOES.find((i) => i.id === aberta)! : null
+  // Estáveis: os cards dependem de `avisar` em efeitos.
+  const avisarERecarregar = useCallback((m: string) => { mostrarToast('ok', m); void lerOutras() }, [mostrarToast, lerOutras])
   const linkSugestao = `https://wa.me/${SUPORTE_MENUZIA.whatsapp}?text=${encodeURIComponent('Gostaria de sugerir a integração: ')}`
 
   return (
@@ -334,8 +339,8 @@ export default function IntegracoesPage() {
             rotuloCampo="Tag ID" adicionar="Adicionar Tag ID" placeholder="Ex.: G-ABC123XYZ9 ou GTM-XXXXXXX" validar={validarGoogleTag}
             valorInicial={sit.pixels?.google ?? ''} carregado={!!sit.pixels} onSalvar={(v) => salvarPixel('googleTagId', v)} avisar={toasts.mostrar} />
         )}
-        {def?.id === 'capi' && <MetaCapiCard temPixel={!!sit.pixels?.facebook} avisar={(m) => { toasts.mostrar('ok', m); void lerOutras() }} />}
-        {def?.id === 'mercadopago' && <MercadoPagoCard avisar={(m) => { toasts.mostrar('ok', m); void lerOutras() }} />}
+        {def?.id === 'capi' && <MetaCapiCard temPixel={!!sit.pixels?.facebook} avisar={avisarERecarregar} />}
+        {def?.id === 'mercadopago' && <MercadoPagoCard avisar={avisarERecarregar} />}
       </ModalCentral>
       <PilhaToasts itens={toasts.itens} />
     </div>
