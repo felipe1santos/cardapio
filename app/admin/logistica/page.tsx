@@ -11,6 +11,7 @@ import { CartaoNumero, TONS_PAINEL, type TomPainel } from '@/components/admin/ca
 import { ICONES } from '@/lib/icones-painel'
 import { mascararTelefoneBR, telefoneCompleto } from '@/lib/telefone'
 import { Button } from '@/components/ui/button'
+import { Flutuante } from '@/components/ui/flutuante'
 import { Badge } from '@/components/ui/badge'
 import { RouteMap } from '@/components/maps/route-map'
 import { buscarLojaNoMapa, type LojaDoMapa } from '@/lib/maps/loja-mapa'
@@ -475,10 +476,12 @@ export default function LogisticaPage() {
   const [drivers, setDrivers] = useState<Entregador[]>([])
   const [despachoAberto, setDespachoAberto] = useState(false)
   const [assigning, setAssigning] = useState<string | null>(null)
-  /** Altura aproximada do menu de atribuir — usada só pra decidir o lado da abertura. */
-  const ALTURA_MENU_ATRIBUIR = 200
-  /** true quando o menu de atribuir precisa abrir pra cima por falta de espaço embaixo. */
-  const [assignAcima, setAssignAcima] = useState(false)
+  // Menus de "Atribuir" no portal (regra 3): por cima de tudo e virando sozinhos para caber na tela —
+  // dentro da coluna rolável eles ficavam cortados.
+  const ancoraAtribuir = useRef<HTMLElement | null>(null)
+  const ancoraAtribuirLote = useRef<HTMLButtonElement | null>(null)
+  const fecharAtribuir = useCallback(() => setAssigning(null), [])
+  const fecharAtribuirLote = useCallback(() => setBulkAssigning(false), [])
   const [closingOpen, setClosingOpen] = useState(false)
 
   const [linkDriver, setLinkDriver] = useState<Entregador | null>(null)
@@ -1410,11 +1413,10 @@ export default function LogisticaPage() {
                     </button>
                     {selected.size > 0 && (
                       <div className="relative">
-                        <Button variant="dispatch" onClick={() => setBulkAssigning((v) => !v)}>
+                        <Button variant="dispatch" ref={ancoraAtribuirLote} onClick={() => setBulkAssigning((v) => !v)}>
                           Atribuir {selected.size}
                         </Button>
-                        {bulkAssigning && (
-                          <div className="absolute right-0 top-[calc(100%+4px)] z-30 min-w-[260px] rounded-[6px] border border-[var(--adm-borda)] bg-white p-1 shadow-[var(--adm-sombra-md)]">
+                        <Flutuante ancora={ancoraAtribuirLote} aberto={bulkAssigning} onFechar={fecharAtribuirLote} largura={260} rotulo="Atribuir em lote" testid="menu-atribuir-lote" className="p-1">
                             {nextaAtivo && (
                               <>
                                 {/* Uma corrida por pedido: quem combina entregas é o próprio
@@ -1438,8 +1440,7 @@ export default function LogisticaPage() {
                               </>
                             )}
                             <ListaEntregadoresMenu entregadores={available} onEscolher={assignBulk} />
-                          </div>
-                        )}
+                        </Flutuante>
                       </div>
                     )}
                   </>
@@ -1495,32 +1496,13 @@ export default function LogisticaPage() {
                             setAssigning(null)
                             return
                           }
-                          // Num pedido no fim da coluna rolável o menu abriria pra baixo e
-                          // ficaria cortado pela borda, escondendo os entregadores próprios.
-                          // Medimos o espaço até o container que corta e viramos pra cima.
-                          const btn = e.currentTarget
-                          let limiteInferior = window.innerHeight
-                          let ancestral: HTMLElement | null = btn.parentElement
-                          while (ancestral) {
-                            const oy = getComputedStyle(ancestral).overflowY
-                            if (oy === 'auto' || oy === 'scroll') {
-                              limiteInferior = ancestral.getBoundingClientRect().bottom
-                              break
-                            }
-                            ancestral = ancestral.parentElement
-                          }
-                          setAssignAcima(limiteInferior - btn.getBoundingClientRect().bottom < ALTURA_MENU_ATRIBUIR)
+                          ancoraAtribuir.current = e.currentTarget
                           setAssigning(order.id)
                         }}
                       >
                         <Bike className="h-4 w-4" /> Atribuir
                       </Button>
-                      {assigning === order.id && (
-                        <div
-                          className={`absolute right-0 z-30 min-w-[260px] rounded-[6px] border border-[var(--adm-borda)] bg-white p-1 shadow-[var(--adm-sombra-md)] ${
-                            assignAcima ? 'bottom-[calc(100%+4px)]' : 'top-[calc(100%+4px)]'
-                          }`}
-                        >
+                      <Flutuante ancora={ancoraAtribuir} aberto={assigning === order.id} onFechar={fecharAtribuir} largura={260} rotulo={`Atribuir o pedido ${order.numero}`} testid="menu-atribuir" className="p-1">
                           {nextaAtivo && (
                             <>
                               <OpcaoNexta
@@ -1535,8 +1517,7 @@ export default function LogisticaPage() {
                             </>
                           )}
                           <ListaEntregadoresMenu entregadores={available} onEscolher={(id) => assign(order.id, id)} />
-                        </div>
-                      )}
+                      </Flutuante>
                     </div>
                   </div>
                 ))}

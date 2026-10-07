@@ -13,7 +13,7 @@ import { papelForaDoCargo, sensiveisSemSerGestor,
   COR_CARGO, ROTULO_CARGO, ROTULO_SITUACAO, cargoDoUsuario, contarPermissoes, modeloDoCargo, situacaoDoUsuario,
   type Cargo, type Situacao,
 } from '@/lib/equipe-cargos'
-import { Dica } from '@/components/ui/flutuante'
+import { Dica, Flutuante } from '@/components/ui/flutuante'
 
 /**
  * Equipe do estabelecimento (repaginação 2026-10).
@@ -399,6 +399,11 @@ function Acoes({ f, menuAberto, onMenu, onEditar, onSenha, onSituacao }: {
   onSituacao: (s: Situacao) => void
 }) {
   const inativo = f.situacaoVista !== 'ativo'
+  // Menu no portal (regra 3): dentro da tabela ele ficava cortado pela rolagem. A mesma linha existe
+  // na tabela e nos cartões do celular — só a cópia visível abre o menu.
+  const botaoMenu = useRef<HTMLButtonElement>(null)
+  const fecharMenu = useCallback(() => onMenu(false), [onMenu])
+  const visivel = !!botaoMenu.current && botaoMenu.current.offsetParent !== null
   return (
     <>
       <button type="button" className="equipe-acao toque-icone" title="Editar" aria-label={`Editar ${f.nome}`} onClick={onEditar} data-testid="acao-editar"><Pencil className="h-4 w-4" /></button>
@@ -407,9 +412,9 @@ function Acoes({ f, menuAberto, onMenu, onEditar, onSenha, onSituacao }: {
         <button type="button" className="equipe-acao toque-icone" title="Reativar" aria-label={`Reativar ${f.nome}`} onClick={() => onSituacao('ativo')} data-testid="acao-reativar"><PlayCircle className="h-4 w-4" /></button>
       ) : (
         <span className="relative inline-flex" onClick={(e) => e.stopPropagation()}>
-          <button type="button" className="equipe-acao toque-icone" title="Pausar ou bloquear" aria-label={`Pausar ou bloquear ${f.nome}`} aria-expanded={menuAberto} onClick={() => onMenu(!menuAberto)} data-testid="acao-pausar-bloquear"><PauseCircle className="h-4 w-4" /></button>
-          {menuAberto && (
-            <span className="absolute right-0 top-[38px] z-20 flex w-[210px] flex-col overflow-hidden rounded-[6px] border border-[#e5e7eb] bg-white py-1 text-left shadow-[0_10px_28px_rgba(15,23,42,0.14)]" role="menu">
+          <button type="button" className="equipe-acao toque-icone" title="Pausar ou bloquear" aria-label={`Pausar ou bloquear ${f.nome}`} aria-expanded={menuAberto} onClick={() => onMenu(!menuAberto)} data-testid="acao-pausar-bloquear" ref={botaoMenu}><PauseCircle className="h-4 w-4" /></button>
+          <Flutuante ancora={botaoMenu} aberto={menuAberto && visivel} onFechar={fecharMenu} largura={210} testid="menu-situacao" rotulo={`Situação de ${f.nome}`} className="py-1">
+            <span className="flex flex-col text-left" role="menu">
               <button type="button" role="menuitem" className="flex items-center gap-2 px-3 py-2.5 text-[13px] text-[#1f2937] hover:bg-[#f3f4f6]" onClick={() => { onMenu(false); onSituacao('pausado') }} data-testid="menu-pausar">
                 <PauseCircle className="h-4 w-4 text-[#B45309]" /> Pausar acesso
               </button>
@@ -417,7 +422,7 @@ function Acoes({ f, menuAberto, onMenu, onEditar, onSenha, onSituacao }: {
                 <Ban className="h-4 w-4 text-[#DC2626]" /> Bloquear acesso
               </button>
             </span>
-          )}
+          </Flutuante>
         </span>
       )}
       {f.situacaoVista !== 'excluido' && (

@@ -177,7 +177,10 @@ try {
   const gar = await logar(`teste.garcom.${SUF}`, SENHA)
   ok('garçom ativo entra', gar.p.url().includes('/admin'))
   await linha(pd, `teste.garcom.${SUF}`).getByTestId('acao-pausar-bloquear').click()
-  await linha(pd, `teste.garcom.${SUF}`).getByTestId('menu-pausar').click()
+  // Regra 3 (2026-10-07): o menu ficava cortado atrás da tabela. Inteiro na tela e por cima de tudo.
+  const porCima = await pd.getByTestId('menu-pausar').evaluate((b) => { const r = b.getBoundingClientRect(); const alvo = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return r.bottom <= innerHeight && r.right <= innerWidth && r.top >= 0 && (alvo === b || b.contains(alvo)) })
+  ok('menu "Pausar" inteiro na tela e por cima da tabela', porCima)
+  await pd.getByTestId('menu-pausar').click()
   await foto(pd, '05-confirmar-pausa')
   await pd.getByTestId('confirmar-ok').click()
   await esperar(1200)
@@ -199,7 +202,7 @@ try {
   await gar3.ctx.close()
 
   await linha(pd, `teste.cozinha.${SUF}`).getByTestId('acao-pausar-bloquear').click()
-  await linha(pd, `teste.cozinha.${SUF}`).getByTestId('menu-bloquear').click()
+  await pd.getByTestId('menu-bloquear').click()
   await pd.getByTestId('confirmar-ok').click()
   await esperar(1200)
   const cz = await usuarioDb(`teste.cozinha.${SUF}`)
