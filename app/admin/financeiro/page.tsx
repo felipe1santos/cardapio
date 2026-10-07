@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useState } from 'react'
 import { TopBar } from '@/components/layout/topbar'
 import { SubmenuVertical, type ItemSubmenu } from '@/components/admin/submenu-vertical'
+import type { NomeIconeMaterial } from '@/components/icones/material'
 import type { AcaoFin } from '@/lib/financeiro/permissoes'
 import { formatarCentavos } from '@/lib/financeiro/centavos'
 import { SecaoCaixa } from '@/components/financeiro/caixa'
@@ -36,6 +37,12 @@ const SECOES: { id: Secao; label: string; exige: AcaoFin; fase: string }[] = [
   { id: 'risco', label: 'Risco por funcionário', exige: 'auditoria_ver', fase: '' },
   { id: 'regras', label: 'Regras e limites', exige: 'financeiro', fase: '' },
 ]
+
+// Ícones Material preenchidos do submenu (modelo do dono, 2026-10-06).
+const ICONE_SECAO: Record<Secao, NomeIconeMaterial> = {
+  caixa: 'point_of_sale', fluxo: 'swap_vert', motoboys: 'two_wheeler', pix: 'pix', movimentacoes: 'sync_alt', cmv: 'calculate',
+  contas: 'receipt_long', dashboard: 'insights', auditoria: 'policy', risco: 'person_search', regras: 'rule',
+}
 
 interface Alerta { id: string; tipo: string; gravidade: 'info' | 'atencao' | 'grave'; mensagem: string; usuario_nome: string | null; lido_por_nome: string | null; lido_em: string | null; whatsapp_enviado_em: string | null; criado_em: string }
 interface Sessao { id: string; usuario_nome: string; ip: string | null; dispositivo: string | null; criado_em: string; visto_em: string; encerrada_em: string | null; motivo_encerramento: string | null; bloqueada_em: string | null }
@@ -77,7 +84,7 @@ export default function FinanceiroPage() {
 
   // Risco por funcionário: só dono e gerente (o servidor confere de novo).
   const visiveis = SECOES.filter((s) => acoes?.includes(s.exige) && (s.id !== 'risco' || papel === 'dono' || papel === 'gerente'))
-  const itens: ItemSubmenu<Secao>[] = visiveis.map((s) => ({ id: s.id, label: s.label }))
+  const itens: ItemSubmenu<Secao>[] = visiveis.map((s) => ({ id: s.id, label: s.label, icone: ICONE_SECAO[s.id] }))
   const atual = SECOES.find((s) => s.id === secao)
 
   return (

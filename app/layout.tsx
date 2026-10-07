@@ -47,7 +47,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" className="fonte-inter fonte-painel fonte-meta">
+    <html lang="pt-BR" className="fonte-inter fonte-painel fonte-meta fonte-submenu">
       <head>
         {PRELOAD_FONTES.map((href) => (
           <link key={href} rel="preload" href={href} as="font" type="font/woff2" crossOrigin="anonymous" />

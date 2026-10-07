@@ -135,6 +135,8 @@ const api = (p, url, metodo = 'GET', corpo) => p.evaluate(async ({ url, metodo, 
 }, { url: `${BASE}${url}`, metodo, corpo })
 const valor = async (p, id) => (await p.getByTestId(id).locator('[data-valor]').innerText()).trim()
 const secaoAba = async (p, rotulo) => { await p.getByRole('navigation', { name: 'Seções de campanhas' }).getByRole('button', { name: rotulo }).click(); await espera(400) }
+const AJUSTES = { 'Mensagens automáticas': 'mensagens', 'Modelos de mensagem': 'modelos', 'Notificações do app': 'notificacoes' }
+const secaoAjustes = async (p, rotulo) => { await p.goto(`${BASE}/admin/ajustes?aba=${AJUSTES[rotulo]}`, { waitUntil: 'networkidle' }); await p.getByRole('button', { name: 'OK, entendi' }).click({ timeout: 1500 }).catch(() => {}); await espera(1200) }
 
 try {
   const { p, ctx } = await logar('dono.campa')
@@ -144,7 +146,7 @@ try {
   secao('1. Cabeçalho e submenu')
   ok('título "Campanhas via WhatsApp"', (await p.getByRole('heading', { name: 'Campanhas via WhatsApp' }).count()) === 1 || (await p.getByText('Campanhas via WhatsApp').count()) > 0)
   const itens = await p.getByRole('navigation', { name: 'Seções de campanhas' }).getByRole('button').allInnerTexts()
-  ok('submenu com as 6 seções na ordem', JSON.stringify(itens.map((t) => t.trim())) === JSON.stringify(['Visão geral', 'Campanhas', 'Agendamentos', 'Mensagens automáticas', 'Notificações do app', 'Modelos de mensagem']), itens.join(' | '))
+  ok('submenu só com o disparo: Visão geral, Campanhas e Agendamentos', JSON.stringify(itens.map((t) => t.trim())) === JSON.stringify(['Visão geral', 'Campanhas', 'Agendamentos']), itens.join(' | '))
   ok('envio automático aparece como ligado', /ligado/.test(await p.getByTestId('status-automatico').innerText()))
   await p.getByTestId('abrir-boas-praticas').click()
   ok('"Boas práticas" abre o painel', await p.getByTestId('boas-praticas').isVisible())
@@ -253,7 +255,7 @@ try {
   ok('disparo saiu pelo provedor simulado para os 4 clientes fictícios', novos.length === 4 && novos.every((m) => /^55119123401/.test(m.numero) && /hoje tem TESTE/.test(m.texto)), `${novos.length} ${novos.map((m) => m.numero).join(',')}`)
 
   secao('6. Mensagens automáticas (o que sai de verdade)')
-  await secaoAba(p, 'Mensagens automáticas')
+  await secaoAjustes(p, 'Mensagens automáticas')
   ok('um cartão por etapa (7)', (await p.locator('[data-testid^="etapa-"]').count()) === 7)
   ok('todas "Ativo" e "Mensagem padrão" sem configuração', (await p.locator('[data-testid^="etapa-"][data-ativo="sim"]').count()) === 7 && (await p.getByTestId('selo-padrao').count()) === 6)
   ok('variáveis destacadas no texto', (await p.getByTestId('etapa-recebido').locator('[data-variavel]').count()) >= 1)
@@ -307,7 +309,12 @@ try {
   await espera(800)
   n1 = await notificar('recebido', { tipo: 'entrega' })
   ok('envio automático desligado: nada sai', n1.msg === null)
-  ok('cabeçalho mostra "desligado"', /desligado/.test(await p.getByTestId('status-automatico').innerText()))
+  // O indicador continua no topo de Campanhas (e leva para Ajustes › Mensagens automáticas).
+  await p.goto(`${BASE}/admin/campanhas`, { waitUntil: 'networkidle' }); await espera(800)
+  ok('cabeçalho de Campanhas mostra "desligado"', /desligado/.test(await p.getByTestId('status-automatico').innerText()))
+  await p.getByTestId('status-automatico').click()
+  await p.waitForURL((u) => u.pathname === '/admin/ajustes', { timeout: 15000 }); await espera(1200)
+  ok('o indicador leva para Ajustes › Mensagens automáticas', p.url().includes('aba=mensagens') && await p.getByTestId('mensagens-automaticas').isVisible())
   await p.getByTestId('mensagens-automaticas').getByRole('switch').first().click()
   await espera(600)
   const aud = await um(`select count(*)::int n from eventos_auditoria where restaurante_id=$1 and acao='campanhas.mensagens_automaticas'`, [A])
@@ -316,7 +323,7 @@ try {
   ok('servidor recusa variável desconhecida também', r403.s === 400, String(r403.s))
 
   secao('7. Modelos de mensagem')
-  await secaoAba(p, 'Modelos de mensagem')
+  await secaoAjustes(p, 'Modelos de mensagem')
   ok('vazio com ilustração', (await p.getByTestId('modelos-vazio').count()) === 1)
   await p.getByTestId('novo-modelo').click()
   await p.getByTestId('modelo-nome').fill('TESTE Modelo fim de semana')
@@ -329,11 +336,15 @@ try {
   ok('modelo criado aparece como cartão', (await p.getByTestId('modelo-cartao').count()) === 1)
   await foto(p, '17-modelos')
   await p.getByTestId('modelo-usar').click()
-  ok('"Usar modelo" abre o disparo com o texto', (await p.locator('textarea').first().inputValue()).includes('Fim de semana com 10% off'))
+  await p.waitForURL((u) => u.pathname === '/admin/campanhas', { timeout: 15000 })
+  await p.getByTestId('drawer-campanha').waitFor({ timeout: 15000 })
+  const txtModelo = await p.waitForFunction(() => [...document.querySelectorAll('[data-testid=drawer-campanha] textarea')].some((t) => t.value.includes('Fim de semana com 10% off')), null, { timeout: 15000 }).then(() => true, () => false)
+  ok('"Usar modelo" (Ajustes) abre o disparo em Campanhas com o texto', txtModelo)
   await p.getByTestId('salvar-como-modelo').click()
   await espera(1000)
   await p.getByTestId('drawer-campanha').getByRole('button', { name: 'Cancelar', exact: true }).click()
   await espera(500)
+  await secaoAjustes(p, 'Modelos de mensagem')
   ok('"Salvar como modelo" do disparo cria outro modelo', (await p.getByTestId('modelo-cartao').count()) === 2)
   await p.getByTestId('modelo-excluir').first().click()
   await p.getByTestId('confirmar-ok').click()
@@ -341,8 +352,8 @@ try {
   ok('excluir modelo', (await p.getByTestId('modelo-cartao').count()) === 1)
 
   secao('8. Notificações do app e permissões')
-  await secaoAba(p, 'Notificações do app')
-  ok('seção de notificações do app abre', (await p.getByTestId('secao-notificacoes').count()) === 1)
+  await secaoAjustes(p, 'Notificações do app')
+  ok('seção de notificações do app abre (Ajustes)', (await p.getByTestId('ajustes-notificacoes').count()) === 1)
   const g = await logar('garcom.campa')
   await g.p.goto(`${BASE}/admin/campanhas`, { waitUntil: 'networkidle' })
   ok('garçom não entra em Campanhas', !g.p.url().endsWith('/admin/campanhas'), g.p.url())
@@ -366,7 +377,7 @@ try {
     await foto(s.p, `18-visao-${nome}`)
     await secaoAba(s.p, 'Agendamentos')
     await foto(s.p, `19-agendamentos-${nome}`)
-    await secaoAba(s.p, 'Mensagens automáticas')
+    await secaoAjustes(s.p, 'Mensagens automáticas')
     const sobra2 = await s.p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
     ok(`${nome}: mensagens automáticas sem rolagem lateral`, sobra2 <= 1, String(sobra2))
     await foto(s.p, `20-automaticas-${nome}`)

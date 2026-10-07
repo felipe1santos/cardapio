@@ -9,25 +9,23 @@ import { uploadMidiaCampanha, type Campanha, type FiltroCampanha, type FiltroTip
 import { formatarReal } from '@/lib/moeda'
 import { montarTextoCampanha, MARCADOR_LINK, paraCampoDataHora, problemasDasVariaveis, BOTOES_MAX, BOTAO_TEXTO_MAX, type BotaoCampanha } from '@/lib/mensageria/campanhas'
 import { CampanhasMetricas } from '@/components/admin/campanhas-metricas'
-import { PushNotificacoes } from '@/components/admin/push-notificacoes'
-import { SubmenuVertical } from '@/components/admin/submenu-vertical'
+import { SubmenuVertical, type ItemSubmenu } from '@/components/admin/submenu-vertical'
 import { PilhaToasts, useToasts } from '@/components/admin/toasts'
 import { VisaoGeral } from '@/components/admin/campanhas/visao-geral'
 import { Agendamentos, ListaCampanhas, type AcoesCampanha } from '@/components/admin/campanhas/listas'
-import { MensagensAutomaticas } from '@/components/admin/campanhas/mensagens-automaticas'
-import { Modelos, useModelos, type ModeloMensagem } from '@/components/admin/campanhas/modelos'
+import { useModelos, type ModeloMensagem } from '@/components/admin/campanhas/modelos'
 import { BoasPraticas } from '@/components/admin/campanhas/boas-praticas'
 import { Ajuda, Confirmar } from '@/components/admin/campanhas/comum'
 import { Lightbulb, Power, Send } from 'lucide-react'
 
-type Aba = 'visao' | 'campanhas' | 'agendamentos' | 'automaticas' | 'notificacoes' | 'modelos'
-const ABAS: { id: Aba; label: string }[] = [
-  { id: 'visao', label: 'Visão geral' },
-  { id: 'campanhas', label: 'Campanhas' },
-  { id: 'agendamentos', label: 'Agendamentos' },
-  { id: 'automaticas', label: 'Mensagens automáticas' },
-  { id: 'notificacoes', label: 'Notificações do app' },
-  { id: 'modelos', label: 'Modelos de mensagem' },
+// Campanhas = só DISPARO (2026-10-06). Mensagens automáticas, notificações do app e modelos foram para
+// Ajustes; os endereços antigos (?aba=automaticas|notificacoes|modelos) redirecionam para lá.
+type Aba = 'visao' | 'campanhas' | 'agendamentos'
+const MOVIDAS: Record<string, string> = { automaticas: 'mensagens', notificacoes: 'notificacoes', modelos: 'modelos' }
+const ABAS: ItemSubmenu<Aba>[] = [
+  { id: 'visao', label: 'Visão geral', icone: 'dashboard' },
+  { id: 'campanhas', label: 'Campanhas', icone: 'campaign' },
+  { id: 'agendamentos', label: 'Agendamentos', icone: 'schedule' },
 ]
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -310,6 +308,7 @@ export default function CampanhasPage() {
   // Atalho: /admin/campanhas?aba=notificacoes (Fidelidade) abre direto a seção; "metricas" virou a Visão geral.
   useEffect(() => {
     const q = new URLSearchParams(window.location.search).get('aba')
+    if (q && MOVIDAS[q]) { window.location.replace(`/admin/ajustes?aba=${MOVIDAS[q]}`); return }
     if (q && ABAS.some((a) => a.id === q)) setAba(q as Aba)
   }, [])
   const toasts = useToasts()
@@ -399,6 +398,20 @@ export default function CampanhasPage() {
     setErro(null); setEstimativa(null); setDrawerOpen(true)
   }
 
+  // Ajustes › Modelos de mensagem › "Usar": chega aqui com ?modelo=<id> e abre o disparo com ele.
+  const modeloDaUrl = useRef(false)
+  useEffect(() => {
+    if (modeloDaUrl.current || !modelos.modelos.length) return
+    const id = new URLSearchParams(window.location.search).get('modelo')
+    if (!id) return
+    modeloDaUrl.current = true
+    const m = modelos.modelos.find((x) => x.id === id)
+    if (m) usarModelo(m)
+    const u = new URL(window.location.href); u.searchParams.delete('modelo')
+    window.history.replaceState(window.history.state, '', u.toString())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modelos.modelos])
+
   function usarModelo(m: ModeloMensagem) {
     setEditingId(null)
     setForm({ ...formDefault(), nome: m.nome, mensagem: m.mensagem, imagemUrl: m.imagem_url, tipoMensagem: m.imagem_url ? 'imagem' : 'texto' })
@@ -409,7 +422,7 @@ export default function CampanhasPage() {
     if (form.tipoMensagem === 'audio') { setErro('Modelo é só para texto ou imagem.'); return }
     if (!form.mensagem.trim()) { setErro('Escreva a mensagem antes de salvar como modelo.'); return }
     const e = await modelos.salvar({ nome: form.nome.trim() || 'Modelo sem nome', mensagem: form.mensagem, imagem_url: form.tipoMensagem === 'imagem' ? form.imagemUrl : null })
-    toasts.mostrar(e ? 'erro' : 'ok', e ?? 'Modelo salvo. Ele aparece em "Modelos de mensagem".')
+    toasts.mostrar(e ? 'erro' : 'ok', e ?? 'Modelo salvo. Ele aparece em Ajustes › Modelos de mensagem.')
   }
 
   // ── Upload ────────────────────────────────────────────────────────────────
@@ -498,13 +511,13 @@ export default function CampanhasPage() {
     <div className="flex h-full flex-col overflow-hidden">
       <TopBar
         title="Campanhas via WhatsApp"
-        breadcrumb="Disparos, agendamentos e mensagens automáticas"
-        right={<span className="hidden sm:inline-flex"><Ajuda texto="Mensagens para os clientes da loja pelo WhatsApp: campanhas na hora ou agendadas, mensagens automáticas do status do pedido e notificações do app do cardápio." /></span>}
+        breadcrumb="Disparos e agendamentos"
+        right={<span className="hidden sm:inline-flex"><Ajuda texto="Campanhas para os clientes da loja pelo WhatsApp, na hora ou agendadas. Mensagens automáticas, modelos e notificações do app ficam em Ajustes." /></span>}
       />
 
       {/* Barra de ações: envio automático, boas práticas e o disparo. */}
       <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[var(--adm-borda)] bg-white px-4 py-2.5 sm:px-5">
-        <button type="button" onClick={() => setAba('automaticas')} data-testid="status-automatico"
+        <button type="button" onClick={() => { window.location.href = '/admin/ajustes?aba=mensagens' }} data-testid="status-automatico"
           className={`inline-flex h-9 items-center gap-2 rounded-[5px] border px-3 text-[12.5px] font-bold ${automaticoLigado === false ? 'border-[#fdba74] bg-[#fff7ed] text-[#c2410c]' : 'border-[#86efac] bg-[#f0fdf4] text-[#15803d]'}`}
           title="Envio automático do status do pedido">
           <Power className="h-4 w-4" />
@@ -528,9 +541,6 @@ export default function CampanhasPage() {
           )}
           {aba === 'campanhas' && <ListaCampanhas campanhas={campanhas} carregando={loading} acoes={acoes} onNovo={abrirNovo} />}
           {aba === 'agendamentos' && <Agendamentos campanhas={campanhas} carregando={loading} acoes={acoes} onNovo={abrirNovo} />}
-          {aba === 'automaticas' && <MensagensAutomaticas onToast={toasts.mostrar} onAtivoMudou={setAutomaticoLigado} />}
-          {aba === 'notificacoes' && <PushNotificacoes />}
-          {aba === 'modelos' && <Modelos api={modelos} onUsar={usarModelo} onToast={toasts.mostrar} />}
         </div>
       </div>
 

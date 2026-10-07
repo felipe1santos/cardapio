@@ -140,6 +140,8 @@ export function JanelaCrua({ aberto, onFechar, rotuloId, children, testid, class
     const tecla = (e: KeyboardEvent) => {
       const ativo = document.activeElement
       if (ativo && ativo.closest('[role="dialog"]') && !caixa.current?.contains(ativo)) return
+      // Campo com Esc próprio (ex.: cancelar a edição) marca data-esc-local: o Esc é dele, não da janela.
+      if (e.key === 'Escape' && ativo?.closest('[data-esc-local]')) return
       if (e.key === 'Escape') { e.stopPropagation(); fecharRef.current(); return }
       if (e.key !== 'Tab') return
       const lista = focaveis()
@@ -207,6 +209,8 @@ export function ModalCentral({ aberto, onFechar, titulo, subtitulo, children, ro
       // Outra janela aberta por cima (com o foco dentro dela): o Esc e o Tab são dela.
       const ativo = document.activeElement
       if (ativo && ativo.closest('[role="dialog"]') && !caixa.current?.contains(ativo)) return
+      // Campo com Esc próprio (ex.: cancelar a edição) marca data-esc-local: o Esc é dele, não da janela.
+      if (e.key === 'Escape' && ativo?.closest('[data-esc-local]')) return
       if (e.key === 'Escape') { e.stopPropagation(); fecharRef.current(); return }
       if (e.key !== 'Tab') return
       const lista = focaveis()

@@ -63,10 +63,15 @@ function hora(iso: string | null) {
 
 const CAMPO = 'mt-1 w-full rounded-[8px] border border-[#D1D5DB] bg-white px-3 py-2 text-[13px] text-[#111827] focus:border-[#0688D4] focus:outline-none'
 
-export function RoboWhatsappCard({ conexao, onConectar, avisar }: {
+export function RoboWhatsappCard({ conexao, onConectar, avisar, somenteConfig = false }: {
   conexao: ConexaoWhatsapp
   onConectar: () => void
   avisar: (tom: 'ok' | 'erro', texto: string) => void
+  /**
+   * Ajustes › Robô de atendimento (2026-10-06): só as CONFIGURAÇÕES (ligar/desligar, o que responde,
+   * avançadas). Números e quem aguarda atendente ficam só na central do WhatsApp (canto inferior).
+   */
+  somenteConfig?: boolean
 }) {
   const [estado, setEstado] = useState<Estado | null>(null)
   const [conversas, setConversas] = useState<{ emAtendimento: Conversa[] } | null>(null)
@@ -86,9 +91,10 @@ export function RoboWhatsappCard({ conexao, onConectar, avisar }: {
       setHoras(String(j.boasVindasHoras))
       setRetorno(String(j.retornoMinutos))
     }
+    if (somenteConfig) return
     const c = await fetch('/api/admin/whatsapp/conversas', { cache: 'no-store' })
     if (c.ok) setConversas(await c.json())
-  }, [])
+  }, [somenteConfig])
 
   useEffect(() => {
     void carregar()
@@ -203,6 +209,7 @@ export function RoboWhatsappCard({ conexao, onConectar, avisar }: {
       )}
 
       <div className="flex-1 space-y-4 border-t border-[#F3F4F6] p-5">
+        {!somenteConfig && <>
         {/* Números das últimas 24h */}
         <div className="grid grid-cols-1 gap-3 min-[460px]:grid-cols-3" data-testid="robo-24h">
           <Numero icone={MessageCircle} rotulo="Mensagens recebidas" dica="24h" valor={estado.recebidas24h} />
@@ -237,6 +244,7 @@ export function RoboWhatsappCard({ conexao, onConectar, avisar }: {
             </ul>
           </div>
         )}
+        </>}
 
         <details className="group rounded-[10px] border border-[#E5E7EB] px-3 py-2.5 text-[13px] text-[#111827]" data-testid="robo-o-que-responde">
           <summary className="flex cursor-pointer list-none items-center gap-2 font-semibold">

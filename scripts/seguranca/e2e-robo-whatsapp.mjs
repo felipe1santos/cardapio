@@ -154,7 +154,7 @@ if (process.env.ROBO_E2E_FASE === 'bloqueado') {
     const dono = await logar('dono.roboa')
     const lig = await api(dono.p, '/api/admin/whatsapp/robo', 'PUT', { roboAtivo: true })
     ok('painel não deixa ligar (409 nao_liberado)', lig.s === 409 && lig.j?.codigo === 'nao_liberado')
-    await dono.p.goto(`${BASE}/admin/integracoes`, { waitUntil: 'networkidle' })
+    await dono.p.goto(`${BASE}/admin/ajustes?aba=robo`, { waitUntil: 'networkidle' })
     await dispensar(dono.p)
     await dono.p.getByTestId('robo-bloqueado').waitFor({ timeout: 10000 })
     ok('tela avisa que não foi liberado e o botão de ligar fica desabilitado', await dono.p.getByTestId('robo-alternar').isDisabled())
@@ -192,7 +192,7 @@ try {
 
   secao('2. Painel: ligar o robô (dono) e permissões')
   const dono = await logar('dono.roboa')
-  await dono.p.goto(`${BASE}/admin/integracoes`, { waitUntil: 'networkidle' })
+  await dono.p.goto(`${BASE}/admin/ajustes?aba=robo`, { waitUntil: 'networkidle' })
   await dispensar(dono.p)
   ok('todas as lojas nascem com o robô desligado', (await um(`select count(*)::int n from whatsapp_robo_config where robo_ativo`)).n === 0)
   // Interruptor otimista (sem confirmação): muda na hora e mostra o aviso.
@@ -294,15 +294,16 @@ try {
   await webhook(SEG_A, evento('robo-sim-a', { texto: 'alô?' }))
   await webhook(SEG_A, evento('robo-sim-a', { texto: 'cadê meu pedido' }))
   ok('silenciada: o robô não responde mais nada', (await envios(A)).length === nAt)
-  await dono.p.goto(`${BASE}/admin/integracoes`, { waitUntil: 'networkidle' })
+  await dono.p.goto(`${BASE}/admin/ajustes?aba=robo`, { waitUntil: 'networkidle' })
   await dispensar(dono.p)
-  await dono.p.getByTestId('robo-silenciadas').waitFor({ timeout: 10000 })
-  const lista = await dono.p.getByTestId('robo-silenciadas').innerText()
-  ok('painel lista a conversa com o número mascarado', lista.includes('5511*****0001') && !lista.includes(CLI))
-  await dono.p.screenshot({ path: join(SHOTS, 'integracoes-robo-silenciada-1366.png'), fullPage: true })
-  await dono.p.getByTestId('robo-reativar').first().click()
-  await dono.p.getByTestId('robo-sem-silenciadas').waitFor({ timeout: 10000 })
-  ok('"Devolver ao robô" reativa', (await conversa(A)).estado === 'robo')
+  // Quem aguarda atendente aparece SÓ na central do WhatsApp (canto inferior), não em Ajustes.
+  ok('Ajustes › Robô não mostra a lista de quem aguarda', (await dono.p.getByTestId('robo-silenciadas').count()) === 0 && (await dono.p.getByTestId('robo-24h').count()) === 0)
+  const lista = await api(dono.p, '/api/admin/whatsapp/conversas')
+  const txtLista = JSON.stringify(lista.j)
+  ok('API da central lista a conversa com o número mascarado', txtLista.includes('5511*****0001') && !txtLista.includes(CLI), txtLista.slice(0, 200))
+  const conv = lista.j?.emAtendimento?.[0]
+  const devolveu = await api(dono.p, '/api/admin/whatsapp/conversas', 'POST', { conversaId: conv?.id, acao: 'devolver' })
+  ok('"Devolver ao robô" reativa', devolveu.s === 200 && (await conversa(A)).estado === 'robo')
   await db.query(`update whatsapp_conversas set resposta_padrao_em = null where restaurante_id=$1 and telefone=$2`, [A, CLI])
   await webhook(SEG_A, evento('robo-sim-a', { texto: 'e agora?' }))
   ok('depois de devolvido, o robô volta a responder', (await envios(A)).length === nAt + 1)
@@ -444,10 +445,10 @@ try {
   ok('eventos: 91 dias ficam, 13 meses saem', (await um(`select count(*)::int n from whatsapp_eventos where restaurante_id=$1 and criado_em < now() - interval '12 months'`, [A])).n === 0 && (await um(`select count(*)::int n from whatsapp_eventos where restaurante_id=$1 and criado_em < now() - interval '90 days'`, [A])).n >= 1)
   ok('recentes intactas', (await q(`select 1 from whatsapp_mensagens where restaurante_id=$1 and texto is not null`, [A])).length > 0 && limp?.anonimizadas?.mensagens >= 1, JSON.stringify(limp))
 
-  secao('12. Tela em Integrações nas larguras pedidas')
+  secao('12. Tela do robô (Ajustes) nas larguras pedidas')
   for (const [w, h] of [[360, 780], [390, 844], [412, 915], [768, 1024], [1366, 768], [1920, 1080]]) {
     await dono.p.setViewportSize({ width: w, height: h })
-    await dono.p.goto(`${BASE}/admin/integracoes`, { waitUntil: 'networkidle' })
+    await dono.p.goto(`${BASE}/admin/ajustes?aba=robo`, { waitUntil: 'networkidle' })
     await dispensar(dono.p)
     const card = dono.p.getByTestId('robo-whatsapp')
     await card.getByTestId('robo-alternar').waitFor({ timeout: 10000 })
@@ -457,13 +458,13 @@ try {
     await card.screenshot({ path: join(SHOTS, `integracoes-robo-${w}.png`) })
   }
   await dono.p.setViewportSize({ width: 1366, height: 768 })
-  await dono.p.goto(`${BASE}/admin/integracoes`, { waitUntil: 'networkidle' })
+  await dono.p.goto(`${BASE}/admin/ajustes?aba=robo`, { waitUntil: 'networkidle' })
   await dispensar(dono.p)
   const cartaoDono = await dono.p.getByTestId('robo-whatsapp').innerText()
   ok('dono: nada técnico na tela (webhook, segredo, boas-vindas, tempos)',
     (await dono.p.getByTestId('robo-avancado').count()) === 0 && (await dono.p.getByTestId('robo-webhook').count()) === 0 && (await dono.p.getByTestId('robo-rotacionar').count()) === 0
     && (await dono.p.getByTestId('robo-boas-vindas').count()) === 0 && !/webhook|segredo/i.test(cartaoDono))
-  ok('dono: toggle com estado, conexão do WhatsApp e números', /Conectado/.test(await dono.p.getByTestId('whatsapp-status').innerText()) && /Mensagens recebidas/.test(cartaoDono) && /Respostas do robô/.test(cartaoDono) && /Aguardando atendente/.test(cartaoDono)
+  ok('dono: toggle com estado, sem os números (eles ficam só na central do WhatsApp)', !/Mensagens recebidas|Respostas do robô|Aguardando atendente/.test(cartaoDono)
     && (await dono.p.getByTestId('robo-alternar').getAttribute('role')) === 'switch')
   // WhatsApp da loja desconectado: não dá para ligar (mas dá para desligar).
   await db.query(`update whatsapp_robo_config set robo_ativo=false where restaurante_id=$1`, [A])
@@ -472,7 +473,7 @@ try {
   await dispensar(dono.p)
   await dono.p.getByTestId('robo-dica').waitFor({ timeout: 10000 })
   ok('WhatsApp não conectado: toggle desabilitado com "Conecte o WhatsApp para ativar" e o atalho para conectar',
-    (await dono.p.getByTestId('robo-alternar').isDisabled()) && /Conecte o WhatsApp para ativar/.test(await dono.p.getByTestId('robo-dica').innerText()) && (await dono.p.getByTestId('robo-ir-conectar').isVisible()) && /Desconectado/.test(await dono.p.getByTestId('whatsapp-status').innerText()))
+    (await dono.p.getByTestId('robo-alternar').isDisabled()) && /Conecte o WhatsApp para ativar/.test(await dono.p.getByTestId('robo-dica').innerText()) && (await dono.p.getByTestId('robo-ir-conectar').isVisible()))
   await dono.p.screenshot({ path: join(SHOTS, 'integracoes-robo-sem-whatsapp.png') })
   await db.query(`update restaurantes set evolution_instance='robo-sim-a' where id=$1`, [A])
   await dono.p.reload({ waitUntil: 'networkidle' })
@@ -482,7 +483,7 @@ try {
   await espera(800)
   ok('com o WhatsApp de volta, o toggle liga de novo', (await um(`select robo_ativo from whatsapp_robo_config where restaurante_id=$1`, [A])).robo_ativo === true)
   await sup.p.setViewportSize({ width: 1366, height: 768 })
-  await sup.p.goto(`${BASE}/admin/integracoes`, { waitUntil: 'networkidle' })
+  await sup.p.goto(`${BASE}/admin/ajustes?aba=robo`, { waitUntil: 'networkidle' })
   await dispensar(sup.p)
   await sup.p.getByTestId('robo-avancado').locator('summary').click()
   await sup.p.getByTestId('robo-boas-vindas').fill('Bem-vindo à Lanchonete Robô A!')

@@ -150,6 +150,16 @@ export function CentralAtendimento({ restauranteId, som, onSom, onFechar, onMini
     ? 'inset-3 sm:inset-6'
     : 'inset-0 sm:inset-auto sm:bottom-4 sm:right-4 sm:h-[640px] sm:w-[960px] sm:max-h-[calc(100vh-2rem)] sm:max-w-[calc(100vw-2rem)] sm:resize sm:min-h-[420px] sm:min-w-[640px]'
 
+  // Situação do robô (ligado e respostas em 24h), conferida ao abrir a central.
+  const [robo, setRobo] = useState<{ ativo: boolean; respostas24h: number } | null>(null)
+  useEffect(() => {
+    if (oculto) return
+    fetch('/api/admin/whatsapp/robo', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (j) setRobo({ ativo: Boolean(j.roboAtivo), respostas24h: Number(j.envios24h?.enviados ?? 0) }) })
+      .catch(() => {})
+  }, [oculto])
+
   return (
     <section
       role="dialog"
@@ -161,6 +171,12 @@ export function CentralAtendimento({ restauranteId, som, onSom, onFechar, onMini
       <header className="flex h-[46px] flex-shrink-0 items-center gap-2 border-b border-[#E5E7EB] bg-[#F9FAFB] px-3">
         <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#25D366] text-white"><Bot className="h-3.5 w-3.5" /></span>
         <h2 className="text-[14px] font-semibold text-[#111827]">Atendimento WhatsApp</h2>
+        {/* Informações do robô ficam SÓ aqui (2026-10-06): Integrações é só conectar; a configuração, em Ajustes. */}
+        {robo && (
+          <span className={['hidden items-center gap-1 rounded-full px-2 py-[2px] text-[11.5px] font-semibold sm:inline-flex', robo.ativo ? 'bg-[#ECFDF5] text-[#047857]' : 'bg-[#F3F4F6] text-[#4B5563]'].join(' ')} data-testid="atendimento-robo" title="Configurar em Ajustes › Robô de atendimento">
+            <Bot className="h-3 w-3" /> {robo.ativo ? `Robô ativo · ${robo.respostas24h} respostas em 24h` : 'Robô desligado'}
+          </span>
+        )}
         <div className="ml-auto flex items-center gap-0.5">
           <button type="button" onClick={() => onSom(!som)} title={som ? 'Desligar som de aviso' : 'Ligar som de aviso'} aria-label={som ? 'Desligar som de aviso' : 'Ligar som de aviso'} className="flex h-8 w-8 items-center justify-center rounded-[8px] text-[#6B7280] hover:bg-[#EEF0F3]" data-testid="atendimento-som">
             {som ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}

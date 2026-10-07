@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { TopBar } from '@/components/layout/topbar'
-import { SubmenuVertical } from '@/components/admin/submenu-vertical'
+import { SubmenuVertical, type ItemSubmenu } from '@/components/admin/submenu-vertical'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { getBrowserSupabase } from '@/lib/supabase/client'
@@ -428,9 +428,9 @@ function cupomInputFromRecord(c: CupomComStats): CupomInput {
 
 type Aba = 'campanhas' | 'cupons'
 
-const ABAS: { id: Aba; label: string }[] = [
-  { id: 'campanhas', label: 'Campanhas de fidelidade' },
-  { id: 'cupons', label: 'Cupons' },
+const ABAS: ItemSubmenu<Aba>[] = [
+  { id: 'campanhas', label: 'Campanhas de fidelidade', icone: 'loyalty' },
+  { id: 'cupons', label: 'Cupons', icone: 'local_offer' },
 ]
 
 export default function FidelidadePage() {
@@ -644,7 +644,7 @@ export default function FidelidadePage() {
         breadcrumb="Campanhas de fidelidade e cupons de desconto"
         right={
           // Atalho para as notificações do app (0127): avisar o cliente do progresso e do prêmio.
-          <a href="/admin/campanhas?aba=notificacoes" className="inline-flex h-[34px] items-center gap-1.5 rounded-[5px] border border-border bg-white px-3 text-[12.5px] font-semibold text-text-main hover:border-primary hover:text-primary" data-atalho-notificacoes>
+          <a href="/admin/ajustes?aba=notificacoes" className="inline-flex h-[34px] items-center gap-1.5 rounded-[5px] border border-border bg-white px-3 text-[12.5px] font-semibold text-text-main hover:border-primary hover:text-primary" data-atalho-notificacoes>
             <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden><path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22zm7-6V11a7 7 0 0 0-5.5-6.84V3.5a1.5 1.5 0 0 0-3 0v.66A7 7 0 0 0 5 11v5l-1.7 1.7A1 1 0 0 0 4 19.4h16a1 1 0 0 0 .7-1.7z" /></svg>
             Notificações do app
           </a>
