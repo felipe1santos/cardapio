@@ -65,8 +65,8 @@ try {
   await troco.fill('100')
   await p.getByRole('button', { name: /Ir para endereço/ }).tap()
   await p.waitForTimeout(600)
-  const telCheckout = await p.getByPlaceholder('(00) 00000-0000').first().inputValue().catch(() => '')
-  ok('telefone informado já vem preenchido no checkout', telCheckout.replace(/\D/g, '').endsWith('27999887766'), telCheckout)
+  // 2026-10-07: o checkout não pede mais o telefone ("Seus dados" saiu) — vem da sessão; o pedido no banco é conferido no fim.
+  ok('checkout não pede o telefone de novo', (await p.getByPlaceholder('(00) 00000-0000').count()) === 0)
   await p.getByPlaceholder('Seu nome').fill('Cliente Celular')
   const bairro = p.getByPlaceholder(/Digite ou toque na seta|^Bairro/).first()
   await bairro.fill('Centro')

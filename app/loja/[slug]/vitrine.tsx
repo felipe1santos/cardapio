@@ -1746,6 +1746,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       setContaEndereco(data.endereco)
       setContaEditando(!data.nome && !data.endereco.rua)
       setContaCodigo('')
+      // O checkout não mostra mais "Seus dados": o nome do perfil já vai para o pedido.
+      setCliente((c) => ({ nome: data.nome || c.nome, telefone: mascararTelefoneBR(data.telefone) }))
     } catch (err) {
       setContaError(err instanceof Error ? err.message : 'Código inválido.')
     } finally {
@@ -5103,24 +5105,18 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 </div>
               )}
 
-              <section className="mt-[8px]">
-                <TituloSecao>Seus dados</TituloSecao>
-              <div className="rounded-[8px] border border-[#E5E5E5] bg-white p-[14px]">
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  <div className="flex-1">
+              {/* Só se chega aqui logado (o telefone vem da sessão): "Seus dados" não aparece.
+                  Perfil ainda sem nome (cliente novo ou sem o código confirmado): pede só o nome. */}
+              {!perfilCliente?.nome?.trim() && (
+                <section className="mt-[8px]" data-testid="checkout-nome">
+                  <TituloSecao>Como podemos te chamar?</TituloSecao>
+                  <div className="rounded-[8px] border border-[#E5E5E5] bg-white p-[14px]">
                     <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Nome *</label>
-                    <input value={cliente.nome} onChange={(e) => setCliente((c) => ({ ...c, nome: e.target.value }))} placeholder="Seu nome"
+                    <input value={cliente.nome} onChange={(e) => setCliente((c) => ({ ...c, nome: e.target.value }))} placeholder="Seu nome" autoComplete="name"
                       className="w-full rounded-md border border-border p-3 text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
                   </div>
-                  <div className="flex-1">
-                    <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Telefone</label>
-                    <input value={cliente.telefone} onChange={(e) => setCliente((c) => ({ ...c, telefone: mascararTelefoneBR(e.target.value) }))} placeholder="(00) 00000-0000" inputMode="tel" autoComplete="tel" maxLength={16}
-                      className="w-full rounded-md border border-border p-3 text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
-                  </div>
-                </div>
-              </div>
-
-              </section>
+                </section>
+              )}
             </div>
           )}
 

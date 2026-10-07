@@ -1723,6 +1723,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       setContaEndereco(data.endereco)
       setContaEditando(!data.nome && !data.endereco.rua)
       setContaCodigo('')
+      // O checkout não mostra mais "Seus dados": o nome do perfil já vai para o pedido.
+      setCliente((c) => ({ nome: data.nome || c.nome, telefone: mascararTelefoneBR(data.telefone) }))
     } catch (err) {
       setContaError(err instanceof Error ? err.message : 'Código inválido.')
     } finally {
@@ -4886,21 +4888,16 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
           {checkoutStep === 2 && (
             <div className="px-4 pb-5">
-              <div className="rounded-lg border border-border bg-white p-4">
-                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">Seus dados</h3>
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  <div className="flex-1">
-                    <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Nome *</label>
-                    <input value={cliente.nome} onChange={(e) => setCliente((c) => ({ ...c, nome: e.target.value }))} placeholder="Seu nome"
-                      className="w-full rounded-md border border-border p-3 text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
-                  </div>
-                  <div className="flex-1">
-                    <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Telefone</label>
-                    <input value={cliente.telefone} onChange={(e) => setCliente((c) => ({ ...c, telefone: mascararTelefoneBR(e.target.value) }))} placeholder="(00) 00000-0000" inputMode="tel" autoComplete="tel" maxLength={16}
-                      className="w-full rounded-md border border-border p-3 text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
-                  </div>
+              {/* Só se chega aqui logado (o telefone vem da sessão): "Seus dados" não aparece.
+                  Perfil ainda sem nome (cliente novo ou sem o código confirmado): pede só o nome. */}
+              {!perfilCliente?.nome?.trim() && (
+                <div className="mb-4 rounded-lg border border-border bg-white p-4" data-testid="checkout-nome">
+                  <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">Como podemos te chamar?</h3>
+                  <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Nome *</label>
+                  <input value={cliente.nome} onChange={(e) => setCliente((c) => ({ ...c, nome: e.target.value }))} placeholder="Seu nome" autoComplete="name"
+                    className="w-full rounded-md border border-border p-3 text-[15px] outline-none focus:border-[var(--tema-primaria)]" />
                 </div>
-              </div>
+              )}
 
               {/* Retirada não tem endereço de entrega: no lugar do formulário,
                   o cliente precisa saber ONDE buscar. */}
