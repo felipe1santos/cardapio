@@ -136,11 +136,12 @@ const AGUA = await item('Água com Gás')
 secao('1–4. Parear computador A, descobrir impressoras, atribuir funções (pela tela)')
 await pGer.goto(`${BASE}/admin/impressao`, { waitUntil: 'networkidle' })
 await dispensarChecklist(pGer)
-// Tela nova (2026-10-06): loja em "Somente Caixa" = Assistente novo; o código sai do passo 4
-// ("Conectar computador").
+// Tela v2 (2026-10-07): o código sai de "Avançado › Computador".
+await pGer.getByTestId('abrir-avancado').click()
 await pGer.getByTestId('trocar-computador').click()
 const codigoA = (await pGer.getByTestId('codigo-pareamento').innerText()).trim()
 await pGer.getByTestId('modal-pareamento').getByRole('button', { name: 'Fechar', exact: true }).click() // o código não vai para screenshot
+await pGer.keyboard.press('Escape')
 ok('gerente gera o código na tela', /^[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(codigoA))
 const A = iniciarAgente('pc-loja', ['Impressora 01', 'Impressora 02'])
 const rA = await A.cmd({ cmd: 'parear', codigo: codigoA, nome: 'PC Loja' })
@@ -157,17 +158,26 @@ await api(pGer, `/api/admin/impressao/dispositivos/${d01.id}`, 'PATCH', { apelid
 await api(pGer, `/api/admin/impressao/dispositivos/${d02.id}`, 'PATCH', { apelido: 'Caixa 02', larguraMm: 58 })
 await pGer.reload({ waitUntil: 'networkidle' })
 await dispensarChecklist(pGer)
-// Impressoras: passo 3, "Adicionar impressora" abre as detectadas no computador, salvas de uma vez.
-await pGer.getByTestId('adicionar-impressora').click()
-// Cartão da impressora → seletor de uso (Cozinha / Caixa / Cozinha e Caixa / Não usar).
+// Tela v2: card 2 — a impressora entra na lista ("Adicionar") e as funções saem do seletor da linha.
 const usar = async (nome, valor) => {
-  const grupo = pGer.getByTestId(`funcao-dispositivo-${nome}`).first()
-  if (!(await grupo.isVisible().catch(() => false))) await pGer.getByTestId(`selecionar-${nome}`).first().click()
-  await pGer.getByTestId(`funcao-dispositivo-${nome}-${valor || 'nenhuma'}`).first().click()
+  const pnU = await painel(pGer)
+  const d = pnU.dispositivos.find((x) => x.nomeSistema === nome && pnU.agentes.some((a) => a.id === x.agenteId && !a.revogado))
+  if (!(await pGer.getByTestId(`impressora-${d.id}`).isVisible().catch(() => false))) {
+    await pGer.getByTestId('adicionar-select').selectOption(d.id)
+    await pGer.getByTestId('adicionar-impressora').click()
+    await pGer.getByTestId(`impressora-${d.id}`).waitFor({ timeout: 8000 })
+  }
+  const quero = valor === 'ambas' ? ['cozinha', 'caixa'] : [valor]
+  for (const f of quero) {
+    if ((await painel(pGer)).funcoes[f] === d.id) continue
+    await pGer.getByTestId(`funcao-${d.id}`).click()
+    await pGer.getByTestId(`funcao-${d.id}-${f}`).click()
+    await aguardar(async () => (await painel(pGer)).funcoes[f] === d.id, 8000)
+    await pGer.keyboard.press('Escape')
+  }
 }
 await usar('Impressora 01', 'cozinha')
 await usar('Impressora 02', 'caixa')
-await pGer.getByTestId('salvar-impressoras').click()
 await aguardar(async () => { const f = (await painel(pGer)).funcoes; return f.cozinha === d01.id && f.caixa === d02.id })
 pn = await painel(pGer)
 ok('Cozinha → Impressora 01, Caixa → Impressora 02', pn.funcoes.cozinha === d01.id && pn.funcoes.caixa === d02.id)
@@ -282,10 +292,8 @@ await esperar(4000)
 ok('e nada sai no PC Loja', A.impressos().length === antesB)
 await pGer.goto(`${BASE}/admin/impressao`, { waitUntil: 'networkidle' })
 await dispensarChecklist(pGer)
-// Tela nova: passo 3, "Adicionar impressora".
-await pGer.getByTestId('adicionar-impressora').click()
-await usar('Impressora 01', 'ambas') // escolha explícita das duas funções
-await pGer.getByTestId('salvar-impressoras').click()
+// Tela v2: marcar a segunda função na mesma impressora (escolha explícita no seletor).
+await usar('Impressora 01', 'ambas')
 ok('uma impressora nas duas funções: só depois de confirmar na tela', !!(await aguardar(async () => (await painel(pGer)).funcoes.caixa === d01.id)))
 await foto(pGer, 'imp-03-uma-impressora-duas-funcoes')
 const antes01 = A.impressos().length
@@ -303,8 +311,8 @@ ok('outra loja não vê os computadores nem as impressoras desta', !(pViz2?.agen
 secao('24–25. Revogar o computador A pela tela')
 await pGer.goto(`${BASE}/admin/impressao`, { waitUntil: 'networkidle' })
 await dispensarChecklist(pGer)
-// Computadores: Situação geral › Detalhes técnicos › Desconectar.
-await pGer.getByTestId('detalhes-tecnicos').locator('summary').click()
+// Computadores: Avançado › Computador › Desconectar.
+await pGer.getByTestId('abrir-avancado').click()
 await pGer.getByTestId('revogar-PC Loja').click()
 ok('A revogado', !!(await aguardar(async () => (await painel(pGer)).agentes.find((a) => a.nome === 'PC Loja')?.revogado)))
 const logA = await aguardar(() => A.logs.find((l) => l.includes('desconectado da loja')), 15000)

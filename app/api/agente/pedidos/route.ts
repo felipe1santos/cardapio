@@ -3,7 +3,7 @@ import { getAdminSupabase } from '@/lib/supabase/admin'
 import { buscarConfigImpressao, buscarLojaImpressao, listarImpressoras, listarPedidosParaImprimir, registrarHeartbeatAgente } from '@/lib/queries/impressao'
 import { lerAgenteToken } from '@/lib/agente-token'
 import { identificarAgente } from '@/lib/impressao/credenciais'
-import { destinoCozinha } from '@/lib/impressao/servico'
+import { destinoCozinha, destinoEntrega } from '@/lib/impressao/servico'
 import { aposCorteDaTransferencia } from '@/lib/impressao/transferencia'
 import { extrasDaCozinhaBeta, lojaDaCozinhaBeta, lojaImpressao, qrDaCozinha, type LojaImpressao } from '@/lib/impressao/cozinha-beta'
 import { esperarComBusca } from '@/lib/impressao/despertador'
@@ -86,12 +86,16 @@ export async function GET(request: Request) {
       try { qr = lojaBeta?.slug && config?.qr !== false ? qrDaCozinha(lojaBeta) : null } catch { qr = null }
       beta = { extras, qr, loja: dadosLoja }
     }
+    // Comanda de entrega (0158, beta.10+): só quando a impressora dela é deste mesmo computador.
+    const entrega = souDono ? await destinoEntrega(admin, restauranteId).catch(() => null) : null
+    const { agenteId: agenteEntrega, ...destinoEntregaPerfil } = entrega ?? { agenteId: null }
     return NextResponse.json({
       config,
       impressoras,
       pedidos,
       loja,
       ...(beta ? { cozinhaBeta: beta } : {}),
+      ...(entrega && agenteEntrega === rota.agenteId ? { destinoEntrega: destinoEntregaPerfil } : {}),
       ...(anunciaEsperaLonga(esperar, config?.impressaoAutomatica) ? { esperaAte: 20 } : {}),
       destinoCozinha: souDono
         ? { nomeSistema: rota.nomeSistema, larguraMm: rota.larguraMm, tamanhoFonte: rota.tamanhoFonte, copias: rota.copias,

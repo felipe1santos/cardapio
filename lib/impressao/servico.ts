@@ -15,6 +15,8 @@ import { COLUNAS_ENVIO, ehCaminho, perfilEnvio, validarPerfilEnvio, type Caminho
 export type Funcao = 'cozinha' | 'caixa'
 export const FUNCOES: Funcao[] = ['cozinha', 'caixa']
 export const ehFuncao = (v: unknown): v is Funcao => v === 'cozinha' || v === 'caixa'
+export { FUNCOES_IMPRESSORA, ehFuncaoImpressora, ROTULO_FUNCAO_IMPRESSORA, type FuncaoImpressora } from './funcoes'
+import { ROTULO_FUNCAO_IMPRESSORA, FUNCOES_IMPRESSORA, type FuncaoImpressora } from './funcoes'
 
 /** Agente "online" = sinal nos últimos 30 s (ele consulta a cada poucos segundos). */
 export const ONLINE_SEGUNDOS = 30
@@ -156,7 +158,9 @@ export interface DispositivoVisao extends PerfilEnvio {
   ultimoUsoEm: string | null
   ultimoErro: string | null
   ultimoErroEm: string | null
-  funcoes: Funcao[]
+  funcoes: FuncaoImpressora[]
+  /** A loja adicionou esta impressora na tela (0158); as outras só aparecem para adicionar. */
+  naLista: boolean
   /** Último caminho que a impressão usou (0157, Assistente beta.10+): nulo = ainda não informado. */
   envioCaminho: CaminhoEnvio | null
   envioCaminhoEm: string | null
@@ -182,13 +186,13 @@ export interface TrabalhoVisao {
 export async function painelImpressao(admin: SupabaseClient, restauranteId: string) {
   const [{ data: ags }, { data: dsp }, { data: fns }, { data: tbs }, { data: loja }] = await Promise.all([
     admin.from('impressao_agentes').select('id, nome, versao, visto_em, revogado_em, criado_em, criado_por_nome').eq('restaurante_id', restauranteId).order('criado_em'),
-    admin.from('impressao_dispositivos').select(`id, agente_id, nome_sistema, apelido, largura_mm, tamanho_fonte, largura_pontos, deslocamento_pontos, diagnostico, calibrado_em, calibrado_por_nome, disponivel, visto_em, ultimo_uso_em, ultimo_erro, ultimo_erro_em, envio_caminho, envio_caminho_em, envio_caminho_obs, ${COLUNAS_ENVIO}`).eq('restaurante_id', restauranteId).order('criado_em'),
+    admin.from('impressao_dispositivos').select(`id, agente_id, nome_sistema, apelido, largura_mm, tamanho_fonte, largura_pontos, deslocamento_pontos, diagnostico, calibrado_em, calibrado_por_nome, disponivel, visto_em, ultimo_uso_em, ultimo_erro, ultimo_erro_em, envio_caminho, envio_caminho_em, envio_caminho_obs, na_lista, ${COLUNAS_ENVIO}`).eq('restaurante_id', restauranteId).order('criado_em'),
     admin.from('impressao_funcoes').select('funcao, dispositivo_id').eq('restaurante_id', restauranteId),
     admin.from('impressao_trabalhos').select('id, tipo, via, estado, erro, tentativas, criado_em, enviado_em, criado_por_nome, comanda_id, calibracao:snapshot->>calibracao, recibo_teste:snapshot->>recibo_teste, cozinha_teste:snapshot->>cozinha_teste, impressao_dispositivos ( apelido, nome_sistema )').eq('restaurante_id', restauranteId).order('criado_em', { ascending: false }).limit(30),
     admin.from('restaurantes').select('impressao_cozinha_por_funcao, impressao_agente_visto_em, impressao_beta_liberado, impressao_beta_modo, impressao_cozinha_transferida_em').eq('id', restauranteId).maybeSingle(),
   ])
   const agora = Date.now()
-  const funcoes = (fns ?? []) as { funcao: Funcao; dispositivo_id: string }[]
+  const funcoes = (fns ?? []) as { funcao: FuncaoImpressora; dispositivo_id: string }[]
   const agentes: AgenteVisao[] = ((ags ?? []) as Record<string, string | null>[]).map((a) => ({
     id: a.id as string,
     nome: a.nome as string,
@@ -217,6 +221,7 @@ export async function painelImpressao(admin: SupabaseClient, restauranteId: stri
     ultimoErro: (d.ultimo_erro as string | null) ?? null,
     ultimoErroEm: (d.ultimo_erro_em as string | null) ?? null,
     funcoes: funcoes.filter((f) => f.dispositivo_id === d.id).map((f) => f.funcao),
+    naLista: d.na_lista === true || funcoes.some((f) => f.dispositivo_id === d.id),
     envioCaminho: ehCaminho(d.envio_caminho) ? d.envio_caminho : null,
     envioCaminhoEm: (d.envio_caminho_em as string | null) ?? null,
     envioCaminhoObs: (d.envio_caminho_obs as string | null) ?? null,
@@ -240,7 +245,7 @@ export async function painelImpressao(admin: SupabaseClient, restauranteId: stri
   return {
     agentes,
     dispositivos,
-    funcoes: Object.fromEntries(FUNCOES.map((f) => [f, funcoes.find((x) => x.funcao === f)?.dispositivo_id ?? null])) as Record<Funcao, string | null>,
+    funcoes: Object.fromEntries(FUNCOES_IMPRESSORA.map((f) => [f, funcoes.find((x) => x.funcao === f)?.dispositivo_id ?? null])) as Record<FuncaoImpressora, string | null>,
     trabalhos,
     cozinhaPorFuncao: loja?.impressao_cozinha_por_funcao === true,
     betaLiberado: loja?.impressao_beta_liberado === true,
@@ -292,9 +297,15 @@ export async function ajustarDispositivo(
   a: {
     apelido?: unknown; larguraMm?: unknown; tamanhoFonte?: unknown; larguraPontos?: unknown; deslocamentoPontos?: unknown
     intensidade?: unknown; envio?: unknown; modoImpressao?: unknown; redeIp?: unknown; redePorta?: unknown
+    naLista?: unknown
   },
-): Promise<Resultado<null>> {
+): Promise<Resultado<null> & { modoRecuou?: ModoBeta | null }> {
   const patch: Record<string, unknown> = {}
+  // Adicionar/remover da lista da tela (0158). Remover tira as funções dela (o modo recua se precisar).
+  if (a.naLista !== undefined) {
+    if (typeof a.naLista !== 'boolean') return falha('Valor inválido para a lista.')
+    patch.na_lista = a.naLista
+  }
   // Como a impressora recebe (0109): intensidade, envio direto (fila/rede) e modo texto.
   if ([a.intensidade, a.envio, a.modoImpressao, a.redeIp, a.redePorta].some((v) => v !== undefined)) {
     const { data: atual } = await admin.from('impressao_dispositivos').select(COLUNAS_ENVIO).eq('id', id).eq('restaurante_id', op.restauranteId).maybeSingle()
@@ -337,8 +348,14 @@ export async function ajustarDispositivo(
   const { data, error } = await admin.from('impressao_dispositivos').update(patch).eq('id', id).eq('restaurante_id', op.restauranteId).select('id, nome_sistema')
   if (error) return falha('Não foi possível salvar.', 500, 'erro')
   if (!data?.length) return falha('Impressora não encontrada nesta loja.', 404, 'dispositivo_inexistente')
-  await auditar(admin, op, 'impressao.impressora_ajustada', 'impressao_dispositivo', id, { ...patch, resumo: (patch.apelido as string) ?? data[0].nome_sistema })
-  return { ok: true, valor: null }
+  let modoRecuou: ModoBeta | null = null
+  if (patch.na_lista === false) {
+    const { data: tiradas } = await admin.from('impressao_funcoes').delete().eq('restaurante_id', op.restauranteId).eq('dispositivo_id', id).select('funcao')
+    if (tiradas?.length) modoRecuou = await garantirModoValido(admin, op)
+  }
+  const acao = patch.na_lista === true ? 'impressao.impressora_adicionada' : patch.na_lista === false ? 'impressao.impressora_removida' : 'impressao.impressora_ajustada'
+  await auditar(admin, op, acao, 'impressao_dispositivo', id, { ...patch, resumo: (patch.apelido as string) ?? data[0].nome_sistema })
+  return { ok: true, valor: null, modoRecuou }
 }
 
 /**
@@ -348,7 +365,7 @@ export async function ajustarDispositivo(
 export async function atribuirFuncao(
   admin: SupabaseClient,
   op: Operador,
-  funcao: Funcao,
+  funcao: FuncaoImpressora,
   dispositivoId: string | null,
   confirmarCompartilhada: boolean,
 ): Promise<Resultado<null> & { modoRecuou?: ModoBeta | null }> {
@@ -371,15 +388,17 @@ export async function atribuirFuncao(
   const ag = (d as unknown as { impressao_agentes: { revogado_em: string | null } | null }).impressao_agentes
   if (ag?.revogado_em) return falha('Esta impressora está num computador desconectado.', 409, 'agente_revogado')
 
-  const outra: Funcao = funcao === 'cozinha' ? 'caixa' : 'cozinha'
-  const { data: jaTem } = await admin.from('impressao_funcoes').select('dispositivo_id').eq('restaurante_id', op.restauranteId).eq('funcao', outra).maybeSingle()
-  if (jaTem?.dispositivo_id === dispositivoId && !confirmarCompartilhada) {
-    return falha(`Esta impressora já faz a função ${outra === 'cozinha' ? 'Cozinha' : 'Caixa'}. Confirme para ela fazer as duas.`, 409, 'confirmar_compartilhada')
+  // Outra função na mesma impressora: só com confirmação (a tela nova confirma ao marcar).
+  const { data: outras } = await admin.from('impressao_funcoes').select('funcao').eq('restaurante_id', op.restauranteId).eq('dispositivo_id', dispositivoId).neq('funcao', funcao)
+  const jaTem = outras?.length ? { dispositivo_id: dispositivoId } : null
+  if (outras?.length && !confirmarCompartilhada) {
+    return falha(`Esta impressora já faz a função ${ROTULO_FUNCAO_IMPRESSORA[outras[0].funcao as FuncaoImpressora] ?? outras[0].funcao}. Confirme para ela fazer as duas.`, 409, 'confirmar_compartilhada')
   }
   const { error } = await admin
     .from('impressao_funcoes')
     .upsert({ restaurante_id: op.restauranteId, funcao, dispositivo_id: dispositivoId, atribuido_em: new Date().toISOString(), atribuido_por_nome: op.nome })
   if (error) return falha('Não foi possível atribuir a função.', 500, 'erro')
+  await admin.from('impressao_dispositivos').update({ na_lista: true }).eq('id', dispositivoId).eq('restaurante_id', op.restauranteId)
   await auditar(admin, op, 'impressao.funcao_atribuida', 'impressao_dispositivo', dispositivoId, {
     funcao, compartilhada: jaTem?.dispositivo_id === dispositivoId, resumo: `${funcao} → ${d.apelido ?? d.nome_sistema}`,
   })
@@ -664,6 +683,25 @@ export async function destinoCozinha(admin: SupabaseClient, restauranteId: strin
     deslocamentoPontos: d?.deslocamento_pontos ?? 0,
     transferidaEm: (loja?.impressao_cozinha_transferida_em as string | null) ?? null,
     ...perfilEnvio(d),
+  }
+}
+
+/**
+ * Comanda de entrega (0158): impressora da função 'entrega' — o Assistente beta.10+ do MESMO
+ * computador da Cozinha imprime nela uma via a mais da comanda dos pedidos de entrega.
+ */
+export async function destinoEntrega(admin: SupabaseClient, restauranteId: string) {
+  const { data: f } = await admin
+    .from('impressao_funcoes')
+    .select(`impressao_dispositivos ( agente_id, nome_sistema, largura_mm, tamanho_fonte, largura_pontos, deslocamento_pontos, ${COLUNAS_ENVIO} )`)
+    .eq('restaurante_id', restauranteId)
+    .eq('funcao', 'entrega')
+    .maybeSingle()
+  const d = (f as unknown as { impressao_dispositivos: (Record<string, unknown> & { agente_id: string; nome_sistema: string; largura_mm: 58 | 80; tamanho_fonte: string; largura_pontos: number | null; deslocamento_pontos: number }) | null } | null)?.impressao_dispositivos
+  if (!d) return null
+  return {
+    agenteId: d.agente_id, nomeSistema: d.nome_sistema, larguraMm: d.largura_mm, tamanhoFonte: d.tamanho_fonte,
+    larguraPontos: d.largura_pontos ?? null, deslocamentoPontos: d.deslocamento_pontos ?? 0, ...perfilEnvio(d),
   }
 }
 

@@ -315,6 +315,19 @@ async function cicloDePolling() {
               log(`Pedido #${pedido.numero}: a via da cozinha falhou (${descreverErro(e)}).`)
             }
           }
+          // Comanda de entrega (0158, beta.10): pedido de ENTREGA ganha uma via a mais na
+          // impressora da função "Comanda de entrega" (deste computador). Falhar aqui não segura
+          // a comanda, que já saiu.
+          const dEntrega = data.destinoEntrega
+          if (dEntrega && dEntrega.nomeSistema && pedido.tipo === 'entrega') {
+            try {
+              const perfilEntrega = { ...PERFIL_LOG, ...perfilEnvio(dEntrega), diagnostico: diagnosticos[dEntrega.nomeSistema] || null, tempos: { _t0: Date.now() }, pausaFaixasMs: config.pausaFaixasMs ?? 0, larguraPontos: dEntrega.larguraPontos ?? null, deslocamentoPontos: dEntrega.deslocamentoPontos ?? 0, tamanhoFonte: dEntrega.tamanhoFonte, imprimirLogo: perfilCozinha.imprimirLogo }
+              await imprimirDocumentoBeta(dEntrega.nomeSistema, { ...doc, texto: textoDoV3(doc) }, Number(dEntrega.larguraMm) <= 58 ? 58 : 80, { ...perfilEntrega, copias: 1, logo })
+              informarCaminho(dEntrega.nomeSistema, perfilEntrega.tempos)
+            } catch (e) {
+              log(`Pedido #${pedido.numero}: a comanda de entrega falhou (${descreverErro(e)}).`)
+            }
+          }
         } else {
           const recibo = montarRecibo(pedido, configImpressao, cols, lojaNome, Boolean(logoPath))
           saida = await imprimirTexto(impressoraAlvo, recibo, copias, cols, logoPath, paperMm, Boolean(configImpressao.fonteMaiorProducao))

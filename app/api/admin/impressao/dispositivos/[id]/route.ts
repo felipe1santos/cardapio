@@ -18,9 +18,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     apelido: corpo.apelido, larguraMm: corpo.larguraMm, tamanhoFonte: corpo.tamanhoFonte,
     larguraPontos: corpo.larguraPontos, deslocamentoPontos: corpo.deslocamentoPontos,
     intensidade: corpo.intensidade, envio: corpo.envio, modoImpressao: corpo.modoImpressao, redeIp: corpo.redeIp, redePorta: corpo.redePorta,
+    naLista: corpo.naLista,
   })
   if (!r.ok) return NextResponse.json({ error: r.erro, codigo: r.codigo }, { status: r.status })
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, modoRecuou: r.modoRecuou ?? null })
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {

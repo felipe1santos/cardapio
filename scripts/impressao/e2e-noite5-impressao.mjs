@@ -126,7 +126,7 @@ try {
   await aviso.scrollIntoViewIfNeeded().catch(() => {})
   await p.screenshot({ path: join(PRINTS, 'modo-misto-1366.png') })
   // Computador conectado aparece pelo nome no bloco do computador.
-  const bloco = await p.getByTestId('bloco-computador').innerText().catch(() => '')
+  const bloco = await p.getByTestId('assistente-situacao').innerText().catch(() => '')
   ok('bloco do computador lista o computador conectado', /PC Convite|PC Beta9/.test(bloco), bloco.slice(0, 200))
   await ctx.close()
 } catch (e) {

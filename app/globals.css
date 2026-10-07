@@ -1140,7 +1140,7 @@ html:has(.vitrine-sem-zoom) {
 .fin-meta, .meta-tema { --adm-vermelho-texto: #d93616; --adm-vermelho: #d93616; --adm-superficie-2: #f5f6f7; }
 
 /* ─── Tela de Impressão (2026-10-06) — protótipo aprovado docs/impressao-tela-nova/prototipo/ ───────
-   Mesmas cores, medidas e efeitos do protótipo. Fonte Figtree, PESO MÁXIMO 600 (regra 6). Classes com
+   Mesmas cores, medidas e efeitos do protótipo. Fonte dos menus (Nunito, desde a tela v2), PESO MÁXIMO 600 (regra 6). Classes com
    prefixo ti- e escopo .tela-impressao (inclusive nas janelas, que levam a classe junto). */
 .tela-impressao {
   --ti-ink: #1C2B33; --ti-ink-2: #465A69; --ti-ink-3: #5F6E7A;
@@ -1152,7 +1152,7 @@ html:has(.vitrine-sem-zoom) {
   --ti-teal: #0E9488; --ti-teal-soft: #E3F6F4; --ti-roxo: #7C3AED; --ti-roxo-soft: #F1EBFE;
   --ti-r: 8px; --ti-r-sm: 6px;
   --ti-sh: 0 1px 2px rgba(28,43,51,.06), 0 1px 3px rgba(28,43,51,.04);
-  font-family: var(--font-meta), system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--font-submenu), var(--font-painel), system-ui, -apple-system, "Segoe UI", sans-serif;
   color: var(--ti-ink); font-size: 14px; line-height: 1.45; -webkit-font-smoothing: antialiased;
 }
 /* Peso máximo 600 em tudo (inclusive peças reaproveitadas com font-bold). */
@@ -1317,6 +1317,83 @@ details.ti-tec[open] > summary .ti-chev { transform: rotate(180deg); }
   .ti-baixar { flex-direction: column; align-items: stretch; }
   .ti-fundo-modal { padding: 0 !important; }
   .ti-modal { max-height: 100dvh; height: 100dvh; border-radius: 0; width: 100%; }
+}
+/* ─── Impressão v2 (2026-10-07): uma coluna, três cards (azul, roxo, verde) + "Avançado" ─── */
+.ti-card { background: #fff; border: 1px solid var(--ti-line); border-radius: 10px; box-shadow: var(--ti-sh); margin-bottom: 16px; }
+.ti-card-cab { display: flex; gap: 14px; align-items: flex-start; padding: 20px 24px 14px; }
+.ti-card-cab h3 { margin: 1px 0 2px; font-size: 16px; font-weight: 600; }
+.ti-card-cab .ti-sub { margin: 0; color: var(--ti-ink-2); font-size: 13px; }
+.ti-card-corpo { padding: 0 24px 22px 78px; }
+.ti-eyebrow { display: block; font-size: 11.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--ti-pri-dk); }
+.ti-card.roxo .ti-eyebrow { color: #6D28D9; }
+.ti-card.verde .ti-eyebrow { color: #087049; }
+.ti-tudo-certo { display: inline-flex; align-items: center; gap: 6px; flex: none; font-size: 13px; font-weight: 600; color: #087049; background: var(--ti-ok-soft); border-radius: 999px; padding: 5px 12px; }
+.ti-tudo-certo svg { width: 15px; height: 15px; }
+.ti-linha-asst { display: flex; align-items: center; justify-content: space-between; gap: 12px 16px; flex-wrap: wrap; border: 1px solid var(--ti-line); border-radius: var(--ti-r); padding: 14px 16px; }
+.ti-linha-asst b { display: block; font-size: 14px; margin-bottom: 3px; }
+.ti-estado.warn { color: var(--ti-warn); }
+.ti-input { height: 36px; border: 1px solid var(--ti-line); border-radius: var(--ti-r-sm); padding: 0 10px; background: #fff; font: inherit; color: var(--ti-ink); min-width: 0; }
+.ti-input::placeholder { color: #6B7A86; }
+.ti-input:focus, .ti-campo:focus { outline: 2px solid var(--ti-roxo); outline-offset: 0; border-color: transparent; }
+.ti-add { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) auto; gap: 10px; }
+.ti-add .ti-campo { width: 100%; }
+.ti-btn.pri-roxo { background: var(--ti-roxo); border-color: var(--ti-roxo); color: #fff; }
+.ti-btn.pri-roxo:hover:not(:disabled) { background: #6D28D9; border-color: #6D28D9; }
+.ti-imps { list-style: none; margin: 14px 0 0; padding: 0; border: 1px solid var(--ti-line); border-radius: var(--ti-r); }
+.ti-imp-linha { display: grid; grid-template-columns: minmax(0, 1.6fr) auto minmax(150px, 1fr) auto; gap: 14px; align-items: center; padding: 10px 12px 10px 16px; border-top: 1px solid var(--ti-line-2); }
+.ti-imp-linha:first-child { border-top: 0; }
+.ti-nome { display: flex; align-items: center; gap: 8px; min-width: 0; border: 0; background: transparent; padding: 2px 4px; margin: -2px -4px; border-radius: 6px; text-align: left; cursor: pointer; color: inherit; font: inherit; }
+.ti-nome:hover { background: #F6F3FE; }
+.ti-nome b { font-weight: 600; }
+.ti-nome small { color: var(--ti-ink-3); font-size: 12.5px; }
+.ti-lapis { width: 15px; height: 15px; color: var(--ti-ink-3); flex: none; }
+.ti-nome:hover .ti-lapis { color: var(--ti-roxo); }
+.ti-funcao { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; height: 36px; padding: 0 10px; border: 1px solid var(--ti-line); border-radius: var(--ti-r-sm); background: #fff; font: inherit; font-size: 13.5px; font-weight: 600; color: var(--ti-ink); cursor: pointer; min-width: 0; }
+.ti-funcao:hover { border-color: #C4B5FD; }
+.ti-funcao:disabled { opacity: .5; cursor: not-allowed; }
+.ti-menu { padding: 6px; }
+.ti-menu-item { display: flex; gap: 10px; align-items: flex-start; width: 100%; padding: 8px 10px; border: 0; background: transparent; border-radius: 6px; text-align: left; cursor: pointer; font: inherit; font-size: 14px; color: var(--ti-ink); }
+.ti-menu-item:hover { background: #F6F3FE; }
+.ti-menu-item small { color: var(--ti-ink-3); font-size: 12px; }
+.ti-check { width: 18px; height: 18px; flex: none; margin-top: 1px; border: 1.5px solid #9AA6B1; border-radius: 4px; display: grid; place-items: center; }
+.ti-check.on { background: var(--ti-roxo); border-color: var(--ti-roxo); color: #fff; }
+.ti-check svg { width: 13px; height: 13px; }
+.ti-rodape-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
+.ti-switches { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--ti-line); border-radius: var(--ti-r); overflow: hidden; }
+.ti-switches .ti-opt { border-top: 1px solid var(--ti-line-2); }
+.ti-switches .ti-opt:nth-child(-n+2) { border-top: 0; }
+.ti-switches .ti-opt:nth-child(even) { border-left: 1px solid var(--ti-line-2); }
+.ti-sw.verde[aria-checked="true"] { background: var(--ti-ok); }
+.ti-avancado { display: block; margin: 4px auto 0; padding: 8px 14px; border: 0; background: transparent; font: inherit; font-size: 13.5px; font-weight: 600; color: var(--ti-ink-3); cursor: pointer; border-radius: 6px; transition: color .15s; }
+.ti-avancado:hover, .ti-avancado:focus-visible { color: var(--ti-roxo); }
+.ti-av { padding: 4px 20px 16px; }
+.ti-av-secao { padding: 14px 0; border-top: 1px solid var(--ti-line-2); }
+.ti-av-secao:first-child { border-top: 0; }
+.ti-av-secao h4 { margin: 0 0 6px; font-size: 14px; font-weight: 600; }
+.ti-av-linha { display: flex; align-items: center; justify-content: space-between; gap: 10px 14px; flex-wrap: wrap; font-size: 13.5px; }
+.ti-av-linha b { display: block; font-weight: 600; }
+.ti-av-linha small { display: block; color: var(--ti-ink-3); font-size: 12.5px; }
+.ti-av-rodape { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding-top: 14px; border-top: 1px solid var(--ti-line-2); }
+.ti-link { border: 0; background: transparent; padding: 4px 0; font: inherit; font-size: 13px; font-weight: 600; color: var(--ti-ink-3); text-decoration: underline; cursor: pointer; }
+.ti-link:hover { color: var(--ti-bad); }
+@media (max-width: 760px) {
+  .ti-card-cab { padding: 16px 16px 12px; display: grid; grid-template-columns: 40px minmax(0, 1fr); column-gap: 12px; }
+  .ti-card-cab .ti-tudo-certo { grid-column: 2; justify-self: start; margin-top: 8px; }
+  .ti-card-corpo { padding: 0 16px 18px; }
+  .ti-add { grid-template-columns: 1fr; }
+  .ti-imp-linha { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 10px; padding: 12px; }
+  .ti-imp-linha > :nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
+  .ti-imp-linha > :nth-child(3) { grid-column: 1 / -1; grid-row: 3; }
+  .ti-imp-linha > :nth-child(4) { grid-column: 2; grid-row: 1; }
+  .ti-switches { grid-template-columns: 1fr; }
+  .ti-switches .ti-opt:nth-child(2) { border-top: 1px solid var(--ti-line-2); }
+  .ti-switches .ti-opt:nth-child(even) { border-left: 0; }
+  .ti-linha-asst .ti-acoes { width: 100%; }
+  .ti-linha-asst .ti-acoes > * { flex: 1; }
+  .ti-av { padding: 4px 16px 16px; }
+  /* Janelas em tela cheia no celular. */
+  .tela-impressao[data-modal-central] { padding: 0 !important; }
+  .tela-impressao[data-modal-central] > [role="dialog"] { max-width: none !important; height: 100dvh; max-height: 100dvh; border-radius: 0; }
 }
 @media (prefers-reduced-motion: reduce) { .tela-impressao * { transition: none !important; } }
 

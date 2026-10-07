@@ -1,45 +1,44 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import {
-  AlertTriangle, ArrowRight, Check, ChefHat, ChevronDown, Download, Monitor, Plus, Printer, ReceiptText, RefreshCw, ScrollText, SlidersHorizontal, Sparkles, Wallet,
-} from 'lucide-react'
+import { AlertTriangle, Check, ChevronDown, Download, Monitor, Pencil, Printer, ReceiptText, ScrollText, Trash2, X } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { chamar, novaChave } from '@/components/pdv/util'
 import { ModalAjudaImpressao } from '@/components/impressao/ajuda-impressao'
 import { ImpressoraModal } from '@/components/impressao/documentos'
 import { EnvioImpressora } from '@/components/impressao/envio-impressora'
 import { ModalPrevia, type LojaPrevia, type PapelPrevia } from '@/components/impressao/modal-previa'
-import { ModalImpressoras, ModalPareamento, ModalTestes, nomeDisp, TAMANHOS_LETRA, type PainelDados, type ResultadoTeste, type TamanhoLetra, type TipoTeste } from '@/components/impressao/beta-cards'
-import { ModalCentral, NoTopo } from '@/components/ui/flutuante'
+import { ModalPareamento, ModalTestes, nomeDisp, TAMANHOS_LETRA, type PainelDados, type ResultadoTeste, type TamanhoLetra, type TipoTeste } from '@/components/impressao/beta-cards'
+import { Flutuante, ModalCentral, NoTopo } from '@/components/ui/flutuante'
 import { ROTULO_MODO_BETA, DOWNLOAD_ASSISTENTE_ATUAL, DOWNLOAD_ASSISTENTE_BETA, instaladorConectado } from '@/lib/impressao/rotulos'
-import { modoDependeDoAgente, ehImpressoraVirtual } from '@/lib/impressao/regras-modo'
+import { modoDependeDoAgente, ehImpressoraVirtual, pareamentoAntigo } from '@/lib/impressao/regras-modo'
 import { avisoDriver, envioDiretoSugerido } from '@/lib/impressao/regras-calibracao'
-import { CONFIRMACAO_OPCAO, MODO_DA_OPCAO, opcaoDaLoja, prontidaoBeta, versaoInstalada, type OpcaoImpressao } from '@/lib/impressao/opcao'
+import { prontidaoBeta, versaoInstalada } from '@/lib/impressao/opcao'
 import { compararVersao, VERSAO_IMPRESSAO_V3 } from '@/lib/avisos-painel'
 import { SUPORTE_MENUZIA } from '@/lib/suporte'
 import ReciboAntigo from '@/lib/impressao/recibo-antigo-canvas.js'
-import type { AgenteVisao, DispositivoVisao, Funcao, ModoBeta } from '@/lib/impressao/servico'
+import type { AgenteVisao, DispositivoVisao, ModoBeta } from '@/lib/impressao/servico'
+import { FUNCOES_IMPRESSORA, ROTULO_FUNCAO_IMPRESSORA, type FuncaoImpressora } from '@/lib/impressao/funcoes'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { buscarConfigLoja } from '@/lib/queries/ajustes'
 import { garantirLogoImpressao } from '@/lib/impressao/logo-navegador'
 import {
-  atualizarConfigImpressao, atualizarImpressora, buscarConfigImpressao, buscarStatusAgente, criarImpressora, listarImpressoras, removerImpressora,
+  atualizarConfigImpressao, atualizarImpressora, buscarConfigImpressao, buscarStatusAgente, listarImpressoras,
   type ConfigImpressao, type Impressora, type ImpressoraInput,
 } from '@/lib/queries/impressao'
 
 /**
- * Impressão — tela nova a partir do protótipo aprovado (docs/impressao-tela-nova/prototipo/,
- * 2026-10-06): cabeçalho com pílulas de situação e "Ver modelo da impressão"; passos 1 Escolha o
- * assistente, 2 Instale, 3 Impressoras e o que cada uma imprime, 4 Conexão e ajuste do papel,
- * 5 O que aparece no papel; e a Situação geral com os detalhes técnicos. Visual do protótipo
- * (classes ti- em app/globals.css), fonte Figtree com peso máximo 600.
- *
- * A opção (Assistente antigo / novo) é LIDA do modo do Beta (lib/impressao/opcao): o deploy não
- * muda nenhuma loja. Trocar pede confirmação e grava pela troca auditada de sempre; se o
- * assistente escolhido não estiver instalado e conectado, a tela guia a instalação antes.
- * Nenhuma credencial aparece; o código de pareamento vence em 10 min.
+ * Impressão — tela v2 (2026-10-07), uma coluna com três cards:
+ *   1 Assistente de impressão — versão, situação real e "Baixar instalador" (e "Conectar este
+ *     computador" quando o pareamento sem código está ativo e não há computador);
+ *   2 Impressoras — adicionar (da lista que o Assistente achou no Windows, com apelido opcional),
+ *     e cada impressora com apelido, nome técnico, situação, FUNÇÕES (Cozinha, Caixa / pré-conta,
+ *     Comanda de entrega, Outra) e remover; "Testar impressão" no rodapé;
+ *   3 O que aparece no papel — as opções reais em switches.
+ * "Avançado" (link cinza, roxo no hover) abre a janela com computador, papel, envio, calibração e
+ * as opções gerais. A escolha "antigo × novo" saiu da tela: loja que ainda imprime pelo antigo vê
+ * só o aviso no card 1 — nenhum modo muda sozinho. Visual do kit ti- (fonte dos menus, peso 600).
  */
 
 const MOTIVO_RECUO = 'O modo voltou para a segurança porque a impressora que ele usava deixou de valer.'
@@ -51,10 +50,8 @@ const quando = (iso: string | null) => {
   const d = new Date(iso)
   const hoje = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) === d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
   const hora = d.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })
-  return hoje ? `Hoje, ${hora}` : `${d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit' })}, ${hora}`
+  return hoje ? `hoje, ${hora}` : `${d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit' })}, ${hora}`
 }
-const diasDesde = (iso: string | null) => (iso ? Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000) : null)
-const descricaoEnvio = (d: DispositivoVisao) => (d.envio === 'raw_rede' ? `Rede ${d.redeIp ?? ''}`.trim() : d.envio === 'raw_fila' ? 'USB, envio direto' : d.envio === 'auto' ? 'automático' : 'pelo Windows')
 type Estado = 'ok' | 'warn' | 'bad' | 'off'
 const Ponto = ({ e }: { e: Estado }) => <i className={`ti-dot ${e === 'ok' ? '' : e}`} aria-hidden />
 const Aviso = ({ children, acao, erro, testid }: { children: React.ReactNode; acao?: React.ReactNode; erro?: boolean; testid?: string }) => (
@@ -65,9 +62,34 @@ const Aviso = ({ children, acao, erro, testid }: { children: React.ReactNode; ac
   </div>
 )
 
+/** Como a impressora está ligada, pelo que o Assistente leu do Windows (porta) e pelo envio. */
+function conexao(d: DispositivoVisao): string {
+  if (ehImpressoraVirtual(d.nomeSistema)) return 'impressora virtual'
+  const porta = String(d.diagnostico?.porta ?? '')
+  if (d.redeIp || /^(IP_|\d{1,3}(\.\d{1,3}){3})/i.test(porta) || /WSD|TCP/i.test(porta)) return 'rede'
+  if (/USB/i.test(porta)) return 'USB'
+  return ''
+}
+const detalhe = (d: DispositivoVisao) => [conexao(d), `papel ${d.larguraMm} mm`].filter(Boolean).join(' · ')
+
+/** Opções do papel (as reais). Preço dos adicionais e letra maior só existem no Assistente antigo. */
+type ChaveOpcao = 'imprimirLogo' | 'mostrarNumeroItem' | 'mostrarNomeComplementos' | 'multiplicarOpcoesQtd' | 'viaCozinha' | 'qr' | 'mostrarPrecoComplementos' | 'fonteMaiorProducao'
+const OPCOES_PAPEL: { chave: ChaveOpcao; titulo: string; frase: string }[] = [
+  { chave: 'imprimirLogo', titulo: 'Logo da loja', frase: 'A logo em preto e branco no topo do papel.' },
+  { chave: 'mostrarNumeroItem', titulo: 'Quantidade no item', frase: 'Mostra "2x" antes do nome do produto.' },
+  { chave: 'mostrarNomeComplementos', titulo: 'Adicionais', frase: 'Mostra os adicionais que o cliente escolheu.' },
+  { chave: 'multiplicarOpcoesQtd', titulo: 'Múltipla escolha', frase: 'Com 2 lanches, mostra "2x Bacon" quando cada um leva bacon.' },
+  { chave: 'viaCozinha', titulo: 'Via da cozinha sem valores', frase: 'Uma via a mais, só com itens e observações.' },
+  { chave: 'qr', titulo: 'QR Code do cardápio', frase: 'No rodapé, para o cliente pedir de novo.' },
+]
+const OPCOES_ANTIGO: { chave: ChaveOpcao; titulo: string; frase: string }[] = [
+  { chave: 'mostrarPrecoComplementos', titulo: 'Preço dos adicionais', frase: 'Mostra o valor de cada adicional (assistente antigo).' },
+  { chave: 'fonteMaiorProducao', titulo: 'Letra maior nos itens', frase: 'Facilita a leitura na cozinha (assistente antigo).' },
+]
+
 export function PainelImpressao() {
   const supabase = useMemo(() => getBrowserSupabase(), [])
-  const [p, setP] = useState<PainelDados | null>(null)
+  const [p, setP] = useState<(PainelDados & { funcoes: Record<FuncaoImpressora, string | null> }) | null>(null)
   const [config, setConfig] = useState<ConfigImpressao | null>(null)
   const [impAntigas, setImpAntigas] = useState<Impressora[]>([])
   const [podeEditar, setPodeEditar] = useState(false)
@@ -80,32 +102,30 @@ export function PainelImpressao() {
   const [aviso, setAviso] = useState<{ tom: 'ok' | 'erro' | 'alerta'; texto: string } | null>(null)
   const [ocupado, setOcupado] = useState(false)
   const [pareando, setPareando] = useState<{ codigo: { codigo: string; expiraEm: string } | null; erro: string | null; antes: string[]; conectado: string | null } | null>(null)
-  const [escolhendo, setEscolhendo] = useState(false)
   const [testando, setTestando] = useState(false)
   const [ajuda, setAjuda] = useState(false)
   const [calibrar, setCalibrar] = useState<string | null>(null)
-  const [modalImpressora, setModalImpressora] = useState<{ id: string | null; input: ImpressoraInput } | null>(null)
   const [previa, setPrevia] = useState(false)
+  const [avancado, setAvancado] = useState(false)
   const [dadosPrevia, setDadosPrevia] = useState<LojaPrevia | null>(null)
-  const [trocar, setTrocar] = useState<OpcaoImpressao | null>(null)
-  const [guia, setGuia] = useState<OpcaoImpressao | null>(null)
-  const [comoAtualizar, setComoAtualizar] = useState(false)
+  const [trocar, setTrocar] = useState<'beta' | 'antigo' | null>(null)
+  const [modalImpressora, setModalImpressora] = useState<{ id: string; input: ImpressoraInput } | null>(null)
+  const [novaId, setNovaId] = useState('')
+  const [novoApelido, setNovoApelido] = useState('')
   const [copiado, setCopiado] = useState(false)
-  const [, setLogoRecibo] = useState<'pronta' | 'gerada' | 'sem_logo' | 'falhou' | null>(null)
   const seq = useRef(0)
   const chavesTeste = useRef<Record<string, string>>({})
 
   const carregar = useCallback(async () => {
     const minha = ++seq.current
-    const r = await chamar<PainelDados>('/api/admin/impressao/painel')
+    const r = await chamar<PainelDados & { funcoes: Record<FuncaoImpressora, string | null> }>('/api/admin/impressao/painel')
     if (minha !== seq.current) return
     if (!r.ok || !r.dados) return setErro(r.erro)
     setErro(null)
     setP(r.dados)
   }, [])
 
-  // Pareando ou guiando a instalação: confere a cada 2 s; fora disso, a cada 5 s.
-  const rapido = (!!pareando && !pareando.conectado) || !!guia
+  const rapido = !!pareando && !pareando.conectado
   useEffect(() => {
     void carregar()
     const t = setInterval(() => void carregar(), rapido ? 2000 : 5000)
@@ -161,11 +181,8 @@ export function PainelImpressao() {
   // Logo do Recibo/Extrato do Beta: o navegador prepara a versão de impressão (PNG, fundo branco).
   const liberado = p?.betaLiberado === true
   useEffect(() => {
-    if (!liberado) return
-    if (!logoUrl) return setLogoRecibo('sem_logo')
-    let vivo = true
-    void garantirLogoImpressao(logoUrl).then((r) => vivo && setLogoRecibo(r))
-    return () => { vivo = false }
+    if (!liberado || !logoUrl) return
+    void garantirLogoImpressao(logoUrl)
   }, [liberado, logoUrl])
 
   // Sinal do Assistente antigo (heartbeat a cada 5 s).
@@ -201,15 +218,12 @@ export function PainelImpressao() {
     return r
   }
 
-  /**
-   * Pareamento sem código (noite 5, Assistente 0.2.0-beta.10): convite de 24 h no link
-   * menuzia://parear — aberto NESTE computador, o Assistente instalado se conecta sozinho.
-   */
+  /** Pareamento sem código (Assistente 0.2.0-beta.10): convite de 24 h no link menuzia://parear. */
   async function conectarEsteComputador() {
     const r = await chamar<{ link: string }>('/api/admin/impressao/convite', { method: 'POST' })
     if (!r.ok || !r.dados?.link) return setAviso({ tom: 'erro', texto: r.erro ?? 'Não foi possível gerar o link.' })
     window.location.href = r.dados.link
-    setAviso({ tom: 'ok', texto: 'Se o Assistente novo estiver instalado neste computador, ele abre e se conecta sozinho em alguns segundos. Se nada abrir, baixe o instalador da loja.' })
+    setAviso({ tom: 'ok', texto: 'Se o Assistente estiver instalado neste computador, ele abre e se conecta sozinho em alguns segundos. Se nada abrir, baixe o instalador.' })
     setTimeout(() => void carregar(), 6000)
   }
 
@@ -219,45 +233,41 @@ export function PainelImpressao() {
     setPareando((x) => (x ? { ...x, codigo: r.ok && r.dados ? r.dados : null, erro: r.ok ? null : r.erro ?? 'Não foi possível gerar o código.' } : x))
   }
 
-  async function salvarImpressoras(novo: Record<Funcao, string | null>) {
-    if (!p || ocupado) return
-    setOcupado(true)
-    let recuo: ModoBeta | null = null
-    let falhou: string | null = null
-    // Primeiro quem ganha impressora, depois quem fica sem: o modo não recua à toa no meio.
-    const ordem = (['caixa', 'cozinha'] as Funcao[]).filter((f) => novo[f] !== p.funcoes[f]).sort((a, b) => Number(novo[a] === null) - Number(novo[b] === null))
-    for (const f of ordem) {
-      const r = await chamar<{ modoRecuou?: ModoBeta | null }>('/api/admin/impressao/funcoes', { method: 'PUT', body: JSON.stringify({ funcao: f, dispositivoId: novo[f], confirmarCompartilhada: true }) })
-      if (!r.ok) { falhou = r.erro ?? 'Não foi possível salvar.'; break }
-      if (r.dados?.modoRecuou) recuo = r.dados.modoRecuou
-    }
-    setOcupado(false)
-    await carregar()
-    if (falhou) return setAviso({ tom: 'erro', texto: falhou })
-    setEscolhendo(false)
-    setAviso(recuo ? { tom: 'alerta', texto: `Impressoras salvas. ${MOTIVO_RECUO} Modo agora: ${ROTULO_MODO_BETA[recuo]}.` } : { tom: 'ok', texto: 'Impressoras salvas.' })
-  }
-
-  /** Seletor Cozinha / Caixa / Os dois de uma impressora. */
-  function usarPara(d: DispositivoVisao, uso: 'cozinha' | 'caixa' | 'ambos') {
+  /** Liga/desliga uma função nesta impressora. "Outra" = sem função nenhuma. */
+  async function alternarFuncao(d: DispositivoVisao, f: FuncaoImpressora | 'outra') {
     if (!p) return
-    const novo = { ...p.funcoes }
-    if (uso === 'cozinha' || uso === 'ambos') novo.cozinha = d.id
-    else if (novo.cozinha === d.id) novo.cozinha = null
-    if (uso === 'caixa' || uso === 'ambos') novo.caixa = d.id
-    else if (novo.caixa === d.id) novo.caixa = null
-    void salvarImpressoras(novo)
+    if (f === 'outra') {
+      for (const x of d.funcoes) await agir('/api/admin/impressao/funcoes', 'PUT', { funcao: x, dispositivoId: null, confirmarCompartilhada: true }, `${nomeDisp(d)} sem função.`)
+      return
+    }
+    const tem = p.funcoes[f] === d.id
+    await agir('/api/admin/impressao/funcoes', 'PUT', { funcao: f, dispositivoId: tem ? null : d.id, confirmarCompartilhada: true },
+      tem ? `${ROTULO_FUNCAO_IMPRESSORA[f]} saiu de ${nomeDisp(d)}.` : `${nomeDisp(d)} agora imprime: ${ROTULO_FUNCAO_IMPRESSORA[f]}.`)
   }
 
-  async function ajustar(d: DispositivoVisao, patch: { apelido?: string; larguraMm?: number; tamanhoFonte?: TamanhoLetra }) {
-    await agir(`/api/admin/impressao/dispositivos/${d.id}`, 'PATCH', patch, patch.apelido !== undefined ? 'Apelido salvo.' : patch.tamanhoFonte !== undefined ? 'Tamanho da letra salvo.' : 'Papel salvo.')
+  async function adicionar() {
+    const d = p?.dispositivos.find((x) => x.id === novaId)
+    if (!d) return
+    const r = await agir(`/api/admin/impressao/dispositivos/${d.id}`, 'PATCH', { naLista: true, ...(novoApelido.trim() ? { apelido: novoApelido.trim() } : {}) }, `${novoApelido.trim() || d.nomeSistema} adicionada.`)
+    if (r?.ok) { setNovaId(''); setNovoApelido('') }
+  }
+
+  function remover(d: DispositivoVisao) {
+    const funcoes = d.funcoes.map((f) => ROTULO_FUNCAO_IMPRESSORA[f]).join(', ')
+    if (!confirm(`Remover ${nomeDisp(d)} da lista?${funcoes ? ` Ela deixa de imprimir: ${funcoes}.` : ''}`)) return
+    void agir(`/api/admin/impressao/dispositivos/${d.id}`, 'PATCH', { naLista: false }, `${nomeDisp(d)} removida da lista.`)
+  }
+
+  async function ajustar(d: DispositivoVisao, patch: { apelido?: string; larguraMm?: number; tamanhoFonte?: TamanhoLetra; envio?: string }) {
+    return agir(`/api/admin/impressao/dispositivos/${d.id}`, 'PATCH', patch,
+      patch.apelido !== undefined ? 'Apelido salvo.' : patch.tamanhoFonte !== undefined ? 'Tamanho da letra salvo.' : patch.envio !== undefined ? 'Formato de envio salvo.' : 'Papel salvo.')
   }
 
   function revogar(a: AgenteVisao) {
     if (!p) return
     const emUso = modoDependeDoAgente(p.modo, a.id, p.dispositivos.map((d) => ({ id: d.id, agenteId: d.agenteId, nomeSistema: d.nomeSistema })), p.funcoes)
     const texto = emUso
-      ? `"${a.nome}" imprime os pedidos pelo Assistente novo. Ao desconectar, a loja volta na hora para o Assistente antigo. Desconectar?`
+      ? `"${a.nome}" imprime os pedidos da loja. Ao desconectar, a loja volta na hora para o assistente antigo. Desconectar?`
       : `Desconectar "${a.nome}"? Ele para de imprimir na hora e precisa ser conectado de novo.`
     if (confirm(texto)) void agir(`/api/admin/impressao/agentes/${a.id}`, 'POST', { acao: 'revogar' }, 'Computador desconectado.')
   }
@@ -277,13 +287,6 @@ export function PainelImpressao() {
     return { ok: r.ok, erro: r.ok ? null : r.erro ?? 'Não foi possível enviar o teste.' }
   }
 
-  /** "Testar" de uma impressora: a comanda de teste se ela é da Cozinha, senão a pré-conta. */
-  async function testarImpressora(d: DispositivoVisao) {
-    const tipo: TipoTeste = p?.funcoes.cozinha === d.id || p?.funcoes.caixa !== d.id ? 'cozinha' : 'recibo'
-    const r = await testar(tipo, d)
-    setAviso(r.ok ? { tom: 'ok', texto: `Teste enviado para ${nomeDisp(d)}.` } : { tom: 'erro', texto: r.erro ?? 'Não foi possível enviar o teste.' })
-  }
-
   async function patchConfig(patch: Partial<ConfigImpressao>) {
     if (!config || !restauranteId) return
     setConfig({ ...config, ...patch })
@@ -295,104 +298,46 @@ export function PainelImpressao() {
   }
 
   async function gerarToken() {
-    if (token && !confirm('Gerar um token novo? O Assistente antigo para de imprimir até você colar o token novo nele.')) return
+    if (token && !confirm('Gerar um token novo? O assistente antigo para de imprimir até você colar o token novo nele.')) return
     const res = await fetch('/api/admin/impressao/token', { method: 'POST' }).catch(() => null)
     if (!res?.ok) return setAviso({ tom: 'erro', texto: 'Não foi possível gerar o token.' })
     setToken(((await res.json()) as { token: string }).token)
   }
 
   async function salvarImpressoraAntiga(input: ImpressoraInput) {
-    if (!restauranteId || !modalImpressora) return
-    if (modalImpressora.id) {
-      await atualizarImpressora(supabase, modalImpressora.id, input)
-      setImpAntigas((l) => l.map((i) => (i.id === modalImpressora.id ? { ...i, ...input } : i)))
-    } else {
-      const nova = await criarImpressora(supabase, restauranteId, input, impAntigas.length)
-      setImpAntigas((l) => [...l, nova])
-    }
+    if (!modalImpressora) return
+    await atualizarImpressora(supabase, modalImpressora.id, input)
+    setImpAntigas((l) => l.map((i) => (i.id === modalImpressora.id ? { ...i, ...input } : i)))
     setModalImpressora(null)
   }
 
-  async function larguraAntiga(imp: Impressora, mm: 58 | 80) {
-    const input: ImpressoraInput = { nome: imp.nome, tamanhoFonte: imp.tamanhoFonte, largura: mm === 58 ? 32 : 48, copias: imp.copias }
-    try {
-      await atualizarImpressora(supabase, imp.id, input)
-      setImpAntigas((l) => l.map((i) => (i.id === imp.id ? { ...i, largura: input.largura } : i)))
-      setAviso({ tom: 'ok', texto: `Papel ${mm} mm salvo em ${imp.nome}.` })
-    } catch {
-      setAviso({ tom: 'erro', texto: 'Não foi possível salvar o papel.' })
-    }
-  }
-
-  async function removerImpressoraAntiga(id: string) {
-    if (!confirm('Remover esta impressora do Assistente antigo?')) return
-    try {
-      await removerImpressora(supabase, id)
-      setImpAntigas((l) => l.filter((i) => i.id !== id))
-    } catch {
-      setAviso({ tom: 'erro', texto: 'Não foi possível remover a impressora.' })
-    }
-  }
-
-  /** Troca de opção: auditada no banco (impressao_modo_definir). */
-  async function confirmarTroca(o: OpcaoImpressao) {
-    const r = await agir('/api/admin/impressao/modo', 'PUT', { modo: MODO_DA_OPCAO[o] }, o === 'beta' ? 'Pronto: a loja imprime pelo Assistente novo.' : 'Pronto: a loja imprime pelo Assistente antigo.')
-    if (r?.ok) { setTrocar(null); setGuia(null) }
+  /** Troca auditada (impressao_modo_definir): só quando a loja confirma. */
+  async function confirmarTroca(o: 'beta' | 'antigo') {
+    const r = await agir('/api/admin/impressao/modo', 'PUT', { modo: o === 'beta' ? 'cozinha_caixa' : 'teste' }, o === 'beta' ? 'Pronto: a loja imprime pelo assistente novo.' : 'Pronto: a loja voltou para o assistente antigo.')
+    if (r?.ok) setTrocar(null)
   }
 
   // ── leitura do estado ───────────────────────────────────────────────────────
-  const opcao: OpcaoImpressao | null = p ? opcaoDaLoja(p.modo) : null
-  const beta = opcao === 'beta'
+  const antigo = p?.modo === 'teste'
   const atualOnline = !!atualVistoEm && Date.now() - new Date(atualVistoEm).getTime() < 2 * 60_000
   const ativos = p?.agentes.filter((a) => !a.revogado) ?? []
   const online = ativos.filter((a) => a.online)
   const versao = p ? versaoInstalada(p.agentes) : null
   const desatualizado = !!versao && compararVersao(versao, VERSAO_IMPRESSAO_V3) < 0
+  const agenteDe = (d: DispositivoVisao | undefined) => (d ? ativos.find((a) => a.id === d.agenteId) : undefined)
+  const regraAgentes = (p?.agentes ?? []).map((a) => ({ id: a.id, nome: a.nome, vistoEm: a.vistoEm, revogado: a.revogado, criadoEm: a.criadoEm }))
+  const antigoPareamento = (d: DispositivoVisao) => { const a = regraAgentes.find((x) => x.id === d.agenteId); return !!a && pareamentoAntigo(a, regraAgentes) }
+  const naLista = (p?.dispositivos ?? []).filter((d) => d.naLista && agenteDe(d))
+  const paraAdicionar = (p?.dispositivos ?? [])
+    .filter((d) => !d.naLista && agenteDe(d) && d.disponivel && !antigoPareamento(d))
+    .sort((a, b) => Number(ehImpressoraVirtual(a.nomeSistema)) - Number(ehImpressoraVirtual(b.nomeSistema)) || a.nomeSistema.localeCompare(b.nomeSistema))
   const dCozinha = p?.dispositivos.find((d) => d.id === p.funcoes.cozinha)
   const dCaixa = p?.dispositivos.find((d) => d.id === p.funcoes.caixa)
-  const agenteDe = (d: DispositivoVisao | undefined) => (d ? ativos.find((a) => a.id === d.agenteId) : undefined)
-  const pronta = (d: DispositivoVisao | undefined) => !!d && !!agenteDe(d)?.online
-  // Impressoras da lista: as que têm função e as reais (não virtuais) disponíveis nos computadores ativos.
-  const listadas = (p?.dispositivos ?? []).filter((d) => agenteDe(d) && (d.funcoes.length > 0 || (d.disponivel && !ehImpressoraVirtual(d.nomeSistema))))
-  const usadas = (p?.dispositivos ?? []).filter((d) => d.id === p?.funcoes.cozinha || d.id === p?.funcoes.caixa)
+  const prontidao = p ? prontidaoBeta(p) : null
   const impAntiga = impAntigas.find((i) => i.id === atualImpressoraId) ?? impAntigas.find((i) => i.ativa) ?? impAntigas[0] ?? null
   const larguraAnt = impAntiga?.largura ?? 48
-  const prontidao = p ? prontidaoBeta(p) : null
-  const ultimoUso = usadas.map((d) => d.ultimoUsoEm).filter((x): x is string => !!x).sort().at(-1) ?? p?.trabalhos.find((t) => t.estado === 'enviado_spooler')?.enviadoEm ?? null
-  const ultimoErro = usadas.filter((d) => d.ultimoErroEm && Date.now() - new Date(d.ultimoErroEm).getTime() < 86_400_000)
-  const avisoCalibrar = (d: DispositivoVisao) => {
-    const drv = avisoDriver(d)
-    if (drv) return drv
-    const dias = diasDesde(d.calibradoEm)
-    if (dias === null) return 'Esta impressora ainda não foi calibrada.'
-    if (dias > 30) return `Última calibração há ${dias} dias.`
-    return null
-  }
-  const algumAvisoCalibrar = usadas.some((d) => avisoCalibrar(d))
-
-  // Passos: feito (verde-claro), atual (contorno azul, o primeiro pendente) e o resto neutro.
-  const feitos = !p || !opcao ? [false, false, false, false] : beta
-    ? [true, ativos.length > 0, !!dCozinha, online.length > 0 && !algumAvisoCalibrar]
-    : [true, !!atualVistoEm, impAntigas.length > 0, atualOnline && config?.ativarAssistente !== false]
-  const atualIdx = feitos.findIndex((f, i) => i > 0 && !f)
-  const classePasso = (i: number) => (feitos[i] ? 'feito' : i === atualIdx ? 'atual' : '')
-
-  function escolherOpcao(o: OpcaoImpressao) {
-    if (!p || o === opcao) return
-    if (o === 'beta' && !prontidao?.pronto) return setGuia('beta')
-    if (o === 'antigo' && !atualOnline) return setGuia('antigo')
-    setTrocar(o)
-  }
-
-  const pilulas: { id: string; e: Estado; texto: string }[] = !p ? [] : [
-    beta
-      ? { id: 'pill-assistente', e: online.length ? 'ok' : 'bad', texto: online.length ? 'Assistente conectado' : ativos.length ? 'Assistente sem sinal' : 'Assistente não instalado' }
-      : { id: 'pill-assistente', e: atualOnline ? 'ok' : 'bad', texto: atualOnline ? 'Assistente conectado' : atualVistoEm ? 'Assistente sem sinal' : 'Assistente não instalado' },
-    beta
-      ? { id: 'pill-cozinha', e: pronta(dCozinha) ? 'ok' : dCozinha ? 'warn' : 'bad', texto: pronta(dCozinha) ? 'Cozinha pronta' : dCozinha ? 'Cozinha sem sinal' : 'Cozinha sem impressora' }
-      : { id: 'pill-cozinha', e: impAntiga && atualOnline ? 'ok' : impAntiga ? 'warn' : 'bad', texto: impAntiga && atualOnline ? 'Cozinha pronta' : impAntiga ? 'Cozinha sem sinal' : 'Cozinha sem impressora' },
-    ...(beta ? [{ id: 'pill-caixa', e: (pronta(dCaixa) ? 'ok' : dCaixa ? 'warn' : 'off') as Estado, texto: pronta(dCaixa) ? 'Caixa pronto' : dCaixa ? 'Caixa sem sinal' : 'Caixa sem impressora' }] : []),
-  ]
+  const tudoCerto = !!p && !antigo && online.length > 0 && !!dCozinha && !!agenteDe(dCozinha)?.online
+  const semCodigo = instaladorConectado() && p?.betaLiberado === true
 
   return (
     <div className="tela-impressao flex h-full min-h-0 flex-col overflow-hidden">
@@ -403,292 +348,125 @@ export function PainelImpressao() {
           <div className="ti-cab">
             <div className="min-w-0">
               <h2>Impressão de pedidos</h2>
-              <p>Escolha como sua loja imprime e deixe a impressora pronta em poucos passos.</p>
-              <div className="ti-resumo" aria-label="Situação rápida" data-testid="resumo">
-                {pilulas.map((x) => <span key={x.id} data-testid={x.id} data-estado={x.e}><Ponto e={x.e} />{x.texto}</span>)}
-                {beta && desatualizado && (
-                  <span className="ti-pill-warn" data-testid="pill-atualizacao"><AlertTriangle className="h-[13px] w-[13px]" style={{ color: '#9A7130' }} aria-hidden />Atualização disponível</span>
-                )}
-              </div>
+              <p>Deixe a impressora pronta e escolha o que sai no papel.</p>
             </div>
-            <button type="button" className="ti-btn" onClick={() => setPrevia(true)} disabled={!p} data-testid="ver-modelo"><ReceiptText aria-hidden /> Ver modelo da impressão</button>
+            <button type="button" className="ti-btn" onClick={() => setPrevia(true)} disabled={!p} data-testid="ver-modelo"><ReceiptText aria-hidden /> Ver modelo de impressão</button>
           </div>
 
           {aviso && (
-            <div role="status" data-testid="impressao-aviso" className={`ti-aviso ${aviso.tom === 'erro' ? 'erro' : ''}`} style={aviso.tom === 'ok' ? { background: 'var(--ti-ok-soft)', borderColor: '#A8DCC3', color: '#0B5B3E' } : undefined}>
+            <div role="status" data-testid="impressao-aviso" className={`ti-aviso mb-3 mt-0 ${aviso.tom === 'erro' ? 'erro' : ''}`} style={aviso.tom === 'ok' ? { background: 'var(--ti-ok-soft)', borderColor: '#A8DCC3', color: '#0B5B3E' } : undefined}>
               {aviso.tom === 'ok' ? <Check aria-hidden style={{ color: 'var(--ti-ok)' }} /> : <AlertTriangle aria-hidden />}
               <span>{aviso.texto}</span>
             </div>
           )}
           {erro && <Aviso erro>{erro}</Aviso>}
 
-          {!p || !opcao ? (
+          {!p ? (
             <div aria-busy="true">{[0, 1, 2].map((i) => <div key={i} className="ti-passo h-[150px] animate-pulse" />)}</div>
           ) : (
-            <div className="mt-4">
-              {/* ── 1. Escolha o assistente ────────────────────────────────── */}
-              <Passo n={1} estado={classePasso(0)} titulo="Escolha o assistente" sub="É o programa que fica no computador da loja e envia os pedidos para a impressora." testid="passo-1">
-                <div className="ti-escolha" role="radiogroup" aria-label="Assistente de impressão">
-                  <OpcaoCard
-                    o="antigo" ativo={opcao === 'antigo'} disabled={ocupado} onClick={() => escolherOpcao('antigo')}
-                    titulo="Assistente antigo" selo="Padrão" frase="O sistema de sempre. Imprime a comanda do pedido como hoje." itens={['Comanda do pedido']}
-                  />
-                  <OpcaoCard
-                    o="beta" ativo={opcao === 'beta'} disabled={ocupado} onClick={() => escolherOpcao('beta')} rec
-                    titulo="Assistente novo" selo="Recomendado" frase="Modelo novo, mais fácil de ler e com envio direto para a impressora."
-                    itens={p.modo === 'caixa' ? ['Pré-conta de mesas e balcão', 'Comanda da cozinha (hoje pelo antigo)'] : ['Comanda da cozinha', 'Pré-conta de mesas e balcão']}
-                  />
-                </div>
-                {/* Modo misto (noite 5): só lojas antigas ainda estão nele (a tela não oferece mais).
-                    Fica escrito com todas as letras — e em vermelho quando o antigo, que imprime a
-                    comanda, está desligado ou sem sinal: aí a comanda da cozinha não sai. */}
-                {beta && p.modo === 'caixa' && (
-                  <Aviso
-                    testid="aviso-so-caixa"
-                    erro={config?.ativarAssistente === false || !atualOnline}
-                    acao={<button type="button" className="ti-btn pri" onClick={() => setTrocar('beta')} data-testid="passar-comanda">Passar a comanda para o novo</button>}
-                  >
-                    <b>Modo misto:</b> o Assistente novo imprime só a pré-conta; a <b>comanda da cozinha</b> sai pelo Assistente antigo.
-                    {config?.ativarAssistente === false
-                      ? <> O Assistente antigo está <b>desativado</b>: a comanda da cozinha não está saindo.</>
-                      : !atualOnline ? <> O Assistente antigo está <b>sem sinal</b>: a comanda da cozinha pode não estar saindo.</> : null}
-                  </Aviso>
-                )}
-              </Passo>
-
-              {/* ── 2. Instale no computador da loja ───────────────────────── */}
-              <Passo n={2} estado={classePasso(1)} titulo="Instale no computador da loja" sub="Baixe, abra o arquivo e siga o instalador. Se já tiver uma versão, ela é atualizada por cima." testid="passo-2">
-                <div className="ti-baixar">
-                  <div className="ti-arq">
-                    <span className="ti-ico"><Monitor aria-hidden /></span>
-                    <div className="min-w-0">
-                      <b data-testid="instalador-nome">{beta ? `Assistente Menuzia ${DOWNLOAD_ASSISTENTE_BETA.versao}` : `Assistente de Impressão Menuzia ${DOWNLOAD_ASSISTENTE_ATUAL.versao}`}</b>
-                      <small>Windows 10 ou 11, cerca de {beta ? 80 : 75} MB</small>
-                    </div>
+            <>
+              {/* ── 1. Assistente de impressão ─────────────────────────────── */}
+              <Card cor="azul" n={1} ico={<Monitor />} titulo="Assistente de impressão" sub="O programa que fica no computador da loja e manda os pedidos para a impressora." testid="passo-1"
+                extra={tudoCerto ? <span className="ti-tudo-certo" data-testid="tudo-certo"><Check aria-hidden />Tudo certo</span> : null}>
+                <div className="ti-linha-asst" data-testid="assistente-linha">
+                  <div className="min-w-0">
+                    <b data-testid="assistente-versao">Assistente Menuzia · versão {versao ?? DOWNLOAD_ASSISTENTE_BETA.versao.replace(/^0\.2\.0-/, '')}</b>
+                    <span className={`ti-estado ${online.length ? 'ok' : 'warn'}`} data-testid="assistente-situacao">
+                      <Ponto e={online.length ? 'ok' : 'warn'} />
+                      {online.length ? `Conectado em ${online[0].nome}` : ativos.length ? `Desconectado — ${[...ativos].sort((x, y) => (y.vistoEm ?? '').localeCompare(x.vistoEm ?? ''))[0].nome}, último sinal ${quando([...ativos].sort((x, y) => (y.vistoEm ?? '').localeCompare(x.vistoEm ?? ''))[0].vistoEm) || '—'}` : 'Desconectado'}
+                    </span>
                   </div>
-                  <a className="ti-btn pri" href={beta ? DOWNLOAD_ASSISTENTE_BETA.url : DOWNLOAD_ASSISTENTE_ATUAL.url} data-testid="baixar-instalador"><Download aria-hidden /> Baixar instalador</a>
-                </div>
-                {beta && desatualizado && (
-                  <Aviso testid="aviso-versao" acao={<button type="button" className="ti-btn" onClick={() => setComoAtualizar(true)} data-testid="como-atualizar">Como atualizar</button>}>
-                    Este computador está na versão <b>{versao}</b>. Baixe a <b>{VERSAO_IMPRESSAO_V3}</b> e instale por cima, sem desinstalar.
-                  </Aviso>
-                )}
-                {beta && !p.betaLiberado && (
-                  <Aviso testid="aviso-liberacao" acao={<a className="ti-btn" href={SUPORTE_URL} target="_blank" rel="noopener noreferrer">Falar com o suporte</a>}>
-                    O Assistente novo ainda não foi liberado para a sua loja.
-                  </Aviso>
-                )}
-              </Passo>
-
-              {/* ── 3. Impressoras e o que cada uma imprime ────────────────── */}
-              <Passo n={3} estado={classePasso(2)} titulo="Impressoras e o que cada uma imprime" sub={beta ? 'Escolha a impressora e diga se ela fica na cozinha ou no caixa.' : 'A impressora que o Assistente antigo usa para a comanda.'} testid="passo-3">
-                {beta ? (
-                  <>
-                    {listadas.length > 0 ? (
-                      <div className="ti-tabela" data-testid="lista-impressoras">
-                        <div className="ti-linha cab-t"><span>Impressora</span><span>Usada para</span><span /></div>
-                        {listadas.map((d) => {
-                          const coz = p.funcoes.cozinha === d.id, cx = p.funcoes.caixa === d.id
-                          const est: Estado = !agenteDe(d)?.online ? 'bad' : d.disponivel ? 'ok' : 'warn'
-                          return (
-                            <div key={d.id} className="ti-linha" data-testid={`impressora-${d.id}`}>
-                              <div className="ti-imp">
-                                <Ponto e={est} />
-                                <div className="min-w-0"><b>{nomeDisp(d)}</b><small>{descricaoEnvio(d)}, papel {d.larguraMm} mm</small></div>
-                              </div>
-                              <div className="ti-seg" role="group" aria-label={`Uso da impressora ${nomeDisp(d)}`}>
-                                <button type="button" aria-pressed={coz && !cx} disabled={ocupado} onClick={() => usarPara(d, 'cozinha')} data-testid={`uso-${d.id}-cozinha`}>Cozinha</button>
-                                <button type="button" aria-pressed={cx && !coz} disabled={ocupado} onClick={() => usarPara(d, 'caixa')} data-testid={`uso-${d.id}-caixa`}>Caixa</button>
-                                <button type="button" aria-pressed={coz && cx} disabled={ocupado} onClick={() => usarPara(d, 'ambos')} data-testid={`uso-${d.id}-ambos`}>Os dois</button>
-                              </div>
-                              <button type="button" className="ti-btn sm" disabled={!agenteDe(d)?.online} onClick={() => void testarImpressora(d)} data-testid={`testar-${d.id}`}>Testar</button>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    ) : (
-                      <p className="ti-rot" data-testid="sem-impressoras">Nenhuma impressora ainda. Instale e conecte o Assistente novo (passos 2 e 4); as impressoras do computador aparecem aqui.</p>
+                  <div className="ti-acoes justify-end">
+                    {semCodigo && !ativos.length && (
+                      <button type="button" className="ti-btn" onClick={() => void conectarEsteComputador()} disabled={ocupado} data-testid="conectar-este-computador">Conectar este computador</button>
                     )}
-                    <button type="button" className="ti-btn sm mt-2.5" onClick={() => setEscolhendo(true)} disabled={!ativos.length} data-testid="adicionar-impressora"><Plus aria-hidden /> Adicionar impressora</button>
-                  </>
+                    {semCodigo ? (
+                      <form method="post" action="/api/admin/impressao/instalador" className="contents">
+                        <button type="submit" className="ti-btn pri" data-testid="baixar-instalador"><Download aria-hidden /> Baixar instalador</button>
+                      </form>
+                    ) : (
+                      <a className="ti-btn pri" href={DOWNLOAD_ASSISTENTE_BETA.url} data-testid="baixar-instalador"><Download aria-hidden /> Baixar instalador</a>
+                    )}
+                  </div>
+                </div>
+                {antigo && (
+                  <Aviso testid="aviso-antigo" acao={prontidao?.pronto ? <button type="button" className="ti-btn" onClick={() => setTrocar('beta')} data-testid="usar-novo">Usar o assistente novo</button> : undefined}>
+                    Sua loja usa o assistente antigo. Instale o novo para continuar imprimindo.
+                  </Aviso>
+                )}
+                {p.modo === 'caixa' && (
+                  <Aviso testid="aviso-so-caixa" erro={config?.ativarAssistente === false || !atualOnline}
+                    acao={<button type="button" className="ti-btn" onClick={() => (prontidao?.pronto ? setTrocar('beta') : setAviso({ tom: 'alerta', texto: 'Escolha a impressora da Cozinha no card 2 (com o computador conectado) e toque de novo.' }))} data-testid="passar-comanda">Passar a comanda para o novo</button>}>
+                    <b>Modo misto:</b> o assistente novo imprime só a pré-conta; a <b>comanda da cozinha</b> sai pelo antigo.
+                    {config?.ativarAssistente === false
+                      ? <> O assistente antigo está <b>desativado</b>: a comanda da cozinha não está saindo.</>
+                      : !atualOnline ? <> O assistente antigo está <b>sem sinal</b>: a comanda da cozinha pode não estar saindo.</> : null}
+                  </Aviso>
+                )}
+                {!antigo && desatualizado && (
+                  <Aviso testid="aviso-versao">Este computador está na versão <b>{versao}</b>. Baixe a <b>{VERSAO_IMPRESSAO_V3}</b> e instale por cima, sem desinstalar.</Aviso>
+                )}
+                {!p.betaLiberado && (
+                  <Aviso testid="aviso-liberacao" acao={<a className="ti-btn" href={SUPORTE_URL} target="_blank" rel="noopener noreferrer">Falar com o suporte</a>}>O assistente novo ainda não foi liberado para a sua loja.</Aviso>
+                )}
+              </Card>
+
+              {/* ── 2. Impressoras ─────────────────────────────────────────── */}
+              <Card cor="roxo" n={2} ico={<Printer />} titulo="Impressoras" sub="Adicione as impressoras da loja e diga o que cada uma imprime." testid="passo-2">
+                <div className="ti-add" data-testid="adicionar-linha">
+                  <select className="ti-campo" aria-label="Impressora encontrada no Windows" value={novaId} onChange={(e) => setNovaId(e.target.value)} disabled={!paraAdicionar.length || ocupado} data-testid="adicionar-select">
+                    <option value="">{!ativos.length ? 'Conecte o assistente para ver as impressoras' : paraAdicionar.length ? 'Escolha uma impressora do Windows' : 'Todas as impressoras já estão na lista'}</option>
+                    {paraAdicionar.map((d) => <option key={d.id} value={d.id}>{d.nomeSistema}{ehImpressoraVirtual(d.nomeSistema) ? ' (virtual)' : ''}{ativos.length > 1 ? ` · ${agenteDe(d)?.nome ?? ''}` : ''}</option>)}
+                  </select>
+                  <input className="ti-input" placeholder="Apelido (opcional)" maxLength={40} value={novoApelido} onChange={(e) => setNovoApelido(e.target.value)} aria-label="Apelido da impressora (opcional)" data-testid="adicionar-apelido" />
+                  <button type="button" className="ti-btn pri-roxo" disabled={!novaId || ocupado} onClick={() => void adicionar()} data-testid="adicionar-impressora">Adicionar</button>
+                </div>
+
+                {naLista.length > 0 ? (
+                  <ul className="ti-imps" data-testid="lista-impressoras">
+                    {naLista.map((d) => (
+                      <LinhaImpressora key={d.id} d={d} p={p} online={!!agenteDe(d)?.online} ocupado={ocupado}
+                        onApelido={(v) => ajustar(d, { apelido: v })} onFuncao={(f) => void alternarFuncao(d, f)} onRemover={() => remover(d)} />
+                    ))}
+                  </ul>
                 ) : (
-                  <>
-                    {impAntigas.length > 0 ? (
-                      <div className="ti-tabela" data-testid="lista-impressoras-antigo">
-                        <div className="ti-linha cab-t"><span>Impressora</span><span>Usada para</span><span /></div>
-                        {impAntigas.map((i) => {
-                          const emUso = i.id === impAntiga?.id
-                          return (
-                            <div key={i.id} className="ti-linha">
-                              <div className="ti-imp"><Ponto e={emUso && atualOnline ? 'ok' : 'off'} /><div className="min-w-0"><b>{i.nome}</b><small>papel {i.largura <= 40 ? 58 : 80} mm, letra {i.tamanhoFonte}, {i.copias} {i.copias === 1 ? 'via' : 'vias'}</small></div></div>
-                              <span className="ti-rot">{emUso ? 'Comanda (em uso)' : 'Reserva'}</span>
-                              <span className="flex gap-2">
-                                {podeEditar && <button type="button" className="ti-btn sm" onClick={() => setModalImpressora({ id: i.id, input: { nome: i.nome, tamanhoFonte: i.tamanhoFonte, largura: i.largura, copias: i.copias } })}>Editar</button>}
-                                {podeEditar && <button type="button" className="ti-btn sm" onClick={() => void removerImpressoraAntiga(i.id)}>Remover</button>}
-                              </span>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    ) : (
-                      <p className="ti-rot">Nenhuma impressora cadastrada para o Assistente antigo.</p>
-                    )}
-                    {podeEditar && <button type="button" className="ti-btn sm mt-2.5" onClick={() => setModalImpressora({ id: null, input: { nome: '', tamanhoFonte: 'grande', largura: 48, copias: 1 } })} data-testid="adicionar-impressora"><Plus aria-hidden /> Adicionar impressora</button>}
-                    <p className="ti-rot mt-2">Para testar, use o botão “Imprimir teste” no próprio Assistente antigo, no computador da impressora.</p>
-                  </>
+                  <p className="ti-rot mt-3" data-testid="sem-impressoras">{ativos.length ? 'Nenhuma impressora na lista. Escolha uma acima e toque em Adicionar.' : 'Instale e conecte o assistente (card 1): as impressoras do computador aparecem para adicionar.'}</p>
                 )}
-              </Passo>
 
-              {/* ── 4. Conexão e ajuste do papel ───────────────────────────── */}
-              <Passo n={4} estado={classePasso(3)} titulo="Conexão e ajuste do papel" sub="Só mexa aqui se a impressão sair cortada, fraca ou na largura errada." testid="passo-4">
-                <div className="ti-grade">
-                  <Bloco ico={<Monitor />} cor="teal" titulo="Computador da loja" texto={beta
-                    ? (online.length ? `${online.map((a) => a.nome).join(', ')}, conectado agora` : ativos.length ? `${ativos[0].nome}, sem sinal desde ${quando(ativos[0].vistoEm) || '—'}` : 'Nenhum computador conectado ainda.')
-                    : (atualOnline ? 'Assistente antigo conectado agora' : atualVistoEm ? `Sem sinal desde ${quando(atualVistoEm)}` : 'O Assistente antigo ainda não se conectou.')} testid="bloco-computador">
-                    {beta ? (
-                      <>
-                        <span className={`ti-estado ${online.length ? 'ok' : 'bad'}`}><Ponto e={online.length ? 'ok' : 'bad'} />{online.length ? `Computador ${online[0].nome} conectado` : 'Desconectado'}</span>
-                        {instaladorConectado() ? (
-                          <>
-                            {!ativos.length && <button type="button" className="ti-btn sm pri" onClick={() => void conectarEsteComputador()} disabled={ocupado} data-testid="conectar-este-computador">Conectar este computador</button>}
-                            {!ativos.length && (
-                              <form method="post" action="/api/admin/impressao/instalador" className="contents">
-                                <button type="submit" className="ti-btn sm" disabled={ocupado} data-testid="baixar-instalador-loja"><Download aria-hidden /> Baixar instalador da loja</button>
-                              </form>
-                            )}
-                            {ativos.slice(0, 1).map((a) => <button key={a.id} type="button" className="ti-btn sm" onClick={() => revogar(a)} disabled={ocupado} data-testid="desconectar-computador">Desconectar</button>)}
-                            <button type="button" className="ti-btn sm" onClick={() => void abrirPareamento()} disabled={ocupado} data-testid="trocar-computador">{ativos.length ? 'Trocar computador' : 'Usar código'}</button>
-                          </>
-                        ) : (
-                          <button type="button" className="ti-btn sm" onClick={() => void abrirPareamento()} disabled={ocupado} data-testid="trocar-computador">{ativos.length ? 'Trocar computador' : 'Conectar computador'}</button>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        <span className={`ti-estado ${atualOnline ? 'ok' : 'bad'}`}><Ponto e={atualOnline ? 'ok' : 'bad'} />{atualOnline ? 'Conectado' : 'Desconectado'}</span>
-                        {podeEditar && token && <button type="button" className="ti-btn sm" onClick={() => navigator.clipboard.writeText(token).then(() => { setCopiado(true); setTimeout(() => setCopiado(false), 2000) })} data-testid="token-copiar">{copiado ? 'Token copiado' : 'Copiar token'}</button>}
-                        {podeEditar && <button type="button" className="ti-btn sm" onClick={() => void gerarToken()} data-testid="token-gerar">{token ? 'Gerar novo token' : 'Gerar token'}</button>}
-                      </>
-                    )}
-                  </Bloco>
-                  <Bloco ico={<ScrollText />} cor="roxo" titulo="Largura do papel" texto="Confira na caixa da bobina ou na etiqueta da impressora." testid="bloco-largura">
-                    {beta ? (usadas.length ? usadas.map((d) => (
-                      <div key={d.id} className="flex w-full flex-wrap items-center gap-2">
-                        {usadas.length > 1 && <span className="ti-rot min-w-[90px]">{nomeDisp(d)}</span>}
-                        <div className="ti-seg" role="group" aria-label={`Largura do papel de ${nomeDisp(d)}`}>
-                          {([80, 58] as const).map((mm) => <button key={mm} type="button" aria-pressed={d.larguraMm === mm} disabled={ocupado} onClick={() => mm !== d.larguraMm && void ajustar(d, { larguraMm: mm })} data-testid={`largura-${d.id}-${mm}`}>{mm} mm</button>)}
-                        </div>
-                      </div>
-                    )) : <span className="ti-rot">Escolha a impressora no passo 3.</span>) : (impAntiga ? (
-                      <div className="ti-seg" role="group" aria-label="Largura do papel">
-                        {([80, 58] as const).map((mm) => <button key={mm} type="button" aria-pressed={(larguraAnt <= 40 ? 58 : 80) === mm} disabled={!podeEditar} onClick={() => void larguraAntiga(impAntiga, mm)} data-testid={`largura-antigo-${mm}`}>{mm} mm</button>)}
-                      </div>
-                    ) : <span className="ti-rot">Cadastre a impressora no passo 3.</span>)}
-                  </Bloco>
-                  <Bloco ico={<ArrowRight />} cor="ok" titulo="Forma de envio" texto={beta ? 'Envio direto é mais rápido e evita impressão cortada.' : 'O Assistente antigo imprime sempre pelo Windows (driver da impressora).'} testid="bloco-envio">
-                    {beta ? (usadas.length ? usadas.map((d) => (
-                      <div key={d.id} className="flex w-full flex-wrap items-center gap-2">
-                        {usadas.length > 1 && <span className="ti-rot min-w-[90px]">{nomeDisp(d)}</span>}
-                        <div className="ti-seg" role="group" aria-label={`Forma de envio de ${nomeDisp(d)}`}>
-                          <button type="button" aria-pressed={d.envio !== 'driver'} disabled={ocupado} onClick={() => d.envio === 'driver' && void agir(`/api/admin/impressao/dispositivos/${d.id}`, 'PATCH', { envio: envioDiretoSugerido(d) }, 'Envio direto ligado.')} data-testid={`envio-${d.id}-direto`}>Envio direto</button>
-                          <button type="button" aria-pressed={d.envio === 'driver'} disabled={ocupado} onClick={() => d.envio !== 'driver' && void agir(`/api/admin/impressao/dispositivos/${d.id}`, 'PATCH', { envio: 'driver' }, 'Envio pelo Windows ligado.')} data-testid={`envio-${d.id}-windows`}>Pelo Windows</button>
-                        </div>
-                      </div>
-                    )) : <span className="ti-rot">Escolha a impressora no passo 3.</span>) : <span className="ti-estado"><Ponto e="off" />Pelo Windows</span>}
-                  </Bloco>
-                  <Bloco ico={<SlidersHorizontal />} cor="warn" titulo="Calibrar" texto={beta ? 'Imprime uma folha de teste e ajusta largura e intensidade.' : 'No Assistente antigo, a largura é ajustada no driver do Windows.'} testid="bloco-calibrar"
-                    antes={beta ? usadas.map((d) => avisoCalibrar(d) && <Aviso key={d.id} testid={`aviso-calibrar-${d.id}`}>{usadas.length > 1 ? `${nomeDisp(d)}: ` : ''}{avisoCalibrar(d)}</Aviso>) : null}>
-                    {beta ? usadas.map((d) => (
-                      <button key={d.id} type="button" className="ti-btn sm" onClick={() => setCalibrar(d.id)} disabled={!agenteDe(d)?.online} data-testid={`calibrar-${d.id}`}>{usadas.length > 1 ? `Calibrar ${nomeDisp(d)}` : 'Calibrar impressora'}</button>
-                    )) : <a className="ti-btn sm" href="/guia-impressora-80mm.html" target="_blank" rel="noopener noreferrer">Como ajustar o driver</a>}
-                  </Bloco>
+                <div className="ti-rodape-card">
+                  <span className="ti-rot">Uma impressora pode ter mais de uma função.</span>
+                  <button type="button" className="ti-btn" onClick={() => setTestando(true)} disabled={!naLista.length} data-testid="testar-impressao"><Printer aria-hidden /> Testar impressão</button>
                 </div>
-              </Passo>
+              </Card>
 
-              {/* ── 5. O que aparece no papel ──────────────────────────────── */}
-              <Passo n={5} estado="" titulo="O que aparece no papel" sub={'As mudanças valem para a próxima impressão. Confira em "Ver modelo da impressão".'} testid="passo-5">
+              {/* ── 3. O que aparece no papel ──────────────────────────────── */}
+              <Card cor="verde" n={3} ico={<ScrollText />} titulo="O que aparece no papel" sub={'Vale para a próxima impressão. Confira em "Ver modelo de impressão".'} testid="passo-3">
                 {config ? (
-                  <div className="ti-opcoes" data-testid="opcoes-impressao">
-                    {OPCOES_PAPEL.filter((o) => (o.so === 'beta' ? beta : o.so === 'antigo' ? !beta : true)).map((o) => (
+                  <div className="ti-switches" data-testid="opcoes-impressao">
+                    {[...OPCOES_PAPEL, ...(antigo ? OPCOES_ANTIGO : [])].map((o) => (
                       <div key={o.chave} className="ti-opt">
                         <div><b id={`opt-${o.chave}`}>{o.titulo}</b><small>{o.frase}</small></div>
-                        <button type="button" className="ti-sw" role="switch" aria-checked={!!config[o.chave]} aria-labelledby={`opt-${o.chave}`} disabled={!podeEditar} onClick={() => void patchConfig({ [o.chave]: !config[o.chave] } as Partial<ConfigImpressao>)} data-testid={`opcao-${o.chave}`} />
+                        <button type="button" className="ti-sw verde" role="switch" aria-checked={!!config[o.chave]} aria-labelledby={`opt-${o.chave}`} disabled={!podeEditar} onClick={() => void patchConfig({ [o.chave]: !config[o.chave] } as Partial<ConfigImpressao>)} data-testid={`opcao-${o.chave}`} />
                       </div>
                     ))}
                   </div>
                 ) : <p className="ti-rot">Carregando…</p>}
                 {config && !podeEditar && <p className="ti-rot mt-2">Só o dono da loja altera estas opções.</p>}
-              </Passo>
+              </Card>
 
-              {/* ── Situação geral ─────────────────────────────────────────── */}
-              <section className="ti-situ" aria-labelledby="ti-situacao" data-testid="situacao-geral">
-                <div className="ti-situ-cab">
-                  <h3 id="ti-situacao">Situação geral</h3>
-                  <button type="button" className="ti-btn sm" onClick={() => { void carregar(); void checarAntigo() }} data-testid="situacao-atualizar"><RefreshCw aria-hidden /> Atualizar</button>
-                </div>
-                <div className="ti-itens-s">
-                  <ItemSituacao ico={<Monitor />} cor="" rotulo="Assistente" e={beta ? (online.length ? 'ok' : 'bad') : (atualOnline ? 'ok' : 'bad')} valor={`${beta ? 'Novo' : 'Antigo'}, ${(beta ? online.length : atualOnline) ? 'conectado' : 'sem sinal'}`} testid="sit-assistente" />
-                  <ItemSituacao ico={<ChefHat />} cor="warn" rotulo="Cozinha" e={beta ? (pronta(dCozinha) ? 'ok' : dCozinha ? 'warn' : 'bad') : (impAntiga ? (atualOnline ? 'ok' : 'warn') : 'bad')} valor={beta ? (dCozinha ? nomeDisp(dCozinha) : 'Não escolhida') : impAntiga?.nome ?? 'Não escolhida'} testid="sit-cozinha" />
-                  <ItemSituacao ico={<Wallet />} cor="teal" rotulo="Caixa" e={beta ? (pronta(dCaixa) ? 'ok' : dCaixa ? 'warn' : 'off') : 'off'} valor={beta ? (dCaixa ? nomeDisp(dCaixa) : 'Não escolhida') : 'Só no Assistente novo'} testid="sit-caixa" />
-                  <ItemSituacao ico={<Printer />} cor="ok" rotulo="Última impressão" e={ultimoErro.length ? 'bad' : (beta ? !!ultimoUso : atualOnline) ? 'ok' : 'off'} valor={ultimoErro.length ? `Erro, ${quando(ultimoErro[0].ultimoErroEm)}` : beta ? (quando(ultimoUso) || 'Nenhuma ainda') : (atualVistoEm ? `Sinal ${quando(atualVistoEm)}` : 'Nenhuma ainda')} testid="sit-ultima" />
-                </div>
-                <details className="ti-tec" data-testid="detalhes-tecnicos">
-                  <summary>Detalhes técnicos <ChevronDown className="ti-chev h-4 w-4" aria-hidden /></summary>
-                  <dl className="ti-tec-tab">
-                    <dt>Versão instalada</dt><dd>{beta ? `${versao ?? '—'}${desatualizado ? ` (disponível: ${VERSAO_IMPRESSAO_V3})` : ''}` : DOWNLOAD_ASSISTENTE_ATUAL.versao}</dd>
-                    <dt>Computador</dt>
-                    <dd>
-                      {beta ? (ativos.length ? ativos.map((a) => (
-                        <span key={a.id} className="mb-1 flex flex-wrap items-center gap-2">
-                          {a.nome} · {a.versao ?? '—'} · {a.online ? 'conectado' : `sem sinal desde ${quando(a.vistoEm) || '—'}`}
-                          <button type="button" className="ti-btn sm" style={{ height: 26, fontSize: 12 }} onClick={() => revogar(a)} data-testid={`revogar-${a.nome}`}>Desconectar</button>
-                        </span>
-                      )) : '—') : (atualVistoEm ? `Último sinal ${quando(atualVistoEm)}` : '—')}
-                    </dd>
-                    <dt>Largura</dt><dd>{beta ? (usadas.map((d) => `${nomeDisp(d)}: ${d.larguraPontos ?? (d.larguraMm <= 58 ? 384 : 576)} pontos (${d.larguraMm} mm)`).join(' · ') || '—') : `${larguraAnt <= 40 ? 384 : 576} pontos (${larguraAnt <= 40 ? 58 : 80} mm)`}</dd>
-                    {beta && usadas.length > 0 && <>
-                      <dt>Tamanho da letra</dt>
-                      <dd className="flex flex-col gap-1.5">
-                        {usadas.map((d) => (
-                          <label key={d.id} className="flex flex-wrap items-center gap-2">
-                            {usadas.length > 1 && <span>{nomeDisp(d)}:</span>}
-                            <select className="ti-campo h-[32px]" aria-label={`Tamanho da letra de ${nomeDisp(d)}`} value={d.tamanhoFonte} disabled={ocupado} onChange={(e) => void ajustar(d, { tamanhoFonte: e.target.value as TamanhoLetra })} data-testid={`letra-${d.id}`}>
-                              {TAMANHOS_LETRA.map((t) => <option key={t.valor} value={t.valor}>{t.rotulo}</option>)}
-                            </select>
-                          </label>
-                        ))}
-                      </dd>
-                    </>}
-                    <dt>Envio</dt><dd>{beta ? (usadas.map((d) => `${nomeDisp(d)}: ${d.envio === 'raw_rede' ? `rede ${d.redeIp ?? ''}:${d.redePorta}` : d.envio === 'raw_fila' ? 'RAW USB direto' : 'driver do Windows'}`).join(' · ') || '—') : 'driver do Windows'}</dd>
-                    <dt>Modo de impressão</dt><dd>{beta ? (usadas.map((d) => `${nomeDisp(d)}: ${d.modoImpressao === 'texto' ? 'texto (WPC1252)' : 'imagem 1 bit'}`).join(' · ') || '—') : 'imagem (print.ps1)'}</dd>
-                    <dt>Últimos erros</dt><dd>{ultimoErro.length ? ultimoErro.map((d) => `${nomeDisp(d)}: ${d.ultimoErro ?? 'erro'} (${quando(d.ultimoErroEm)})`).join(' · ') : 'Nenhum nas últimas 24 h'}</dd>
-                    {config && <>
-                      <dt>Impressão automática</dt>
-                      <dd><button type="button" className="ti-sw" role="switch" aria-checked={config.impressaoAutomatica} aria-label="Imprimir sozinho quando o pedido chega" disabled={!podeEditar} onClick={() => void patchConfig({ impressaoAutomatica: !config.impressaoAutomatica })} data-testid="opcao-impressaoAutomatica" /></dd>
-                      <dt>Aceitar pedidos sozinho</dt>
-                      <dd><button type="button" className="ti-sw" role="switch" aria-checked={config.aceitarPedidosAutomaticamente} aria-label="Aceitar pedidos automaticamente" disabled={!podeEditar} onClick={() => void patchConfig({ aceitarPedidosAutomaticamente: !config.aceitarPedidosAutomaticamente })} data-testid="opcao-aceitarPedidosAutomaticamente" /></dd>
-                      {!beta && <>
-                        <dt>Assistente ativado</dt>
-                        <dd><button type="button" className="ti-sw" role="switch" aria-checked={config.ativarAssistente} aria-label="Assistente de impressão ativado" disabled={!podeEditar} onClick={() => void patchConfig({ ativarAssistente: !config.ativarAssistente })} data-testid="opcao-ativarAssistente" /></dd>
-                      </>}
-                    </>}
-                    <dt>Ajuda</dt><dd><button type="button" className="ti-btn sm" onClick={() => setAjuda(true)}>Guia e diagnóstico</button></dd>
-                  </dl>
-                </details>
-              </section>
-            </div>
+              <button type="button" className="ti-avancado" onClick={() => setAvancado(true)} data-testid="abrir-avancado">Avançado</button>
+            </>
           )}
 
           {/* ── janelas ─────────────────────────────────────────────────────────── */}
           <NoTopo classe="tela-impressao"><ModalAjudaImpressao aberto={ajuda} onFechar={() => setAjuda(false)} /></NoTopo>
           {pareando && <ModalPareamento codigo={pareando.codigo} erro={pareando.erro} conectado={pareando.conectado} onGerarOutro={() => void abrirPareamento()} onFechar={() => setPareando(null)} />}
-          {escolhendo && p && <ModalImpressoras p={p} ocupado={ocupado} onSalvar={salvarImpressoras} onAjustar={ajustar} onAtualizar={carregar} onFechar={() => setEscolhendo(false)} />}
-          {testando && p && <ModalTestes p={p} onTestar={testar} onFechar={() => setTestando(false)} />}
-          {opcao && (
+          {testando && p && <NoTopo classe="tela-impressao"><ModalTestes p={{ ...p, dispositivos: naLista }} onTestar={testar} onFechar={() => setTestando(false)} /></NoTopo>}
+          {p && (
             <ModalPrevia
               aberto={previa}
               onFechar={() => setPrevia(false)}
-              opcao={opcao}
+              opcao={antigo ? 'antigo' : 'beta'}
               docInicial="comanda"
               dados={dadosPrevia}
               config={config}
@@ -697,18 +475,99 @@ export function PainelImpressao() {
               antigo={{ larguraMm: larguraAnt <= 40 ? 58 : 80, colunas: ReciboAntigo.colsParaFonte(impAntiga?.tamanhoFonte, larguraAnt) }}
             />
           )}
-          {p && prontidao && (
-            <GuiaInstalacao
-              opcao={guia}
-              prontidao={prontidao}
-              antigo={{ instalado: !!atualVistoEm, online: atualOnline, token, podeEditar }}
-              ocupado={ocupado}
-              onFechar={() => setGuia(null)}
-              onParear={() => void abrirPareamento()}
-              onEscolher={() => setEscolhendo(true)}
-              onGerarToken={() => void gerarToken()}
-              onAtivar={(o) => void confirmarTroca(o)}
-            />
+          {p && (
+            <ModalCentral aberto={avancado} onFechar={() => setAvancado(false)} largura={640} classeTema="tela-impressao" testid="modal-avancado" titulo="Avançado" subtitulo="Computador, papel, formato de envio e calibração.">
+              <div className="ti-av">
+                <SecaoAv titulo="Computador" testid="av-computador">
+                  {ativos.length ? ativos.map((a) => (
+                    <div key={a.id} className="ti-av-linha" data-testid={`av-agente-${a.id}`}>
+                      <span className="min-w-0"><b>{a.nome}</b><small>versão {a.versao ?? '—'} · {a.online ? 'conectado agora' : `sem sinal desde ${quando(a.vistoEm) || '—'}`}</small></span>
+                      <button type="button" className="ti-btn sm" onClick={() => revogar(a)} disabled={ocupado} data-testid={`revogar-${a.nome}`}>Desconectar</button>
+                    </div>
+                  )) : <p className="ti-rot">Nenhum computador conectado.</p>}
+                  <div className="ti-acoes mt-2">
+                    {semCodigo && <button type="button" className="ti-btn sm" onClick={() => void conectarEsteComputador()} disabled={ocupado} data-testid="av-conectar-este">Conectar este computador</button>}
+                    <button type="button" className="ti-btn sm" onClick={() => void abrirPareamento()} disabled={ocupado} data-testid="trocar-computador">{ativos.length ? 'Trocar computador / parear novo PC' : 'Parear com código'}</button>
+                  </div>
+                </SecaoAv>
+
+                <SecaoAv titulo="Largura do papel" testid="av-largura">
+                  {naLista.length ? naLista.map((d) => (
+                    <div key={d.id} className="ti-av-linha">
+                      <span className="min-w-0 truncate">{nomeDisp(d)}</span>
+                      <div className="ti-seg" role="group" aria-label={`Largura do papel de ${nomeDisp(d)}`}>
+                        {([80, 58] as const).map((mm) => <button key={mm} type="button" aria-pressed={d.larguraMm === mm} disabled={ocupado} onClick={() => mm !== d.larguraMm && void ajustar(d, { larguraMm: mm })} data-testid={`largura-${d.id}-${mm}`}>{mm} mm</button>)}
+                      </div>
+                    </div>
+                  )) : <p className="ti-rot">Adicione uma impressora no card 2.</p>}
+                </SecaoAv>
+
+                <SecaoAv titulo="Formato de envio" testid="av-envio" frase="Automático: tenta o envio direto (mais rápido) e, se falhar, imprime pelo Windows.">
+                  {naLista.map((d) => {
+                    const direto = d.envio === 'raw_fila' || d.envio === 'raw_rede'
+                    return (
+                      <div key={d.id} className="ti-av-linha">
+                        <span className="min-w-0"><span className="block truncate">{nomeDisp(d)}</span>{d.envioCaminho && <small data-testid={`caminho-${d.id}`}>última: {d.envioCaminho === 'driver' ? 'pelo Windows' : 'envio direto'}</small>}</span>
+                        <div className="ti-seg" role="group" aria-label={`Formato de envio de ${nomeDisp(d)}`}>
+                          <button type="button" aria-pressed={d.envio === 'auto'} disabled={ocupado} onClick={() => d.envio !== 'auto' && void ajustar(d, { envio: 'auto' })} data-testid={`envio-${d.id}-auto`}>Automático</button>
+                          <button type="button" aria-pressed={direto} disabled={ocupado} onClick={() => !direto && void ajustar(d, { envio: envioDiretoSugerido(d) })} data-testid={`envio-${d.id}-direto`}>Envio direto</button>
+                          <button type="button" aria-pressed={d.envio === 'driver'} disabled={ocupado} onClick={() => d.envio !== 'driver' && void ajustar(d, { envio: 'driver' })} data-testid={`envio-${d.id}-windows`}>Pelo Windows</button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                  {!naLista.length && <p className="ti-rot">Adicione uma impressora no card 2.</p>}
+                </SecaoAv>
+
+                <SecaoAv titulo="Calibrar impressora" testid="av-calibrar" frase="Imprime uma folha de teste e ajusta largura, letra e intensidade.">
+                  {naLista.map((d) => {
+                    const drv = avisoDriver(d)
+                    return (
+                      <div key={d.id} className="space-y-2">
+                        <div className="ti-av-linha">
+                          <span className="min-w-0 truncate">{nomeDisp(d)}</span>
+                          <span className="ti-acoes">
+                            <select className="ti-campo h-[32px]" aria-label={`Tamanho da letra de ${nomeDisp(d)}`} value={d.tamanhoFonte} disabled={ocupado} onChange={(e) => void ajustar(d, { tamanhoFonte: e.target.value as TamanhoLetra })} data-testid={`letra-${d.id}`}>
+                              {TAMANHOS_LETRA.map((t) => <option key={t.valor} value={t.valor}>{t.rotulo}</option>)}
+                            </select>
+                            <button type="button" className="ti-btn sm" onClick={() => { setAvancado(false); setCalibrar(d.id) }} disabled={!agenteDe(d)?.online} data-testid={`calibrar-${d.id}`}>Calibrar</button>
+                          </span>
+                        </div>
+                        {drv && <Aviso testid={`aviso-calibrar-${d.id}`}>{drv}</Aviso>}
+                      </div>
+                    )
+                  })}
+                  {!naLista.length && <p className="ti-rot">Adicione uma impressora no card 2.</p>}
+                </SecaoAv>
+
+                {config && (
+                  <SecaoAv titulo="Pedidos" testid="av-pedidos">
+                    <div className="ti-av-linha"><span>Imprimir sozinho quando o pedido chega</span><button type="button" className="ti-sw" role="switch" aria-checked={config.impressaoAutomatica} aria-label="Imprimir sozinho quando o pedido chega" disabled={!podeEditar} onClick={() => void patchConfig({ impressaoAutomatica: !config.impressaoAutomatica })} data-testid="opcao-impressaoAutomatica" /></div>
+                    <div className="ti-av-linha"><span>Aceitar pedidos sozinho</span><button type="button" className="ti-sw" role="switch" aria-checked={config.aceitarPedidosAutomaticamente} aria-label="Aceitar pedidos automaticamente" disabled={!podeEditar} onClick={() => void patchConfig({ aceitarPedidosAutomaticamente: !config.aceitarPedidosAutomaticamente })} data-testid="opcao-aceitarPedidosAutomaticamente" /></div>
+                  </SecaoAv>
+                )}
+
+                {antigo && (
+                  <SecaoAv titulo="Assistente antigo (enquanto a loja usa)" testid="av-antigo">
+                    <div className="ti-av-linha">
+                      <span className="min-w-0"><span className="block">Sinal: {atualOnline ? 'conectado' : atualVistoEm ? `sem sinal desde ${quando(atualVistoEm)}` : 'nunca conectou'}</span><small>Impressora: {impAntiga?.nome ?? '—'}</small></span>
+                      <span className="ti-acoes">
+                        {podeEditar && token && <button type="button" className="ti-btn sm" onClick={() => navigator.clipboard.writeText(token).then(() => { setCopiado(true); setTimeout(() => setCopiado(false), 2000) })} data-testid="token-copiar">{copiado ? 'Token copiado' : 'Copiar token'}</button>}
+                        {podeEditar && <button type="button" className="ti-btn sm" onClick={() => void gerarToken()} data-testid="token-gerar">{token ? 'Gerar novo token' : 'Gerar token'}</button>}
+                        {podeEditar && impAntiga && <button type="button" className="ti-btn sm" onClick={() => setModalImpressora({ id: impAntiga.id, input: { nome: impAntiga.nome, tamanhoFonte: impAntiga.tamanhoFonte, largura: impAntiga.largura, copias: impAntiga.copias } })}>Editar impressora</button>}
+                      </span>
+                    </div>
+                    {config && <div className="ti-av-linha"><span>Assistente antigo ativado</span><button type="button" className="ti-sw" role="switch" aria-checked={config.ativarAssistente} aria-label="Assistente antigo ativado" disabled={!podeEditar} onClick={() => void patchConfig({ ativarAssistente: !config.ativarAssistente })} data-testid="opcao-ativarAssistente" /></div>}
+                    <a className="ti-btn sm" href={DOWNLOAD_ASSISTENTE_ATUAL.url}>Instalador do antigo ({DOWNLOAD_ASSISTENTE_ATUAL.versao})</a>
+                  </SecaoAv>
+                )}
+
+                <div className="ti-av-rodape">
+                  <button type="button" className="ti-btn sm" onClick={() => { setAvancado(false); setAjuda(true) }}>Guia e diagnóstico</button>
+                  {!antigo && <button type="button" className="ti-link" onClick={() => setTrocar('antigo')} data-testid="voltar-antigo">Voltar para o assistente antigo (emergência)</button>}
+                </div>
+              </div>
+            </ModalCentral>
           )}
           <ModalCentral
             aberto={trocar !== null}
@@ -716,7 +575,7 @@ export function PainelImpressao() {
             largura={440}
             classeTema="tela-impressao"
             testid="confirmar-opcao"
-            titulo={trocar === 'beta' ? 'Imprimir pelo Assistente novo?' : 'Voltar para o Assistente antigo?'}
+            titulo={trocar === 'beta' ? 'Imprimir pelo assistente novo?' : 'Voltar para o assistente antigo?'}
             rodape={
               <div className="flex justify-end gap-2">
                 <button type="button" className="ti-btn" onClick={() => setTrocar(null)}>Cancelar</button>
@@ -724,14 +583,9 @@ export function PainelImpressao() {
               </div>
             }
           >
-            <p className="px-5 py-4 text-[14px] leading-[20px]" data-testid="confirmar-opcao-texto">{trocar ? CONFIRMACAO_OPCAO[trocar] : ''}</p>
-          </ModalCentral>
-          <ModalCentral aberto={comoAtualizar} onFechar={() => setComoAtualizar(false)} largura={460} classeTema="tela-impressao" testid="modal-como-atualizar" titulo={`Como atualizar para o ${VERSAO_IMPRESSAO_V3}`}>
-            <ol className="list-decimal space-y-2 px-9 py-4 text-[14px]">
-              <li>No computador da impressora, clique em <b>Baixar instalador</b> (passo 2).</li>
-              <li>Abra o arquivo baixado e instale <b>por cima</b>, sem desinstalar. A conexão com a loja continua.</li>
-              <li>Volte aqui: a versão nova aparece em <b>Situação geral</b> e o aviso some.</li>
-            </ol>
+            <p className="px-5 py-4 text-[14px] leading-[20px]" data-testid="confirmar-opcao-texto">
+              {trocar === 'beta' ? 'Comanda e pré-conta passam a sair pelo assistente novo, nas impressoras do card 2.' : 'A comanda volta para o assistente antigo. Ele precisa estar aberto no computador da impressora.'}
+            </p>
           </ModalCentral>
           {calibrar && p?.dispositivos.find((d) => d.id === calibrar) && <NoTopo classe="tela-impressao"><Calibracao d={p.dispositivos.find((d) => d.id === calibrar)!} ocupado={ocupado} agir={agir} onFechar={() => setCalibrar(null)} /></NoTopo>}
           {modalImpressora && <NoTopo classe="tela-impressao"><ImpressoraModal initial={modalImpressora.input} onClose={() => setModalImpressora(null)} onSave={salvarImpressoraAntiga} /></NoTopo>}
@@ -743,134 +597,107 @@ export function PainelImpressao() {
 
 // ─── peças da tela ──────────────────────────────────────────────────────────
 
-function Passo({ n, estado, titulo, sub, children, testid }: { n: number; estado: string; titulo: string; sub: string; children: React.ReactNode; testid: string }) {
+function Card({ cor, n, ico, titulo, sub, extra, children, testid }: { cor: 'azul' | 'roxo' | 'verde'; n: number; ico: React.ReactNode; titulo: string; sub: string; extra?: React.ReactNode; children: React.ReactNode; testid: string }) {
   return (
-    <section className={`ti-passo ${estado === 'atual' ? 'ativo' : ''}`} aria-labelledby={`${testid}-t`} data-testid={testid} data-estado={estado || 'neutro'}>
-      <div className="ti-passo-cab">
-        <span className={`ti-num ${estado}`} aria-label={estado === 'feito' ? `Passo ${n} concluído` : `Passo ${n}`}>{n}</span>
-        <div className="min-w-0">
+    <section className={`ti-card ${cor}`} aria-labelledby={`${testid}-t`} data-testid={testid}>
+      <div className="ti-card-cab">
+        <span className={`ti-ico ${cor === 'roxo' ? 'roxo' : cor === 'verde' ? 'ok' : ''}`}>{ico}</span>
+        <div className="min-w-0 flex-1">
+          <span className="ti-eyebrow">Passo {n}</span>
           <h3 id={`${testid}-t`}>{titulo}</h3>
           <p className="ti-sub">{sub}</p>
         </div>
+        {extra}
       </div>
-      <div className="ti-passo-corpo">{children}</div>
+      <div className="ti-card-corpo">{children}</div>
     </section>
   )
 }
 
-function OpcaoCard({ o, ativo, disabled, onClick, titulo, selo, frase, itens, rec }: { o: OpcaoImpressao; ativo: boolean; disabled: boolean; onClick: () => void; titulo: string; selo: string; frase: string; itens: string[]; rec?: boolean }) {
+function SecaoAv({ titulo, frase, children, testid }: { titulo: string; frase?: string; children: React.ReactNode; testid: string }) {
   return (
-    <button type="button" className="ti-opcao" role="radio" aria-checked={ativo} disabled={disabled} onClick={onClick} data-testid={`opcao-${o}`}>
-      <span className="t"><span className="ti-radio" />{titulo}<span className={`ti-selo ${rec ? 'rec' : ''}`}>{selo}</span></span>
-      <p>{frase}</p>
-      <ul>{itens.map((i) => <li key={i}><Check aria-hidden />{i}</li>)}</ul>
-      {ativo && <span className="ti-emuso" data-testid="opcao-em-uso"><i className="ti-dot" />Em uso na sua loja</span>}
-    </button>
+    <section className="ti-av-secao" data-testid={testid}>
+      <h4>{titulo}</h4>
+      {frase && <p className="ti-rot mb-2">{frase}</p>}
+      <div className="space-y-2">{children}</div>
+    </section>
   )
 }
 
-function Bloco({ ico, cor, titulo, texto, children, antes, testid }: { ico: React.ReactNode; cor: string; titulo: string; texto: string; children: React.ReactNode; antes?: React.ReactNode; testid: string }) {
-  return (
-    <div className="ti-bloco" data-testid={testid}>
-      <div className="ti-bloco-cab"><span className={`ti-ico ${cor}`}>{ico}</span><div className="min-w-0"><h4>{titulo}</h4><p>{texto}</p></div></div>
-      {antes && <div className="mb-3 [&>.ti-aviso]:mt-0 [&>.ti-aviso+.ti-aviso]:mt-2">{antes}</div>}
-      <div className="ti-acoes">{children}</div>
-    </div>
-  )
-}
-
-function ItemSituacao({ ico, cor, rotulo, valor, e, testid }: { ico: React.ReactNode; cor: string; rotulo: string; valor: string; e: Estado; testid: string }) {
-  return (
-    <div className="ti-it" data-testid={testid} data-estado={e}>
-      <span className={`ti-ico ${cor}`}>{ico}</span>
-      <div className="min-w-0"><small>{rotulo}</small><b><Ponto e={e} /><span title={valor}>{valor}</span></b></div>
-    </div>
-  )
-}
-
-type ChaveOpcao = 'imprimirLogo' | 'mostrarNumeroItem' | 'mostrarNomeComplementos' | 'mostrarPrecoComplementos' | 'multiplicarOpcoesQtd' | 'fonteMaiorProducao' | 'viaCozinha' | 'qr'
-const OPCOES_PAPEL: { chave: ChaveOpcao; titulo: string; frase: string; so?: 'beta' | 'antigo' }[] = [
-  { chave: 'imprimirLogo', titulo: 'Logo da loja', frase: 'Imprime a logo em preto e branco no topo.' },
-  { chave: 'mostrarNumeroItem', titulo: 'Quantidade no item', frase: 'Mostra "2x" antes do nome do produto.' },
-  { chave: 'mostrarNomeComplementos', titulo: 'Adicionais', frase: 'Mostra os adicionais escolhidos pelo cliente.' },
-  // No modelo novo o adicional sai no nome do item, com o valor somado ao dele.
-  { chave: 'mostrarPrecoComplementos', titulo: 'Preço dos adicionais', frase: 'Mostra o valor de cada adicional.', so: 'antigo' },
-  { chave: 'multiplicarOpcoesQtd', titulo: 'Multiplicar adicionais', frase: 'Com 2 lanches, mostra "2x Bacon" quando cada um leva bacon.' },
-  { chave: 'fonteMaiorProducao', titulo: 'Letra maior nos itens', frase: 'Facilita a leitura na cozinha.' },
-  { chave: 'viaCozinha', titulo: 'Via da cozinha sem valores', frase: 'Uma via a mais, só com itens e observações, logo depois da comanda.', so: 'beta' },
-  { chave: 'qr', titulo: 'QR Code do cardápio', frase: 'No rodapé, para o cliente pedir de novo.', so: 'beta' },
-]
-
-// ─── guia de instalação antes de trocar de assistente ───────────────────────
-
-function GuiaInstalacao({ opcao, prontidao, antigo, ocupado, onFechar, onParear, onEscolher, onGerarToken, onAtivar }: {
-  opcao: OpcaoImpressao | null
-  prontidao: ReturnType<typeof prontidaoBeta>
-  antigo: { instalado: boolean; online: boolean; token: string | null; podeEditar: boolean }
+/** Uma impressora da lista: apelido (editável) e nome técnico, situação, funções e remover. */
+function LinhaImpressora({ d, p, online, ocupado, onApelido, onFuncao, onRemover }: {
+  d: DispositivoVisao
+  p: PainelDados & { funcoes: Record<FuncaoImpressora, string | null> }
+  online: boolean
   ocupado: boolean
-  onFechar: () => void
-  onParear: () => void
-  onEscolher: () => void
-  onGerarToken: () => void
-  onAtivar: (o: OpcaoImpressao) => void
+  onApelido: (v: string) => Promise<unknown>
+  onFuncao: (f: FuncaoImpressora | 'outra') => void
+  onRemover: () => void
 }) {
-  const beta = opcao === 'beta'
-  const passos = beta
-    ? prontidao.passos.map((x) => ({ id: x.id, titulo: x.titulo, feito: x.feito }))
-    : [
-        { id: 'instalar', titulo: 'Instalar o Assistente antigo no computador da impressora', feito: antigo.instalado },
-        { id: 'conectar', titulo: 'Abrir o Assistente e colar o token da loja', feito: antigo.online },
-      ]
-  const pronto = beta ? prontidao.pronto : antigo.online
-  const acoes: Record<string, React.ReactNode> = beta
-    ? {
-        instalar: <a href={DOWNLOAD_ASSISTENTE_BETA.url} className="ti-btn sm" data-testid="ativar-baixar"><Download aria-hidden /> Baixar</a>,
-        parear: <button type="button" className="ti-btn sm" onClick={onParear} disabled={ocupado} data-testid="ativar-parear">Gerar código</button>,
-        impressoras: <button type="button" className="ti-btn sm" onClick={onEscolher} disabled={!prontidao.conectado} data-testid="ativar-impressoras">Escolher impressoras</button>,
-      }
-    : {
-        instalar: <a href={DOWNLOAD_ASSISTENTE_ATUAL.url} className="ti-btn sm" data-testid="ativar-baixar"><Download aria-hidden /> Baixar</a>,
-        conectar: antigo.podeEditar ? (antigo.token
-          ? <button type="button" className="ti-btn sm" onClick={() => void navigator.clipboard.writeText(antigo.token ?? '')} data-testid="ativar-copiar-token">Copiar token</button>
-          : <button type="button" className="ti-btn sm" onClick={onGerarToken} data-testid="ativar-gerar-token">Gerar token</button>) : null,
-      }
+  const [editando, setEditando] = useState<string | null>(null)
+  const [menu, setMenu] = useState(false)
+  const botao = useRef<HTMLButtonElement>(null)
+  const est: Estado = !online ? 'warn' : d.disponivel ? 'ok' : 'warn'
+  const situacao = !online ? 'Sem sinal' : d.disponivel ? 'Conectada' : 'Não encontrada no Windows'
+  const rotulo = d.funcoes.length ? FUNCOES_IMPRESSORA.filter((f) => d.funcoes.includes(f)).map((f) => ROTULO_FUNCAO_IMPRESSORA[f]).join(', ') : 'Outra'
+  const outraDe = (f: FuncaoImpressora) => {
+    const id = p.funcoes[f]
+    if (!id || id === d.id) return null
+    const x = p.dispositivos.find((y) => y.id === id)
+    return x ? nomeDisp(x) : null
+  }
+  async function salvar() {
+    if (editando === null) return
+    await onApelido(editando)
+    setEditando(null)
+  }
   return (
-    <ModalCentral
-      aberto={opcao !== null}
-      onFechar={onFechar}
-      largura={560}
-      classeTema="tela-impressao"
-      testid="ativar-beta"
-      titulo={beta ? 'Ativar o Assistente novo' : 'Voltar para o Assistente antigo'}
-      subtitulo={opcao ? CONFIRMACAO_OPCAO[opcao] : undefined}
-      rodape={
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="ti-rot">{pronto ? 'Tudo pronto.' : 'Enquanto isso, a loja continua imprimindo como hoje.'}</p>
-          <div className="flex gap-2">
-            <button type="button" className="ti-btn" onClick={onFechar}>Agora não</button>
-            <button type="button" className="ti-btn pri" disabled={!pronto || ocupado || (beta && !prontidao.liberado)} onClick={() => opcao && onAtivar(opcao)} data-testid="ativar-confirmar"><Sparkles aria-hidden /> Ativar</button>
-          </div>
-        </div>
-      }
-    >
-      <div className="space-y-3 px-4 py-4 sm:px-5">
-        {beta && !prontidao.liberado && (
-          <Aviso acao={<a href={SUPORTE_URL} target="_blank" rel="noopener noreferrer" className="ti-btn">Falar com o suporte</a>}>O suporte Menuzia libera o Assistente novo para a sua loja. Os passos abaixo já podem ser feitos.</Aviso>
+    <li className="ti-imp-linha" data-testid={`impressora-${d.id}`}>
+      <div className="ti-imp min-w-0">
+        <Ponto e={est} />
+        {editando !== null ? (
+          <span className="flex min-w-0 flex-1 items-center gap-2">
+            <input className="ti-input min-w-0 flex-1" autoFocus maxLength={40} value={editando} placeholder={d.nomeSistema} aria-label={`Apelido de ${d.nomeSistema}`}
+              onChange={(e) => setEditando(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void salvar(); if (e.key === 'Escape') { e.stopPropagation(); setEditando(null) } }} data-testid={`apelido-input-${d.id}`} />
+            <button type="button" className="ti-btn sm pri" onClick={() => void salvar()} disabled={ocupado} data-testid={`apelido-salvar-${d.id}`}>Salvar</button>
+            <button type="button" className="ti-fechar" onClick={() => setEditando(null)} aria-label="Cancelar"><X className="h-4 w-4" /></button>
+          </span>
+        ) : (
+          <button type="button" className="ti-nome" onClick={() => setEditando(d.apelido ?? '')} title="Editar apelido" data-testid={`apelido-${d.id}`}>
+            <span className="min-w-0">
+              <b className="block truncate">{d.apelido || d.nomeSistema}</b>
+              <small className="block truncate">{d.apelido ? `${d.nomeSistema} · ` : ''}{detalhe(d)}</small>
+            </span>
+            <Pencil className="ti-lapis" aria-hidden />
+          </button>
         )}
-        <ol className="space-y-2.5" data-testid="ativar-passos">
-          {passos.map((passo, i) => (
-            <li key={passo.id} className="flex flex-wrap items-center justify-between gap-2 rounded-[8px] border px-3 py-2.5" style={{ borderColor: 'var(--ti-line)' }} data-testid={`ativar-passo-${passo.id}`} data-feito={passo.feito ? 'sim' : 'nao'}>
-              <span className="flex min-w-0 items-center gap-2.5 text-[13.5px]">
-                <span className={`ti-num ${passo.feito ? 'feito' : 'atual'}`} style={{ width: 24, height: 24, fontSize: 12 }}>{passo.feito ? <Check className="h-3.5 w-3.5" aria-label="Feito" /> : i + 1}</span>
-                <span>{passo.titulo}</span>
-              </span>
-              {!passo.feito && acoes[passo.id]}
-            </li>
-          ))}
-        </ol>
-        <p className="ti-rot">Instale no computador ligado à impressora e abra o Assistente. <a href="/guia-impressora.html" target="_blank" rel="noopener noreferrer" className="font-semibold underline" style={{ color: 'var(--ti-pri-dk)' }}>Guia passo a passo</a></p>
       </div>
-    </ModalCentral>
+      <span className={`ti-estado ${est}`} data-testid={`situacao-${d.id}`}>{situacao}</span>
+      <div>
+        <button ref={botao} type="button" className="ti-funcao" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu((m) => !m)} disabled={ocupado} data-testid={`funcao-${d.id}`}>
+          <span className="truncate">{rotulo}</span><ChevronDown className="h-4 w-4 flex-none" aria-hidden />
+        </button>
+        <Flutuante ancora={botao} aberto={menu} onFechar={() => setMenu(false)} largura={280} rotulo={`Funções de ${nomeDisp(d)}`} className="tela-impressao ti-menu" testid={`funcao-menu-${d.id}`}>
+          <div role="menu">
+            {FUNCOES_IMPRESSORA.map((f) => {
+              const marcado = d.funcoes.includes(f)
+              const outra = outraDe(f)
+              return (
+                <button key={f} type="button" role="menuitemcheckbox" aria-checked={marcado} className="ti-menu-item" onClick={() => onFuncao(f)} data-testid={`funcao-${d.id}-${f}`}>
+                  <span className={`ti-check ${marcado ? 'on' : ''}`}>{marcado && <Check aria-hidden />}</span>
+                  <span className="min-w-0"><span className="block">{ROTULO_FUNCAO_IMPRESSORA[f]}</span>{outra && !marcado && <small className="block">hoje em {outra}</small>}{f === 'entrega' && <small className="block">uma via a mais dos pedidos de entrega</small>}</span>
+                </button>
+              )
+            })}
+            <button type="button" role="menuitemcheckbox" aria-checked={!d.funcoes.length} className="ti-menu-item" onClick={() => onFuncao('outra')} data-testid={`funcao-${d.id}-outra`}>
+              <span className={`ti-check ${!d.funcoes.length ? 'on' : ''}`}>{!d.funcoes.length && <Check aria-hidden />}</span>
+              <span className="min-w-0"><span className="block">Outra</span><small className="block">sem função: não imprime pedidos</small></span>
+            </button>
+          </div>
+        </Flutuante>
+      </div>
+      <button type="button" className="ti-fechar" onClick={onRemover} disabled={ocupado} aria-label={`Remover ${nomeDisp(d)}`} title="Remover" data-testid={`remover-${d.id}`}><Trash2 className="h-[17px] w-[17px]" /></button>
+    </li>
   )
 }
 
@@ -906,7 +733,7 @@ function Calibracao({
     <div className="fixed inset-0 z-50 flex items-stretch justify-center bg-black/50 sm:items-center sm:p-4" role="dialog" aria-modal="true" data-testid="calibracao">
       <div className="flex max-h-full w-full flex-col bg-white shadow-xl sm:max-h-[88vh] sm:max-w-lg sm:rounded-menuzia">
         <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-          <h2 className="text-[15px] font-bold text-text-main">Calibrar {nome}</h2>
+          <h2 className="text-[15px] font-semibold text-text-main">Calibrar {nome}</h2>
           <button type="button" onClick={onFechar} aria-label="Fechar" className="flex h-[36px] w-[36px] items-center justify-center rounded-menuzia bg-page text-[20px] text-text-subtle hover:bg-border">×</button>
         </div>
         <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4 text-[13px] text-text-main">
@@ -923,7 +750,7 @@ function Calibracao({
                       if (mm !== d.larguraMm) await agir(url, 'PATCH', { larguraMm: mm }, `Papel ${mm} mm salvo.`)
                       setPasso('imprimir')
                     }}
-                    className={['rounded-menuzia border-2 py-4 text-[15px] font-bold', mm === d.larguraMm ? 'border-primary bg-alert-bg/50' : 'border-border'].join(' ')}
+                    className={['rounded-menuzia border-2 py-4 text-[15px] font-semibold', mm === d.larguraMm ? 'border-primary bg-alert-bg/50' : 'border-border'].join(' ')}
                   >
                     {mm} mm
                   </button>
@@ -935,7 +762,7 @@ function Calibracao({
             <>
               <p className="font-semibold">2. Imprima o teste de largura</p>
               <p className="text-text-subtle">Ele tem uma régua numerada, uma barra preta em cada lado, acentos, letra pequena e uma faixa cinza.</p>
-              <button type="button" disabled={ocupado} onClick={() => void imprimir()} data-testid="imprimir-calibracao" className="w-full rounded-menuzia bg-primary py-3 text-[13px] font-bold text-white disabled:opacity-40">
+              <button type="button" disabled={ocupado} onClick={() => void imprimir()} data-testid="imprimir-calibracao" className="w-full rounded-menuzia bg-primary py-3 text-[13px] font-semibold text-white disabled:opacity-40">
                 Imprimir teste de largura
               </button>
             </>
@@ -945,8 +772,8 @@ function Calibracao({
               <p className="font-semibold">3. Olhe o papel</p>
               <p className="text-text-subtle">As duas barras pretas (esquerda e direita) e o valor do TOTAL apareceram inteiros?</p>
               <div className="grid gap-2 sm:grid-cols-2">
-                <button type="button" onClick={() => setPasso('pronto')} className="rounded-menuzia border-2 border-status-ready py-3 font-bold text-status-ready">Sim, tudo inteiro</button>
-                <button type="button" onClick={() => setPasso('numero')} data-testid="calibracao-cortou" className="rounded-menuzia border-2 border-danger py-3 font-bold text-danger">Não, a direita cortou</button>
+                <button type="button" onClick={() => setPasso('pronto')} className="rounded-menuzia border-2 border-status-ready py-3 font-semibold text-status-ready">Sim, tudo inteiro</button>
+                <button type="button" onClick={() => setPasso('numero')} data-testid="calibracao-cortou" className="rounded-menuzia border-2 border-danger py-3 font-semibold text-danger">Não, a direita cortou</button>
               </div>
               <p className="text-[12px] text-text-subtle">Não saiu nada? Veja o papel, a tampa e se a impressora está ligada.</p>
             </>
@@ -968,7 +795,7 @@ function Calibracao({
                         setPasso('imprimir')
                       }
                     }}
-                    className="rounded-menuzia border-2 border-border py-3 text-[16px] font-bold hover:border-primary"
+                    className="rounded-menuzia border-2 border-border py-3 text-[16px] font-semibold hover:border-primary"
                   >
                     {n}
                   </button>
@@ -1001,7 +828,7 @@ function Calibracao({
                   type="button"
                   disabled={ocupado}
                   onClick={() => void agir(url, 'PATCH', { larguraPontos: largura ? Number(largura) : null, deslocamentoPontos: Number(desloc) || 0 }, 'Ajuste salvo.')}
-                  className="rounded-menuzia bg-primary px-3 py-2 text-[12px] font-bold text-white disabled:opacity-40"
+                  className="rounded-menuzia bg-primary px-3 py-2 text-[12px] font-semibold text-white disabled:opacity-40"
                 >
                   Salvar ajuste
                 </button>

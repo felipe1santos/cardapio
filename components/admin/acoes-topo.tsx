@@ -26,6 +26,8 @@ export function AcoesTopo() {
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const router = useRouter()
   const [impressora, setImpressora] = useState<EstadoImpressora>('sem-agente')
+  // Assistente novo (tela v2): nome da impressora da Cozinha (apelido) no rótulo do botão.
+  const [rotuloBeta, setRotuloBeta] = useState<string | null>(null)
   const [email, setEmail] = useState<string | null>(null)
   // Quem pede ajuda (modal de suporte): loja, nome exibido e perfil.
   const [suporteAberto, setSuporteAberto] = useState(false)
@@ -62,6 +64,11 @@ export function AcoesTopo() {
         if (!id || !ativo) return
         const status = await buscarStatusAgente(supabase, id)
         if (ativo) setImpressora(estadoDaImpressora(status, Date.now()))
+        const r = await fetch('/api/admin/impressao/resumo', { cache: 'no-store' }).then((x) => (x.ok ? x.json() : null)).catch(() => null) as { beta: boolean; cozinha: string | null; online: boolean } | null
+        if (ativo && r?.beta) {
+          setImpressora(r.online && r.cozinha ? 'conectada' : 'desconectada')
+          setRotuloBeta(r.online && r.cozinha ? `Impressão automática ligada — Cozinha: ${r.cozinha}` : r.cozinha ? `Impressora da Cozinha (${r.cozinha}) sem sinal` : 'Escolha a impressora da Cozinha')
+        }
       } catch {
         /* silencioso: é um indicador, não pode derrubar a barra de topo */
       }
@@ -84,11 +91,11 @@ export function AcoesTopo() {
     <div className="flex flex-shrink-0 items-center gap-[4px] sm:gap-2" data-testid="acoes-topo">
       {sessao?.financeiroAtivo && <AvisoCaixa />}
       {/* Impressão: atalho para a configuração, com o estado na própria cor. */}
-      <Dica texto={ROTULO_IMPRESSORA[impressora]}>
+      <Dica texto={rotuloBeta ?? ROTULO_IMPRESSORA[impressora]}>
         <button
           type="button"
           onClick={() => router.push('/admin/impressao')}
-          aria-label={ROTULO_IMPRESSORA[impressora]}
+          aria-label={rotuloBeta ?? ROTULO_IMPRESSORA[impressora]}
           data-testid="topo-impressora"
           className={`${QUADRADO} hover:bg-[var(--adm-hover)] ${tomImpressora}`}
         >
