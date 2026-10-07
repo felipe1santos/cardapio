@@ -114,6 +114,9 @@ um contexto mobile-first de vitrine).
   inputs, badges, thumbnails). Essa "quadratura" é uma marca registrada do visual Menuzia
   — não usar `border-radius` arredondado generoso, exceto em elementos circulares
   (avatares, dots de status, steppers, sheets de mobile).
+- **Cores de botões, selos e tags (regra do dono, 2026-10-06):** cores vivas e legíveis — pode ser
+  fundo sólido com texto claro **ou** fundo claro com texto/ícone colorido (ex.: verde sobre
+  verde-claro). Não é obrigatório fundo escuro; o que vale é o **contraste mínimo de 4,5:1** no texto.
 - Paleta enxuta, fundo neutro `--bg-page` cinza-azulado, cards brancos com borda fina
   `1px solid var(--border-color)` e sombras discretas.
 - Botões: caixa alta, `font-size: 11px`, `letter-spacing`, peso 600 — variantes

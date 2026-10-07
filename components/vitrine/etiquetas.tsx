@@ -5,7 +5,6 @@ import {
   COR_PRECO_ANTIGO,
   COR_PRECO_ANTIGO_NOVO,
   COR_PRECO_PROMO,
-  ESTILO_DESCONTO_NOVO,
   ESTILO_DESCONTO,
   ESTILO_SELO_MAIS_PEDIDOS,
   ROTULO_MAIS_PEDIDOS,
@@ -128,20 +127,11 @@ export function EtiquetasUtilitarias({ item, className = '' }: { item: ItemComEt
  */
 export const VitrineNovaContext = createContext(false)
 
-/** Pílula verde do desconto com o ticket (REF-CORES "R$ 5 off"); na vitrine nova, selo verde sólido "-39%". */
+/**
+ * Pílula verde do desconto com o ticket (REF-CORES "R$ 5 off"). Vale também na vitrine nova: o selo
+ * verde sólido "-39%" saiu a pedido do dono (2026-10-06) e voltou o de sempre, idêntico.
+ */
 export function PilulaDesconto({ percentual }: { percentual: number }) {
-  const nova = useContext(VitrineNovaContext)
-  if (nova) {
-    return (
-      <span
-        data-desconto
-        className="inline-flex h-[20px] items-center whitespace-nowrap rounded-[4px] px-[6px] text-[12px] font-semibold leading-[20px]"
-        style={{ background: ESTILO_DESCONTO_NOVO.fundo, color: ESTILO_DESCONTO_NOVO.cor }}
-      >
-        -{percentual}%
-      </span>
-    )
-  }
   return (
     <span
       data-desconto

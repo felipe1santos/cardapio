@@ -2,7 +2,7 @@
 
 Regras permanentes (valem para todo trabalho de UI no painel):
 1. Botões do sistema (avisos, caixa, impressora, Dúvidas, perfil) sempre à direita, na mesma linha do topo, sem quebrar.
-2. Cores vivas: fundo sólido mais escuro com texto/ícone claro, contraste ≥ 4,5:1.
+2. Cores vivas e legíveis: fundo sólido com texto claro OU fundo claro com texto/ícone colorido (ex.: verde sobre verde-claro). O que vale é o contraste mínimo de 4,5:1 no texto (regra atualizada em 2026-10-06).
 3. Tooltips, popups, menus e avisos sempre por cima: portal no `<body>`, z-index 9999, dentro da tela.
 4. Não mexer no design do "Despacho de rotas".
 

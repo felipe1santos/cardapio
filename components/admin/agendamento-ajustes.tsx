@@ -1,8 +1,9 @@
 'use client'
 
+import { CalendarClock } from 'lucide-react'
+
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import {
   AGENDAMENTO_PADRAO,
@@ -87,14 +88,21 @@ export function AgendamentoAjustes({ restauranteId }: { restauranteId: string })
   const foraDaGrade = futuros.filter((p) => !dentroDaGrade(p.agendado_para, grade))
 
   return (
-    <Card className="space-y-4.5 xl:col-span-2" data-testid="ajustes-agendamento">
-      <div className="border-b border-border pb-3">
-        <h3 className="text-[13px] font-bold text-text-main">Pedidos agendados</h3>
-        <p className="mt-0.5 text-[11px] leading-relaxed text-text-subtle">
-          O cliente escolhe dia e horário no checkout. O pedido fica na faixa &quot;Agendados&quot; do Painel de Pedidos e só entra no
-          painel, na cozinha e na impressão perto do horário.
-        </p>
+    // Card no kit dos Ajustes (2026-10-06): ícone, título 16/600 e frase de ajuda.
+    <section className="fin-card min-w-0 xl:col-span-2" data-testid="ajustes-agendamento">
+      <div className="flex items-start gap-3 border-b border-[#E4E7EA] px-5 py-4">
+        <span aria-hidden className="mt-[1px] flex h-[34px] w-[34px] flex-shrink-0 items-center justify-center rounded-[8px] bg-[#E1EDF7] text-[#0868A6]">
+          <CalendarClock className="h-[18px] w-[18px]" />
+        </span>
+        <div className="min-w-0">
+          <h3 className="text-[16px] font-semibold leading-tight text-[#1C2B33]">Pedidos agendados</h3>
+          <p className="mt-1 text-[13px] leading-[18px] text-[#465A69]">
+            O cliente escolhe dia e horário no checkout. O pedido fica na faixa &quot;Agendados&quot; do Painel de Pedidos e só entra no
+            painel, na cozinha e na impressão perto do horário.
+          </p>
+        </div>
       </div>
+      <div className="space-y-4.5 px-5 py-4">
 
       <label className="flex cursor-pointer items-center gap-2 text-[13px] font-semibold text-text-main">
         <input type="checkbox" checked={cfg.ativo} onChange={(e) => set('ativo', e.target.checked)} className="h-4 w-4 accent-primary" data-testid="agendamento-ativo" />
@@ -160,6 +168,7 @@ export function AgendamentoAjustes({ restauranteId }: { restauranteId: string })
         <Button onClick={() => void salvar()} disabled={salvando} data-testid="agendamento-salvar">{salvando ? 'Salvando…' : 'Salvar agendamento'}</Button>
         {msg && <span className={`text-[12px] font-semibold ${msg.tipo === 'ok' ? 'text-status-ready' : 'text-danger'}`}>{msg.texto}</span>}
       </div>
-    </Card>
+      </div>
+    </section>
   )
 }

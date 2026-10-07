@@ -145,11 +145,11 @@ try {
   const senhas = await dono.p.locator('input[type="password"]').count()
   ok('campo do aviso: type=text, autocomplete=off, name próprio, sem campo de senha na página', attrs.type === 'text' && attrs.ac === 'off' && !/mail|user|login/i.test(attrs.name) && senhas === 0, `${JSON.stringify(attrs)} senhas=${senhas}`)
   await campo.fill('TESTE aviso da loja')
-  await dono.p.getByTestId('aviso-cor-fundo-FEF3C7').click()
-  await dono.p.getByTestId('aviso-cor-texto-FFFFFF').click()
+  await dono.p.getByTestId('aviso-cor-fundo-hex').fill('#FEF3C7')
+  await dono.p.getByTestId('aviso-cor-texto-hex').fill('#FFFFFF')
   ok('alerta de contraste com texto branco no amarelo', await dono.p.getByTestId('aviso-contraste').isVisible())
-  await dono.p.getByTestId('aviso-cor-texto-0369A1').click()
-  await dono.p.getByTestId('aviso-cor-fundo-E0F2FE').click()
+  await dono.p.getByTestId('aviso-cor-texto-hex').fill('#0369A1')
+  await dono.p.getByTestId('aviso-cor-fundo-hex').fill('#E0F2FE')
   ok('contraste ok some o alerta', (await dono.p.getByTestId('aviso-contraste').count()) === 0)
   await dono.p.getByTestId('aviso-pulsar').check()
   const prev = await dono.p.getByTestId('aviso-previa').locator('[data-testid="aviso-vitrine"]').evaluate((e) => [getComputedStyle(e).backgroundColor, getComputedStyle(e).color, e.className.includes('efeito-pulsar')].join('|'))
@@ -179,7 +179,8 @@ try {
   await dono.p.goto(`${BASE}/admin/ajustes`, { waitUntil: 'networkidle' })
   await fecharSetup(dono.p)
   await dono.p.getByTestId('aviso-padrao').click()
-  ok('"Padrão" volta ao visual de sempre', (await dono.p.getByTestId('aviso-previa').locator('[data-testid="aviso-vitrine"]').getAttribute('data-pulsar')) === 'nao')
+  // 2026-10-06: o atalho virou 'Usar a cor da loja' — volta só as cores (o efeito pulsar fica como está).
+  ok('"Usar a cor da loja" volta as cores de sempre', (await dono.p.getByTestId('aviso-previa').locator('[data-testid="aviso-vitrine"]').evaluate((e) => e.style.backgroundColor === '' && e.style.color === '')))
   await dono.ctx.close()
 
   // ═══ 5. Cupom ═══

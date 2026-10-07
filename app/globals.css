@@ -1052,6 +1052,15 @@ html:has(.vitrine-sem-zoom) {
 :is(.fin-meta, .meta-tema) :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea) { border-color: var(--meta-borda); }
 :is(.fin-meta, .meta-tema) :where(input, select, textarea):focus { border-color: var(--meta-azul); }
 
+/* Ajustes repaginado (2026-10-06): kit do Financeiro/Impressão — Figtree, peso máximo 600, fundo
+   claro, rótulos de campo legíveis (13px) e ajuda em 12,5px. */
+.ajustes-v2 { font-family: var(--font-meta), var(--font-painel), system-ui, sans-serif; background: #F4F6F8; }
+.ajustes-v2 .font-sans { font-family: inherit; }
+.ajustes-v2 :is(b, strong, h1, h2, h3, h4, .font-bold, .font-extrabold, .font-black) { font-weight: 600; }
+.ajustes-v2 [data-rotulo-campo] { font-size: 13px; font-weight: 600; color: #1C2B33; margin-bottom: 6px; }
+.ajustes-v2 [data-ajuda-campo] { font-size: 12.5px; line-height: 17px; color: #465A69; }
+.ajustes-v2 nav[aria-label] { background: #ffffff; }
+
 /* Cartão */
 .fin-card {
   background: #ffffff;
@@ -1149,7 +1158,8 @@ html:has(.vitrine-sem-zoom) {
 .tela-impressao button, .tela-impressao select, .tela-impressao input { font-family: inherit; }
 .tela-impressao :focus-visible { outline: 2px solid var(--ti-pri); outline-offset: 2px; border-radius: 4px; }
 .ti-fundo { background: linear-gradient(180deg, #EEF4FB 0, #F4F6F8 320px) no-repeat, #F4F6F8; }
-.ti-pagina { max-width: 1040px; margin: 0 auto; padding: 24px 24px 64px; }
+/* Largura total ao lado do menu, com o mesmo respiro do Financeiro/Dashboard (2026-10-06). */
+.ti-pagina { padding: 20px 20px 64px; }
 
 .ti-cab { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 20px; }
 .ti-cab h2 { font-size: 22px; font-weight: 600; margin: 0 0 4px; letter-spacing: -.01em; }
@@ -1179,25 +1189,27 @@ html:has(.vitrine-sem-zoom) {
 .ti-passo.ativo { border-color: var(--ti-pri-line); }
 .ti-passo-cab { display: grid; grid-template-columns: 28px 1fr auto; gap: 14px; align-items: start; padding: 20px 24px; }
 .ti-num { width: 28px; height: 28px; border-radius: 50%; border: 1.5px solid var(--ti-line); display: grid; place-items: center; font-weight: 600; font-size: 13px; color: var(--ti-ink-2); }
-.ti-num.feito { background: var(--ti-ok-soft); border-color: var(--ti-ok-soft); color: var(--ti-ok); }
+.ti-num.feito { background: var(--ti-ok-soft); border-color: var(--ti-ok-soft); color: #087049; } /* var(--ti-ok) dava 4,2:1 */
 .ti-num.atual { background: #fff; border-color: var(--ti-pri); color: var(--ti-pri); }
 .ti-passo h3 { margin: 3px 0 2px; font-size: 16px; font-weight: 600; }
 .ti-passo .ti-sub { margin: 0; color: var(--ti-ink-2); font-size: 13px; }
 .ti-passo-corpo { padding: 0 24px 22px 66px; }
 
-.ti-escolha { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.ti-opcao { position: relative; text-align: left; border: 1.5px solid var(--ti-line); border-radius: var(--ti-r); background: #fff; padding: 16px 18px; cursor: pointer; transition: border-color .15s, background .15s; width: 100%; }
+.ti-escolha { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: stretch; }
+.ti-opcao { position: relative; text-align: left; border: 1.5px solid var(--ti-line); border-radius: var(--ti-r); background: #fff; padding: 14px 18px; cursor: pointer; transition: border-color .15s, background .15s; width: 100%;
+  /* <button> centraliza o conteúdo na vertical: aqui fica no topo, os dois cards com a altura do maior. */
+  display: flex; flex-direction: column; justify-content: flex-start; align-items: stretch; height: 100%; }
 .ti-opcao:hover { border-color: #B8C2CB; }
 .ti-opcao[aria-checked="true"] { border-color: #9AA6B1; background: #fff; box-shadow: 0 1px 3px rgba(28,43,51,.10); }
 .ti-opcao .t { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; }
 .ti-radio { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid #9AA6B1; display: grid; place-items: center; flex: none; }
 .ti-opcao[aria-checked="true"] .ti-radio { border-color: var(--ti-pri); }
 .ti-opcao[aria-checked="true"] .ti-radio::after { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--ti-pri); }
-.ti-opcao p { margin: 8px 0 0 28px; color: var(--ti-ink-2); font-size: 13px; }
-.ti-opcao ul { margin: 10px 0 0 28px; padding: 0; list-style: none; font-size: 13px; color: var(--ti-ink-2); }
+.ti-opcao p { margin: 3px 0 0 28px; color: var(--ti-ink-2); font-size: 13px; }
+.ti-opcao ul { margin: 8px 0 0 28px; padding: 0; list-style: none; font-size: 13px; color: var(--ti-ink-2); }
 .ti-opcao li { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
 .ti-opcao li svg { width: 14px; height: 14px; color: var(--ti-ink-3); flex: none; }
-.ti-emuso { display: inline-flex; margin: 12px 0 0 28px; font-size: 12.5px; font-weight: 600; color: var(--ti-ok); align-items: center; gap: 6px; }
+.ti-emuso { align-self: flex-start; display: inline-flex; margin: 10px 0 0 28px; font-size: 12.5px; font-weight: 600; color: var(--ti-ok); align-items: center; gap: 6px; }
 .ti-selo { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 4px; background: var(--ti-line-2); color: var(--ti-ink-2); margin-left: auto; }
 .ti-selo.rec { background: var(--ti-ok-soft); color: #087049; } /* #0B8457 dava 4,2:1 sobre o verde-claro */
 

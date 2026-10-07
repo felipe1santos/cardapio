@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { CORES_GRAFICO } from './grafico'
+import { TooltipNoPonto } from '@/components/ui/flutuante'
 
 /**
  * Rosca no estilo do kit (item 55): fatias na paleta, legenda com quadradinho e tooltip do kit.
@@ -23,6 +24,7 @@ function arco(cx: number, cy: number, rExt: number, rInt: number, a0: number, a1
 
 export function Rosca({ fatias, centro, subcentro, testid, tamanho = 220 }: { fatias: FatiaRosca[]; centro: string; subcentro?: string; testid?: string; tamanho?: number }) {
   const [foco, setFoco] = useState<number | null>(null)
+  const [, setRolagem] = useState(0) // só para redesenhar o tooltip na posição nova ao rolar
   const [estreita, setEstreita] = useState(false)
   useEffect(() => {
     const ver = () => setEstreita(window.innerWidth < 640)
@@ -30,6 +32,7 @@ export function Rosca({ fatias, centro, subcentro, testid, tamanho = 220 }: { fa
     return () => window.removeEventListener('resize', ver)
   }, [])
   const raiz = useRef<HTMLDivElement>(null)
+  const svgRef = useRef<SVGSVGElement>(null)
   const total = fatias.reduce((s, f) => s + Math.max(0, f.valor), 0)
   const c = tamanho / 2, rExt = c - 12, rInt = rExt * 0.62
   let ac = 0
@@ -43,8 +46,11 @@ export function Rosca({ fatias, centro, subcentro, testid, tamanho = 220 }: { fa
   useEffect(() => {
     if (foco === null) return
     const fora = (e: PointerEvent) => { if (!raiz.current?.contains(e.target as Node)) setFoco(null) }
+    // O tooltip fica no <body> (por cima de tudo): ao rolar, ele se reposiciona junto do gráfico.
+    const rolou = () => setRolagem((n) => n + 1)
     window.addEventListener('pointerdown', fora, true)
-    return () => window.removeEventListener('pointerdown', fora, true)
+    window.addEventListener('scroll', rolou, true)
+    return () => { window.removeEventListener('pointerdown', fora, true); window.removeEventListener('scroll', rolou, true) }
   }, [foco])
 
   const atual = foco !== null ? fatias[foco] : null
@@ -66,7 +72,7 @@ export function Rosca({ fatias, centro, subcentro, testid, tamanho = 220 }: { fa
         }}
         onBlur={(e) => { if (!raiz.current?.contains(e.relatedTarget as Node)) setFoco(null) }}
       >
-        <svg width={tamanho} height={tamanho} viewBox={`0 0 ${tamanho} ${tamanho}`} role="img" aria-hidden="true" style={{ touchAction: 'manipulation', overflow: 'visible' }}>
+        <svg ref={svgRef} width={tamanho} height={tamanho} viewBox={`0 0 ${tamanho} ${tamanho}`} role="img" aria-hidden="true" style={{ touchAction: 'manipulation', overflow: 'visible' }}>
           {total === 0 && <circle cx={c} cy={c} r={(rExt + rInt) / 2} fill="none" stroke={CORES_GRAFICO.trilho} strokeWidth={rExt - rInt} />}
           {fatias.map((f, i) => {
             const { a0, a1, meio } = geo[i]
@@ -91,20 +97,24 @@ export function Rosca({ fatias, centro, subcentro, testid, tamanho = 220 }: { fa
           <text x={c} y={c - 2} textAnchor="middle" fontSize={22} fontWeight={700} fill={CORES_GRAFICO.texto}>{centro}</text>
           {subcentro && <text x={c} y={c + 18} textAnchor="middle" fontSize={12} fill={CORES_GRAFICO.eixo}>{subcentro}</text>}
         </svg>
-        {atual && dica && (
-          <div
-            role="tooltip"
-            data-testid={testid ? `${testid}-tooltip` : undefined}
-            className="pointer-events-none absolute z-[9999] min-w-[170px] rounded-[8px] bg-white px-[12px] py-[10px] text-left shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
-            style={{ border: `1px solid ${CORES_GRAFICO.bordaTooltip}`, color: CORES_GRAFICO.texto, ...(estreita
-              // Tela estreita (celular): embaixo da rosca, centralizada — ao lado ela sairia da tela.
-              ? { left: c, top: tamanho - 6, transform: 'translate(-50%, 0)' }
-              : { left: Math.min(Math.max(dica.x, 0), tamanho), top: dica.y, transform: `translate(${dica.x > c ? '8px' : 'calc(-100% - 8px)'}, -50%)` }) }}
-          >
-            <p className="mb-[4px] flex items-center gap-[6px] text-[14px] font-bold"><span className="inline-block h-[10px] w-[10px] rounded-[2px]" style={{ background: atual.cor }} />{atual.rotulo}</p>
-            {atual.linhas.map((l) => <p key={l} className="text-[12.5px] leading-[18px]">{l}</p>)}
-          </div>
-        )}
+        {atual && dica && svgRef.current && (() => {
+          // Por cima de tudo (regra 3): portal no <body>, camada máxima, preso dentro da tela.
+          const r = svgRef.current.getBoundingClientRect()
+          return (
+            <TooltipNoPonto
+              testid={testid ? `${testid}-tooltip` : undefined}
+              // Tela estreita (celular): embaixo da rosca, centralizada. Larga: do lado de fora da fatia.
+              x={estreita ? r.left + c : r.left + dica.x}
+              y={estreita ? r.top + tamanho - 6 : r.top + dica.y}
+              lado={estreita ? 'abaixo' : dica.x > c ? 'direita' : 'esquerda'}
+              className="min-w-[170px] rounded-[8px] bg-white px-[12px] py-[10px] text-left shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
+              style={{ border: `1px solid ${CORES_GRAFICO.bordaTooltip}`, color: CORES_GRAFICO.texto }}
+            >
+              <p className="mb-[4px] flex items-center gap-[6px] text-[14px] font-bold"><span className="inline-block h-[10px] w-[10px] rounded-[2px]" style={{ background: atual.cor }} />{atual.rotulo}</p>
+              {atual.linhas.map((l) => <p key={l} className="text-[12.5px] leading-[18px]">{l}</p>)}
+            </TooltipNoPonto>
+          )
+        })()}
       </div>
       <ul className="mt-[12px] flex flex-wrap justify-center gap-x-[14px] gap-y-[6px] text-[12px] font-bold" style={{ color: CORES_GRAFICO.texto }} data-testid={testid ? `${testid}-legenda` : undefined}>
         {fatias.filter((f) => f.valor > 0).map((f) => (

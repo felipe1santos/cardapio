@@ -41,9 +41,9 @@ export function ToggleRow({ label, hint, checked, onChange, disabled }: { label:
 export function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">{label}</label>
+      <label data-rotulo-campo className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">{label}</label>
       {children}
-      {hint && <p className="mt-1.5 text-[11px] text-text-subtle">{hint}</p>}
+      {hint && <p data-ajuda-campo className="mt-1.5 text-[11px] text-text-subtle">{hint}</p>}
     </div>
   )
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { TooltipNoPonto } from '@/components/ui/flutuante'
 
 /**
  * Gráfico único e reaproveitável do Financeiro (Fase 6). Cores copiadas do gráfico do Gerenciador de Eventos
@@ -30,6 +31,8 @@ export interface SerieGrafico {
   valores: (number | null)[]
   /** Seção do tooltip em que a série aparece (ex.: "Vendas", "Custos"). */
   secao?: string
+  /** Linha sem a área pintada embaixo (só o traço), desenhada por cima das barras. */
+  semArea?: boolean
 }
 export interface MetaGrafico { valor: number; rotulo: string; estilo: 'solida' | 'tracejada' }
 
@@ -83,8 +86,10 @@ export function GraficoFinanceiro({ rotulos, periodos, series, metas = [], forma
 }) {
   const id = useId().replace(/:/g, '')
   const caixa = useRef<HTMLDivElement>(null)
+  const svgRef = useRef<SVGSVGElement>(null)
   const [largura, setLargura] = useState(600)
   const [foco, setFoco] = useState<number | null>(null)
+  const [, setRolagem] = useState(0) // só para redesenhar o tooltip na posição nova ao rolar
   useEffect(() => {
     const el = caixa.current
     if (!el) return
@@ -96,8 +101,11 @@ export function GraficoFinanceiro({ rotulos, periodos, series, metas = [], forma
   useEffect(() => {
     if (foco === null) return
     const fora = (e: PointerEvent) => { if (!caixa.current?.contains(e.target as Node)) setFoco(null) }
+    // O tooltip fica no <body> (por cima de tudo): ao rolar, ele se reposiciona junto do gráfico.
+    const rolou = () => setRolagem((n) => n + 1)
     window.addEventListener('pointerdown', fora, true)
-    return () => window.removeEventListener('pointerdown', fora, true)
+    window.addEventListener('scroll', rolou, true)
+    return () => { window.removeEventListener('pointerdown', fora, true); window.removeEventListener('scroll', rolou, true) }
   }, [foco])
 
   const n = rotulos.length
@@ -158,7 +166,7 @@ export function GraficoFinanceiro({ rotulos, periodos, series, metas = [], forma
           else if (e.key === 'Escape') setFoco(null)
         }}
         onBlur={() => setFoco(null)}>
-        <svg width="100%" height={altura} viewBox={`0 0 ${largura} ${altura}`} preserveAspectRatio="none" role="img" aria-label={series.map((s) => s.nome).join(', ')}
+        <svg ref={svgRef} width="100%" height={altura} viewBox={`0 0 ${largura} ${altura}`} preserveAspectRatio="none" role="img" aria-label={series.map((s) => s.nome).join(', ')}
           onPointerMove={aoMover} onPointerLeave={(e) => { if (e.pointerType === 'mouse') setFoco(null) }} onPointerDown={aoMover} style={{ touchAction: 'pan-y', display: 'block' }}>
           <defs>
             <linearGradient id={`${id}-a1`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={CORES_GRAFICO.area1[0]} /><stop offset="100%" stopColor={CORES_GRAFICO.area1[1]} /></linearGradient>
@@ -179,8 +187,8 @@ export function GraficoFinanceiro({ rotulos, periodos, series, metas = [], forma
           {barras.map((s) => s.valores.map((v, i) => v === null ? null : (
             <rect key={`${s.nome}-${i}`} x={x(i) - larguraBarra / 2} y={Math.min(y(v), y(Math.max(yMin, 0)))} width={larguraBarra} height={Math.abs(y(Math.max(yMin, 0)) - y(v))} fill={CORES_GRAFICO.barra} />
           )))}
-          {linhas.map((s) => <path key={`a-${s.nome}`} d={area(s.valores)} fill={`url(#${id}-a${s.cor ?? 1})`} />)}
-          {linhas.map((s) => <path key={`l-${s.nome}`} d={caminho(s.valores)} fill="none" stroke={(s.cor ?? 1) === 1 ? CORES_GRAFICO.serie1 : CORES_GRAFICO.serie2} strokeWidth={1.5} strokeLinejoin="round" />)}
+          {linhas.filter((s) => !s.semArea).map((s) => <path key={`a-${s.nome}`} d={area(s.valores)} fill={`url(#${id}-a${s.cor ?? 1})`} />)}
+          {linhas.map((s) => <path key={`l-${s.nome}`} d={caminho(s.valores)} fill="none" stroke={(s.cor ?? 1) === 1 ? CORES_GRAFICO.serie1 : CORES_GRAFICO.serie2} strokeWidth={s.semArea ? 2 : 1.5} strokeLinejoin="round" strokeLinecap="round" />)}
           {metas.map((m) => (
             <line key={m.rotulo} x1={esq} x2={largura - dir} y1={y(m.valor)} y2={y(m.valor)} stroke={m.estilo === 'solida' ? CORES_GRAFICO.metaSolida : CORES_GRAFICO.metaTracejada}
               strokeWidth={1.5} strokeDasharray={m.estilo === 'tracejada' ? '5 4' : undefined} />
@@ -197,9 +205,12 @@ export function GraficoFinanceiro({ rotulos, periodos, series, metas = [], forma
             </g>
           )}
         </svg>
-        {foco !== null && (
-          <div className="pointer-events-none absolute top-2 z-[5] min-w-[200px] max-w-[300px] rounded-[8px] bg-white px-4 py-3 text-[13px] shadow-[0_4px_14px_rgba(28,43,51,0.18)]"
-            style={{ border: `1px solid ${CORES_GRAFICO.bordaTooltip}`, color: CORES_GRAFICO.texto, ...(tipEsquerda ? { right: largura - tipX + 12 } : { left: tipX + 12 }) }} data-testid={testid ? `${testid}-tooltip` : undefined}>
+        {foco !== null && svgRef.current && (
+          // Por cima de tudo (regra 3): portal no <body>, camada máxima, preso dentro da tela.
+          <TooltipNoPonto x={svgRef.current.getBoundingClientRect().left + (tipX / largura) * svgRef.current.getBoundingClientRect().width}
+            y={svgRef.current.getBoundingClientRect().top + Math.min(altura / 2, 90)} lado={tipEsquerda ? 'esquerda' : 'direita'}
+            className="min-w-[200px] max-w-[300px] rounded-[8px] bg-white px-4 py-3 text-[13px] shadow-[0_4px_14px_rgba(28,43,51,0.18)]"
+            style={{ border: `1px solid ${CORES_GRAFICO.bordaTooltip}`, color: CORES_GRAFICO.texto }} testid={testid ? `${testid}-tooltip` : undefined}>
             {soBarras && <p className="mb-2 text-[15px] font-bold leading-snug">{periodos?.[foco] ?? rotulos[foco]}</p>}
             {secoes.map((sec) => (
               <div key={sec} className="mb-1 last:mb-0">
@@ -215,7 +226,7 @@ export function GraficoFinanceiro({ rotulos, periodos, series, metas = [], forma
             {metas.map((m) => <p key={m.rotulo} className="flex items-center justify-between gap-3"><span className="flex items-center gap-1.5"><span className="inline-block h-[2px] w-[10px]" style={{ background: m.estilo === 'solida' ? CORES_GRAFICO.metaSolida : CORES_GRAFICO.metaTracejada }} />{m.rotulo}</span><b>{formatar(m.valor)}</b></p>)}
             {!soBarras && <p className="mt-2 border-t pt-2 text-[12px]" style={{ borderColor: CORES_GRAFICO.grade, color: CORES_GRAFICO.eixo }}>{periodos?.[foco] ?? rotulos[foco]}</p>}
             {rodapeTooltip && <p className="mt-2 text-[11.5px]" style={{ color: CORES_GRAFICO.eixo }}>{rodapeTooltip}</p>}
-          </div>
+          </TooltipNoPonto>
         )}
       </div>
       <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12px] font-bold" data-testid={testid ? `${testid}-legenda` : undefined}>

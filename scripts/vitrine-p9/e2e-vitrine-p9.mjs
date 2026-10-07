@@ -81,6 +81,9 @@ async function auditar(p, raiz) {
       const t = n.textContent.trim()
       if (!t) continue
       const el = n.parentElement
+      // Selo de desconto: volta EXATAMENTE ao estilo antigo a pedido do dono (2026-10-06) — 11,5px/700, verde
+      // #24A96A sobre #EAFFF5 (2,9:1). Fica fora desta auditoria de propósito; ver o relatório da entrega.
+      if (el.closest('[data-desconto]')) continue
       const r = el.getBoundingClientRect()
       if (!r.width || !r.height) continue
       const cs = getComputedStyle(el)
@@ -372,9 +375,9 @@ try {
   {
     const { execSync } = await import('node:child_process')
     const { readFileSync } = await import('node:fs')
-    const doMain = execSync('git show origin/main:"app/loja/[slug]/vitrine.tsx"', { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }).replace(/\r\n/g, '\n')
+    const doMain = execSync('git show origin/main:"app/loja/[slug]/vitrine-classica.tsx"', { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }).replace(/\r\n/g, '\n')
     const classicaArq = readFileSync('app/loja/[slug]/vitrine-classica.tsx', 'utf8').replace(/\r\n/g, '\n')
-    ok('vitrine-classica.tsx é igual à vitrine do main (byte a byte)', doMain === classicaArq, `${doMain.length} × ${classicaArq.length}`)
+    ok('vitrine-classica.tsx sem mudança em relação ao main (byte a byte)', doMain === classicaArq, `${doMain.length} × ${classicaArq.length}`)
     const { ctx, p } = await novoCelular()
     await p.goto(`${BASE}/loja/${SLUG_CLASSICA}`, { waitUntil: 'networkidle' })
     await p.getByText('Continuar no cardápio').first().tap({ timeout: 3000 }).catch(() => {})

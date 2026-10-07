@@ -11,7 +11,10 @@ import { InstalarAppButton } from '@/components/instalar-app-button'
 import { Field, Input, ToggleRow } from '@/components/admin/campos-ajustes'
 import { TabQrCode } from '@/components/admin/ajustes-qrcode'
 import { SubmenuVertical } from '@/components/admin/submenu-vertical'
+import { IlustracaoLanche } from '@/components/admin/ilustracao-lanche'
 import { getBrowserSupabase } from '@/lib/supabase/client'
+import { Building2, Clock, Image as ImageIcon, MapPin, Megaphone, PanelTop, Palette, Star, Store, Bike, Armchair, QrCode, UserCog } from 'lucide-react'
+import { normalizarHex } from '@/lib/aviso-vitrine'
 import { normalizarInstagram } from '@/lib/instagram'
 import { fonteVitrine } from '@/lib/fonte-vitrine'
 import { buscarRestauranteIdDoUsuario, IMAGEM_TAMANHOS, type LayoutCardapio, type ImagemTamanho, type FonteVitrine } from '@/lib/queries/cardapio'
@@ -47,37 +50,49 @@ import { CardModuloMesas } from '@/components/admin/modulo-mesas'
 import { CardapioDaMesaConfig } from '@/app/admin/mesas/cardapio-mesa'
 import { ConfigConta } from '@/app/admin/mesas/config-conta'
 
-type Tab = 'loja' | 'entrega' | 'mesas' | 'qrcode' | 'conta' | 'aparencia'
+type Tab = 'loja' | 'entrega' | 'mesas' | 'qrcode' | 'conta'
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'loja', label: 'Perfil da loja' },
-  { id: 'entrega', label: 'Entrega' },
-  { id: 'mesas', label: 'Mesas' },
-  { id: 'qrcode', label: 'QR Code' },
-  { id: 'aparencia', label: 'Aparência' },
-  { id: 'conta', label: 'Conta' },
+// "Aparência" saiu do submenu (2026-10-06): virou o bloco "Aparência da vitrine" do Perfil da loja.
+const TABS: { id: Tab; label: string; icone: React.ReactNode }[] = [
+  { id: 'loja', label: 'Perfil da loja', icone: <Store /> },
+  { id: 'entrega', label: 'Entrega', icone: <Bike /> },
+  { id: 'mesas', label: 'Mesas', icone: <Armchair /> },
+  { id: 'qrcode', label: 'QR Code', icone: <QrCode /> },
+  { id: 'conta', label: 'Conta', icone: <UserCog /> },
 ]
 
 /** Bloco de seção do painel de ajustes — agrupa campos afins sob um título. */
 function Secao({
   titulo,
   descricao,
+  icone,
   className = '',
+  testid,
   children,
 }: {
   titulo: string
   descricao?: string
+  /** Ícone lucide discreto à esquerda do título. */
+  icone?: React.ReactNode
   className?: string
+  testid?: string
   children: React.ReactNode
 }) {
   return (
-    <Card className={['space-y-4.5', className].join(' ')}>
-      <div className="border-b border-border pb-3">
-        <h3 className="text-[13px] font-bold text-text-main">{titulo}</h3>
-        {descricao && <p className="mt-0.5 text-[11px] leading-relaxed text-text-subtle">{descricao}</p>}
+    <section className={['fin-card min-w-0', className].join(' ')} data-testid={testid}>
+      <div className="flex items-start gap-3 border-b border-[#E4E7EA] px-5 py-4">
+        {icone && (
+          <span aria-hidden className="mt-[1px] flex h-[34px] w-[34px] flex-shrink-0 items-center justify-center rounded-[8px] bg-[#E1EDF7] text-[#0868A6] [&>svg]:h-[18px] [&>svg]:w-[18px]">
+            {icone}
+          </span>
+        )}
+        <div className="min-w-0">
+          <h3 className="text-[16px] font-semibold leading-tight text-[#1C2B33]">{titulo}</h3>
+          {descricao && <p className="mt-1 text-[13px] leading-[18px] text-[#465A69]">{descricao}</p>}
+        </div>
       </div>
-      {children}
-    </Card>
+      <div className="space-y-4.5 px-5 py-4">{children}</div>
+    </section>
   )
 }
 
@@ -228,6 +243,9 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
     bannerPromoFoco: FOCO_PADRAO as Foco,
   })
   const [horarioDias, setHorarioDias] = useState<HorarioSemanaForm>(horarioSemanaPadrao())
+  const [corSelecionada, setCorSelecionada] = useState<string>('azul')
+  const [corCustom, setCorCustom] = useState<string>('#008fba')
+  const [corHex, setCorHex] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -276,6 +294,9 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         bannerPromoFoco: c.bannerPromoFoco,
       })
       setHorarioDias(horarioSemanaFromConfig(c.horarioFuncionamento))
+      const cor = c.corTema ?? 'azul'
+      if (cor.startsWith('#')) { setCorSelecionada('custom'); setCorCustom(cor); setCorHex(cor.toUpperCase()) }
+      else setCorSelecionada(cor)
       setLoaded(true)
     })
   }, [supabase, restauranteId, loaded])
@@ -492,6 +513,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         bannerFoco: form.bannerFoco,
         bannerPromoFoco: form.bannerPromoFoco,
         horarioFuncionamento,
+        corTema: corSelecionada === 'custom' ? corCustom : corSelecionada,
       })
       setConfig(updated)
       setForm((f) => ({ ...f, latitude: updated.latitude, longitude: updated.longitude, instagram: updated.instagramUrl ?? '' }))
@@ -504,22 +526,44 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
     }
   }
 
+  // Cor da vitrine (era a aba "Aparência"; entrou no Perfil da loja em 2026-10-06 e salva junto).
+  const paletaAtual = corSelecionada === 'custom' ? temaCores(corCustom) : (PALETAS[corSelecionada] ?? PALETAS.azul)
+
   return (
     <div className={['flex flex-1 flex-col overflow-hidden', !active ? 'hidden' : ''].join(' ')}>
-      <div className="flex-1 overflow-y-auto px-5 py-6">
-        <div className="mx-auto grid max-w-5xl items-start gap-5 xl:grid-cols-2">
+      <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-5 lg:px-6" data-ajustes-rolagem>
+        {/* Ordem de cadastro de empresa (2026-10-06): dados, logo, banners, endereço, horário, aparência e o resto. */}
+        <div className="grid items-start gap-4 xl:grid-cols-3">
 
-        <Secao titulo="Identidade da loja" descricao="Como o cliente reconhece você no cardápio e no painel.">
-          <Field label="Nome do estabelecimento">
-            <Input value={form.nome} onChange={(e) => set('nome', e.target.value)} placeholder="Ex: Burger House" />
-          </Field>
-          <Field label="Telefone / WhatsApp">
-            <Input value={form.telefone} onChange={(e) => set('telefone', e.target.value)} placeholder="(00) 00000-0000" />
-          </Field>
+        <Secao titulo="Dados da loja" descricao="Nome, contato e redes — como o cliente encontra e fala com você." icone={<Building2 />} className="xl:col-span-2" testid="secao-dados">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Nome do estabelecimento">
+              <Input value={form.nome} onChange={(e) => set('nome', e.target.value)} placeholder="Ex: Burger House" />
+            </Field>
+            <Field label="Telefone / WhatsApp">
+              <Input value={form.telefone} onChange={(e) => set('telefone', e.target.value)} placeholder="(00) 00000-0000" />
+            </Field>
+          </div>
           <Field label="Instagram da loja" hint="Link do perfil (https://instagram.com/sualoja) ou @sualoja. Vira o QR code impresso no fim da comanda da cozinha (Impressão Beta). Em branco: a comanda sai com o QR do seu cardápio.">
             <Input value={form.instagram} onChange={(e) => set('instagram', e.target.value)} placeholder="https://instagram.com/sualoja" data-testid="loja-instagram" />
           </Field>
-          <Field label="Logotipo" hint="Exibido como avatar da loja no painel e no cardápio do cliente. Deixe em branco para usar a inicial do nome.">
+          {config && (
+            <Field label="Endereço público da loja" hint="Gerado automaticamente a partir do nome — não pode ser alterado por aqui.">
+              <div className="flex items-center gap-2.5 rounded-menuzia border border-border bg-page px-3 py-2.5">
+                {/* O domínio precisa ser o real — o lojista copia daqui pra
+                    colar na bio do Instagram. "cardapio.app" era placeholder
+                    e mandava o cliente pra um endereço que não existe. */}
+                <span className="text-sm text-text-subtle">
+                  {typeof window === 'undefined' ? '' : `${window.location.host}/loja/`}
+                </span>
+                <span className="text-sm font-semibold text-text-main">{config.slug}</span>
+              </div>
+            </Field>
+          )}
+        </Secao>
+
+        <Secao titulo="Logo" descricao="Aparece como avatar da loja no cardápio e no painel." icone={<ImageIcon />} testid="secao-logo">
+          <Field label="Logotipo" hint="Quadrada, de preferência. Em branco, a vitrine mostra a inicial do nome.">
             <div className="flex items-center gap-3">
               {form.logoUrl
                 // eslint-disable-next-line @next/next/no-img-element
@@ -539,204 +583,9 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
               </div>
             </div>
           </Field>
-          {config && (
-            <Field label="Endereço público da loja" hint="Gerado automaticamente a partir do nome — não pode ser alterado por aqui.">
-              <div className="flex items-center gap-2.5 rounded-menuzia border border-border bg-page px-3 py-2.5">
-                {/* O domínio precisa ser o real — o lojista copia daqui pra
-                    colar na bio do Instagram. "cardapio.app" era placeholder
-                    e mandava o cliente pra um endereço que não existe. */}
-                <span className="text-sm text-text-subtle">
-                  {typeof window === 'undefined' ? '' : `${window.location.host}/loja/`}
-                </span>
-                <span className="text-sm font-semibold text-text-main">{config.slug}</span>
-              </div>
-            </Field>
-          )}
         </Secao>
 
-        <Secao titulo="Prova social" descricao="Reforça a confiança de quem chega no cardápio pela primeira vez.">
-          <Field label="Avaliação" hint="Exibida na vitrine como prova social — preencha manualmente com base nas avaliações reais da loja (Google, iFood, etc.). Deixe em branco pra não mostrar nada.">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <CampoLabel>Nota</CampoLabel>
-                <Input
-                  value={form.avaliacaoNota}
-                  onChange={(e) => set('avaliacaoNota', e.target.value)}
-                  placeholder="4.9"
-                  inputMode="decimal"
-                />
-              </div>
-              <div>
-                <CampoLabel>Quantidade de avaliações</CampoLabel>
-                <Input
-                  value={form.avaliacaoQtd}
-                  onChange={(e) => set('avaliacaoQtd', e.target.value)}
-                  placeholder="912"
-                  inputMode="numeric"
-                />
-              </div>
-            </div>
-          </Field>
-        </Secao>
-
-        <Secao
-          titulo="Endereço da loja"
-          descricao="Base do cálculo de frete, do mapa de calor do Dashboard e da localização mostrada ao cliente."
-          className="xl:col-span-2"
-        >
-          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
-            <div className="space-y-3.5">
-              <div className="grid gap-3 sm:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
-                <div>
-                  <CampoLabel>Rua</CampoLabel>
-                  <Input value={form.enderecoRua} onChange={(e) => set('enderecoRua', e.target.value)} placeholder="Rua das Flores" />
-                </div>
-                <div>
-                  <CampoLabel>Número</CampoLabel>
-                  <Input value={form.enderecoNumero} onChange={(e) => set('enderecoNumero', e.target.value)} placeholder="123" />
-                </div>
-              </div>
-              <div>
-                <CampoLabel>Complemento</CampoLabel>
-                <Input value={form.enderecoComplemento} onChange={(e) => set('enderecoComplemento', e.target.value)} placeholder="Sala, bloco, referência (opcional)" />
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <CampoLabel>Bairro</CampoLabel>
-                  <Input value={form.enderecoBairro} onChange={(e) => set('enderecoBairro', e.target.value)} placeholder="Centro" />
-                </div>
-                <div>
-                  <CampoLabel>Cidade</CampoLabel>
-                  <Input value={form.enderecoCidade} onChange={(e) => set('enderecoCidade', e.target.value)} placeholder="Fortaleza" />
-                </div>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-                <div>
-                  <CampoLabel>UF</CampoLabel>
-                  <Input value={form.enderecoEstado} onChange={(e) => set('enderecoEstado', e.target.value.toUpperCase().slice(0, 2))} placeholder="CE" maxLength={2} />
-                </div>
-                <div>
-                  <CampoLabel>CEP</CampoLabel>
-                  <Input value={form.cep} onChange={(e) => set('cep', e.target.value)} placeholder="00000-000" inputMode="numeric" autoComplete="postal-code" name="cep" />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <StorePinMap
-                apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
-                address={enderecoResumo}
-                lat={form.latitude}
-                lng={form.longitude}
-                onChange={setPin}
-                className="h-[240px] w-full border border-border"
-              />
-              <p className="text-[11px] text-text-subtle">Arraste o pin pra ajustar a localização exata da loja no mapa.</p>
-
-              {/* Confirmação do que foi preenchido, logo abaixo do mapa. */}
-              <div className="rounded-menuzia bg-[#024A7D] px-3.5 py-3 text-white">
-                <div className="text-[10px] font-semibold uppercase tracking-wide text-white/65">
-                  Endereço cadastrado
-                </div>
-                {enderecoResumo ? (
-                  <>
-                    <p className="mt-1 text-[13px] font-semibold leading-snug">{enderecoResumo}</p>
-                    {form.cep.trim() && (
-                      <p className="mt-0.5 text-[12px] text-white/75">CEP {form.cep.trim()}</p>
-                    )}
-                  </>
-                ) : (
-                  <p className="mt-1 text-[12px] leading-snug text-white/75">
-                    Preencha os campos ao lado para confirmar o endereço aqui.
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-        </Secao>
-
-        <Secao
-          titulo="Horário de funcionamento"
-          descricao="A loja abre e fecha sozinha nesses horários (fuso de São Paulo). Cada dia pode ter mais de um turno — ex.: almoço 11:00–14:00 e jantar 18:00–23:00, com a loja fechada no vão da tarde. Dia sem marcação = fechada. Você ainda pode forçar aberta/fechada a qualquer momento pelo Painel de Pedidos."
-          className="xl:col-span-2"
-        >
-          <Field label="Turnos da semana">
-            <div className="grid gap-2.5 sm:grid-cols-2">
-              {DIAS_SEMANA_LABEL.map((label, i) => {
-                const dia = String(i)
-                const turnos = horarioDias[dia]
-                const sobreposto = diasComSobreposicao.includes(i)
-                return (
-                  <div
-                    key={dia}
-                    className={[
-                      'flex gap-2.5 rounded-menuzia border bg-white p-2.5',
-                      turnos.length > 0 ? 'border-border' : 'border-border/60 bg-page/40',
-                    ].join(' ')}
-                  >
-                    <label className="flex w-[110px] flex-shrink-0 cursor-pointer items-center gap-2 pt-1 text-[12px] font-medium text-text-main">
-                      <input
-                        type="checkbox"
-                        checked={turnos.length > 0}
-                        onChange={(e) => toggleDia(dia, e.target.checked)}
-                        className="h-4 w-4 accent-primary"
-                      />
-                      {label}
-                    </label>
-                    {turnos.length === 0 ? (
-                      <span className="pt-1 text-[12px] text-text-subtle">Fechada</span>
-                    ) : (
-                      <div className="min-w-0 flex-1 space-y-1.5">
-                        {turnos.map((t, index) => (
-                          <div key={index} className="flex flex-wrap items-center gap-1.5">
-                            <input
-                              type="time"
-                              value={t.abre}
-                              onChange={(e) => setTurno(dia, index, { abre: e.target.value })}
-                              className="rounded-menuzia border border-border px-2 py-1 text-[12px] outline-none focus:border-primary"
-                            />
-                            <span className="text-[12px] text-text-subtle">até</span>
-                            <input
-                              type="time"
-                              value={t.fecha}
-                              onChange={(e) => setTurno(dia, index, { fecha: e.target.value })}
-                              className="rounded-menuzia border border-border px-2 py-1 text-[12px] outline-none focus:border-primary"
-                            />
-                            {t.fecha <= t.abre && (
-                              <span className="text-[11px] text-text-subtle">vira o dia seguinte</span>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => removeTurno(dia, index)}
-                              title="Remover turno"
-                              className="ml-auto flex h-[26px] w-[26px] items-center justify-center rounded-menuzia border border-border text-text-subtle hover:border-danger hover:text-danger"
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        ))}
-                        <button
-                          type="button"
-                          onClick={() => addTurno(dia)}
-                          className="text-[11px] font-semibold uppercase tracking-wide text-primary hover:text-primary-dark"
-                        >
-                          + adicionar turno
-                        </button>
-                        {sobreposto && (
-                          <p className="text-[11px] font-medium text-danger">Os turnos deste dia se sobrepõem.</p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </Field>
-        </Secao>
-
-        <AgendamentoAjustes restauranteId={restauranteId} />
-
-        <Secao titulo="Imagens do cardápio" descricao="Capa e destaque promocional exibidos na vitrine pública.">
+        <Secao titulo="Banner de capa" descricao="A imagem grande do topo do cardápio." icone={<PanelTop />} testid="secao-capa">
           <Field label="Banner de capa" hint="Imagem de capa exibida no topo do cardápio do cliente. Deixe em branco para usar o degradê padrão.">
             <div className="space-y-2.5">
               {form.bannerUrl && (
@@ -777,6 +626,9 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
               </div>
             </div>
           </Field>
+        </Secao>
+
+        <Secao titulo="Banner promocional ou aviso" descricao="Uma faixa dentro do cardápio, logo abaixo das categorias: imagens das promoções ou um aviso em texto." icone={<Megaphone />} className="xl:col-span-2" testid="secao-promo">
           <Field
             label="Banner promocional"
             hint="Aparece dentro do cardápio, logo abaixo das categorias. Tamanho ideal: 1200 × 850 px (proporção 1,41:1). Suba uma ou mais imagens (com mais de uma, elas passam sozinhas) OU escreva um aviso. Deixe tudo em branco pra não mostrar nada."
@@ -892,6 +744,8 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
                   <span className="flex-shrink-0 text-[11px] text-text-subtle">{form.bannerPromoTexto.length}/{BANNER_PROMO_MAX_TEXTO}</span>
                 </div>
                 <EditorAviso
+                  corLoja={(corSelecionada === 'custom' ? temaCores(corCustom) : (PALETAS[corSelecionada] ?? PALETAS.azul)).primaria}
+                  corLojaClara={(corSelecionada === 'custom' ? temaCores(corCustom) : (PALETAS[corSelecionada] ?? PALETAS.azul)).light}
                   texto={form.bannerPromoTexto}
                   estilo={{ corTexto: form.avisoCorTexto, corFundo: form.avisoCorFundo, pulsar: form.avisoPulsar }}
                   onChange={(e) => { setForm((prev) => ({ ...prev, avisoCorTexto: e.corTexto, avisoCorFundo: e.corFundo, avisoPulsar: e.pulsar })); setSaved(false) }}
@@ -901,107 +755,342 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
           </Field>
         </Secao>
 
-        <Secao titulo="Apresentação do cardápio" descricao="Como os itens aparecem para o cliente na vitrine pública.">
-          <Field label="Formato da lista">
-            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2" data-testid="formato-cardapio">
-              {([
-                ['categoria', 'Categorias', 'Cards grandes, 2 por linha'],
-                ['lista', 'Lista', 'Itens em lista compacta'],
-              ] as const).map(([valor, titulo, legenda]) => (
-                <button
-                  key={valor}
-                  type="button"
-                  aria-pressed={form.layoutCardapio === valor}
-                  data-testid={`formato-${valor}`}
-                  onClick={() => setLayout(valor)}
-                  className={[
-                    'rounded-menuzia border px-3.5 py-3 text-left transition-colors',
-                    form.layoutCardapio === valor ? 'border-primary bg-primary/10' : 'border-border bg-white hover:border-primary/50',
-                  ].join(' ')}
-                >
-                  <div className="text-[13px] font-semibold text-text-main">{titulo}</div>
-                  <div className="mt-0.5 text-[11px] text-text-subtle">{legenda}</div>
-                </button>
-              ))}
+        <Secao
+          titulo="Endereço"
+          descricao="Base do cálculo de frete, do mapa de calor do Dashboard e da localização mostrada ao cliente."
+          icone={<MapPin />}
+          className="xl:col-span-3"
+          testid="secao-endereco"
+        >
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+            <div className="space-y-3.5">
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
+                <div>
+                  <CampoLabel>Rua</CampoLabel>
+                  <Input value={form.enderecoRua} onChange={(e) => set('enderecoRua', e.target.value)} placeholder="Rua das Flores" />
+                </div>
+                <div>
+                  <CampoLabel>Número</CampoLabel>
+                  <Input value={form.enderecoNumero} onChange={(e) => set('enderecoNumero', e.target.value)} placeholder="123" />
+                </div>
+              </div>
+              <div>
+                <CampoLabel>Complemento</CampoLabel>
+                <Input value={form.enderecoComplemento} onChange={(e) => set('enderecoComplemento', e.target.value)} placeholder="Sala, bloco, referência (opcional)" />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <CampoLabel>Bairro</CampoLabel>
+                  <Input value={form.enderecoBairro} onChange={(e) => set('enderecoBairro', e.target.value)} placeholder="Centro" />
+                </div>
+                <div>
+                  <CampoLabel>Cidade</CampoLabel>
+                  <Input value={form.enderecoCidade} onChange={(e) => set('enderecoCidade', e.target.value)} placeholder="Fortaleza" />
+                </div>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+                <div>
+                  <CampoLabel>UF</CampoLabel>
+                  <Input value={form.enderecoEstado} onChange={(e) => set('enderecoEstado', e.target.value.toUpperCase().slice(0, 2))} placeholder="CE" maxLength={2} />
+                </div>
+                <div>
+                  <CampoLabel>CEP</CampoLabel>
+                  <Input value={form.cep} onChange={(e) => set('cep', e.target.value)} placeholder="00000-000" inputMode="numeric" autoComplete="postal-code" name="cep" />
+                </div>
+              </div>
             </div>
-          </Field>
-          {config?.vitrineNova ? (<>
-          <Field label="Tamanho da imagem na lista" hint="O lado da foto de cada item na visualização em lista.">
-            <div className="grid grid-cols-3 gap-2.5" data-testid="imagem-tamanho">
-              {IMAGEM_TAMANHOS.map((t) => {
-                const ativo = form.imagemTamanho === t
+
+            <div className="flex flex-col gap-2">
+              <StorePinMap
+                apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
+                address={enderecoResumo}
+                lat={form.latitude}
+                lng={form.longitude}
+                onChange={setPin}
+                className="h-[240px] w-full border border-border"
+              />
+              <p className="text-[11px] text-text-subtle">Arraste o pin pra ajustar a localização exata da loja no mapa.</p>
+
+              {/* Confirmação do que foi preenchido, logo abaixo do mapa. */}
+              <div className="rounded-menuzia bg-[#024A7D] px-3.5 py-3 text-white">
+                <div className="text-[10px] font-semibold uppercase tracking-wide text-white/65">
+                  Endereço cadastrado
+                </div>
+                {enderecoResumo ? (
+                  <>
+                    <p className="mt-1 text-[13px] font-semibold leading-snug">{enderecoResumo}</p>
+                    {form.cep.trim() && (
+                      <p className="mt-0.5 text-[12px] text-white/75">CEP {form.cep.trim()}</p>
+                    )}
+                  </>
+                ) : (
+                  <p className="mt-1 text-[12px] leading-snug text-white/75">
+                    Preencha os campos ao lado para confirmar o endereço aqui.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </Secao>
+
+        <Secao
+          titulo="Horário de funcionamento"
+          descricao="A loja abre e fecha sozinha nesses horários (fuso de São Paulo). Um dia pode ter mais de um turno — ex.: almoço e jantar. Dia sem marcação = fechada. Você ainda pode abrir ou fechar na hora pelo Painel de Pedidos."
+          icone={<Clock />}
+          className="xl:col-span-3"
+          testid="secao-horario"
+        >
+          <Field label="Turnos da semana">
+            <div className="grid gap-2.5 sm:grid-cols-2">
+              {DIAS_SEMANA_LABEL.map((label, i) => {
+                const dia = String(i)
+                const turnos = horarioDias[dia]
+                const sobreposto = diasComSobreposicao.includes(i)
                 return (
-                  <button
-                    key={t}
-                    type="button"
-                    aria-pressed={ativo}
-                    data-testid={`imagem-tamanho-${t}`}
-                    onClick={() => { setForm((f) => ({ ...f, imagemTamanho: t })); setSaved(false) }}
+                  <div
+                    key={dia}
                     className={[
-                      'flex flex-col items-center gap-2 rounded-menuzia border px-2 py-3 transition-colors',
-                      ativo ? 'border-primary bg-primary/10' : 'border-border bg-white hover:border-primary/50',
+                      'flex gap-2.5 rounded-menuzia border bg-white p-2.5',
+                      turnos.length > 0 ? 'border-border' : 'border-border/60 bg-page/40',
                     ].join(' ')}
                   >
-                    {/* Prévia em escala: a maior (110) ocupa 55 px. */}
-                    <span
-                      aria-hidden
-                      className="rounded-[4px] bg-[#D1D5DB]"
-                      style={{ width: `${t / 2}px`, height: `${t / 2}px` }}
-                    />
-                    <span className="text-[13px] font-semibold text-text-main">{t}×{t}</span>
-                  </button>
+                    <label className="flex w-[110px] flex-shrink-0 cursor-pointer items-center gap-2 pt-1 text-[12px] font-medium text-text-main">
+                      <input
+                        type="checkbox"
+                        checked={turnos.length > 0}
+                        onChange={(e) => toggleDia(dia, e.target.checked)}
+                        className="h-4 w-4 accent-primary"
+                      />
+                      {label}
+                    </label>
+                    {turnos.length === 0 ? (
+                      <span className="pt-1 text-[12px] text-text-subtle">Fechada</span>
+                    ) : (
+                      <div className="min-w-0 flex-1 space-y-1.5">
+                        {turnos.map((t, index) => (
+                          <div key={index} className="flex flex-wrap items-center gap-1.5">
+                            <input
+                              type="time"
+                              value={t.abre}
+                              onChange={(e) => setTurno(dia, index, { abre: e.target.value })}
+                              className="rounded-menuzia border border-border px-2 py-1 text-[12px] outline-none focus:border-primary"
+                            />
+                            <span className="text-[12px] text-text-subtle">até</span>
+                            <input
+                              type="time"
+                              value={t.fecha}
+                              onChange={(e) => setTurno(dia, index, { fecha: e.target.value })}
+                              className="rounded-menuzia border border-border px-2 py-1 text-[12px] outline-none focus:border-primary"
+                            />
+                            {t.fecha <= t.abre && (
+                              <span className="text-[11px] text-text-subtle">vira o dia seguinte</span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => removeTurno(dia, index)}
+                              title="Remover turno"
+                              className="ml-auto flex h-[26px] w-[26px] items-center justify-center rounded-menuzia border border-border text-text-subtle hover:border-danger hover:text-danger"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => addTurno(dia)}
+                          className="text-[11px] font-semibold uppercase tracking-wide text-primary hover:text-primary-dark"
+                        >
+                          + adicionar turno
+                        </button>
+                        {sobreposto && (
+                          <p className="text-[11px] font-medium text-danger">Os turnos deste dia se sobrepõem.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )
               })}
             </div>
-            {form.imagemTamanho === null && (
-              <p className="mt-2 text-[12px] leading-relaxed text-text-subtle" data-testid="imagem-tamanho-antigo">
-                Sua loja usa o tamanho de antes ({config?.imagemGrande ? '140×140' : '120×120'}). Escolha um dos três para trocar.
-              </p>
-            )}
-            <PreviaLinhaItem tamanho={form.imagemTamanho ?? (config?.imagemGrande ? 140 : 120)} fonte={form.fonteVitrine} />
           </Field>
-          <Field label="Fonte da vitrine" hint="Vale para a vitrine inteira: home, itens, sacola e pedido.">
-            <div className={`${fonteVitrine.variable} grid grid-cols-2 gap-2.5`} data-testid="fonte-vitrine">
-              {([
-                ['atual', 'Atual', 'var(--font-vitrine)'],
-                ['ifood', 'Estilo iFood', 'var(--font-meta)'],
-              ] as const).map(([valor, titulo, familia]) => (
-                <button
-                  key={valor}
-                  type="button"
-                  aria-pressed={form.fonteVitrine === valor}
-                  data-testid={`fonte-${valor}`}
-                  onClick={() => { setForm((f) => ({ ...f, fonteVitrine: valor })); setSaved(false) }}
-                  className={[
-                    'rounded-menuzia border px-3.5 py-3 text-left transition-colors',
-                    form.fonteVitrine === valor ? 'border-primary bg-primary/10' : 'border-border bg-white hover:border-primary/50',
-                  ].join(' ')}
-                >
-                  <div className="text-[13px] font-semibold text-text-main">{titulo}</div>
-                  <div className="mt-1 text-[15px] font-semibold text-text-main" style={{ fontFamily: familia }}>X-Burguer Duplo</div>
-                  <div className="text-[12px] text-text-subtle" style={{ fontFamily: familia }}>Pão, 2 carnes, queijo · R$ 32,90</div>
-                </button>
-              ))}
-            </div>
-          </Field>
-          </>) : (
-          <Field label="Imagem grande" hint="Na visualização em lista, mostra as imagens dos itens em 100×100 px.">
-            <label className="flex cursor-pointer items-center gap-2.5 rounded-menuzia border border-border bg-white px-3.5 py-3">
-              <input
-                type="checkbox"
-                checked={form.imagemGrande}
-                onChange={(e) => { setForm((f) => ({ ...f, imagemGrande: e.target.checked })); setSaved(false) }}
-                className="h-4 w-4 accent-primary"
-                data-testid="imagem-grande"
-              />
-              <span className="text-[13px] font-medium text-text-main">Usar imagens grandes (100×100) na lista do cardápio</span>
-            </label>
-          </Field>
-          )}
         </Secao>
 
+        <Secao titulo="Aparência da vitrine" descricao="Cor, formato da lista, tamanho da imagem e fonte do cardápio que o cliente vê." icone={<Palette />} className="xl:col-span-3" testid="secao-aparencia">
+          <div className="grid gap-6 lg:grid-cols-2">
+            <div className="space-y-4.5">
+              <Field label="Cor da loja" hint="Botões, categorias, destaques e ícones do cardápio.">
+                <div className="flex flex-wrap gap-2.5" data-testid="paleta-loja">
+                  {Object.entries(PALETAS).map(([key, p]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => { setCorSelecionada(key); setSaved(false) }}
+                      aria-pressed={corSelecionada === key}
+                      aria-label={p.nome}
+                      title={p.nome}
+                      data-testid={`paleta-${key}`}
+                      className="h-[30px] w-[30px] rounded-full border border-black/10 transition-transform hover:scale-110"
+                      style={{
+                        background: `linear-gradient(135deg, ${p.from}, ${p.primaria})`,
+                        boxShadow: corSelecionada === key ? `0 0 0 2px #fff, 0 0 0 4px ${p.primaria}` : undefined,
+                      }}
+                    />
+                  ))}
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <label className="relative h-[36px] w-[36px] flex-shrink-0 cursor-pointer rounded-[6px] border border-border shadow-[inset_0_0_0_2px_#fff]" style={{ backgroundColor: corCustom }} title="Escolher qualquer cor">
+                    <span className="sr-only">Cor personalizada</span>
+                    <input type="color" value={corCustom} onChange={(e) => { setCorCustom(e.target.value); setCorHex(e.target.value.toUpperCase()); setCorSelecionada('custom'); setSaved(false) }} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" data-testid="cor-personalizada" />
+                  </label>
+                  <input
+                    type="text"
+                    value={corHex}
+                    onChange={(e) => { setCorHex(e.target.value); const n = normalizarHex(e.target.value); if (n) { setCorCustom(n.toLowerCase()); setCorSelecionada('custom'); setSaved(false) } }}
+                    placeholder="#HEX"
+                    maxLength={7}
+                    autoComplete="off"
+                    spellCheck={false}
+                    aria-label="Cor personalizada em hexadecimal"
+                    data-testid="cor-personalizada-hex"
+                    className="h-[36px] w-[112px] rounded-[6px] border border-border bg-white px-2.5 text-[13px] uppercase tabular-nums text-text-main outline-none focus:border-primary"
+                  />
+                  <span className="text-[12.5px] text-text-subtle">{corSelecionada === 'custom' ? 'Cor personalizada em uso' : `${PALETAS[corSelecionada]?.nome ?? 'Azul'} em uso`}</span>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-2 rounded-[8px] border border-border bg-page p-3" aria-label="Prévia das cores" data-testid="previa-cores">
+                  <span className="rounded-[6px] px-3.5 py-1.5 text-[12.5px] font-semibold text-white" style={{ backgroundColor: paletaAtual.primaria }}>Adicionar</span>
+                  <span className="rounded-[6px] border px-3.5 py-1.5 text-[12.5px] font-semibold" style={{ borderColor: paletaAtual.primaria, color: paletaAtual.dark, backgroundColor: paletaAtual.light }}>Ver cardápio</span>
+                  <span className="rounded-full px-3 py-1 text-[12px] font-semibold" style={{ backgroundColor: paletaAtual.light, color: paletaAtual.dark }}>Lanches</span>
+                  <span className="rounded-full px-3 py-1 text-[12px] font-semibold text-white" style={{ backgroundColor: paletaAtual.primaria }}>Combos</span>
+                </div>
+              </Field>
+            </div>
+            <div className="space-y-4.5">
+              <Field label="Formato da lista">
+                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2" data-testid="formato-cardapio">
+                  {([
+                    ['categoria', 'Categorias', 'Cards grandes, 2 por linha'],
+                    ['lista', 'Lista', 'Itens em lista compacta'],
+                  ] as const).map(([valor, titulo, legenda]) => (
+                    <button
+                      key={valor}
+                      type="button"
+                      aria-pressed={form.layoutCardapio === valor}
+                      data-testid={`formato-${valor}`}
+                      onClick={() => setLayout(valor)}
+                      className={[
+                        'rounded-menuzia border px-3.5 py-3 text-left transition-colors',
+                        form.layoutCardapio === valor ? 'border-primary bg-primary/10' : 'border-border bg-white hover:border-primary/50',
+                      ].join(' ')}
+                    >
+                      <div className="text-[13px] font-semibold text-text-main">{titulo}</div>
+                      <div className="mt-0.5 text-[11px] text-text-subtle">{legenda}</div>
+                    </button>
+                  ))}
+                </div>
+              </Field>
+              {config?.vitrineNova ? (<>
+              <Field label="Tamanho da imagem na lista" hint="O lado da foto de cada item na visualização em lista.">
+                <div className="grid grid-cols-3 gap-2.5" data-testid="imagem-tamanho">
+                  {IMAGEM_TAMANHOS.map((t) => {
+                    const ativo = form.imagemTamanho === t
+                    return (
+                      <button
+                        key={t}
+                        type="button"
+                        aria-pressed={ativo}
+                        data-testid={`imagem-tamanho-${t}`}
+                        onClick={() => { setForm((f) => ({ ...f, imagemTamanho: t })); setSaved(false) }}
+                        className={[
+                          'flex flex-col items-center gap-2 rounded-menuzia border px-2 py-3 transition-colors',
+                          ativo ? 'border-primary bg-primary/10' : 'border-border bg-white hover:border-primary/50',
+                        ].join(' ')}
+                      >
+                        {/* Prévia em escala (metade): a maior (110) ocupa 55 px; o quadro fixo alinha os três. */}
+                        <span className="flex h-[56px] items-end justify-center">
+                          <IlustracaoLanche tamanho={t / 2} canto={4} />
+                        </span>
+                        <span className="text-[13px] font-semibold text-text-main">{t}×{t}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+                {form.imagemTamanho === null && (
+                  <p className="mt-2 text-[12px] leading-relaxed text-text-subtle" data-testid="imagem-tamanho-antigo">
+                    Sua loja usa o tamanho de antes ({config?.imagemGrande ? '140×140' : '120×120'}). Escolha um dos três para trocar.
+                  </p>
+                )}
+                <PreviaLinhaItem tamanho={form.imagemTamanho ?? (config?.imagemGrande ? 140 : 120)} fonte={form.fonteVitrine} />
+              </Field>
+              <Field label="Fonte da vitrine" hint="Vale para a vitrine inteira: home, itens, sacola e pedido.">
+                <div className={`${fonteVitrine.variable} grid grid-cols-2 gap-2.5`} data-testid="fonte-vitrine">
+                  {([
+                    ['atual', 'Atual', 'var(--font-vitrine)'],
+                    ['ifood', 'Estilo iFood', 'var(--font-meta)'],
+                  ] as const).map(([valor, titulo, familia]) => (
+                    <button
+                      key={valor}
+                      type="button"
+                      aria-pressed={form.fonteVitrine === valor}
+                      data-testid={`fonte-${valor}`}
+                      onClick={() => { setForm((f) => ({ ...f, fonteVitrine: valor })); setSaved(false) }}
+                      className={[
+                        'rounded-menuzia border px-3.5 py-3 text-left transition-colors',
+                        form.fonteVitrine === valor ? 'border-primary bg-primary/10' : 'border-border bg-white hover:border-primary/50',
+                      ].join(' ')}
+                    >
+                      <div className="text-[13px] font-semibold text-text-main">{titulo}</div>
+                      <div className="mt-1 text-[15px] font-semibold text-text-main" style={{ fontFamily: familia }}>X-Burguer Duplo</div>
+                      <div className="text-[12px] text-text-subtle" style={{ fontFamily: familia }}>Pão, 2 carnes, queijo · R$ 32,90</div>
+                    </button>
+                  ))}
+                </div>
+              </Field>
+              </>) : (
+              <Field label="Imagem grande" hint="Na visualização em lista, mostra as imagens dos itens em 100×100 px.">
+                <label className="flex cursor-pointer items-center gap-2.5 rounded-menuzia border border-border bg-white px-3.5 py-3">
+                  <input
+                    type="checkbox"
+                    checked={form.imagemGrande}
+                    onChange={(e) => { setForm((f) => ({ ...f, imagemGrande: e.target.checked })); setSaved(false) }}
+                    className="h-4 w-4 accent-primary"
+                    data-testid="imagem-grande"
+                  />
+                  <span className="text-[13px] font-medium text-text-main">Usar imagens grandes (100×100) na lista do cardápio</span>
+                </label>
+              </Field>
+              )}
+            </div>
+          </div>
+        </Secao>
+
+        <Secao titulo="Prova social" descricao="Reforça a confiança de quem chega no cardápio pela primeira vez." icone={<Star />} testid="secao-prova">
+          <Field label="Avaliação" hint="Exibida na vitrine como prova social — preencha manualmente com base nas avaliações reais da loja (Google, iFood, etc.). Deixe em branco pra não mostrar nada.">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <CampoLabel>Nota</CampoLabel>
+                <Input
+                  value={form.avaliacaoNota}
+                  onChange={(e) => set('avaliacaoNota', e.target.value)}
+                  placeholder="4.9"
+                  inputMode="decimal"
+                />
+              </div>
+              <div>
+                <CampoLabel>Quantidade de avaliações</CampoLabel>
+                <Input
+                  value={form.avaliacaoQtd}
+                  onChange={(e) => set('avaliacaoQtd', e.target.value)}
+                  placeholder="912"
+                  inputMode="numeric"
+                />
+              </div>
+            </div>
+          </Field>
+        </Secao>
+
+        <AgendamentoAjustes restauranteId={restauranteId} />
+
         {error && (
-          <p className="rounded-menuzia border border-danger bg-danger/10 px-3 py-2 text-[13px] text-danger xl:col-span-2">
+          <p className="rounded-menuzia border border-danger bg-danger/10 px-3 py-2 text-[13px] text-danger xl:col-span-3">
             {error}
           </p>
         )}
@@ -1688,144 +1777,6 @@ function TabConta({ active }: { active: boolean }) {
   )
 }
 
-// ─── Aba Aparência ────────────────────────────────────────────────────────────
-
-function TabAparencia({ restauranteId, active }: { restauranteId: string; active: boolean }) {
-  const supabase = useMemo(() => getBrowserSupabase(), [])
-  const [loaded, setLoaded] = useState(false)
-  const [corSelecionada, setCorSelecionada] = useState<string>('azul')
-  const [corCustom, setCorCustom] = useState<string>('#008fba')
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (loaded) return
-    buscarConfigLoja(supabase, restauranteId).then((c) => {
-      if (!c) return
-      const cor = c.corTema ?? 'azul'
-      if (cor.startsWith('#')) { setCorSelecionada('custom'); setCorCustom(cor) }
-      else setCorSelecionada(cor)
-      setLoaded(true)
-    })
-  }, [supabase, restauranteId, loaded])
-
-  const paleta = corSelecionada === 'custom' ? temaCores(corCustom) : (PALETAS[corSelecionada] ?? PALETAS.azul)
-
-  async function salvar() {
-    setSaving(true)
-    setError(null)
-    try {
-      await atualizarConfigLoja(supabase, restauranteId, { corTema: corSelecionada === 'custom' ? corCustom : corSelecionada })
-      setSaved(true)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Erro ao salvar')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div className={['flex flex-1 flex-col overflow-hidden', !active ? 'hidden' : ''].join(' ')}>
-      <div className="flex-1 overflow-y-auto px-5 py-6">
-        <Card className="max-w-xl space-y-6">
-          <div>
-            <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Paleta de cores</p>
-            <p className="mb-4 text-[13px] text-text-subtle">Define a cor primária do cardápio digital dos seus clientes — botões, chips de categoria, destaques e ícones.</p>
-            <div className="grid grid-cols-5 gap-x-3 gap-y-4">
-              {Object.entries(PALETAS).map(([key, p]) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => { setCorSelecionada(key); setSaved(false) }}
-                  className="flex flex-col items-center gap-1.5 group"
-                >
-                  <div
-                    className="h-10 w-10 rounded-full border-2 transition-all duration-150 group-hover:scale-110"
-                    style={{
-                      background: `linear-gradient(135deg, ${p.from}, ${p.primaria})`,
-                      borderColor: corSelecionada === key ? p.primaria : 'transparent',
-                      boxShadow: corSelecionada === key ? `0 0 0 3px white, 0 0 0 5px ${p.primaria}` : undefined,
-                      transform: corSelecionada === key ? 'scale(1.12)' : undefined,
-                    }}
-                  />
-                  <span className="text-[10px] font-semibold text-text-subtle text-center leading-tight">{p.nome}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-menuzia border border-border p-4">
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Cor personalizada</p>
-            <div className="flex items-center gap-4">
-              <label className="relative cursor-pointer flex-shrink-0">
-                <div
-                  className="h-12 w-12 rounded-full border-2 transition-all"
-                  style={{
-                    background: `linear-gradient(135deg, ${temaCores(corCustom).from}, ${corCustom})`,
-                    borderColor: corSelecionada === 'custom' ? corCustom : 'transparent',
-                    boxShadow: corSelecionada === 'custom' ? `0 0 0 3px white, 0 0 0 5px ${corCustom}` : undefined,
-                    transform: corSelecionada === 'custom' ? 'scale(1.1)' : undefined,
-                  }}
-                />
-                <input
-                  type="color"
-                  value={corCustom}
-                  onChange={(e) => { setCorCustom(e.target.value); setCorSelecionada('custom'); setSaved(false) }}
-                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                />
-              </label>
-              <div className="flex-1">
-                <p className="text-sm font-semibold">Hex personalizado</p>
-                <p className="mt-0.5 font-mono text-[12px] text-text-subtle">{corCustom.toUpperCase()}</p>
-                <p className="mt-1 text-[11px] text-text-subtle">Clique no círculo para escolher qualquer cor</p>
-              </div>
-              {corSelecionada === 'custom' && (
-                <span className="flex-shrink-0 rounded px-2.5 py-1 text-[11px] font-bold text-white" style={{ backgroundColor: corCustom }}>Ativa</span>
-              )}
-            </div>
-          </div>
-
-          <div>
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Pré-visualização</p>
-            <div className="flex flex-wrap items-center gap-2 rounded-menuzia border border-border bg-page p-4">
-              <button
-                type="button"
-                className="rounded-menuzia px-4 py-2 text-[12px] font-bold uppercase tracking-wide text-white transition-colors"
-                style={{ backgroundColor: paleta.primaria }}
-              >
-                Adicionar
-              </button>
-              <button
-                type="button"
-                className="rounded-menuzia border px-4 py-2 text-[12px] font-bold uppercase tracking-wide transition-colors"
-                style={{ borderColor: paleta.primaria, color: paleta.primaria, backgroundColor: paleta.light }}
-              >
-                Ver cardápio
-              </button>
-              <span
-                className="rounded-full px-3 py-1 text-[12px] font-semibold"
-                style={{ backgroundColor: paleta.light, color: paleta.primaria }}
-              >
-                Lanches
-              </span>
-              <span
-                className="rounded-full px-3 py-1 text-[12px] font-semibold"
-                style={{ backgroundColor: paleta.primaria, color: '#fff' }}
-              >
-                Combos
-              </span>
-            </div>
-          </div>
-
-          {error && <p className="rounded-menuzia border border-danger bg-danger/10 px-3 py-2 text-[13px] text-danger">{error}</p>}
-        </Card>
-      </div>
-      <SaveBar saved={saved} saving={saving} onSave={salvar} />
-    </div>
-  )
-}
-
 function TabMesas({ restauranteId, active }: { restauranteId: string; active: boolean }) {
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [loaded, setLoaded] = useState(false)
@@ -2022,11 +1973,15 @@ export default function AjustesPage() {
     if (aba === 'impressao') window.location.replace('/admin/impressao')
     // As estações da cozinha viraram item do menu (2026-09-30): link antigo vai para lá.
     if (aba === 'cozinha') window.location.replace('/admin/cozinha')
+    // "Aparência" virou bloco do Perfil da loja (2026-10-06): o link antigo abre o Perfil já nele.
+    if (aba === 'aparencia') window.setTimeout(() => document.querySelector('[data-testid="secao-aparencia"]')?.scrollIntoView({ block: 'start' }), 600)
   }, [])
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <TopBar title="Ajustes" breadcrumb="Configurações da loja" />
+      {/* Kit visual do Financeiro/Impressão (2026-10-06): Figtree, peso máximo 600, cards com título e ajuda. */}
+      <div className="ajustes-v2 meta-tema flex min-h-0 flex-1 flex-col overflow-hidden">
 
       {/* Tab bar */}
       {/* Submenu: coluna no desktop, trilho rolável no celular. Mesmos destinos
@@ -2046,11 +2001,11 @@ export default function AjustesPage() {
               <TabEntrega restauranteId={restauranteId} active={tab === 'entrega'} />
               <TabMesas restauranteId={restauranteId} active={tab === 'mesas'} />
               <TabQrCode restauranteId={restauranteId} active={tab === 'qrcode'} />
-              <TabAparencia restauranteId={restauranteId} active={tab === 'aparencia'} />
               <TabConta active={tab === 'conta'} />
             </>
           )}
         </div>
+      </div>
       </div>
     </div>
   )
@@ -2066,19 +2021,14 @@ function PreviaLinhaItem({ tamanho, fonte }: { tamanho: number; fonte: FonteVitr
   const familia = fonte === 'ifood' ? 'var(--font-meta), Figtree, sans-serif' : 'var(--font-vitrine), Montserrat, sans-serif'
   return (
     <div className={`${fonteVitrine.variable} mt-3`} data-testid="previa-linha-item">
-      <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Prévia na vitrine</div>
+      <div className="mb-1.5 text-[12.5px] font-medium text-text-subtle">Prévia na vitrine</div>
       <div className="flex gap-[12px] rounded-menuzia border border-border bg-white py-[16px] pl-[16px] pr-[8px]" style={{ fontFamily: familia }}>
         <div className="min-w-0 flex-1">
           <div className="text-[14px] font-semibold leading-[16px] text-[#3D3D3D]">X-Burguer Duplo</div>
           <div className="mt-[8px] line-clamp-3 text-[12px] leading-[16px] text-[#5C5C5C]">Pão brioche, dois hambúrgueres de 120 g, queijo cheddar e molho da casa.</div>
           <div className="mt-[8px] text-[14px] font-semibold text-[#3D3D3D]">R$ 32,90</div>
         </div>
-        <div
-          aria-hidden
-          data-testid="previa-foto"
-          className="flex-shrink-0 rounded-[8px] bg-[linear-gradient(135deg,#F59E0B,#B45309)]"
-          style={{ width: `${tamanho}px`, height: `${tamanho}px` }}
-        />
+        <IlustracaoLanche tamanho={tamanho} testid="previa-foto" />
       </div>
     </div>
   )

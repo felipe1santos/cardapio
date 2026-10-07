@@ -2815,26 +2815,33 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
    * celular. O que o cliente precisa saber é quanto FALTA; o valor do gatilho é
    * detalhe e cabe na mesma linha, em cinza.
    */
+  // Repaginado em 2026-10-06: verde da tag de desconto de sempre (fundo #EAFFF5, ícone e barra #24A96A),
+  // moto de entrega cheia no estilo do ícone do WhatsApp do rodapé. O texto usa um verde mais fechado do
+  // mesmo tom (#137547, 5,5:1) — o #24A96A dá 2,9:1 e não passa no contraste mínimo de 4,5:1.
   const freteGratisBanner = freteGratisAtivo && cart.length > 0 && tipoPedido === 'entrega' ? (
-    ganhouFreteGratis ? (
-      <div className="mb-3 flex items-center gap-2 rounded-lg border border-[#16A34A]/30 bg-[#DCFCE7] px-3 py-2">
-        <Truck className="h-[15px] w-[15px] flex-shrink-0 text-[#16A34A]" strokeWidth={2.2} />
-        <span className="text-[12px] font-semibold leading-[16px] text-[#15803D]">Você ganhou entrega grátis! 🎉</span>
+    <div data-testid="frete-gratis" data-atingido={ganhouFreteGratis ? 'sim' : 'nao'} className="mb-3 rounded-[8px] border border-[#24A96A]/25 bg-[#EAFFF5] px-[12px] py-[10px]">
+      <div className="flex items-center gap-[10px]">
+        <IconeMotoEntrega className="h-[22px] w-[22px] flex-shrink-0 fill-[#24A96A]" />
+        {ganhouFreteGratis ? (
+          <>
+            <span className="min-w-0 flex-1 text-[14px] font-semibold leading-[18px] text-[#137547]">Entrega grátis garantida!</span>
+            <svg viewBox="0 0 24 24" className="h-[20px] w-[20px] flex-shrink-0 fill-[#24A96A]" aria-label="Garantida">
+              <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm-1.3 14.2-4-4 1.4-1.4 2.6 2.6 5.6-5.6 1.4 1.4-7 7Z" />
+            </svg>
+          </>
+        ) : (
+          <>
+            <span className="min-w-0 flex-1 text-[14px] font-semibold leading-[18px] text-[#137547]">
+              Faltam {brl(Math.max(0, (freteGratisMinimo ?? 0) - subtotal))} para a entrega grátis
+            </span>
+            <span className="flex-shrink-0 text-[12px] font-medium tabular-nums text-[#137547]" title="Valor da meta">{brl(freteGratisMinimo ?? 0)}</span>
+          </>
+        )}
       </div>
-    ) : (
-      <div className="mb-3 rounded-lg border border-[#16A34A]/30 bg-[#F0FDF4] px-3 py-2">
-        <div className="flex items-baseline gap-1.5">
-          <Truck className="h-[15px] w-[15px] flex-shrink-0 translate-y-[2px] text-[#16A34A]" strokeWidth={2.2} />
-          <span className="min-w-0 flex-1 text-[12px] font-semibold leading-[16px] text-[#15803D]">
-            Faltam {brl(Math.max(0, (freteGratisMinimo ?? 0) - subtotal))} para a entrega grátis
-          </span>
-          <span className="flex-shrink-0 text-[11px] font-medium text-[#16A34A]/70">{brl(freteGratisMinimo ?? 0)}</span>
-        </div>
-        <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-[#DCFCE7]">
-          <div className="h-full rounded-full bg-[#16A34A] transition-all duration-300" style={{ width: `${Math.min(100, (subtotal / (freteGratisMinimo || 1)) * 100)}%` }} />
-        </div>
+      <div className="ml-[32px] mt-[8px] h-[4px] overflow-hidden rounded-full bg-[#24A96A]/20">
+        <div className="h-full rounded-full bg-[#24A96A] transition-all duration-300" style={{ width: `${ganhouFreteGratis ? 100 : Math.min(100, (subtotal / (freteGratisMinimo || 1)) * 100)}%` }} />
       </div>
-    )
+    </div>
   ) : null
 
   /**
@@ -5747,5 +5754,15 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     </div>
     </VitrineNovaContext.Provider>
     </LojaEtiquetasContext.Provider>
+  )
+}
+
+/** Moto de entrega (motoboy), cheia e arredondada — Material Icons "delivery_dining" (Apache 2.0). */
+function IconeMotoEntrega({ className = '' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden>
+      <path d="M19 7c0-1.1-.9-2-2-2h-3v2h3v2.65L13.52 14H10V9H6c-2.21 0-4 1.79-4 4v3h2c0 1.66 1.34 3 3 3s3-1.34 3-3h4.48L19 10.35V7zM7 17c-.55 0-1-.45-1-1h2c0 .55-.45 1-1 1z" />
+      <path d="M5 6h5v2H5zM19 13c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3zm0 4c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z" />
+    </svg>
   )
 }

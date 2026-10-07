@@ -17,6 +17,8 @@ export interface ItemSubmenu<T extends string> {
   label: string
   /** Contador discreto (pendências, itens). Zero ou ausente não aparece. */
   contador?: number
+  /** Ícone discreto à esquerda (lucide, 16px), no padrão do menu principal. */
+  icone?: React.ReactNode
 }
 
 export function SubmenuVertical<T extends string>({
@@ -59,6 +61,7 @@ export function SubmenuVertical<T extends string>({
                 : 'font-medium text-[var(--adm-texto-suave)] hover:bg-[var(--adm-superficie-2)] hover:text-[var(--adm-texto)]',
             ].join(' ')}
           >
+            {item.icone && <span aria-hidden className="flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center opacity-90 [&>svg]:h-[16px] [&>svg]:w-[16px]">{item.icone}</span>}
             <span className="truncate">{item.label}</span>
             {item.contador !== undefined && item.contador > 0 && (
               <span className="ml-auto flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[var(--adm-azul-claro)] px-1 text-[10px] font-bold text-[var(--adm-azul-escuro)]">

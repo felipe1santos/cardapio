@@ -68,9 +68,8 @@ export const ESTILO_UTIL = {
 /** Desconto: verde da tag "R$ 5 off" da REF-CORES. Preço antigo: cinza claro. */
 export const ESTILO_DESCONTO = { fundo: '#EAFFF5', cor: '#24A96A' } as const
 export const COR_PRECO_ANTIGO = '#A1A1AA'
-// Vitrine nova (pendência 9, só onde a loja liga a chave vitrine_nova): selo verde sólido "-39%",
-// branco sobre #0B7A3E (5,4:1); preço antigo #737373 (4,7:1); preço atual no verde do selo.
-export const ESTILO_DESCONTO_NOVO = { fundo: '#0B7A3E', cor: '#FFFFFF' } as const
+// Vitrine nova (pendência 9, só onde a loja liga a chave vitrine_nova): preço antigo #737373 (4,7:1);
+// preço atual em verde. O selo de desconto é o de sempre (ESTILO_DESCONTO) desde 2026-10-06.
 export const COR_PRECO_ANTIGO_NOVO = '#737373'
 export const COR_PRECO_PROMO = '#0B7A3E'
 

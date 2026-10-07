@@ -5,7 +5,7 @@
  *   filtro    — um período só: o mesmo texto no topo e no bloco;
  *   gráfico   — hover (abre/fecha), teclado (← → / Esc), toque (fica aberto e fecha ao tocar fora);
  *   mapa      — pinos, áreas, enquadramento; loja sem pedidos; loja sem bairro; dica do pino por toque;
- *   cliques   — "Ver todos" abre a tabela completa.
+ *   cliques   — a aba saiu do Dashboard (2026-10-06): não pode aparecer.
  *
  *   node scripts/dashboard/e2e-54.mjs
  */
@@ -48,17 +48,17 @@ try {
     await p.getByTestId('dash-analises').scrollIntoViewIfNeeded()
     conferir((await abaAtual(p)) === 'pedidos', 'abre na aba Pedidos')
     const historico = []
-    for (const aba of ['entrega', 'bairros', 'produtos', 'cliques']) {
+    for (const aba of ['entrega', 'bairros', 'produtos']) {
       await p.getByTestId(`dash-aba-${aba}`).click(); await p.waitForTimeout(300)
       historico.push(aba)
       conferir((await abaAtual(p)) === aba && abaDaUrl(p) === aba, `aba ${aba}: painel e ?aba=${aba}`)
     }
     await p.goBack(); await p.waitForTimeout(400)
-    conferir((await abaAtual(p)) === 'produtos' && abaDaUrl(p) === 'produtos', 'voltar do navegador → Produtos')
+    conferir((await abaAtual(p)) === 'bairros' && abaDaUrl(p) === 'bairros', 'voltar do navegador → Bairros')
     await p.goBack(); await p.waitForTimeout(400)
-    conferir((await abaAtual(p)) === 'bairros', 'voltar de novo → Bairros')
+    conferir((await abaAtual(p)) === 'entrega', 'voltar de novo → Entrega')
     await p.goForward(); await p.waitForTimeout(400)
-    conferir((await abaAtual(p)) === 'produtos', 'avançar → Produtos')
+    conferir((await abaAtual(p)) === 'bairros', 'avançar → Bairros')
     await p.goto(`${BASE}/admin/dashboard?aba=entrega`, { waitUntil: 'networkidle' })
     conferir((await abaAtual(p)) === 'entrega', 'recarregar com ?aba=entrega abre Entrega')
     const selecionadas = await p.locator('[data-testid^="dash-aba-"][aria-selected="true"]').count()
@@ -116,15 +116,8 @@ try {
     const mp = await p.getByTestId('mapa-pedidos').boundingBox()
     conferir(rk && mp && rk.x > mp.x + mp.width - 4, 'desktop: ranking ao lado do mapa')
 
-    // Cliques
-    await p.getByTestId('dash-aba-cliques').click(); await p.waitForTimeout(400)
-    const importantes = await p.locator('[data-testid^="clique-importante"]').count()
-    conferir(importantes > 0 && importantes <= 10, `cliques que importam: ${importantes} (até 10)`)
-    const ver = p.getByTestId('cliques-ver-todos')
-    if (await ver.isVisible().catch(() => false)) {
-      await ver.click(); await p.waitForTimeout(300)
-      conferir(await p.getByText('Todos os cliques').first().isVisible(), '"Ver todos" abre a tabela completa')
-    } else conferir(true, '"Ver todos" não precisa aparecer (poucos cliques)')
+    // Cliques da vitrine: a aba saiu (2026-10-06)
+    conferir((await p.getByTestId('dash-aba-cliques').count()) === 0, 'aba "Cliques da vitrine" não aparece')
     await ctx.close()
   }
 
@@ -138,8 +131,8 @@ try {
     const lista = p.locator('[data-testid="dash-analises"] [role="tablist"]')
     const rola = await lista.evaluate((e) => ({ sw: e.scrollWidth, cw: e.clientWidth, ov: getComputedStyle(e).overflowX }))
     conferir(rola.ov === 'auto', `abas roláveis (overflow ${rola.ov}, ${rola.sw}/${rola.cw}px)`)
-    await p.getByTestId('dash-aba-cliques').scrollIntoViewIfNeeded(); await p.getByTestId('dash-aba-cliques').tap(); await p.waitForTimeout(300)
-    conferir((await abaAtual(p)) === 'cliques', 'toque na última aba funciona')
+    await p.getByTestId('dash-aba-produtos').scrollIntoViewIfNeeded(); await p.getByTestId('dash-aba-produtos').tap(); await p.waitForTimeout(300)
+    conferir((await abaAtual(p)) === 'produtos', 'toque na última aba funciona')
 
     await p.getByTestId('dash-aba-pedidos').tap(); await p.waitForTimeout(400)
     const svg = p.getByTestId('dash54-grafico-pedidos').locator('svg').first()
@@ -179,7 +172,7 @@ try {
     const m = await esperarMapa(p)
     conferir(m.enquadrado === 'sim' && m.pinos === 0 && m.areas === 0, 'mapa enquadra a loja, sem pinos nem áreas')
     conferir(await p.getByTestId('mapa-sem-pedidos').isVisible(), 'mensagem "sem pedidos" no mapa')
-    for (const aba of ['pedidos', 'entrega', 'produtos', 'cliques']) {
+    for (const aba of ['pedidos', 'entrega', 'produtos']) {
       await p.getByTestId(`dash-aba-${aba}`).click(); await p.waitForTimeout(300)
       const erro = await p.locator('text=/Application error|Unhandled|NaN|undefined/').count()
       conferir(erro === 0, `aba ${aba} sem erro nem NaN`)

@@ -349,11 +349,6 @@ export default function DashboardPage() {
   // Origem das visitas e dos pedidos por canal (item 55): visitas da vitrine + pedidos com origem (0149).
   const origem = useMemo(() => resumoPorOrigem(vitrine?.origens ?? [], m.pedidos), [vitrine, m.pedidos])
 
-  // Nomes do cardápio da loja: o rótulo de um clique em produto começa pelo nome dele.
-  const nomesCardapio = useMemo(() => ({
-    produtos: [...new Set(dados.pedidos.flatMap((p) => p.itens.map((i) => i.nome)))],
-    categorias: [...new Set(Object.values(dados.grupoPorItem))],
-  }), [dados])
 
   // Filtro de período ÚNICO da página: o mesmo controle no topo e no cabeçalho das análises.
   const filtroPeriodo = (
@@ -539,9 +534,7 @@ export default function DashboardPage() {
             bairros: m.bairros,
             rankingBairros: m.rankingBairros,
             pontos: m.heatPoints,
-          }}
-          vitrine={vitrine}
-          nomes={nomesCardapio}
+          }}
           filtro={filtroPeriodo}
           mapsKey={MAPS_KEY}
           centro={lojaLocal}

@@ -1,6 +1,6 @@
 'use client'
 
-import { cloneElement, isValidElement, useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactElement, type ReactNode, type RefObject } from 'react'
+import { cloneElement, isValidElement, useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactElement, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 
 /**
@@ -339,5 +339,60 @@ export function Dica({ texto, children, alternarNoClique = false, tom = 'escuro'
         document.body,
       )}
     </>
+  )
+}
+
+/**
+ * Tooltip de gráfico (components/graficos): no <body>, camada máxima, ao lado de um PONTO da tela
+ * (coordenadas de viewport, ex.: a coluna em foco ou a borda da fatia). Fica à direita do ponto;
+ * se não couber, à esquerda; na vertical, centrado no ponto e preso dentro da tela. Nunca fica
+ * atrás de card, menu ou container com overflow, nem sai da tela.
+ */
+export function TooltipNoPonto({ x, y, lado = 'auto', children, className = '', style, testid }: {
+  x: number
+  y: number
+  /** 'auto' = direita se couber. 'abaixo' = centrado embaixo do ponto (celular). */
+  lado?: 'auto' | 'direita' | 'esquerda' | 'abaixo'
+  children: ReactNode
+  className?: string
+  style?: CSSProperties
+  testid?: string
+}) {
+  const pronto = useNoNavegador()
+  const caixa = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
+  useLayoutEffect(() => {
+    const el = caixa.current
+    if (!el) return
+    const w = el.offsetWidth, h = el.offsetHeight
+    const vw = window.innerWidth, vh = window.innerHeight
+    const DIST = 12
+    let left: number, top: number
+    if (lado === 'abaixo') {
+      left = x - w / 2; top = y + DIST
+      if (top + h > vh - MARGEM) top = y - DIST - h
+    } else {
+      const cabeDireita = x + DIST + w <= vw - MARGEM
+      const direita = lado === 'direita' || (lado === 'auto' && (cabeDireita || x - DIST - w < MARGEM))
+      left = direita ? x + DIST : x - DIST - w
+      top = y - h / 2
+    }
+    left = Math.max(MARGEM, Math.min(left, vw - w - MARGEM))
+    top = Math.max(MARGEM, Math.min(top, vh - h - MARGEM))
+    setPos((p) => (p && p.left === left && p.top === top ? p : { left, top }))
+  }, [pronto, x, y, lado, children])
+  if (!pronto) return null
+  return createPortal(
+    <div
+      ref={caixa}
+      role="tooltip"
+      data-testid={testid}
+      data-tooltip-grafico=""
+      className={`pointer-events-none fixed ${className}`}
+      style={{ ...style, zIndex: CAMADA_MAXIMA, left: pos?.left ?? -9999, top: pos?.top ?? 0, visibility: pos ? 'visible' : 'hidden' }}
+    >
+      {children}
+    </div>,
+    document.body,
   )
 }
