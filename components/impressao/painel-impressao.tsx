@@ -420,7 +420,7 @@ export function PainelImpressao() {
                 )}
                 {!antigo && desatualizado && (
                   <Aviso testid="aviso-versao" acao={<a className="ti-btn" href={DOWNLOAD_ASSISTENTE_BETA.url} data-testid="aviso-versao-baixar"><Download aria-hidden /> Baixar a versão nova</a>}>
-                    Este computador está na versão <b>{versao.replace(/^0.2.0-/, '')}</b>. Baixe a <b>{VERSAO_IMPRESSAO_V3.replace(/^0.2.0-/, '')}</b> e abra o instalador no computador da impressora: ele instala por cima, sem desinstalar, e o assistente volta conectado sozinho.
+                    Este computador está na versão <b>{versao.replace(/^0.2.0-/, '')}</b>. Baixe a <b>{VERSAO_IMPRESSAO_V3.replace(/^0.2.0-/, '')}</b> e abra o instalador no computador da impressora: ele instala por cima, sem desinstalar, e o assistente volta conectado sozinho.{compararVersao(versao, '0.2.0-beta.11') >= 0 ? ' Este computador já se atualiza sozinho fora do horário de pico.' : ' A partir desta versão ele se atualiza sozinho.'}
                   </Aviso>
                 )}
                 {!p.betaLiberado && (

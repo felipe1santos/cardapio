@@ -14,6 +14,7 @@ const { montarCalibracao, montarTesteLargura } = require('./calibracao')
 // Modelo oficial v3 (0.2.0-beta.9): comanda, pré-conta e via da cozinha.
 const { montarComandaV3, montarPreContaV3, textoDoV3 } = require('./v3')
 const { conviteDosArgumentos, conviteNosDownloads } = require('./convite')
+const { iniciarAtualizacao } = require('./atualizacao')
 
 // Variante do build (electron-builder grava `menuziaAmbiente` no package.json empacotado):
 //   · sem o campo   → o Assistente de sempre, exatamente como sempre;
@@ -123,6 +124,11 @@ let mainWindow = null
 let pollTimer = null
 let polling = false
 let cicloRodando = false // trava de reentrância: impede dois ciclos imprimirem o mesmo pedido
+// Atualização automática (beta.11): só instala com o Assistente parado. Marca a última impressão
+// (pedido ou trabalho recebido) e se há algo sendo impresso agora.
+let ultimaAtividadeEm = null
+let imprimindoPedidos = false // só durante a impressão (cicloRodando fica ligado na espera longa)
+let situacaoAtualizacao = () => ({ fase: 'parado', versao: null })
 let ultimoCicloPedidos = { longo: false, erro: false, semSucesso: false }
 const aquecidas = new Set()
 
@@ -247,6 +253,8 @@ async function cicloDePolling() {
       void aquecerImpressao([destino.nomeSistema], LOG_NOME)
     }
     if (!pedidos || pedidos.length === 0) return
+    imprimindoPedidos = true
+    ultimaAtividadeEm = Date.now()
     let impressosNesteCiclo = 0
 
     const impressoras = data.impressoras ?? []
@@ -335,6 +343,7 @@ async function cicloDePolling() {
         }
         mostrarDiagnostico(saida)
         impressosNesteCiclo++
+        ultimaAtividadeEm = Date.now()
         if (perfilCozinha?.tempos) {
           perfilCozinha.tempos.totalMs = Date.now() - recebidoEm
           registrarTempos('comanda', pedido.id, perfilCozinha.tempos)
@@ -361,6 +370,7 @@ async function cicloDePolling() {
     log(`Falha na consulta/impressão: ${descreverErro(err)}`)
   } finally {
     cicloRodando = false
+    imprimindoPedidos = false
   }
 }
 
@@ -392,7 +402,9 @@ function apagarCredencial() {
 
 function cabecalhosAgente() {
   const credencial = lerCredencial()
-  return credencial ? { Authorization: `Bearer ${credencial}`, 'X-Agente-Versao': app.getVersion() } : null
+  if (!credencial) return null
+  const a = situacaoAtualizacao()
+  return { Authorization: `Bearer ${credencial}`, 'X-Agente-Versao': app.getVersion(), 'X-Agente-Atualizacao': a.versao ? `${a.fase}:${a.versao}` : a.fase }
 }
 
 let trabalhosTimer = null
@@ -595,6 +607,7 @@ async function consultarTrabalhos() {
       for (const t of data.trabalhos) t.recebidoEm = agora
       // Diagnóstico do driver para o teste de largura: o guardado (até 10 min) já serve.
       if (data.trabalhos.some((t) => t.snapshot?.calibracao === true)) await atualizarDiagnosticos(Object.keys(diagnosticos).length === 0)
+      ultimaAtividadeEm = Date.now()
       filas.receber(data.trabalhos)
     }
     return { longo, erro: false }
@@ -756,6 +769,15 @@ app.whenReady().then(() => {
     if (doLink || doInstalador) setTimeout(() => void parearComConvite(doLink || doInstalador, doLink ? 'link do painel' : 'instalador da loja'), 1500)
   }
   if (EH_BETA) log(`Assistente Menuzia Beta ${app.getVersion()} — convive com o Assistente de Impressão atual, que continua funcionando.`)
+  // Atualização automática (beta.11): só no Beta empacotado de produção (ou com o endereço de teste).
+  if (EH_BETA && app.isPackaged && (!EH_TESTE_LOCAL || process.env.MENUZIA_ATUALIZACAO_URL)) {
+    situacaoAtualizacao = iniciarAtualizacao({
+      baseUrl: API_BASE_URL,
+      versaoAtual: app.getVersion(),
+      estado: () => ({ imprimindo: imprimindoPedidos, ultimaAtividadeEm }),
+      log: (m) => logArquivo(m),
+    })
+  }
 })
 
 app.on('before-quit', () => { app.isQuitting = true; encerrarServidores() })

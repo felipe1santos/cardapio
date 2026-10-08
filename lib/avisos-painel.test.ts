@@ -28,8 +28,8 @@ describe('aviso do novo sistema de impressão', () => {
     expect(precisaAtualizarAssistente(false, [])).toBe(false)
     expect(precisaAtualizarAssistente(true, [])).toBe(true) // só o Assistente antigo
     expect(precisaAtualizarAssistente(true, [{ versao: '0.2.0-beta.8' }])).toBe(true)
-    expect(precisaAtualizarAssistente(true, [{ versao: '0.2.0-beta.8' }, { versao: '0.2.0-beta.10' }])).toBe(false)
-    expect(precisaAtualizarAssistente(true, [{ versao: '0.2.0-beta.9' }])).toBe(true) // item 60: alvo é o beta.10
+    expect(precisaAtualizarAssistente(true, [{ versao: '0.2.0-beta.8' }, { versao: '0.2.0-beta.11' }])).toBe(false)
+    expect(precisaAtualizarAssistente(true, [{ versao: '0.2.0-beta.10' }])).toBe(true) // item 60: alvo é o beta.11
     expect(precisaAtualizarAssistente(true, [{ versao: '0.2.0-beta.9', revogado: true }])).toBe(true)
   })
 })

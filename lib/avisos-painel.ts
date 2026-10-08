@@ -16,9 +16,10 @@ export const AVISO_NOVA_IMPRESSAO_ATIVO = AVISO_NOVA_IMPRESSAO_LIGADO && process
 
 /**
  * Versão do Assistente que toda loja deve ter. Era o beta.9 (modelo v3); desde o item 60
- * (2026-10-08) é o beta.10: QR da rota do entregador, envio automático e conectar sem código.
+ * (2026-10-08) é o beta.11: QR da rota do entregador, envio automático, conectar sem código e
+ * atualização automática (a partir dele, a loja não instala mais nada à mão).
  */
-export const VERSAO_IMPRESSAO_V3 = '0.2.0-beta.10'
+export const VERSAO_IMPRESSAO_V3 = '0.2.0-beta.11'
 
 /** Telas onde o aviso NÃO aparece: o Kanban de pedidos (operação) e a própria Impressão. */
 export const ROTAS_SEM_AVISO_NOVA_IMPRESSAO = ['/admin/pedidos', '/admin/impressao']
