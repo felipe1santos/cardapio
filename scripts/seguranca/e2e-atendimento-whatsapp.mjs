@@ -140,9 +140,9 @@ try {
   await dispensar(dono.p)
   const lanc = dono.p.getByTestId('atendimento-lancador')
   await lanc.waitFor({ timeout: 15000 })
-  ok('dono vê o botão no canto inferior direito, sem número (nada aguardando)', (await lanc.isVisible()) && (await dono.p.getByTestId('atendimento-badge').count()) === 0)
+  ok('dono vê o botão no canto inferior (esquerdo no Kanban), sem número (nada aguardando)', (await lanc.isVisible()) && (await dono.p.getByTestId('atendimento-badge').count()) === 0)
   const caixa = await lanc.boundingBox()
-  ok('botão redondo no canto inferior direito', caixa && caixa.x + caixa.width > 1366 - 40 && caixa.y + caixa.height > 768 - 40)
+  ok('botão redondo no canto inferior esquerdo do Kanban (item 58: à esquerda só no Kanban)', caixa && caixa.x < 60 && caixa.y + caixa.height > 768 - 40, JSON.stringify(caixa))
   const pedidosCentral = []
   dono.p.on('request', (r) => { if (/central/.test(r.url()) && r.resourceType() === 'script') pedidosCentral.push(r.url()) })
   ok('painel fechado: o código da central não é baixado', (await dono.p.getByTestId('atendimento-central').count()) === 0)
