@@ -10,6 +10,10 @@ import { contaDemonstracao, pedidoAntigoDemonstracao, pedidoDemonstracao } from 
 import { JanelaCrua } from '@/components/ui/flutuante'
 import type { OpcaoImpressao } from '@/lib/impressao/opcao'
 import type { ConfigImpressao } from '@/lib/queries/impressao'
+import { compararVersao } from '@/lib/avisos-painel'
+
+/** Primeira versão do Assistente que imprime o QR da rota na comanda de entrega (item 59). */
+export const VERSAO_QR_ROTA = '0.2.0-beta.10'
 
 /**
  * "Ver modelo da impressão" — janela VERTICAL no centro (protótipo aprovado,
@@ -34,7 +38,7 @@ export interface LojaPrevia { loja: { nome: string; telefone: string; endereco: 
 let fontes: Promise<unknown> | null = null
 const carregarFontes = () => (fontes ??= TicketMenuzia.carregarRecursos('/impressao/fonts').catch((e: unknown) => { fontes = null; throw e }))
 
-export function ModalPrevia({ aberto, onFechar, opcao, docInicial, dados, config, papelBeta, papelPreConta, antigo }: {
+export function ModalPrevia({ aberto, onFechar, opcao, docInicial, dados, config, papelBeta, papelPreConta, antigo, versaoAssistente }: {
   aberto: boolean
   onFechar: () => void
   opcao: OpcaoImpressao
@@ -46,6 +50,8 @@ export function ModalPrevia({ aberto, onFechar, opcao, docInicial, dados, config
   papelPreConta: PapelPrevia
   /** Assistente antigo: papel e colunas da impressora dele. */
   antigo: { larguraMm: 58 | 80; colunas: number }
+  /** Versão do Assistente do computador que imprime a comanda: até o beta.9 o QR da comanda é o de sempre. */
+  versaoAssistente: string
 }) {
   const idTitulo = useId()
   const [doc, setDoc] = useState<DocPrevia>(docInicial)
@@ -75,7 +81,10 @@ export function ModalPrevia({ aberto, onFechar, opcao, docInicial, dados, config
   const qr = config?.qr === false ? null : dados?.qr ?? null
   // Item 59 — o mesmo QR que o servidor manda por pedido: entrega = QR da rota (sai mesmo com o QR
   // do cardápio desligado); retirada, balcão e mesa = cardápio; pré-conta = Instagram ou cardápio.
-  const qrComanda = tipoVisto === 'entrega' ? dados?.qrRota ?? null : config?.qr === false ? null : dados?.qrCardapio ?? qr
+  // beta.10+: entrega = QR da rota, os outros = cardápio. Até o beta.9 sai o QR de sempre em todos (o que a loja vê é o que imprime).
+  const temQrRota = compararVersao(versaoAssistente, VERSAO_QR_ROTA) >= 0
+  const qrComanda = !temQrRota ? qr : tipoVisto === 'entrega' ? dados?.qrRota ?? null : config?.qr === false ? null : dados?.qrCardapio ?? qr
+  const avisoAtualizar = opcao !== 'antigo' && !temQrRota && doc !== 'pre_conta' && tipoVisto === 'entrega'
   const chaveCfg = config ? [config.mostrarNumeroItem, config.mostrarNomeComplementos, config.mostrarPrecoComplementos, config.multiplicarOpcoesQtd, config.fonteMaiorProducao, config.imprimirLogo, config.qr].join('') : ''
 
   useEffect(() => {
@@ -163,6 +172,7 @@ export function ModalPrevia({ aberto, onFechar, opcao, docInicial, dados, config
         </div>
         {carregando && <p className="absolute mt-6 text-[13px] font-semibold" style={{ color: 'var(--ti-ink-2)' }} data-testid="modal-previa-carregando">Desenhando o modelo…</p>}
       </div>
+      {avisoAtualizar && <p className="px-4 py-2 text-[12.5px]" style={{ color: 'var(--ti-ink-2)' }} data-testid="modal-previa-atualizar">Atualize o assistente para imprimir o QR da rota do entregador.</p>}
       {erro && <p className="px-4 py-2 text-[13px]" style={{ color: 'var(--ti-bad)' }}>{erro}</p>}
       <div className="ti-m-rod">
         <span>100% = tamanho real</span>

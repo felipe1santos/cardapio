@@ -278,6 +278,22 @@ try {
   const z1 = await p.getByTestId('modal-zoom-valor').innerText()
   await p.getByTestId('modal-zoom-inteira').click()
   ok('zoom + e "Inteira"', z0 !== z1, `${z0} → ${z1}`)
+  ok('computador no beta.10: sem aviso de atualizar', (await p.getByTestId('modal-previa-atualizar').count()) === 0)
+  {
+    // Computador no beta.9: a prévia mostra o QR que sai de verdade (o de sempre) + o aviso discreto.
+    const abrirModelo = async () => {
+      await abrir(); await p.getByTestId('ver-modelo').click(); await p.getByTestId('modal-previa').waitFor({ timeout: 8000 })
+      await p.waitForFunction(() => !document.querySelector('[data-testid="modal-previa-carregando"]'), null, { timeout: 20000 })
+    }
+    await db.query("update impressao_agentes set versao = '0.2.0-beta.9' where restaurante_id = $1 and nome = $2 and revogado_em is null", [L, NOME_AG])
+    await abrirModelo()
+    ok('computador no beta.9: aviso "Atualize o assistente…" na entrega', /Atualize o assistente para imprimir o QR da rota do entregador\./.test(await p.getByTestId('modal-previa-atualizar').innerText().catch(() => '')))
+    await p.getByTestId('modal-tipo').selectOption('retirada'); await p.waitForTimeout(300)
+    ok('beta.9: sem o aviso fora da entrega', (await p.getByTestId('modal-previa-atualizar').count()) === 0)
+    await db.query("update impressao_agentes set versao = '0.2.0-beta.10' where restaurante_id = $1 and nome = $2 and revogado_em is null", [L, NOME_AG])
+    await abrirModelo()
+    await p.waitForTimeout(400)
+  }
   // prévia = renderizador do Assistente (comanda de entrega com a config da loja)
   await p.getByTestId('modal-zoom-largura').click()
   const dados = await api('/api/admin/impressao/previa')

@@ -488,6 +488,7 @@ export function PainelImpressao() {
               papelBeta={papelDe(dCozinha)}
               papelPreConta={papelDe(dCaixa ?? dCozinha)}
               antigo={{ larguraMm: larguraAnt <= 40 ? 58 : 80, colunas: ReciboAntigo.colsParaFonte(impAntiga?.tamanhoFonte, larguraAnt) }}
+              versaoAssistente={agenteDe(dCozinha)?.versao ?? versao ?? DOWNLOAD_ASSISTENTE_BETA.versao}
             />
           )}
           {p && (
