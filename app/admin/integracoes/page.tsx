@@ -14,6 +14,7 @@ import { MetaCapiCard } from '@/components/admin/meta-capi-card'
 import { MercadoPagoCard } from '@/components/admin/mercadopago-card'
 import { CartaoPixel, Selo } from '@/components/admin/integracoes/cartao-pixel'
 import { SUPORTE_MENUZIA } from '@/lib/suporte'
+import { BotaoAjudaIntegracao } from '@/components/admin/integracoes/ajuda-integracao'
 
 /**
  * Integrações (repaginada em 2026-10-06, no modelo do dono — integracoes-modelo.png): faixa "Sentiu falta de
@@ -67,6 +68,15 @@ function CardIntegracao({ def, ativa, onAbrir }: { def: Definicao; ativa: boolea
     </>
   )
   const classe = 'group flex min-h-[88px] w-full items-center gap-[18px] rounded-[6px] border border-[#E5E7EB] bg-white px-[20px] py-[16px] text-left transition-[border-color,box-shadow] hover:border-[#C9CED6] hover:shadow-[0_2px_8px_rgba(16,24,40,0.06)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2B7BC8]'
+  // Mercado Pago: "i" de ajuda no canto, irmão do card (botão dentro de botão não vale).
+  if (def.id === 'mercadopago') {
+    return (
+      <div className="relative">
+        <button type="button" onClick={onAbrir} className={`${classe} pr-[44px]`} data-testid={`integracao-${def.id}`} data-ativa={ativa ? 'sim' : 'nao'}>{conteudo}</button>
+        <BotaoAjudaIntegracao id="mercadopago" className="absolute right-[6px] top-[6px]" />
+      </div>
+    )
+  }
   return def.id === 'nexta'
     ? <Link href="/admin/integracoes/nexta" className={classe} data-testid={`integracao-${def.id}`} data-ativa={ativa ? 'sim' : 'nao'}>{conteudo}</Link>
     : <button type="button" onClick={onAbrir} className={classe} data-testid={`integracao-${def.id}`} data-ativa={ativa ? 'sim' : 'nao'}>{conteudo}</button>

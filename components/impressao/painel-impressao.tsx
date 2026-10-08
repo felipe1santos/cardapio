@@ -19,6 +19,14 @@ import { SUPORTE_MENUZIA } from '@/lib/suporte'
 import ReciboAntigo from '@/lib/impressao/recibo-antigo-canvas.js'
 import type { AgenteVisao, DispositivoVisao, ModoBeta } from '@/lib/impressao/servico'
 import { FUNCOES_IMPRESSORA, ROTULO_FUNCAO_IMPRESSORA, type FuncaoImpressora } from '@/lib/impressao/funcoes'
+
+/**
+ * Na tela só existem duas funções (decisão do dono, 2026-10-08): "Imprimir cozinha" e "Imprimir
+ * pré-conta". A "Comanda de entrega" continua no banco e no servidor; só aparece no menu da
+ * impressora que já a tem, para poder ser desmarcada.
+ */
+const FUNCOES_NA_TELA: FuncaoImpressora[] = ['cozinha', 'caixa']
+const ROTULO_NA_TELA: Record<FuncaoImpressora, string> = { cozinha: 'Imprimir cozinha', caixa: 'Imprimir pré-conta', entrega: 'Comanda de entrega' }
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { buscarConfigLoja } from '@/lib/queries/ajustes'
@@ -320,14 +328,21 @@ export function PainelImpressao() {
   // ── leitura do estado ───────────────────────────────────────────────────────
   const antigo = p?.modo === 'teste'
   const atualOnline = !!atualVistoEm && Date.now() - new Date(atualVistoEm).getTime() < 2 * 60_000
-  const ativos = p?.agentes.filter((a) => !a.revogado) ?? []
+  // Mesmo PC pareado duas vezes: o registro antigo (sem sinal) some do resumo e da lista; no
+  // Avançado › Computador ele aparece marcado, para ser desconectado.
+  const todosAtivos = p?.agentes.filter((a) => !a.revogado) ?? []
+  const regraAgentes = (p?.agentes ?? []).map((a) => ({ id: a.id, nome: a.nome, vistoEm: a.vistoEm, revogado: a.revogado, criadoEm: a.criadoEm }))
+  const agenteAntigo = (a: { id: string }) => { const r = regraAgentes.find((x) => x.id === a.id); return !!r && pareamentoAntigo(r, regraAgentes) }
+  const ativos = todosAtivos.filter((a) => !agenteAntigo(a))
   const online = ativos.filter((a) => a.online)
   const versao = p ? versaoInstalada(p.agentes) : null
   const desatualizado = !!versao && compararVersao(versao, VERSAO_IMPRESSAO_V3) < 0
-  const agenteDe = (d: DispositivoVisao | undefined) => (d ? ativos.find((a) => a.id === d.agenteId) : undefined)
-  const regraAgentes = (p?.agentes ?? []).map((a) => ({ id: a.id, nome: a.nome, vistoEm: a.vistoEm, revogado: a.revogado, criadoEm: a.criadoEm }))
+  const agenteDe = (d: DispositivoVisao | undefined) => (d ? todosAtivos.find((a) => a.id === d.agenteId) : undefined)
+
   const antigoPareamento = (d: DispositivoVisao) => { const a = regraAgentes.find((x) => x.id === d.agenteId); return !!a && pareamentoAntigo(a, regraAgentes) }
-  const naLista = (p?.dispositivos ?? []).filter((d) => d.naLista && agenteDe(d))
+  // Mesma impressora nos dois pareamentos: fica só a do pareamento novo.
+  const naLista = (p?.dispositivos ?? []).filter((d) => d.naLista && agenteDe(d)
+    && !(antigoPareamento(d) && (p?.dispositivos ?? []).some((x) => x.id !== d.id && x.naLista && agenteDe(x) && !antigoPareamento(x) && x.nomeSistema === d.nomeSistema)))
   const paraAdicionar = (p?.dispositivos ?? [])
     .filter((d) => !d.naLista && agenteDe(d) && d.disponivel && !antigoPareamento(d))
     .sort((a, b) => Number(ehImpressoraVirtual(a.nomeSistema)) - Number(ehImpressoraVirtual(b.nomeSistema)) || a.nomeSistema.localeCompare(b.nomeSistema))
@@ -479,9 +494,9 @@ export function PainelImpressao() {
             <ModalCentral aberto={avancado} onFechar={() => setAvancado(false)} largura={640} classeTema="tela-impressao" testid="modal-avancado" titulo="Avançado" subtitulo="Computador, papel, formato de envio e calibração.">
               <div className="ti-av">
                 <SecaoAv titulo="Computador" testid="av-computador">
-                  {ativos.length ? ativos.map((a) => (
+                  {todosAtivos.length ? todosAtivos.map((a) => (
                     <div key={a.id} className="ti-av-linha" data-testid={`av-agente-${a.id}`}>
-                      <span className="min-w-0"><b>{a.nome}</b><small>versão {a.versao ?? '—'} · {a.online ? 'conectado agora' : `sem sinal desde ${quando(a.vistoEm) || '—'}`}</small></span>
+                      <span className="min-w-0"><b>{a.nome}</b><small>{agenteAntigo(a) ? 'pareamento antigo — pode desconectar · ' : ''}versão {a.versao ?? '—'} · {a.online ? 'conectado agora' : `sem sinal desde ${quando(a.vistoEm) || '—'}`}</small></span>
                       <button type="button" className="ti-btn sm" onClick={() => revogar(a)} disabled={ocupado} data-testid={`revogar-${a.nome}`}>Desconectar</button>
                     </div>
                   )) : <p className="ti-rot">Nenhum computador conectado.</p>}
@@ -543,7 +558,6 @@ export function PainelImpressao() {
                 {config && (
                   <SecaoAv titulo="Pedidos" testid="av-pedidos">
                     <div className="ti-av-linha"><span>Imprimir sozinho quando o pedido chega</span><button type="button" className="ti-sw" role="switch" aria-checked={config.impressaoAutomatica} aria-label="Imprimir sozinho quando o pedido chega" disabled={!podeEditar} onClick={() => void patchConfig({ impressaoAutomatica: !config.impressaoAutomatica })} data-testid="opcao-impressaoAutomatica" /></div>
-                    <div className="ti-av-linha"><span>Aceitar pedidos sozinho</span><button type="button" className="ti-sw" role="switch" aria-checked={config.aceitarPedidosAutomaticamente} aria-label="Aceitar pedidos automaticamente" disabled={!podeEditar} onClick={() => void patchConfig({ aceitarPedidosAutomaticamente: !config.aceitarPedidosAutomaticamente })} data-testid="opcao-aceitarPedidosAutomaticamente" /></div>
                   </SecaoAv>
                 )}
 
@@ -639,7 +653,8 @@ function LinhaImpressora({ d, p, online, ocupado, onApelido, onFuncao, onRemover
   const botao = useRef<HTMLButtonElement>(null)
   const est: Estado = !online ? 'warn' : d.disponivel ? 'ok' : 'warn'
   const situacao = !online ? 'Sem sinal' : d.disponivel ? 'Conectada' : 'Não encontrada no Windows'
-  const rotulo = d.funcoes.length ? FUNCOES_IMPRESSORA.filter((f) => d.funcoes.includes(f)).map((f) => ROTULO_FUNCAO_IMPRESSORA[f]).join(', ') : 'Outra'
+  const rotulo = d.funcoes.length ? FUNCOES_IMPRESSORA.filter((f) => d.funcoes.includes(f)).map((f) => ROTULO_NA_TELA[f]).join(', ') : 'Sem função'
+  const noMenu = FUNCOES_IMPRESSORA.filter((f) => FUNCOES_NA_TELA.includes(f) || d.funcoes.includes(f))
   const outraDe = (f: FuncaoImpressora) => {
     const id = p.funcoes[f]
     if (!id || id === d.id) return null
@@ -679,20 +694,16 @@ function LinhaImpressora({ d, p, online, ocupado, onApelido, onFuncao, onRemover
         </button>
         <Flutuante ancora={botao} aberto={menu} onFechar={() => setMenu(false)} largura={280} rotulo={`Funções de ${nomeDisp(d)}`} className="tela-impressao ti-menu" testid={`funcao-menu-${d.id}`}>
           <div role="menu">
-            {FUNCOES_IMPRESSORA.map((f) => {
+            {noMenu.map((f) => {
               const marcado = d.funcoes.includes(f)
               const outra = outraDe(f)
               return (
                 <button key={f} type="button" role="menuitemcheckbox" aria-checked={marcado} className="ti-menu-item" onClick={() => onFuncao(f)} data-testid={`funcao-${d.id}-${f}`}>
                   <span className={`ti-check ${marcado ? 'on' : ''}`}>{marcado && <Check aria-hidden />}</span>
-                  <span className="min-w-0"><span className="block">{ROTULO_FUNCAO_IMPRESSORA[f]}</span>{outra && !marcado && <small className="block">hoje em {outra}</small>}{f === 'entrega' && <small className="block">uma via a mais dos pedidos de entrega</small>}</span>
+                  <span className="min-w-0"><span className="block">{ROTULO_NA_TELA[f]}</span>{outra && !marcado && <small className="block">hoje em {outra}</small>}{f === 'entrega' && <small className="block">uma via a mais dos pedidos de entrega</small>}</span>
                 </button>
               )
             })}
-            <button type="button" role="menuitemcheckbox" aria-checked={!d.funcoes.length} className="ti-menu-item" onClick={() => onFuncao('outra')} data-testid={`funcao-${d.id}-outra`}>
-              <span className={`ti-check ${!d.funcoes.length ? 'on' : ''}`}>{!d.funcoes.length && <Check aria-hidden />}</span>
-              <span className="min-w-0"><span className="block">Outra</span><small className="block">sem função: não imprime pedidos</small></span>
-            </button>
           </div>
         </Flutuante>
       </div>

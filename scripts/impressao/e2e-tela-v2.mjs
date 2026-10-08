@@ -142,11 +142,22 @@ try {
   const funcao = async (d, f) => { await p.getByTestId(`funcao-${d}`).click(); await p.getByTestId(`funcao-${d}-${f}`).click(); await p.waitForTimeout(1300) }
   await funcao(dPos, 'cozinha')
   await funcao(dEps, 'caixa')
-  await funcao(dPos, 'entrega')
+  // 2026-10-08: na tela só "Imprimir cozinha" e "Imprimir pré-conta"; sem "Comanda de entrega" nem "Outra".
+  await p.keyboard.press('Escape') // o menu continua aberto depois de marcar
+  await p.waitForTimeout(300)
+  await p.getByTestId(`funcao-${dEps}`).click()
+  const itensMenu = await p.getByTestId(`funcao-menu-${dEps}`).innerText()
+  ok('menu só com as duas funções (sem Comanda de entrega e sem Outra)', /Imprimir cozinha/.test(itensMenu) && /Imprimir pré-conta/.test(itensMenu)
+    && (await p.getByTestId(`funcao-${dEps}-entrega`).count()) === 0 && (await p.getByTestId(`funcao-${dEps}-outra`).count()) === 0, itensMenu)
+  await p.keyboard.press('Escape')
+  // Loja que já tinha a Comanda de entrega (gravada antes): continua valendo e aparece só para desmarcar.
+  await db.query("insert into impressao_funcoes (restaurante_id, funcao, dispositivo_id) values ($1, 'entrega', $2) on conflict do nothing", [L, dPos])
+  await abrir()
+  await p.getByTestId(`impressora-${dPos}`).waitFor({ timeout: 8000 })
   const fns = (await db.query('select funcao, dispositivo_id d from impressao_funcoes where restaurante_id=$1 order by funcao', [L])).rows
   ok('funções gravadas: Cozinha e Entrega na mesma, Caixa na outra', fns.length === 3 && fns.find((x) => x.funcao === 'cozinha')?.d === dPos && fns.find((x) => x.funcao === 'entrega')?.d === dPos && fns.find((x) => x.funcao === 'caixa')?.d === dEps, JSON.stringify(fns))
-  await p.keyboard.press('Escape')
-  ok('seletor mostra as duas funções', /Cozinha, Comanda de entrega/.test(await p.getByTestId(`funcao-${dPos}`).innerText()))
+  ok('seletor mostra as duas funções', /Imprimir cozinha, Comanda de entrega/.test(await p.getByTestId(`funcao-${dPos}`).innerText()))
+  ok('"Aceitar pedidos sozinho" fora da impressão', (await p.getByTestId('opcao-aceitarPedidosAutomaticamente').count()) === 0)
   ok('"Uma impressora pode ter mais de uma função." no rodapé', /Uma impressora pode ter mais de uma função/.test(await p.getByTestId('passo-2').innerText()))
   await p.getByTestId(`funcao-${dPos}`).click()
   await p.screenshot({ path: join(PRINTS, '02-menu-funcao-1366.png') })
@@ -319,6 +330,22 @@ try {
   await p.keyboard.press('Escape')
   await p.waitForTimeout(300)
   await p.keyboard.press('Escape')
+
+  secao('computador duplicado (mesmo PC pareado duas vezes)')
+  {
+    // Pareamento ANTIGO do mesmo PC (sem sinal), com a mesma impressora na lista. Limpo no fim junto com NOME_AG.
+    const velho = (await um("insert into impressao_agentes (restaurante_id, nome, credencial_hash, criado_em) values ($1, $2, $3, now() - interval '2 days') returning id", [L, NOME_AG, (await import('node:crypto')).createHash('sha256').update(`teste-dup-${Date.now()}`).digest('hex')])).id
+    await db.query("insert into impressao_dispositivos (restaurante_id, agente_id, nome_sistema, na_lista) values ($1, $2, 'POS-80C', true)", [L, velho])
+    await abrir()
+    const linhas = await p.locator('[data-testid^="impressora-"]').evaluateAll((els) => els.map((e) => e.innerText))
+    ok('impressora aparece uma vez só na lista', linhas.filter((t) => /POS-80C/.test(t)).length === 1, JSON.stringify(linhas))
+    ok('resumo do card 1 usa o pareamento novo', /Conectado em PC Tela v2/.test(await p.getByTestId('assistente-situacao').innerText()))
+    await p.getByTestId('abrir-avancado').click()
+    await p.getByTestId('modal-avancado').waitFor({ timeout: 5000 })
+    ok('Avançado › Computador mostra o antigo marcado, para desconectar', /pareamento antigo/.test(await p.getByTestId(`av-agente-${velho}`).innerText()))
+    await p.keyboard.press('Escape')
+    await p.waitForTimeout(300)
+  }
 
   secao('peso e contraste')
   await abrir()

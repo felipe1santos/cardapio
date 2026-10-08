@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AprovacaoPin, Janela, type AprovacaoDada } from '@/components/financeiro/apoio'
+import { BotaoAjudaIntegracao } from '@/components/admin/integracoes/ajuda-integracao'
 
 /**
  * Integrações › Mercado Pago (Pix online, 0148). Conectar/desconectar (só o dono), validade da cobrança,
@@ -87,9 +88,12 @@ export function MercadoPagoCard({ avisar }: { avisar: (m: string) => void }) {
           <p className="text-[15px] font-semibold text-text-main">Mercado Pago · Pix online</p>
           <p className="mt-[2px] text-[12.5px] text-text-subtle">O cliente paga o Pix na hora, pelo QR; o pedido só vai para a cozinha depois que o Mercado Pago confirma. O dinheiro cai na conta da loja.</p>
         </div>
-        <span className={`flex-shrink-0 rounded-[3px] px-[8px] py-[3px] text-[11px] font-semibold uppercase tracking-wide text-white ${c.conectada ? 'bg-[#047857]' : c.status === 'erro' ? 'bg-[#B91C1C]' : 'bg-[#4B5563]'}`} data-testid="mp-situacao">
-          {c.conectada ? 'Conectado' : c.status === 'erro' ? 'Reconectar' : 'Desconectado'}
-        </span>
+        <div className="flex flex-shrink-0 items-center gap-1">
+          <BotaoAjudaIntegracao id="mercadopago" />
+          <span className={`flex-shrink-0 rounded-[3px] px-[8px] py-[3px] text-[11px] font-semibold uppercase tracking-wide text-white ${c.conectada ? 'bg-[#047857]' : c.status === 'erro' ? 'bg-[#B91C1C]' : 'bg-[#4B5563]'}`} data-testid="mp-situacao">
+            {c.conectada ? 'Conectado' : c.status === 'erro' ? 'Reconectar' : 'Desconectado'}
+          </span>
+        </div>
       </div>
 
       {!e.lojaLiberada && <p className="mt-[10px] rounded-[3px] bg-[#F3F4F6] px-[10px] py-[8px] text-[12.5px] text-text-main">Pix online ainda não liberado para esta loja.</p>}
