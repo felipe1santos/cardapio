@@ -419,7 +419,9 @@ export function PainelImpressao() {
                   </Aviso>
                 )}
                 {!antigo && desatualizado && (
-                  <Aviso testid="aviso-versao">Este computador está na versão <b>{versao}</b>. Baixe a <b>{VERSAO_IMPRESSAO_V3}</b> e instale por cima, sem desinstalar.</Aviso>
+                  <Aviso testid="aviso-versao" acao={<a className="ti-btn" href={DOWNLOAD_ASSISTENTE_BETA.url} data-testid="aviso-versao-baixar"><Download aria-hidden /> Baixar a versão nova</a>}>
+                    Este computador está na versão <b>{versao.replace(/^0.2.0-/, '')}</b>. Baixe a <b>{VERSAO_IMPRESSAO_V3.replace(/^0.2.0-/, '')}</b> e abra o instalador no computador da impressora: ele instala por cima, sem desinstalar, e o assistente volta conectado sozinho.
+                  </Aviso>
                 )}
                 {!p.betaLiberado && (
                   <Aviso testid="aviso-liberacao" acao={<a className="ti-btn" href={SUPORTE_URL} target="_blank" rel="noopener noreferrer">Falar com o suporte</a>}>O assistente novo ainda não foi liberado para a sua loja.</Aviso>
@@ -579,7 +581,7 @@ export function PainelImpressao() {
 
                 <div className="ti-av-rodape">
                   <button type="button" className="ti-btn sm" onClick={() => { setAvancado(false); setAjuda(true) }}>Guia e diagnóstico</button>
-                  {!antigo && <button type="button" className="ti-link" onClick={() => setTrocar('antigo')} data-testid="voltar-antigo">Voltar para o assistente antigo (emergência)</button>}
+                  {!antigo && <button type="button" className="ti-link" style={{ fontSize: 12, fontWeight: 400 }} onClick={() => setTrocar('antigo')} data-testid="voltar-antigo">Usar impressão antiga</button>}
                 </div>
               </div>
             </ModalCentral>
@@ -590,7 +592,7 @@ export function PainelImpressao() {
             largura={440}
             classeTema="tela-impressao"
             testid="confirmar-opcao"
-            titulo={trocar === 'beta' ? 'Imprimir pelo assistente novo?' : 'Voltar para o assistente antigo?'}
+            titulo={trocar === 'beta' ? 'Imprimir pelo assistente novo?' : 'Usar a impressão antiga?'}
             rodape={
               <div className="flex justify-end gap-2">
                 <button type="button" className="ti-btn" onClick={() => setTrocar(null)}>Cancelar</button>
@@ -599,7 +601,7 @@ export function PainelImpressao() {
             }
           >
             <p className="px-5 py-4 text-[14px] leading-[20px]" data-testid="confirmar-opcao-texto">
-              {trocar === 'beta' ? 'Comanda e pré-conta passam a sair pelo assistente novo, nas impressoras do card 2.' : 'A comanda volta para o assistente antigo. Ele precisa estar aberto no computador da impressora.'}
+              {trocar === 'beta' ? 'Comanda e pré-conta passam a sair pelo assistente novo, nas impressoras do card 2.' : 'A comanda volta para o assistente antigo. Ele precisa estar instalado e aberto no computador da impressora. O assistente novo continua instalado: dá para voltar quando quiser.'}
             </p>
           </ModalCentral>
           {calibrar && p?.dispositivos.find((d) => d.id === calibrar) && <NoTopo classe="tela-impressao"><Calibracao d={p.dispositivos.find((d) => d.id === calibrar)!} ocupado={ocupado} agir={agir} onFechar={() => setCalibrar(null)} /></NoTopo>}

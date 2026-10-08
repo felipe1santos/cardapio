@@ -14,8 +14,11 @@
 const AVISO_NOVA_IMPRESSAO_LIGADO = true
 export const AVISO_NOVA_IMPRESSAO_ATIVO = AVISO_NOVA_IMPRESSAO_LIGADO && process.env.NEXT_PUBLIC_AVISO_NOVA_IMPRESSAO !== '0'
 
-/** Primeira versão do Assistente Beta com o modelo oficial v3 (comanda, pré-conta e via da cozinha). */
-export const VERSAO_IMPRESSAO_V3 = '0.2.0-beta.9'
+/**
+ * Versão do Assistente que toda loja deve ter. Era o beta.9 (modelo v3); desde o item 60
+ * (2026-10-08) é o beta.10: QR da rota do entregador, envio automático e conectar sem código.
+ */
+export const VERSAO_IMPRESSAO_V3 = '0.2.0-beta.10'
 
 /** Telas onde o aviso NÃO aparece: o Kanban de pedidos (operação) e a própria Impressão. */
 export const ROTAS_SEM_AVISO_NOVA_IMPRESSAO = ['/admin/pedidos', '/admin/impressao']

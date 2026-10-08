@@ -41,7 +41,7 @@ export function AvisoNovaImpressao() {
       <Printer className="h-5 w-5 flex-shrink-0" strokeWidth={2} aria-hidden />
       <p className="min-w-0 flex-1 text-[13.5px] leading-[18px]">
         <strong className="font-semibold">Novo sistema de impressão disponível!</strong>{' '}
-        <span className="max-sm:hidden">Atualize o Assistente: comanda nova, mais rápida e fácil de calibrar.</span>
+        <span className="max-sm:hidden">Atualize o Assistente: QR da rota para o entregador e envio automático.</span>
       </p>
       <Link
         href="/admin/impressao"

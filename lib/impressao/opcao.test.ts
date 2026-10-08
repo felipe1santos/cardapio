@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { MODO_DA_OPCAO, opcaoDaLoja, prontidaoBeta, situacaoAntigo, situacaoBeta, versaoInstalada, type DadosBeta } from './opcao'
 import type { AgenteVisao, DispositivoVisao } from './servico'
 
-const agente = (x: Partial<AgenteVisao> = {}): AgenteVisao => ({ id: 'a1', nome: 'PC Cozinha', versao: '0.2.0-beta.9', vistoEm: '2026-10-05T12:00:00Z', online: true, revogado: false, criadoEm: '2026-09-01T00:00:00Z', criadoPorNome: null, ...x })
+const agente = (x: Partial<AgenteVisao> = {}): AgenteVisao => ({ id: 'a1', nome: 'PC Cozinha', versao: '0.2.0-beta.10', vistoEm: '2026-10-05T12:00:00Z', online: true, revogado: false, criadoEm: '2026-09-01T00:00:00Z', criadoPorNome: null, ...x })
 const disp = (id: string, x: Partial<DispositivoVisao> = {}): DispositivoVisao => ({
   id, agenteId: 'a1', nomeSistema: id === 'd1' ? 'POS-80' : 'POS-58', apelido: null, larguraMm: 80, tamanhoFonte: 'grande', larguraPontos: null, deslocamentoPontos: 0,
   diagnostico: null, calibradoEm: null, calibradoPorNome: null, disponivel: true, vistoEm: null, ultimoUsoEm: '2026-10-05T11:00:00Z', ultimoErro: null, ultimoErroEm: null, funcoes: [], naLista: true, envioCaminho: null, envioCaminhoEm: null, envioCaminhoObs: null,
@@ -22,7 +22,7 @@ describe('duas opções de impressão', () => {
     const s = situacaoBeta(pronto())
     expect(s.sinal).toBe('ok')
     expect(s.aviso).toBeNull()
-    expect(s.linhas.find((l) => l.testid === 'sit-versao')?.valor).toBe('0.2.0-beta.9')
+    expect(s.linhas.find((l) => l.testid === 'sit-versao')?.valor).toBe('0.2.0-beta.10')
   })
 
   it('um aviso só, na ordem do que trava primeiro', () => {
@@ -32,7 +32,7 @@ describe('duas opções de impressão', () => {
     expect(situacaoBeta(pronto({ funcoes: { cozinha: null, caixa: 'd2' } })).aviso?.acao).toBe('escolher_impressoras')
     const velho = situacaoBeta(pronto({ agentes: [agente({ versao: '0.2.0-beta.7' })] }))
     expect(velho.aviso?.acao).toBe('atualizar_beta')
-    expect(velho.aviso?.rotuloAcao).toBe('Atualizar para o beta.9')
+    expect(velho.aviso?.rotuloAcao).toBe('Atualizar para o beta.10')
     expect(velho.sinal).toBe('atencao')
     expect(situacaoBeta(pronto({ modo: 'caixa' })).aviso?.acao).toBe('passar_comanda')
     const erro = situacaoBeta(pronto({ dispositivos: [disp('d1', { ultimoErroEm: '2026-10-05T11:30:00Z', ultimoErro: 'sem papel' }), disp('d2')] }))
