@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { atribuirEntregadorEmLoteSeguro } from '@/lib/queries/pedidos'
 import { aplicarEfeitosStatusPedidoComTrava } from '@/lib/pedido-eventos'
 import { registrarAuditoria } from '@/lib/auditoria'
+import { processarFidelidadePedidoEntregue } from '@/lib/fidelidade'
 
 /**
  * Item 61 (2026-10-08) — DESPACHO AUTOMÁTICO e ENTREGUE AUTOMÁTICO.
@@ -15,7 +16,7 @@ import { registrarAuditoria } from '@/lib/auditoria'
  * de ficar livre pega o que estava esperando) e no cron de entregas (a cada minuto).
  *
  * Entregue automático: pedido em rota com motoboy há 1h30 sem confirmação vira "Entregue
- * (automático)" (pedidos.entregue_automatico). O dinheiro com o motoboy continua pendente no
+ * (automático)" (pedidos.entregue_automatico) — sem mensagem ao cliente, com fidelidade. O dinheiro com o motoboy continua pendente no
  * acerto: o gatilho caixa_turno_abre_na_entrega lança a pendência como em qualquer entrega sem
  * registro de pagamento.
  */
@@ -109,7 +110,9 @@ export async function marcarEntreguesAutomaticos(admin: SupabaseClient, agora = 
       .eq('id', p.id).eq('status', 'em_rota').select('id')
     if (!feito?.length) continue
     n++
-    aplicarEfeitosStatusPedidoComTrava(admin, p.id, 'entregue').catch((e) => console.error('[entregue automático] efeitos', (e as Error).message))
+    // Sem WhatsApp ao cliente: o sistema não sabe se a entrega aconteceu (e pode ser de madrugada).
+    // Fidelidade conta como em qualquer entrega.
+    processarFidelidadePedidoEntregue(admin, p.restaurante_id, p.id).catch((e) => console.error('[entregue automático] fidelidade', (e as Error).message))
     await registrarAuditoria(admin, {
       restauranteId: p.restaurante_id, usuarioNome: 'Sistema (entregue automático)', acao: 'pedido.entregue_automatico',
       entidade: 'pedido', entidadeId: p.id, dados: { numero: p.numero, entregador_id: p.entregador_id, em_rota_desde: p.em_rota_em },

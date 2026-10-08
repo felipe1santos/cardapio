@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/queries/pedidos', () => ({ atribuirEntregadorEmLoteSeguro: vi.fn() }))
 vi.mock('@/lib/pedido-eventos', () => ({ aplicarEfeitosStatusPedidoComTrava: vi.fn() }))
 vi.mock('@/lib/auditoria', () => ({ registrarAuditoria: vi.fn() }))
+vi.mock('@/lib/fidelidade', () => ({ processarFidelidadePedidoEntregue: vi.fn() }))
 import { escolherMotoboy, type CandidatoMotoboy } from './despacho-automatico'
 
 const agora = new Date('2026-10-08T12:00:00Z').getTime()
