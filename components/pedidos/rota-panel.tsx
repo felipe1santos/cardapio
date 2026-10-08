@@ -20,6 +20,7 @@ import {
   type Pedido,
 } from '@/lib/queries/pedidos'
 import { formatarReal } from '@/lib/moeda'
+import { NovoMotoboy } from '@/components/pedidos/novo-motoboy'
 
 /**
  * Valor sentinela do "entregador" Nexta na seleção. O Nexta ocupa o mesmo lugar de um
@@ -169,6 +170,7 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose, dataSource
       .catch(() => setNextaAtivo(false))
   }, [modoAdmin])
 
+  const [novoMotoboy, setNovoMotoboy] = useState(false)
   const refetch = useCallback(async () => {
     try {
       let rotas: Pedido[]
@@ -480,6 +482,13 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose, dataSource
                   )
                 })}
               </div>
+              {/* Item 61 (exceção autorizada ao "não mexer no Despacho"): só este botão. */}
+              {!dataSource && (
+                <button type="button" onClick={() => setNovoMotoboy(true)} data-testid="despacho-novo-motoboy"
+                  className="inline-flex h-[30px] flex-shrink-0 items-center gap-1 whitespace-nowrap rounded-menuzia bg-[#0570AE] px-2.5 text-[11px] font-semibold uppercase tracking-wide text-white hover:bg-[#04598B]">
+                  + Motoboy
+                </button>
+              )}
               <button
                 onClick={onClose}
                 className="flex h-[30px] w-[30px] flex-shrink-0 items-center justify-center rounded-menuzia bg-page text-lg text-text-subtle hover:bg-border"
@@ -491,6 +500,7 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose, dataSource
         </div>
 
         {error && <div className="border-b border-danger bg-danger-bg px-4 py-2 text-[13px] font-medium text-danger">{error}</div>}
+        <NovoMotoboy aberto={novoMotoboy} onFechar={() => setNovoMotoboy(false)} onCriado={() => { void refetch() }} />
 
         {/* Corpo: mapa de fundo + colunas flutuantes */}
         <div className="relative flex-1 overflow-hidden bg-page">

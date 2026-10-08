@@ -209,7 +209,7 @@ try {
     // Métricas e Entregas moram no Mais; a Tela cheia virou botão da barra (item 58), e o Mais
     // ganhou Despacho aberto e Entregar sem entregador.
     await p.getByTestId('kanban-mais').click()
-    ok('Mais tem Testar som, repetição, Métricas, Entregas, Despacho aberto e Entregar sem entregador', await p.getByTestId('kanban-testar-som').isVisible() && await p.getByTestId('kanban-metricas').isVisible() && await p.getByTestId('kanban-entregas').isVisible() && await p.getByTestId('kanban-despacho-aberto').isVisible() && await p.getByTestId('kanban-sem-entregador').isVisible())
+    ok('Mais tem Testar som, repetição, Métricas, Entregas, Despacho automático (item 61) e Entregar sem entregador', await p.getByTestId('kanban-testar-som').isVisible() && await p.getByTestId('kanban-metricas').isVisible() && await p.getByTestId('kanban-entregas').isVisible() && await p.getByTestId('kanban-despacho-automatico').isVisible() && (await p.getByTestId('kanban-despacho-aberto').count()) === 0 && await p.getByTestId('kanban-sem-entregador').isVisible())
     const resumo = async () => p.getByTestId('cards-resumo-pedidos').isVisible().catch(() => false)
     const antes = await resumo()
     await p.getByTestId('kanban-metricas').click()
@@ -312,6 +312,8 @@ try {
   // mapa e os ícones dos pinos/motos têm de ser iguais aos do main.
   const superficie = (bruto) => {
     const txt = bruto.replace(/\r\n/g, '\n')
+    // Item 61: única exceção autorizada no Despacho — o botão "+ Motoboy".
+    .replace(/\{\/\* Item 61 \(exceção autorizada[\s\S]*?\n\s*\)\}\n/, '')
     return [
       ...(txt.match(/className=("[^"]*"|\{`[^`]*`\}|\{\[[\s\S]*?\]\.join\(' '\)\})/g) ?? []),
       (txt.match(/const LIGHT_MAP_STYLE[\s\S]*?\n\]/) ?? [''])[0],

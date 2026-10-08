@@ -1,6 +1,5 @@
 import QRCode from 'qrcode'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { linkDaLoja } from '@/lib/mensageria/robo'
 import { urlDaRota } from '@/lib/motoboy/qr-rota'
 
 /**
@@ -51,19 +50,20 @@ function montar(origem: QrCozinha['origem'], url: string, frase?: string): QrCoz
   return r
 }
 
-/** QR de sempre (Assistente até o beta.9 e a pré-conta): Instagram da loja, senão o cardápio. */
-export function qrDaCozinha(loja: { slug: string; instagramUrl: string | null }): QrCozinha {
-  return loja.instagramUrl ? montar('instagram', loja.instagramUrl) : montar('cardapio', linkDaLoja(loja.slug))
+/**
+ * Item 61 (2026-10-08): só dois QRs no papel, NUNCA o do cardápio.
+ *   · PRÉ-CONTA: o Instagram da loja (Perfil da loja). Sem Instagram: sem QR. A legenda fica com o
+ *     Assistente: "Siga a gente no Instagram @perfil".
+ *   · COZINHA de ENTREGA: o QR da rota ("ROTA DE ENTREGA"). Retirada, balcão e mesa: sem QR.
+ */
+export function qrDaPreConta(instagramUrl: string | null | undefined): QrCozinha | null {
+  const url = String(instagramUrl ?? '').trim()
+  return url ? montar('instagram', url) : null
 }
 
-/** Item 59: retirada, balcão e mesa — sempre o cardápio ("Peça de novo pelo nosso cardápio"). */
-export function qrDoCardapio(slug: string): QrCozinha {
-  return montar('cardapio', linkDaLoja(slug), 'Peça de novo pelo nosso cardápio')
-}
-
-/** Item 59: comanda de ENTREGA — link assinado da rota, sem dado pessoal. */
+/** Comanda de ENTREGA — link assinado da rota (abre o app do motoboy), sem dado pessoal. */
 export function qrDaRotaImpressa(pedidoId: string): QrCozinha {
-  return montar('rota', urlDaRota(pedidoId), 'Entregador: leia no app Menuzia')
+  return montar('rota', urlDaRota(pedidoId), 'ROTA DE ENTREGA')
 }
 
 export interface ExtrasCozinhaBeta {

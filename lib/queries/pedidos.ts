@@ -115,6 +115,8 @@ export interface Pedido {
   agendadoPara?: string | null
   /** Primeira entrada em cada etapa (0078): linha do tempo do painel do pedido. */
   etapas?: { preparando: string | null; pronto: string | null; emRota: string | null; entregue: string | null }
+  /** Item 61: o sistema marcou como entregue depois de 1h30 em rota sem o motoboy confirmar. */
+  entregueAutomatico?: boolean
   /** Motoboy atribuído (nome), se houver. */
   entregadorNome?: string | null
   itens: PedidoItem[]
@@ -186,6 +188,7 @@ interface PedidoRow {
   pronto_em?: string | null
   em_rota_em?: string | null
   entregue_em?: string | null
+  entregue_automatico?: boolean | null
   entregador?: { nome: string | null } | null
   pedido_itens: {
     id: string
@@ -209,7 +212,7 @@ export const PEDIDO_SELECT = `
   forma_pagamento, cartao_tipo, troco_para, pago, subtotal, taxa_entrega, desconto, total, observacao,
   entregador_id, preparando_por, preparado_por, preparando_notificado, telefone_verificado, origem, canal, mesa, comanda_id, criado_por_nome, lancado_via, origem_canal, origem_detalhe, pagamento_online, comanda:comandas ( numero, senha ),
   cancelado_motivo, cancelado_observacao, cancelado_por, criado_em, atualizado_em, agendado_para,
-  preparando_em, pronto_em, em_rota_em, entregue_em, entregador:entregadores!pedidos_entregador_id_fkey ( nome ),
+  preparando_em, pronto_em, em_rota_em, entregue_em, entregue_automatico, entregador:entregadores!pedidos_entregador_id_fkey ( nome ),
   pedido_itens ( id, item_id, nome, preco_unitario, quantidade, observacao, complementos, tamanho_nome, sabor_nome, borda_nome, massa_nome, item:itens_cardapio ( descricao ) )
 `
 
@@ -262,6 +265,7 @@ export function mapPedido(row: PedidoRow): Pedido {
     atualizadoEm: row.atualizado_em,
     agendadoPara: row.agendado_para ?? null,
     etapas: { preparando: row.preparando_em ?? null, pronto: row.pronto_em ?? null, emRota: row.em_rota_em ?? null, entregue: row.entregue_em ?? null },
+    entregueAutomatico: row.entregue_automatico === true,
     entregadorNome: row.entregador?.nome ?? null,
     itens: (row.pedido_itens ?? []).map((i) => ({
       id: i.id,

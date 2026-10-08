@@ -165,7 +165,7 @@ try {
 
   secao('3. Rota com 3 paradas')
   const rota = p.getByTestId('motoboy-abrir-rota')
-  ok('"Abrir rota com 3 paradas"', /Abrir rota com 3 paradas/.test(await rota.innerText()))
+  ok('"Abrir rota completa (3 paradas)" (item 61)', /Abrir rota completa \(3 paradas\)/.test(await rota.innerText()))
   const href = new URL(await rota.getAttribute('href'))
   const wp = href.searchParams.get('waypoints')?.split('|') ?? []
   ok('Google Maps: sai da loja, ordem perto → meio → longe', href.searchParams.get('origin') === `${LOJA_COORD.lat},${LOJA_COORD.lng}` && wp[0] === '-20.317,-40.312' && wp[1] === '-20.3,-40.305' && href.searchParams.get('destination') === '-20.27,-40.3', href.toString())
@@ -197,7 +197,7 @@ try {
   await db.query(`update restaurantes set despacho_aberto=false where id=$1`, [loja.id])
   await p.getByTestId('motoboy-qr-buscar').click()
   await p.getByTestId('motoboy-qr-resultado').waitFor({ timeout: 8000 })
-  ok('"Despacho aberto" desligado: bloqueia', /despacho aberto está desligado/.test(await p.getByTestId('motoboy-qr-resultado').innerText()))
+  ok('item 61: pelo QR pode pegar mesmo com o "despacho aberto" desligado', /Pegar esta entrega\?/i.test(await p.getByTestId('motoboy-qr-resultado').innerText()))
   await outra()
   await db.query(`update restaurantes set despacho_aberto=true where id=$1`, [loja.id])
   await p.getByTestId('motoboy-qr-numero').fill('999999'); await p.getByTestId('motoboy-qr-buscar').click()
@@ -211,14 +211,14 @@ try {
 
   secao('5. Link /r/<código>')
   const semSessao = await fetch(`${BASE}/r/${codigo(extra.id)}`, { redirect: 'manual' })
-  ok('câmera comum (sem sessão) → cardápio da loja', semSessao.status === 302 && new URL(semSessao.headers.get('location')).pathname === `/loja/${SLUG}`, `${semSessao.status} ${semSessao.headers.get('location')}`)
+  ok('item 61: câmera comum (sem sessão) → app do motoboy (login), não a vitrine', semSessao.status === 302 && new URL(semSessao.headers.get('location')).pathname === '/motoboy', `${semSessao.status} ${semSessao.headers.get('location')}`)
   ok('link sem dado pessoal e fora do Google', semSessao.headers.get('x-robots-tag') === 'noindex' && !/TESTE|2799/.test(semSessao.headers.get('location') ?? ''))
   const adult = await fetch(`${BASE}/r/${adulterado}`, { redirect: 'manual' })
   ok('link adulterado → 404 "Link inválido"', adult.status === 404 && /Link inválido/.test(await adult.text()))
   const comSessao = await ctx.request.get(`${BASE}/r/${codigo(extra.id)}`, { maxRedirects: 0 })
   ok('motoboy logado → app do motoboy com o QR', comSessao.status() === 302 && /\/motoboy\?qr=/.test(comSessao.headers().location ?? ''), `${comSessao.status()} ${comSessao.headers().location}`)
   const dSessao = await dctx.request.get(`${BASE}/r/${codigo(extra.id)}`, { maxRedirects: 0 })
-  ok('dono logado (não é motoboy) → cardápio', /\/loja\/fin-int/.test(dSessao.headers().location ?? ''), dSessao.headers().location)
+  ok('item 61: qualquer sessão → app do motoboy (lá ele confere quem é)', /\/motoboy\?qr=/.test(dSessao.headers().location ?? ''), dSessao.headers().location)
   await p.goto(`${BASE}/motoboy?qr=${codigo(extra.id)}`, { waitUntil: 'networkidle' })
   await p.getByTestId('motoboy-qr-resultado').waitFor({ timeout: 10000 }).catch(() => {})
   ok('app aberto pelo link: já mostra "Pegar esta entrega?"', /Pegar esta entrega\?/i.test(await p.getByTestId('motoboy-qr-resultado').innerText().catch(() => '')) && !p.url().includes('qr='), p.url())
@@ -256,8 +256,8 @@ try {
   await p.screenshot({ path: join(PRINTS, '08-historico-390.png'), fullPage: true })
   await p.getByTestId('motoboy-voltar').click()
   await p.getByTestId('motoboy-sair').click()
-  await p.waitForURL((u) => u.pathname.startsWith('/login'), { timeout: 15000 }).catch(() => {})
-  ok('"Sair" encerra a sessão e volta ao login', new URL(p.url()).pathname.startsWith('/login'), p.url())
+  await p.getByTestId('motoboy-login').waitFor({ timeout: 15000 }).catch(() => {})
+  ok('"Sair" encerra a sessão e volta ao login do app', new URL(p.url()).pathname.startsWith('/motoboy') && await p.getByTestId('motoboy-login').isVisible({ timeout: 10000 }).catch(() => false), p.url())
 } catch (e) {
   falhas++; console.error('ERRO', e)
 } finally {

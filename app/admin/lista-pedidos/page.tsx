@@ -1331,6 +1331,7 @@ export default function PedidosFinalizadosPage() {
                         {order.tipo === 'entrega' ? `${endereco(order)} · ${driverName(order.entregadorId)}` : 'Retirada no balcão'}
                       </span>
                       {!entregue && <Badge tone="danger">Cancelado</Badge>}
+                      {entregue && order.entregueAutomatico && <Badge tone="alert" data-testid="selo-entregue-automatico">Entregue (automático)</Badge>}
                       <span className="hidden flex-shrink-0 sm:inline">
                         <Badge tone={order.formaPagamento === 'dinheiro' ? 'pending' : 'alert'}>{rotuloForma(order.formaPagamento, order.cartaoTipo)}</Badge>
                       </span>

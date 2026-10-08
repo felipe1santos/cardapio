@@ -190,6 +190,8 @@ ok('Cozinha, mapas (fora o route-map, conferido abaixo), badge e botão sem alte
 // pode mudar; o design não — classes, estilo do mapa e ícones iguais aos do main.
 const superficie = (bruto) => {
   const txt = bruto.replace(/\r\n/g, '\n')
+    // Item 61: única exceção autorizada no Despacho — o botão "+ Motoboy".
+    .replace(/\{\/\* Item 61 \(exceção autorizada[\s\S]*?\n\s*\)\}\n/, '')
   return [
     ...(txt.match(/className=("[^"]*"|\{`[^`]*`\}|\{\[[\s\S]*?\]\.join\(' '\)\})/g) ?? []),
     (txt.match(/const LIGHT_MAP_STYLE[\s\S]*?\n\]/) ?? [''])[0],

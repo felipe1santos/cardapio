@@ -61,8 +61,6 @@ import { cancelarPedidoRequest } from '@/lib/cancelamento'
 import { atualizarConfigImpressao, buscarConfigImpressao, solicitarReimpressao } from '@/lib/queries/impressao'
 import {
   avancarStatusPedido,
-  buscarDespachoAberto,
-  definirDespachoAberto,
   listarPedidosConcluidos,
   listarPedidosKanban,
   listarPedidosLogistica,
@@ -256,7 +254,9 @@ export default function PedidosPage() {
   const [lojaMenuOpen, setLojaMenuOpen] = useState(false)
   const [maisAberto, setMaisAberto] = useState(false)
   // Item 58: "Despacho aberto" e "Entregar sem entregador" vieram da Logística para o menu "⋯".
-  const [despachoAberto, setDespachoAberto] = useState(false)
+  // Item 61: "Despacho automático" (no lugar do "Despacho aberto"). Liga/desliga pelo servidor (auditado).
+  const [despachoAuto, setDespachoAuto] = useState(false)
+  const [semMotoboy, setSemMotoboy] = useState(0)
   const [confirmaSemEntregador, setConfirmaSemEntregador] = useState(false)
   // Menus do topo (Mais e status da loja): portal por cima de tudo; Esc e clique fora fecham.
   const botaoStatus = useRef<HTMLButtonElement>(null)
@@ -361,15 +361,33 @@ export default function PedidosPage() {
 
   useEffect(() => {
     if (!restauranteId) return
-    buscarDespachoAberto(supabase, restauranteId).then(setDespachoAberto).catch(() => {})
-  }, [supabase, restauranteId])
+    fetch('/api/admin/despacho/automatico', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((j) => { if (j) setDespachoAuto(j.ligado === true) }).catch(() => {})
+  }, [restauranteId])
 
-  async function alternarDespachoAberto() {
+  async function alternarDespachoAuto() {
     if (!restauranteId) return
-    const v = !despachoAberto
-    setDespachoAberto(v)
-    try { await definirDespachoAberto(supabase, restauranteId, v) } catch { setDespachoAberto(!v); setError('Não foi possível salvar o despacho aberto.') }
+    const v = !despachoAuto
+    setDespachoAuto(v)
+    try {
+      const r = await fetch('/api/admin/despacho/automatico', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ligado: v }) })
+      if (!r.ok) throw new Error()
+      const j = await r.json().catch(() => ({}))
+      setSemMotoboy(v ? Number(j.semMotoboy ?? 0) : 0)
+    } catch { setDespachoAuto(!v); setError('Não foi possível salvar o despacho automático.') }
   }
+
+  // Despacho automático ligado: pedido de entrega que ficou pronto vai para um motoboy disponível.
+  // O servidor também despacha (cozinha, PDV, app do motoboy e cron); aqui é a passagem na hora.
+  const prontosSemMotoboy = orders.filter((o) => o.status === 'pronto' && o.tipo === 'entrega' && !o.entregadorId).map((o) => o.id).join(',')
+  useEffect(() => {
+    if (!despachoAuto || !prontosSemMotoboy) { setSemMotoboy(0); return }
+    let vivo = true
+    const rodar = () => fetch('/api/admin/despacho/automatico', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ acao: 'rodar' }) })
+      .then((r) => (r.ok ? r.json() : null)).then((j) => { if (vivo && j) setSemMotoboy(Number(j.semMotoboy ?? 0)) }).catch(() => {})
+    void rodar()
+    const t = setInterval(rodar, 30_000)
+    return () => { vivo = false; clearInterval(t) }
+  }, [despachoAuto, prontosSemMotoboy])
 
   /** Modo "entrega sem entregador" (o mesmo da Logística): bloqueado com pedido em rota. */
   async function mudarModoEntrega(semEntregador: boolean) {
@@ -876,8 +894,8 @@ export default function PedidosPage() {
         {fluxo.usaLogistica && (
           <div className="border-b border-border">
             {!fluxo.entregaSemEntregador && (
-              <button onClick={() => void alternarDespachoAberto()} aria-pressed={despachoAberto} className={ITEM} data-testid="kanban-despacho-aberto">
-                <Bike className="h-4 w-4" /> Despacho aberto {estadoChip(despachoAberto)}
+              <button onClick={() => void alternarDespachoAuto()} aria-pressed={despachoAuto} className={ITEM} data-testid="kanban-despacho-automatico">
+                <Bike className="h-4 w-4" /> Despacho automático {estadoChip(despachoAuto)}
               </button>
             )}
             {fluxo.entregaSemEntregador ? (
@@ -1209,6 +1227,9 @@ export default function PedidosPage() {
           aria-label={`Despachar – ${prontosEntrega} pronto(s) para entrega`} data-testid="kanban-despachar">
           <Route className="h-5 w-5" aria-hidden /> Despachar
           <span className="grid h-[24px] min-w-[24px] place-items-center rounded-full bg-white px-1.5 text-[12.5px] font-semibold text-[#075EA8]" data-testid="kanban-despachar-contador">{prontosEntrega}</span>
+          {despachoAuto && semMotoboy > 0 && prontosEntrega > 0 && (
+            <span className="rounded-[6px] bg-[#FEF3C7] px-2 py-0.5 text-[12px] font-semibold text-[#92400E]" data-testid="kanban-sem-motoboy">Sem motoboy disponível</span>
+          )}
         </button>
       )}
 

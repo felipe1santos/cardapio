@@ -156,7 +156,7 @@ try {
   await p.getByTestId(`impressora-${dPos}`).waitFor({ timeout: 8000 })
   const fns = (await db.query('select funcao, dispositivo_id d from impressao_funcoes where restaurante_id=$1 order by funcao', [L])).rows
   ok('funções gravadas: Cozinha e Entrega na mesma, Caixa na outra', fns.length === 3 && fns.find((x) => x.funcao === 'cozinha')?.d === dPos && fns.find((x) => x.funcao === 'entrega')?.d === dPos && fns.find((x) => x.funcao === 'caixa')?.d === dEps, JSON.stringify(fns))
-  ok('seletor mostra as duas funções', /Imprimir cozinha, Comanda de entrega/.test(await p.getByTestId(`funcao-${dPos}`).innerText()))
+  ok('item 61: "Comanda de entrega" some da tela (seletor só com Imprimir cozinha)', /^Imprimir cozinha$/.test((await p.getByTestId(`funcao-${dPos}`).innerText()).trim()))
   ok('"Aceitar pedidos sozinho" fora da impressão', (await p.getByTestId('opcao-aceitarPedidosAutomaticamente').count()) === 0)
   ok('"Uma impressora pode ter mais de uma função." no rodapé', /Uma impressora pode ter mais de uma função/.test(await p.getByTestId('passo-2').innerText()))
   await p.getByTestId(`funcao-${dPos}`).click()
@@ -172,7 +172,7 @@ try {
   ok('"Usar o assistente novo" grava Cozinha e Caixa só depois de confirmar', (await um('select impressao_beta_modo m from restaurantes where id=$1', [L])).m === 'cozinha_caixa')
   const ped = await agente('/api/agente/pedidos')
   ok('a impressão segue a função: comanda na impressora da Cozinha', ped.json?.destinoCozinha?.nomeSistema === 'POS-80C', JSON.stringify(ped.json?.destinoCozinha))
-  ok('Comanda de entrega chega ao Assistente (mesmo computador)', ped.json?.destinoEntrega?.nomeSistema === 'POS-80C', JSON.stringify(ped.json?.destinoEntrega))
+  ok('item 61: sem "Comanda de entrega" a mais e sem "Via da cozinha" no Assistente', !ped.json?.destinoEntrega && ped.json?.config?.viaCozinha === false, JSON.stringify({ d: ped.json?.destinoEntrega, v: ped.json?.config?.viaCozinha }))
 
   secao('item 59: QR certo em cada comanda (fila do Assistente)')
   {
@@ -185,12 +185,12 @@ try {
     let fila = null
     for (let i = 0; i < 6 && !(fila?.qrPorPedido?.[pe.id]); i++) { fila = (await agente('/api/agente/pedidos')).json?.cozinhaBeta ?? null; if (!fila?.qrPorPedido?.[pe.id]) await new Promise((r) => setTimeout(r, 800)) }
     const qe = fila?.qrPorPedido?.[pe.id], qrr = fila?.qrPorPedido?.[pr.id]
-    ok('ENTREGA: QR da rota (/r/<código>, sem dado pessoal) com "Entregador: leia no app Menuzia"', qe?.origem === 'rota' && /\/r\/[A-Za-z0-9_-]{35}$/.test(qe?.url ?? '') && qe?.frase === 'Entregador: leia no app Menuzia' && !/TESTE|2799/.test(qe?.url ?? ''), JSON.stringify(qe && { ...qe, linhas: undefined }))
-    ok('RETIRADA: QR do cardápio com "Peça de novo pelo nosso cardápio"', qrr?.origem === 'cardapio' && /\/loja\/cantina-demo$/.test(qrr?.url ?? '') && qrr?.frase === 'Peça de novo pelo nosso cardápio', JSON.stringify(qrr && { ...qrr, linhas: undefined }))
-    ok('Assistente beta.9 segue com o QR de sempre (campo antigo intacto)', !!fila?.qr && ['instagram', 'cardapio'].includes(fila.qr.origem), JSON.stringify(fila?.qr?.origem))
+    ok('ENTREGA: QR da rota (/r/<código>, sem dado pessoal) com "ROTA DE ENTREGA"', qe?.origem === 'rota' && /\/r\/[A-Za-z0-9_-]{35}$/.test(qe?.url ?? '') && qe?.frase === 'ROTA DE ENTREGA' && !/TESTE|2799/.test(qe?.url ?? ''), JSON.stringify(qe && { ...qe, linhas: undefined }))
+    ok('item 61: RETIRADA sem QR (nunca o do cardápio)', !qrr, JSON.stringify(qrr && { ...qrr, linhas: undefined }))
+    ok('item 61: campo antigo (beta.9) vazio — nenhum QR do cardápio', fila?.qr === null, JSON.stringify(fila?.qr?.origem))
     if (qe) {
       const r = await fetch(`${BASE}${new URL(qe.url).pathname}`, { redirect: 'manual' })
-      ok('QR da entrega lido por uma câmera comum → cardápio da loja', r.status === 302 && new URL(r.headers.get('location')).pathname === '/loja/cantina-demo', `${r.status} ${r.headers.get('location')}`)
+      ok('item 61: QR da entrega lido por uma câmera comum → app do motoboy', r.status === 302 && new URL(r.headers.get('location')).pathname === '/motoboy', `${r.status} ${r.headers.get('location')}`)
     }
     await db.query("update restaurantes set impressao_qr = false where id = $1", [L])
     const semQr = (await agente('/api/agente/pedidos')).json?.cozinhaBeta
@@ -198,7 +198,7 @@ try {
     await db.query("update restaurantes set impressao_qr = true where id = $1", [L])
     await db.query("update pedidos set status = 'cancelado' where id = any($1::uuid[])", [[pe.id, pr.id]])
     const pv = (await api('/api/admin/impressao/previa')).json
-    ok('prévia: QR da rota para a entrega e do cardápio para retirada/balcão/mesa', pv?.qrRota?.origem === 'rota' && pv?.qrCardapio?.origem === 'cardapio' && ['instagram', 'cardapio'].includes(pv?.qr?.origem), JSON.stringify({ r: pv?.qrRota?.origem, c: pv?.qrCardapio?.origem, q: pv?.qr?.origem }))
+    ok('item 61: prévia com o QR da rota; pré-conta só com Instagram; sem QR do cardápio', pv?.qrRota?.origem === 'rota' && !('qrCardapio' in (pv ?? {})) && (pv?.qr === null || pv?.qr?.origem === 'instagram'), JSON.stringify({ r: pv?.qrRota?.origem, q: pv?.qr?.origem }))
   }
   const res = await api('/api/admin/impressao/resumo')
   ok('apelido no resto do sistema: topo diz "Cozinha: Cozinha principal"', res.json?.beta && res.json.cozinha === 'Cozinha principal' && res.json.online, JSON.stringify(res.json))
@@ -244,7 +244,7 @@ try {
   secao('card 3 — o que aparece no papel')
   const sw = await p.getByTestId('opcoes-impressao').locator('[role="switch"]').count()
   const colunas = await p.getByTestId('opcoes-impressao').evaluate((e) => getComputedStyle(e).gridTemplateColumns.split(' ').length)
-  ok('switches reais em 2 colunas', sw >= 6 && colunas === 2, `${sw} switches, ${colunas} colunas`)
+  ok('switches reais em 2 colunas (item 61: sem a "Via da cozinha")', sw >= 5 && colunas === 2, `${sw} switches, ${colunas} colunas`)
   const alturaPrevia = async () => {
     await p.getByTestId('ver-modelo').click()
     await p.getByTestId('modal-previa').waitFor({ timeout: 8000 })
@@ -272,7 +272,7 @@ try {
   await p.waitForTimeout(400)
   const jan = await p.getByTestId('modal-previa').evaluate((el) => { const r = el.getBoundingClientRect(); return { w: r.width, h: r.height, vh: innerHeight, cx: r.left + r.width / 2, vw: innerWidth } })
   ok('vertical, centralizada, estreita e alta', jan.w <= 440 && jan.h >= jan.vh - 40 && Math.abs(jan.cx - jan.vw / 2) < 2, JSON.stringify(jan))
-  ok('abas Comanda / Pré-conta / Via da cozinha e tipo Entrega/Retirada/Mesa/Balcão', (await p.getByTestId('modal-doc-comanda').count()) + (await p.getByTestId('modal-doc-pre_conta').count()) + (await p.getByTestId('modal-doc-via_cozinha').count()) === 3 && (await p.getByTestId('modal-tipo').locator('option').count()) === 4)
+  ok('item 61: abas Cozinha / Pré-conta (sem Via da cozinha) e tipo Entrega/Retirada/Mesa/Balcão', /Cozinha/.test(await p.getByTestId('modal-doc-comanda').innerText()) && (await p.getByTestId('modal-doc-pre_conta').count()) === 1 && (await p.getByTestId('modal-doc-via_cozinha').count()) === 0 && (await p.getByTestId('modal-tipo').locator('option').count()) === 4)
   const z0 = await p.getByTestId('modal-zoom-valor').innerText()
   await p.getByTestId('modal-zoom-mais').click()
   const z1 = await p.getByTestId('modal-zoom-valor').innerText()

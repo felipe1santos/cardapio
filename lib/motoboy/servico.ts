@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { despacharAutomaticamente } from '@/lib/motoboy/despacho-automatico'
 import { buscarLojaNoMapa } from '@/lib/maps/loja-mapa'
 import {
   buscarDespachoAberto, calcularCaixaEntregadorHoje, contarEntregasConcluidasHoje, listarPedidosDisponiveisDespacho,
@@ -96,6 +97,8 @@ export async function heartbeat(admin: SupabaseClient, e: EntregadorPortal, corp
   const lat = typeof corpo?.lat === 'number' ? corpo.lat : null
   const lng = typeof corpo?.lng === 'number' ? corpo.lng : null
   await registrarPresencaEntregador(admin, e.id, lat, lng)
+  // Item 61: com o despacho automático ligado, o sinal do motoboy também despacha o que ficou esperando.
+  despacharAutomaticamente(admin, e.restauranteId).catch((err) => console.error('[despacho automático]', (err as Error).message))
   return { ok: true }
 }
 
@@ -117,8 +120,9 @@ export async function lerQrDaEntrega(admin: SupabaseClient, e: EntregadorPortal,
     : await q.eq('restaurante_id', e.restauranteId).eq('numero', entrada.numero).order('criado_em', { ascending: false }).limit(1).maybeSingle()
   if (!p) return { ok: false, erro: entrada.tipo === 'numero' ? `Pedido #${entrada.numero} não encontrado na sua loja.` : 'Pedido não encontrado.', status: 404, codigo: 'nao_encontrado' }
   const r = p as Record<string, unknown> & { id: string; numero: number; restaurante_id: string; tipo: string; status: string; entregador_id: string | null }
+  const coordenadas = r.entrega_latitude !== null && r.entrega_longitude !== null ? { lat: Number(r.entrega_latitude), lng: Number(r.entrega_longitude) } : null
   const resumo = {
-    id: r.id, numero: r.numero, cliente: (r.cliente_nome as string) || 'Cliente', bairro: (r.endereco_bairro as string) || '',
+    id: r.id, numero: r.numero, cliente: (r.cliente_nome as string) || 'Cliente', bairro: (r.endereco_bairro as string) || '', coordenadas,
     endereco: enderecoCompletoPedido({ enderecoRua: (r.endereco_rua as string) ?? '', enderecoNumero: (r.endereco_numero as string) ?? '', enderecoComplemento: (r.endereco_complemento as string) ?? '', enderecoBairro: (r.endereco_bairro as string) ?? '', enderecoCidade: (r.endereco_cidade as string) ?? '' } as never),
     total: Number(r.total),
   }
@@ -134,8 +138,8 @@ export async function lerQrDaEntrega(admin: SupabaseClient, e: EntregadorPortal,
   if (r.status !== 'pronto') return bloqueio('indisponivel', `O pedido #${r.numero} não está disponível para entrega.`)
   const { data: ent } = await admin.from('entregadores').select('status').eq('id', e.id).maybeSingle()
   if ((ent as { status?: string } | null)?.status === 'offline') return bloqueio('pausado', 'Você está como Offline (pausado) na loja. Peça ao operador para te colocar como Disponível.')
-  if (!(await buscarDespachoAberto(admin, e.restauranteId))) return bloqueio('despacho_fechado', 'O despacho aberto está desligado na loja: só o operador atribui as entregas agora.')
-  return { ok: true, dados: { situacao: 'pegar', pedido: resumo, coordenadas: r.entrega_latitude !== null && r.entrega_longitude !== null ? { lat: Number(r.entrega_latitude), lng: Number(r.entrega_longitude) } : null } }
+  // Item 61: pegar pelo QR da comanda não depende mais do "despacho aberto" (que saiu do Kanban).
+  return { ok: true, dados: { situacao: 'pegar', pedido: resumo } }
 }
 
 export async function acaoNoPedido(admin: SupabaseClient, e: EntregadorPortal, pedidoId: string, acao: string, corpo: Record<string, unknown> | null): Promise<Resultado> {
@@ -151,7 +155,10 @@ export async function acaoNoPedido(admin: SupabaseClient, e: EntregadorPortal, p
       return { ok: true }
     }
     if (acao === 'pegar') {
-      if (!(await buscarDespachoAberto(admin, e.restauranteId))) return { ok: false, erro: 'O despacho não está aberto no momento.', status: 403 }
+      // Item 61: pelo QR da comanda sempre pode (pronto e sem motoboy); pela lista, só com o despacho aberto.
+      if (corpo?.via !== 'qr' && !(await buscarDespachoAberto(admin, e.restauranteId))) return { ok: false, erro: 'O despacho não está aberto no momento.', status: 403 }
+      const { data: ent } = await admin.from('entregadores').select('status').eq('id', e.id).maybeSingle()
+      if ((ent as { status?: string } | null)?.status === 'offline') return { ok: false, erro: 'Você está como Offline (pausado) na loja. Peça ao operador para te colocar como Disponível.', status: 403, codigo: 'pausado' }
       await pegarPedidoDisponivel(admin, pedidoId, e.id, e.restauranteId)
       notificarPedido(admin, pedidoId, 'em_rota').catch((err) => console.error('[whatsapp] em rota', err))
       // Item 59: quem pegou (pela lista ou pelo QR da comanda) fica na auditoria.

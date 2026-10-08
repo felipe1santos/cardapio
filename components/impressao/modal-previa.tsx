@@ -26,14 +26,15 @@ export const VERSAO_QR_ROTA = '0.2.0-beta.10'
  * (lib/impressao/recibo-antigo-canvas.js). Dados de exemplo = os dos modelos v3.
  */
 
-export type DocPrevia = 'comanda' | 'pre_conta' | 'via_cozinha'
+export type DocPrevia = 'comanda' | 'pre_conta'
 type Tipo = 'entrega' | 'retirada' | 'mesa' | 'balcao'
-const ROTULO_DOC: Record<DocPrevia, string> = { comanda: 'Comanda', pre_conta: 'Pré-conta', via_cozinha: 'Via da cozinha' }
+// Item 61: só dois modelos no papel — Cozinha (a comanda de qualquer tipo de pedido) e Pré-conta.
+const ROTULO_DOC: Record<DocPrevia, string> = { comanda: 'Cozinha', pre_conta: 'Pré-conta' }
 const ROTULO_TIPO: Record<Tipo, string> = { entrega: 'Entrega', retirada: 'Retirada', mesa: 'Mesa', balcao: 'Balcão' }
 const PX_POR_MM = 96 / 25.4
 
 export interface PapelPrevia { larguraMm: 58 | 80; larguraPontos: number | null; tamanhoFonte: 'grande' | 'media' | 'pequena'; intensidade: 'normal' | 'escura' | 'mais_escura' }
-export interface LojaPrevia { loja: { nome: string; telefone: string; endereco: string; linha1?: string; cidade?: string }; qr: unknown; qrCardapio?: unknown; qrRota?: unknown; logoUrl: string | null }
+export interface LojaPrevia { loja: { nome: string; telefone: string; endereco: string; linha1?: string; cidade?: string }; qr: unknown; qrRota?: unknown; logoUrl: string | null; temInstagram?: boolean }
 
 let fontes: Promise<unknown> | null = null
 const carregarFontes = () => (fontes ??= TicketMenuzia.carregarRecursos('/impressao/fonts').catch((e: unknown) => { fontes = null; throw e }))
@@ -79,11 +80,11 @@ export function ModalPrevia({ aberto, onFechar, opcao, docInicial, dados, config
   const papel = opcao === 'antigo' ? null : doc === 'pre_conta' ? papelPreConta : papelBeta
   const imprimirLogo = config?.imprimirLogo !== false
   const qr = config?.qr === false ? null : dados?.qr ?? null
-  // Item 59 — o mesmo QR que o servidor manda por pedido: entrega = QR da rota (sai mesmo com o QR
-  // do cardápio desligado); retirada, balcão e mesa = cardápio; pré-conta = Instagram ou cardápio.
-  // beta.10+: entrega = QR da rota, os outros = cardápio. Até o beta.9 sai o QR de sempre em todos (o que a loja vê é o que imprime).
+  // Item 61 — o mesmo QR que o servidor manda: comanda de ENTREGA = QR da rota ("ROTA DE ENTREGA");
+  // retirada, balcão e mesa sem QR; pré-conta = Instagram da loja (ou nada). Nunca o do cardápio.
+  // Até o beta.9 a comanda sai sem QR (o que a loja vê é o que imprime).
   const temQrRota = compararVersao(versaoAssistente, VERSAO_QR_ROTA) >= 0
-  const qrComanda = !temQrRota ? qr : tipoVisto === 'entrega' ? dados?.qrRota ?? null : config?.qr === false ? null : dados?.qrCardapio ?? qr
+  const qrComanda = temQrRota && tipoVisto === 'entrega' ? dados?.qrRota ?? null : null
   const avisoAtualizar = opcao !== 'antigo' && !temQrRota && doc !== 'pre_conta' && tipoVisto === 'entrega'
   const chaveCfg = config ? [config.mostrarNumeroItem, config.mostrarNomeComplementos, config.mostrarPrecoComplementos, config.multiplicarOpcoesQtd, config.fonteMaiorProducao, config.imprimirLogo, config.qr].join('') : ''
 
@@ -109,7 +110,7 @@ export function ModalPrevia({ aberto, onFechar, opcao, docInicial, dados, config
         ? montarPreContaV3({ ...contaDemonstracao(dados.loja.nome, tipoVisto === 'balcao' ? 'balcao' : 'mesa'), qr, loja_dados: dados.loja })
         : (() => {
             const d = pedidoDemonstracao(tipoVisto)
-            return montarComandaV3(d.pedido, { config: config ?? {}, lojaNome: dados.loja.nome, loja: dados.loja, extras: d.extras, qr: qrComanda, via: doc === 'via_cozinha' ? 'cozinha' : 'cliente' })
+            return montarComandaV3(d.pedido, { config: config ?? {}, lojaNome: dados.loja.nome, loja: dados.loja, extras: d.extras, qr: qrComanda, via: 'cliente' })
           })()
       if (!docTicket) return
       setMedida(TicketMenuzia.desenhar(c, docTicket, { larguraMm: papel.larguraMm, larguraPontos: papel.larguraPontos, tamanhoFonte: papel.tamanhoFonte, logo, imprimirLogo, intensidade: papel.intensidade }))
@@ -142,7 +143,7 @@ export function ModalPrevia({ aberto, onFechar, opcao, docInicial, dados, config
     return () => window.removeEventListener('resize', r)
   }, [aberto, calcular])
 
-  const docs: DocPrevia[] = opcao === 'antigo' ? ['comanda'] : ['comanda', 'pre_conta', 'via_cozinha']
+  const docs: DocPrevia[] = opcao === 'antigo' ? ['comanda'] : ['comanda', 'pre_conta']
   const passo = (d: number) => { setAjuste('livre'); setZoom((z) => Math.max(0.2, Math.min(3, Math.round((z + d) * 10) / 10))) }
 
   return (

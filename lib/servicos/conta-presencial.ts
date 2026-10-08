@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { despacharAutomaticamente } from '@/lib/motoboy/despacho-automatico'
 import { calcularTaxas, type TaxaCalculada, type TipoTaxa } from '@/lib/taxas-conta'
 import { mensagemDeErroConta, formatarResumoPagamento, ehFormaOferecida, type FormaPagamento } from '@/lib/conta'
 import { registrarAuditoria } from '@/lib/auditoria'
@@ -741,9 +742,12 @@ export async function atender(admin: SupabaseClient, ator: Ator, pedidoId: strin
 }
 
 export async function transicionar(admin: SupabaseClient, ator: Ator, pedidoId: string, de: string, para: string, origem: Origem) {
-  return rpc<{ id: string; status: string }>(admin, 'pedido_transicionar', {
+  const r = await rpc<{ id: string; status: string }>(admin, 'pedido_transicionar', {
     p_restaurante: ator.restauranteId, p_pedido: pedidoId, p_de: de, p_para: para, p_ator: ator.userId, p_ator_nome: ator.nome, p_origem: origem,
   })
+  // Item 61: ficou pronto → despacho automático da loja (só faz algo com a chave ligada).
+  if (para === 'pronto') despacharAutomaticamente(admin, ator.restauranteId).catch((e) => console.error('[despacho automático]', (e as Error).message))
+  return r
 }
 
 export async function pendencias(admin: SupabaseClient, ator: Ator, comandaId: string) {

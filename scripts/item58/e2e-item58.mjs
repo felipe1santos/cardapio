@@ -157,11 +157,11 @@ try {
 
   secao('menu ⋯, botões e tela cheia')
   await p.getByTestId('kanban-mais').click()
-  ok('"⋯" tem Despacho aberto e Entregar sem entregador', await p.getByTestId('kanban-despacho-aberto').isVisible() && await p.getByTestId('kanban-sem-entregador').isVisible())
-  const daAntes = (await um(`select despacho_aberto d from restaurantes where id=$1`, [loja.id])).d
-  await p.getByTestId('kanban-despacho-aberto').click(); await p.waitForTimeout(800)
-  ok('Despacho aberto grava', (await um(`select despacho_aberto d from restaurantes where id=$1`, [loja.id])).d === !daAntes)
-  await p.getByTestId('kanban-despacho-aberto').click(); await p.waitForTimeout(600)
+  ok('"⋯" tem Despacho automático (item 61) e Entregar sem entregador', await p.getByTestId('kanban-despacho-automatico').isVisible() && await p.getByTestId('kanban-sem-entregador').isVisible())
+  const daAntes = (await um(`select despacho_automatico d from restaurantes where id=$1`, [loja.id])).d
+  await p.getByTestId('kanban-despacho-automatico').click(); await p.waitForTimeout(1200)
+  ok('Despacho automático grava', (await um(`select despacho_automatico d from restaurantes where id=$1`, [loja.id])).d === !daAntes)
+  await p.getByTestId('kanban-despacho-automatico').click(); await p.waitForTimeout(1200)
   await p.getByTestId('kanban-sem-entregador').click()
   ok('Entregar sem entregador pede confirmação', await p.getByTestId('kanban-sem-entregador-confirmar').isVisible())
   await p.keyboard.press('Escape')

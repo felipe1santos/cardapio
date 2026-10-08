@@ -3,7 +3,7 @@ import { registrarAuditoria } from '@/lib/auditoria'
 import { traduzirErro } from '@/lib/servicos/conta-presencial'
 import { gerarCodigoPareamento, gerarConvitePareamento, gerarCredencial, hashCodigo, VALIDADE_CODIGO_MIN, VALIDADE_CONVITE_H } from './credenciais'
 import { snapshotCozinhaTeste, snapshotReciboTeste } from './recibo-teste'
-import { COLUNAS_LOJA_IMPRESSAO, dadosLojaImpressao, qrDaCozinha, type LojaImpressao } from './cozinha-beta'
+import { COLUNAS_LOJA_IMPRESSAO, dadosLojaImpressao, qrDaPreConta, qrDaRotaImpressa, type LojaImpressao, type QrCozinha } from './cozinha-beta'
 import { avaliarModos } from './regras-modo'
 import { COLUNAS_ENVIO, ehCaminho, perfilEnvio, validarPerfilEnvio, type CaminhoEnvio, type PerfilEnvio } from './regras-calibracao'
 
@@ -445,10 +445,10 @@ export async function criarReciboTeste(
     loja: disp.restaurantes?.nome ?? '', impressora, nomeSistema: disp.nome_sistema, computador: disp.impressao_agentes.nome,
     larguraMm: disp.largura_mm, larguraPontos: disp.largura_pontos, deslocamentoPontos: disp.deslocamento_pontos ?? 0,
   }
-  let qr: ReturnType<typeof qrDaCozinha> | null = null
-  // Opção da loja "QR Code do cardápio" (0151): desligada, o teste sai sem o QR, como o pedido real.
-  if (modelo === 'cozinha' && disp.restaurantes?.slug && disp.restaurantes.impressao_qr !== false) {
-    try { qr = qrDaCozinha({ slug: disp.restaurantes.slug, instagramUrl: disp.restaurantes.instagram_url ?? null }) } catch { qr = null }
+  let qr: QrCozinha | null = null
+  // Item 61: o teste da Cozinha é uma comanda de ENTREGA de exemplo — leva o QR da rota, como o real.
+  if (modelo === 'cozinha') {
+    try { qr = qrDaRotaImpressa('00000000-0000-4000-8000-000000000061') } catch { qr = null }
   }
   const snapshot = modelo === 'cozinha' ? snapshotCozinhaTeste(destino, op.nome, qr) : snapshotReciboTeste(destino, op.nome)
   const { data: novo, error } = await admin
@@ -571,7 +571,7 @@ export interface TrabalhoAgente extends PerfilEnvio {
   /** Tamanho da letra escolhido para a impressora (grande = modelo, media, pequena). */
   tamanhoFonte: 'grande' | 'media' | 'pequena'
   /** QR do rodapé (Instagram da loja ou cardápio) — modelo da pré-conta, 2026-09-28. */
-  qr: ReturnType<typeof qrDaCozinha> | null
+  qr: QrCozinha | null
   /** Nome, telefone e endereço da loja (rodapé) e a opção "Imprimir logo da loja" (0.2.0-beta.6+). */
   loja: LojaImpressao | null
   imprimirLogo: boolean
@@ -593,9 +593,9 @@ export async function reservarTrabalhos(admin: SupabaseClient, agenteId: string)
   const perfil = new Map(((perfis ?? []) as unknown as Perfil[]).map((p) => [p.id, p]))
   const qrDe = (id: string) => {
     const loja = perfil.get(id)?.restaurantes
-    // Opção da loja "QR Code do cardápio" (0151).
-    if (!loja?.slug || loja.impressao_qr === false) return null
-    try { return qrDaCozinha({ slug: loja.slug, instagramUrl: loja.instagram_url ?? null }) } catch { return null }
+    // Item 61: pré-conta = QR do Instagram da loja (sem Instagram, ou com a opção do QR desligada: sem QR).
+    if (!loja || loja.impressao_qr === false) return null
+    try { return qrDaPreConta(loja.instagram_url) } catch { return null }
   }
   const tamanho = (v: unknown): TrabalhoAgente['tamanhoFonte'] => (v === 'media' || v === 'pequena' ? v : 'grande')
   return {

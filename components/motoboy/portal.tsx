@@ -13,6 +13,7 @@ import { rotuloForma, trocoLevar } from '@/lib/pdv-pagamento'
 import { linksGoogleMaps, linkWaze, ordenarParadas, type Coord } from '@/lib/motoboy/rota-paradas'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { LeitorQr } from '@/components/motoboy/leitor-qr'
+import { LoginMotoboy } from '@/components/motoboy/login-motoboy'
 
 /**
  * App do motoboy (0136) — o MESMO para o link/QR antigo (`apiBase=/api/entregador/<token>`) e para o
@@ -50,7 +51,7 @@ interface PortalData {
 }
 interface Pendente { url: string; corpo: Record<string, unknown>; pedidoId: string; rotulo: string }
 type Tela = 'inicio' | 'entregas' | 'historico' | 'qr'
-interface ResumoQr { id: string; numero: number; cliente: string; bairro: string; endereco: string; total: number }
+interface ResumoQr { id: string; numero: number; cliente: string; bairro: string; endereco: string; total: number; coordenadas?: Coord | null }
 type LeituraQr =
   | { situacao: 'pegar'; pedido: ResumoQr }
   | { situacao: 'seu'; pedido: ResumoQr }
@@ -155,7 +156,7 @@ export function PortalMotoboy({ apiBase, swUrl, swScope }: { apiBase: string; sw
     const porId = new Map(pedidosBrutos.map((p) => [p.id, p]))
     const conhecidos = pedidosBrutos.every((p) => ordemRef.current.includes(p.id))
     if (!conhecidos) {
-      ordemRef.current = ordenarParadas(lojaCoord, pedidosBrutos.map((p) => ({ id: p.id, endereco: enderecoCompleto(p), coordenadas: p.coordenadas ?? null }))).map((p) => p.id)
+      ordemRef.current = ordenarParadas(geo ?? lojaCoord, pedidosBrutos.map((p) => ({ id: p.id, endereco: enderecoCompleto(p), coordenadas: p.coordenadas ?? null }))).map((p) => p.id)
     }
     return ordemRef.current.map((id) => porId.get(id)).filter((p): p is PedidoApp => !!p)
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -164,9 +165,11 @@ export function PortalMotoboy({ apiBase, swUrl, swScope }: { apiBase: string; sw
   const despachoAberto = data?.despachoAberto ?? false
   const fin = data?.financeiro
   const routeStops = useMemo(() => pedidos.map((p, i) => ({ id: p.id, numero: i + 1, address: enderecoCompleto(p) })), [pedidos])
-  const linksRota = useMemo(() => linksGoogleMaps(lojaCoord, pedidos.map((p) => ({ id: p.id, endereco: enderecoCompleto(p), coordenadas: p.coordenadas ?? null }))),
+  // Item 61: com a localização do celular o Maps sai de onde o motoboy está; sem ela, da loja.
+  const origemRota = geo ? null : lojaCoord
+  const linksRota = useMemo(() => linksGoogleMaps(origemRota, pedidos.map((p) => ({ id: p.id, endereco: enderecoCompleto(p), coordenadas: p.coordenadas ?? null }))),
   // eslint-disable-next-line react-hooks/exhaustive-deps
-    [pedidos, lojaCoord?.lat, lojaCoord?.lng])
+    [pedidos, origemRota?.lat, origemRota?.lng])
   const emRota = pedidos.filter((p) => p.saiuParaEntregaEm).length
   const aguardando = pedidos.length - emRota
 
@@ -246,12 +249,13 @@ export function PortalMotoboy({ apiBase, swUrl, swScope }: { apiBase: string; sw
   async function sair() {
     await fetch('/api/sessao/sair', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ motivo: 'saiu' }) }).catch(() => {})
     await getBrowserSupabase().auth.signOut().catch(() => {})
-    window.location.href = '/login'
+    window.location.href = comLogin ? '/motoboy' : '/login'
   }
 
   function ir(t: Tela) { setTela(t); setMenu(false); setActionError(null); if (t !== 'qr') setLeitura(null); window.scrollTo(0, 0) }
 
   if (loading) return <div className="flex min-h-dvh items-center justify-center bg-page text-sm text-text-subtle">Carregando sua rota…</div>
+  if (error?.login && comLogin) return <LoginMotoboy onEntrou={() => { setLoading(true); void refetch() }} />
   if (error || !data) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-page p-6">
@@ -288,7 +292,7 @@ export function PortalMotoboy({ apiBase, swUrl, swScope }: { apiBase: string; sw
           className="flex min-h-[52px] items-center justify-center gap-2 rounded-menuzia bg-primary px-4 text-[15px] font-semibold text-white">
           <Route className="h-5 w-5" />
           {linksRota.length === 1
-            ? `Abrir rota com ${pedidos.length} parada${pedidos.length > 1 ? 's' : ''}`
+            ? `Abrir rota completa (${pedidos.length} parada${pedidos.length > 1 ? 's' : ''})`
             : `Abrir rota — parte ${i + 1} de ${linksRota.length}`}
         </a>
       ))}
@@ -438,7 +442,17 @@ export function PortalMotoboy({ apiBase, swUrl, swScope }: { apiBase: string; sw
                     <p className="flex items-center gap-2 font-semibold"><Check className="h-5 w-5" />
                       {leitura.situacao === 'pego' ? `Pedido #${leitura.pedido.numero} está com você.` : `O pedido #${leitura.pedido.numero} já está na sua rota.`}
                     </p>
-                    <p className="mt-1 text-[13px]">Leia a próxima comanda ou abra a rota.</p>
+                    <p className="mt-1 text-[13px]">{leitura.pedido.endereco}</p>
+                    <div className="mt-3 flex flex-col gap-2" data-testid="motoboy-qr-rotas">
+                      <a href={linksGoogleMaps(origemRota, [{ id: leitura.pedido.id, endereco: leitura.pedido.endereco, coordenadas: leitura.pedido.coordenadas ?? null }])[0]} target="_blank" rel="noreferrer" data-testid="motoboy-rota-deste"
+                        className="flex min-h-[56px] items-center justify-center gap-2 rounded-menuzia bg-primary px-4 text-[16px] font-semibold text-white">
+                        <Navigation className="h-5 w-5" /> Rota deste pedido
+                      </a>
+                      <button type="button" onClick={() => ir('entregas')} data-testid="motoboy-todas-rotas"
+                        className="flex min-h-[56px] items-center justify-center gap-2 rounded-menuzia bg-[#111827] px-4 text-[16px] font-semibold text-white">
+                        <Route className="h-5 w-5" /> Todas as rotas
+                      </button>
+                    </div>
                   </div>
                 )}
                 {(leitura.situacao === 'bloqueado' || leitura.situacao === 'erro') && (
@@ -580,7 +594,7 @@ export function PortalMotoboy({ apiBase, swUrl, swScope }: { apiBase: string; sw
                         </button>
                         <button onClick={() => (fin?.ativo ? setPagando(order.id) : void enviar(order, 'entregar', {}, 'entregue'))} disabled={busy === order.id} data-testid="motoboy-entregue"
                           className="flex min-h-[52px] flex-1 items-center justify-center gap-1.5 rounded-menuzia bg-status-ready text-sm font-semibold uppercase tracking-wide text-white transition-colors hover:brightness-95 disabled:opacity-50">
-                          <Check className="h-4 w-4" /> {busy === order.id ? 'Enviando…' : 'Entregue'}
+                          <Check className="h-4 w-4" /> {busy === order.id ? 'Enviando…' : 'Marcar como entregue'}
                         </button>
                       </div>
                     </div>

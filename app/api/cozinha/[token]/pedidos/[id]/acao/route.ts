@@ -1,4 +1,5 @@
 // app/api/cozinha/[token]/pedidos/[id]/acao/route.ts
+import { despacharAutomaticamente } from '@/lib/motoboy/despacho-automatico'
 import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { buscarEstacaoPorToken } from '@/lib/queries/estacoes'
@@ -60,6 +61,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
       const ok = await concluirPedidoCozinha(admin, id, cozinheiro)
       if (!ok) return NextResponse.json({ error: 'O pedido já mudou de etapa' }, { status: 409 })
       notificarPedido(admin, id, 'pronto').catch(() => {})
+      // Item 61: despacho automático (só faz algo com a chave da loja ligada).
+      despacharAutomaticamente(admin, estacao.restauranteId).catch((e) => console.error('[despacho automático]', (e as Error).message))
     } else {
       await marcarPedidoEntregue(admin, id)
       processarFidelidadePedidoEntregue(admin, estacao.restauranteId, id).catch((err) => console.error('[fidelidade]', err))

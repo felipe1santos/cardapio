@@ -18,14 +18,14 @@ import { compararVersao, VERSAO_IMPRESSAO_V3 } from '@/lib/avisos-painel'
 import { SUPORTE_MENUZIA } from '@/lib/suporte'
 import ReciboAntigo from '@/lib/impressao/recibo-antigo-canvas.js'
 import type { AgenteVisao, DispositivoVisao, ModoBeta } from '@/lib/impressao/servico'
-import { FUNCOES_IMPRESSORA, ROTULO_FUNCAO_IMPRESSORA, type FuncaoImpressora } from '@/lib/impressao/funcoes'
+import { ROTULO_FUNCAO_IMPRESSORA, type FuncaoImpressora } from '@/lib/impressao/funcoes'
 
 /**
  * Na tela só existem duas funções (decisão do dono, 2026-10-08): "Imprimir cozinha" e "Imprimir
  * pré-conta". A "Comanda de entrega" continua no banco e no servidor; só aparece no menu da
  * impressora que já a tem, para poder ser desmarcada.
  */
-const FUNCOES_NA_TELA: FuncaoImpressora[] = ['cozinha', 'caixa']
+const FUNCOES_NA_TELA: FuncaoImpressora[] = ['cozinha', 'caixa'] // item 61: a "Comanda de entrega" saiu de vez
 const ROTULO_NA_TELA: Record<FuncaoImpressora, string> = { cozinha: 'Imprimir cozinha', caixa: 'Imprimir pré-conta', entrega: 'Comanda de entrega' }
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
@@ -87,8 +87,9 @@ const OPCOES_PAPEL: { chave: ChaveOpcao; titulo: string; frase: string }[] = [
   { chave: 'mostrarNumeroItem', titulo: 'Quantidade no item', frase: 'Mostra "2x" antes do nome do produto.' },
   { chave: 'mostrarNomeComplementos', titulo: 'Adicionais', frase: 'Mostra os adicionais que o cliente escolheu.' },
   { chave: 'multiplicarOpcoesQtd', titulo: 'Múltipla escolha', frase: 'Com 2 lanches, mostra "2x Bacon" quando cada um leva bacon.' },
-  { chave: 'viaCozinha', titulo: 'Via da cozinha sem valores', frase: 'Uma via a mais, só com itens e observações.' },
-  { chave: 'qr', titulo: 'QR Code do cardápio', frase: 'No rodapé, para o cliente pedir de novo.' },
+  // Item 61: só dois modelos (Cozinha e Pré-conta) — a "Via da cozinha" saiu. O QR do papel é o
+  // Instagram da loja na pré-conta (a comanda de entrega leva sempre o QR da rota).
+  { chave: 'qr', titulo: 'QR Code do Instagram na pré-conta', frase: 'No rodapé da pré-conta, para o cliente seguir a loja.' },
 ]
 const OPCOES_ANTIGO: { chave: ChaveOpcao; titulo: string; frase: string }[] = [
   { chave: 'mostrarPrecoComplementos', titulo: 'Preço dos adicionais', frase: 'Mostra o valor de cada adicional (assistente antigo).' },
@@ -156,8 +157,8 @@ export function PainelImpressao() {
     let vivo = true
     fetch('/api/admin/impressao/previa', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
-      .then((j) => { if (vivo) setDadosPrevia({ loja: j?.loja ?? { nome: '', telefone: '', endereco: '' }, qr: j?.qr ?? null, qrCardapio: j?.qrCardapio ?? null, qrRota: j?.qrRota ?? null, logoUrl: j?.logoUrl ?? null }) })
-      .catch(() => { if (vivo) setDadosPrevia({ loja: { nome: '', telefone: '', endereco: '' }, qr: null, logoUrl: null }) })
+      .then((j) => { if (vivo) setDadosPrevia({ loja: j?.loja ?? { nome: '', telefone: '', endereco: '' }, qr: j?.qr ?? null, qrRota: j?.qrRota ?? null, logoUrl: j?.logoUrl ?? null, temInstagram: j?.temInstagram === true }) })
+      .catch(() => { if (vivo) setDadosPrevia({ loja: { nome: '', telefone: '', endereco: '' }, qr: null, logoUrl: null, temInstagram: true }) })
     return () => { vivo = false }
   }, [])
 
@@ -468,6 +469,9 @@ export function PainelImpressao() {
                     ))}
                   </div>
                 ) : <p className="ti-rot">Carregando…</p>}
+                {config && config.qr !== false && dadosPrevia && !dadosPrevia.temInstagram && (
+                  <p className="ti-rot mt-2" data-testid="aviso-instagram">Cadastre o Instagram da loja para sair o QR na pré-conta. <a href="/admin/ajustes" className="ti-link" style={{ fontSize: 'inherit' }}>Abrir o Perfil da loja</a></p>
+                )}
                 {config && !podeEditar && <p className="ti-rot mt-2">Só o dono da loja altera estas opções.</p>}
               </Card>
 
@@ -656,8 +660,9 @@ function LinhaImpressora({ d, p, online, ocupado, onApelido, onFuncao, onRemover
   const botao = useRef<HTMLButtonElement>(null)
   const est: Estado = !online ? 'warn' : d.disponivel ? 'ok' : 'warn'
   const situacao = !online ? 'Sem sinal' : d.disponivel ? 'Conectada' : 'Não encontrada no Windows'
-  const rotulo = d.funcoes.length ? FUNCOES_IMPRESSORA.filter((f) => d.funcoes.includes(f)).map((f) => ROTULO_NA_TELA[f]).join(', ') : 'Sem função'
-  const noMenu = FUNCOES_IMPRESSORA.filter((f) => FUNCOES_NA_TELA.includes(f) || d.funcoes.includes(f))
+  const daTela = FUNCOES_NA_TELA.filter((f) => d.funcoes.includes(f))
+  const rotulo = daTela.length ? daTela.map((f) => ROTULO_NA_TELA[f]).join(', ') : 'Sem função'
+  const noMenu = FUNCOES_NA_TELA
   const outraDe = (f: FuncaoImpressora) => {
     const id = p.funcoes[f]
     if (!id || id === d.id) return null
@@ -703,7 +708,7 @@ function LinhaImpressora({ d, p, online, ocupado, onApelido, onFuncao, onRemover
               return (
                 <button key={f} type="button" role="menuitemcheckbox" aria-checked={marcado} className="ti-menu-item" onClick={() => onFuncao(f)} data-testid={`funcao-${d.id}-${f}`}>
                   <span className={`ti-check ${marcado ? 'on' : ''}`}>{marcado && <Check aria-hidden />}</span>
-                  <span className="min-w-0"><span className="block">{ROTULO_NA_TELA[f]}</span>{outra && !marcado && <small className="block">hoje em {outra}</small>}{f === 'entrega' && <small className="block">uma via a mais dos pedidos de entrega</small>}</span>
+                  <span className="min-w-0"><span className="block">{ROTULO_NA_TELA[f]}</span>{outra && !marcado && <small className="block">hoje em {outra}</small>}</span>
                 </button>
               )
             })}

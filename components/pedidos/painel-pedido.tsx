@@ -29,7 +29,7 @@ const TITULO = 'mb-2 text-[12px] font-semibold uppercase tracking-wide text-text
 type Etapa = { id: string; rotulo: string; quando: string | null }
 
 /** Etapas que existem para o pedido: entrega tem "Em rota"; retirada e mesa não. */
-export function etapasDoPedido(p: Pick<Pedido, 'tipo' | 'canal' | 'criadoEm' | 'etapas'>): Etapa[] {
+export function etapasDoPedido(p: Pick<Pedido, 'tipo' | 'canal' | 'criadoEm' | 'etapas'> & { entregueAutomatico?: boolean }): Etapa[] {
   const e = p.etapas
   const lista: Etapa[] = [
     { id: 'recebido', rotulo: 'Recebido', quando: p.criadoEm },
@@ -37,7 +37,7 @@ export function etapasDoPedido(p: Pick<Pedido, 'tipo' | 'canal' | 'criadoEm' | '
     { id: 'pronto', rotulo: 'Pronto', quando: e?.pronto ?? null },
   ]
   if (p.tipo === 'entrega' && p.canal !== 'mesa') lista.push({ id: 'em_rota', rotulo: 'Em rota', quando: e?.emRota ?? null })
-  lista.push({ id: 'entregue', rotulo: 'Entregue', quando: e?.entregue ?? null })
+  lista.push({ id: 'entregue', rotulo: p.entregueAutomatico ? 'Entregue (automático)' : 'Entregue', quando: e?.entregue ?? null })
   return lista
 }
 
@@ -238,7 +238,7 @@ export function PainelPedido({
             <p className={TITULO}>Entrega</p>
             <div className="mb-4 flex items-center justify-between gap-3 rounded-[3px] border border-border p-3" data-testid="painel-entrega">
               <span className="inline-flex items-center gap-1.5"><Bike className="h-4 w-4 text-text-subtle" aria-hidden /> {p.entregadorNome ?? 'Motoboy'}</span>
-              <span className="font-semibold">{p.status === 'em_rota' ? 'Em rota' : p.status === 'entregue' ? 'Entregue' : 'Aguardando saída'}</span>
+              <span className="font-semibold">{p.status === 'em_rota' ? 'Em rota' : p.status === 'entregue' ? (p.entregueAutomatico ? 'Entregue (automático)' : 'Entregue') : 'Aguardando saída'}</span>
             </div>
           </>
         )}
