@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { normalizarBairro, type FreteForaDaLista } from '@/lib/frete'
 import { TopBar } from '@/components/layout/topbar'
@@ -1973,6 +1974,7 @@ function TabMesas({ restauranteId, active }: { restauranteId: string; active: bo
 // Os MESMOS componentes e as mesmas rotas de API de antes (permissões checadas no servidor como hoje).
 
 function TabWhatsapp({ tipo, restauranteId }: { tipo: 'mensagens' | 'modelos' | 'notificacoes' | 'robo'; restauranteId: string }) {
+  const router = useRouter()
   const toasts = useToasts()
   const modelos = useModelos(tipo === 'modelos' ? restauranteId : null)
   const [conexao, setConexao] = useState<ConexaoWhatsapp>(null)
@@ -1990,11 +1992,11 @@ function TabWhatsapp({ tipo, restauranteId }: { tipo: 'mensagens' | 'modelos' | 
           {tipo === 'mensagens' && <MensagensAutomaticas onToast={toasts.mostrar} onAtivoMudou={() => {}} />}
           {tipo === 'modelos' && (
             // "Usar" leva o modelo para um disparo novo em Campanhas.
-            <Modelos api={modelos} onUsar={(m) => { window.location.href = `/admin/campanhas?modelo=${encodeURIComponent(m.id)}` }} onToast={toasts.mostrar} />
+            <Modelos api={modelos} onUsar={(m) => { router.push(`/admin/campanhas?modelo=${encodeURIComponent(m.id)}`) }} onToast={toasts.mostrar} />
           )}
           {tipo === 'notificacoes' && <PushNotificacoes />}
           {tipo === 'robo' && (
-            <RoboWhatsappCard somenteConfig conexao={conexao} onConectar={() => { window.location.href = '/admin/integracoes?abrir=whatsapp' }} avisar={toasts.mostrar} />
+            <RoboWhatsappCard somenteConfig conexao={conexao} onConectar={() => { router.push('/admin/integracoes?abrir=whatsapp') }} avisar={toasts.mostrar} />
           )}
         </div>
       </div>
@@ -2006,6 +2008,7 @@ function TabWhatsapp({ tipo, restauranteId }: { tipo: 'mensagens' | 'modelos' | 
 // ─── Página principal ─────────────────────────────────────────────────────────
 
 export default function AjustesPage() {
+  const router = useRouter()
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [restauranteId, setRestauranteId] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('loja')
@@ -2017,9 +2020,9 @@ export default function AjustesPage() {
   // A Impressão tem uma página só (menu lateral). Link antigo (?aba=impressao) vai para ela.
   useEffect(() => {
     const aba = new URLSearchParams(window.location.search).get('aba')
-    if (aba === 'impressao') window.location.replace('/admin/impressao')
+    if (aba === 'impressao') router.replace('/admin/impressao')
     // As estações da cozinha viraram item do menu (2026-09-30): link antigo vai para lá.
-    if (aba === 'cozinha') window.location.replace('/admin/cozinha')
+    if (aba === 'cozinha') router.replace('/admin/cozinha')
     // "Aparência" virou bloco do Perfil da loja (2026-10-06): o link antigo abre o Perfil já nele.
     if (aba === 'aparencia') window.setTimeout(() => document.querySelector('[data-testid="secao-aparencia"]')?.scrollIntoView({ block: 'start' }), 600)
     if (aba && (TAB_IDS as string[]).includes(aba)) setTab(aba as Tab)

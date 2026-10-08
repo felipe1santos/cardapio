@@ -96,10 +96,10 @@ export function useAlarmePedidos({ ativo = true }: { ativo?: boolean } = {}) {
       antes = ctx.state
     }
     ctx.onstatechange = atualizar
-    atualizar()
     // Quem já clicou neste site nesta aba (ex.: no login) tem o áudio liberado sem novo clique:
-    // tenta já, para não mostrar o aviso de bloqueio à toa.
-    void ctx.resume().then(atualizar).catch(() => {})
+    // tenta já e só decide depois (o contexto nasce "suspended" por um instante — o aviso piscava).
+    const espera = window.setTimeout(atualizar, 400)
+    void ctx.resume().then(() => { window.clearTimeout(espera); atualizar() }).catch(() => {})
     fetch(SOM_SRC).then((r) => r.arrayBuffer()).then((ab) => ctx.decodeAudioData(ab)).then((buf) => { bufferRef.current = buf })
       .catch((err) => registrarFalha('arquivo_indisponivel', String(err)))
     return () => { ctx.onstatechange = null; void ctx.close().catch(() => {}); ctxRef.current = null; estado().bloqueado = false; setBloqueado(false) }

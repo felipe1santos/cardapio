@@ -14,6 +14,7 @@ import type {
   CupomInput,
 } from '@/lib/queries/fidelidade'
 import { formatarReal } from '@/lib/moeda'
+import Link from 'next/link'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -644,10 +645,10 @@ export default function FidelidadePage() {
         breadcrumb="Campanhas de fidelidade e cupons de desconto"
         right={
           // Atalho para as notificações do app (0127): avisar o cliente do progresso e do prêmio.
-          <a href="/admin/ajustes?aba=notificacoes" className="inline-flex h-[34px] items-center gap-1.5 rounded-[5px] border border-border bg-white px-3 text-[12.5px] font-semibold text-text-main hover:border-primary hover:text-primary" data-atalho-notificacoes>
+          <Link href="/admin/ajustes?aba=notificacoes" className="inline-flex h-[34px] items-center gap-1.5 rounded-[5px] border border-border bg-white px-3 text-[12.5px] font-semibold text-text-main hover:border-primary hover:text-primary" data-atalho-notificacoes>
             <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current" aria-hidden><path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22zm7-6V11a7 7 0 0 0-5.5-6.84V3.5a1.5 1.5 0 0 0-3 0v.66A7 7 0 0 0 5 11v5l-1.7 1.7A1 1 0 0 0 4 19.4h16a1 1 0 0 0 .7-1.7z" /></svg>
             Notificações do app
-          </a>
+          </Link>
         }
       />
 

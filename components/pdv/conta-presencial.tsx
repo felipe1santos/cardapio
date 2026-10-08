@@ -30,6 +30,7 @@ import { rotuloTaxa, type TaxaEntrada } from '@/lib/taxas-conta'
 import { IdentificarModal } from './atendimento'
 import { ResumoEncerramentoModal } from './resumo-encerramento'
 import { montarResumoEncerramento, type ResumoEncerramento } from '@/lib/encerramento-conta'
+import Link from 'next/link'
 
 /**
  * Conta presencial no PDV v2 — a mesma tela para mesa e balcão (spec 13.3), com
@@ -1512,9 +1513,9 @@ function PreContaBloco({ comandaId, variante = 'bloco' }: { comandaId: string; v
         <p className="mt-1.5 text-[11px] font-semibold text-danger" data-testid="pre-conta-erro">
           {erro.texto}
           {erro.semCaixa && (
-            <a href="/admin/impressao" className="mt-1.5 inline-flex items-center rounded-menuzia border border-danger/40 bg-white px-2.5 py-1 text-[12px] font-semibold text-danger no-underline hover:bg-danger hover:text-white" data-testid="pre-conta-configurar">
+            <Link href="/admin/impressao" className="mt-1.5 inline-flex items-center rounded-menuzia border border-danger/40 bg-white px-2.5 py-1 text-[12px] font-semibold text-danger no-underline hover:bg-danger hover:text-white" data-testid="pre-conta-configurar">
               Configurar impressão
-            </a>
+            </Link>
           )}
         </p>
       )}

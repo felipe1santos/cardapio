@@ -31,6 +31,7 @@ import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { buscarConfigLoja } from '@/lib/queries/ajustes'
 import { garantirLogoImpressao } from '@/lib/impressao/logo-navegador'
+import Link from 'next/link'
 import {
   atualizarConfigImpressao, atualizarImpressora, buscarConfigImpressao, buscarStatusAgente, listarImpressoras,
   type ConfigImpressao, type Impressora, type ImpressoraInput,
@@ -470,7 +471,7 @@ export function PainelImpressao() {
                   </div>
                 ) : <p className="ti-rot">Carregando…</p>}
                 {config && config.qr !== false && dadosPrevia && !dadosPrevia.temInstagram && (
-                  <p className="ti-rot mt-2" data-testid="aviso-instagram">Cadastre o Instagram da loja para sair o QR na pré-conta. <a href="/admin/ajustes" className="ti-link" style={{ fontSize: 'inherit' }}>Abrir o Perfil da loja</a></p>
+                  <p className="ti-rot mt-2" data-testid="aviso-instagram">Cadastre o Instagram da loja para sair o QR na pré-conta. <Link href="/admin/ajustes" className="ti-link" style={{ fontSize: 'inherit' }}>Abrir o Perfil da loja</Link></p>
                 )}
                 {config && !podeEditar && <p className="ti-rot mt-2">Só o dono da loja altera estas opções.</p>}
               </Card>

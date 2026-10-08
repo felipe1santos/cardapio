@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
@@ -281,6 +282,7 @@ function FiltroEditor({ filtro, onChange }: { filtro: FiltroCampanha; onChange: 
 // ─── Página ───────────────────────────────────────────────────────────────────
 
 export default function CampanhasPage() {
+  const router = useRouter()
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [restauranteId, setRestauranteId] = useState<string | null>(null)
   // Link da vitrine para o atalho "Ver cardápio" dos botões.
@@ -308,7 +310,7 @@ export default function CampanhasPage() {
   // Atalho: /admin/campanhas?aba=notificacoes (Fidelidade) abre direto a seção; "metricas" virou a Visão geral.
   useEffect(() => {
     const q = new URLSearchParams(window.location.search).get('aba')
-    if (q && MOVIDAS[q]) { window.location.replace(`/admin/ajustes?aba=${MOVIDAS[q]}`); return }
+    if (q && MOVIDAS[q]) { router.replace(`/admin/ajustes?aba=${MOVIDAS[q]}`); return }
     if (q && ABAS.some((a) => a.id === q)) setAba(q as Aba)
   }, [])
   const toasts = useToasts()

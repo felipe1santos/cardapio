@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
 
 /**
  * Logística + financeiro (Fase 3, 0136).
@@ -68,7 +69,7 @@ export function DinheiroComMotoboys({ compacto = false }: { compacto?: boolean }
     <section className={`${compacto ? '' : 'mb-4 '}rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white`} data-testid="dinheiro-motoboys">
       <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
         <h2 className="text-[13px] font-semibold text-text-main">Dinheiro com cada motoboy agora</h2>
-        <span className="flex items-center gap-3 text-[11px] text-text-subtle">Troco: {f.modo === 'pedido' ? 'por pedido' : 'fundo fixo'}{compacto && <a href="/admin/financeiro?secao=motoboys" className="text-[12px] font-semibold text-[var(--adm-azul,#0b78d0)] hover:underline" data-testid="link-acerto-motoboys">Acerto de motoboys →</a>}</span>
+        <span className="flex items-center gap-3 text-[11px] text-text-subtle">Troco: {f.modo === 'pedido' ? 'por pedido' : 'fundo fixo'}{compacto && <Link href="/admin/financeiro?secao=motoboys" className="text-[12px] font-semibold text-[var(--adm-azul,#0b78d0)] hover:underline" data-testid="link-acerto-motoboys">Acerto de motoboys →</Link>}</span>
       </div>
       {!f.veValores ? null : f.motoboys.length === 0 ? <p className="px-4 py-2.5 text-[13px] text-text-subtle">Nenhum motoboy com dinheiro.</p> : (
         <div className="flex flex-wrap gap-2 px-4 py-2.5">

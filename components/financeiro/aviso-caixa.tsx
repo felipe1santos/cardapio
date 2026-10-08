@@ -7,6 +7,7 @@ import { tempoAberto } from '@/lib/financeiro/caixa-regras'
 import { formatarCentavos } from '@/lib/financeiro/centavos'
 import { Dica } from '@/components/ui/flutuante'
 import { Janela, botao } from './apoio'
+import Link from 'next/link'
 
 /**
  * Aviso no topo do painel, em cor viva com texto branco (Fase 2, só com o financeiro ligado e para quem mexe no caixa):
@@ -32,14 +33,14 @@ export function AvisoCaixa() {
   return (
     <>
     <Dica texto={texto}>
-      <a href="/admin/financeiro?secao=caixa" data-testid="aviso-caixa-celular" aria-label={texto} data-aberto={e.aberto ? '1' : '0'}
+      <Link href="/admin/financeiro?secao=caixa" data-testid="aviso-caixa-celular" aria-label={texto} data-aberto={e.aberto ? '1' : '0'}
         className={`flex h-[36px] flex-shrink-0 items-center gap-1 whitespace-nowrap rounded-[4px] px-2 text-[12px] font-semibold text-white md:hidden ${e.aberto ? 'bg-[#15803D]' : 'bg-[#B91C1C]'}`}>
         {/* Pílula (pendência 7): no celular o status do caixa precisa ser lido, não adivinhado pelo ícone. */}
         <span className="h-[7px] w-[7px] rounded-full bg-white" aria-hidden />
         Caixa
-      </a>
+      </Link>
     </Dica>
-    <a href="/admin/financeiro?secao=caixa" data-testid="aviso-caixa"
+    <Link href="/admin/financeiro?secao=caixa" data-testid="aviso-caixa"
       title={e.aberto ? `Caixa aberto por ${e.abertoPorNome ?? '—'}` : 'Caixa fechado — clique para abrir'}
       className={`hidden h-[44px] flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[4px] px-3 text-[12.5px] font-semibold text-white transition-[filter] hover:brightness-110 md:flex ${e.aberto ? 'bg-[#15803D]' : 'bg-[#B91C1C]'}`}>
       <span className="h-[8px] w-[8px] rounded-full bg-white" />
@@ -49,7 +50,7 @@ export function AvisoCaixa() {
         {e.aberto ? <>Caixa aberto · {(e.abertoPorNome ?? '').split(' ')[0]} · {e.abertoEm ? tempoAberto(e.abertoEm) : ''}</>
           : e.aAcertarCentavos ? <span data-testid="aviso-a-acertar">Caixa fechado · {formatarCentavos(e.aAcertarCentavos)} a acertar</span> : 'Caixa fechado'}
       </span>
-    </a>
+    </Link>
     </>
   )
 }
@@ -73,7 +74,7 @@ export function JanelaSairComCaixa() {
         <textarea className="min-h-[70px] w-full rounded-[3px] border border-border p-[10px] text-[13px] outline-none focus:border-primary" placeholder="Por que vai sair com o caixa aberto?"
           value={motivo} onChange={(ev) => setMotivo(ev.target.value.slice(0, 300))} data-testid="sair-caixa-motivo" />
         <div className="mt-[14px] flex flex-wrap justify-end gap-2">
-          <a href="/admin/financeiro?secao=caixa" className={`${botao.primario} inline-flex items-center`} onClick={() => setAberta(false)}>Fechar o caixa</a>
+          <Link href="/admin/financeiro?secao=caixa" className={`${botao.primario} inline-flex items-center`} onClick={() => setAberta(false)}>Fechar o caixa</Link>
           <button type="button" className={botao.perigo} disabled={ocupado || motivo.trim().length < 5} data-testid="sair-caixa-confirmar"
             onClick={async () => { setOcupado(true); if (await sairDoPainel(supabase, motivo.trim())) window.location.href = '/login'; setOcupado(false) }}>
             Sair mesmo assim

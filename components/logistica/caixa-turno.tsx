@@ -6,6 +6,7 @@ import { formatarReal } from '@/lib/moeda'
 import { lerValor } from '@/components/pdv/util'
 import type { PainelCaixa } from '@/lib/queries/caixa'
 import { useEstadoSessao } from '@/lib/sessao-cliente'
+import Link from 'next/link'
 
 const hora = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'
@@ -25,7 +26,7 @@ export function CaixaTurnoGaveta({ aberto, onFechar }: { aberto: boolean; onFech
   const [enviando, setEnviando] = useState(false)
   // Financeiro ligado (Fase 2): abrir e fechar são no Financeiro › Caixa (fundo e contagem cega).
   const financeiro = !!useEstadoSessao()?.financeiroAtivo
-  const linkFin = <a href="/admin/financeiro?secao=caixa" className="text-[12px] font-semibold text-primary underline" data-testid="caixa-no-financeiro">Abrir/fechar em Financeiro › Caixa</a>
+  const linkFin = <Link href="/admin/financeiro?secao=caixa" className="text-[12px] font-semibold text-primary underline" data-testid="caixa-no-financeiro">Abrir/fechar em Financeiro › Caixa</Link>
 
   const carregar = useCallback(async () => {
     setCarregando(true)
@@ -110,7 +111,7 @@ export function CaixaTurnoGaveta({ aberto, onFechar }: { aberto: boolean; onFech
           {financeiro && (
             // Com o financeiro o acerto é cego (conta primeiro, depois revela) e fica no Financeiro.
             <div className="rounded-menuzia border border-border p-3.5 text-[13px]" data-testid="acerto-no-financeiro">
-              O acerto dos motoboys é feito em <a href="/admin/financeiro?secao=motoboys" className="font-semibold text-primary underline">Financeiro › Acerto de Motoboys</a> (contagem cega).
+              O acerto dos motoboys é feito em <Link href="/admin/financeiro?secao=motoboys" className="font-semibold text-primary underline">Financeiro › Acerto de Motoboys</Link> (contagem cega).
             </div>
           )}
 

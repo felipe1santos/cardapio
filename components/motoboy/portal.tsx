@@ -527,7 +527,7 @@ export function PortalMotoboy({ apiBase, swUrl, swScope }: { apiBase: string; sw
             )}
           </div>
         )}
-        {pedidos.length > 1 && <div className="mb-4">{botaoRota}</div>}
+        {pedidos.length > 0 && <div className="mb-4">{botaoRota}</div>}
 
         {pedidos.length > 0 && (
           <div className="flex flex-col gap-3">
