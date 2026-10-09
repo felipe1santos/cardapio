@@ -228,6 +228,9 @@ async function movimentarAgora(ctx: ContextoFin, p: EntradaMovimento): Promise<R
   })
   if (eL) {
     if (/aprovacao_usada/.test(eL.message)) return falha('Esta aprovação já foi usada. Peça de novo.', 409, 'usada')
+    // Trava do banco (0162): outra saída gravou antes (outro aparelho ou outra instância do app).
+    const g = /gaveta_insuficiente:(-?d+)/.exec(eL.message)
+    if (g) return falha(`Só há ${formatarCentavos(Number(g[1]))} na gaveta.`, 409, 'gaveta_insuficiente')
     if (/caixa_fechado|turno_imutavel/.test(eL.message)) return falha('O caixa está fechado.', 409, 'caixa_fechado')
     throw eL
   }

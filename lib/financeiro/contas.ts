@@ -43,6 +43,9 @@ function erroDoBanco(e: { message?: string } | null): Falha | null {
   const m = e?.message ?? ''
   if (/conta_nao_encontrada|compra_nao_encontrada/.test(m)) return falha('Não encontrada.', 404)
   if (/caixa_fechado/.test(m)) return falha('O caixa está fechado: abra o caixa primeiro.', 409, 'caixa_fechado')
+  // Trava do banco (0162): a gaveta não tem o dinheiro (outra saída gravou antes).
+  const g = /gaveta_insuficiente:(-?d+)/.exec(m)
+  if (g) return falha(`Só há ${formatarCentavos(Number(g[1]))} na gaveta.`, 409, 'gaveta_insuficiente')
   if (/conta_paga/.test(m)) return falha('Conta paga: estorne a baixa antes.', 409, 'conta_paga')
   if (/conta_fechada|conta_nao_paga/.test(m)) return falha('A conta mudou: abra de novo.', 409, 'conta_fechada')
   if (/compra_paga/.test(m)) return falha('Compra paga com dinheiro do caixa: registre a devolução como reforço no caixa.', 409, 'compra_paga')
