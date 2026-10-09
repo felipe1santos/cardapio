@@ -22,12 +22,14 @@ interface Pedido { titulo: string; remoto: PedidoRemoto | null; erro: string | n
 let instalado = false
 let mostrar: ((p: Pedido | null) => void) | null = null
 
+/** Abre (ou mantém aberta, com o erro da tentativa anterior) a janela e espera o PIN. A janela só fecha em fecharJanela(). */
 function pedirAprovacao(titulo: string, remoto: PedidoRemoto | null, erro: string | null): Promise<AprovacaoDada | null> {
   return new Promise((resolve) => {
     if (!mostrar) return resolve(null)
-    mostrar({ titulo, remoto, erro, responder: (a) => { mostrar?.(null); resolve(a) } })
+    mostrar({ titulo, remoto, erro, responder: resolve })
   })
 }
+const fecharJanela = () => mostrar?.(null)
 
 async function lerJson(r: Response): Promise<Record<string, unknown> | null> {
   try { return (await r.clone().json()) as Record<string, unknown> } catch { return null }
@@ -48,12 +50,18 @@ function instalar() {
     const titulo = typeof j.titulo === 'string' ? j.titulo : 'Outra pessoa precisa aprovar com o PIN'
     const remoto = (j.pedidoRemoto as PedidoRemoto | undefined) ?? null
     let erro: string | null = null
-    for (;;) {
+    // A janela fica aberta (com o aprovador escolhido) entre as tentativas: PIN errado mostra o erro ali mesmo.
+    for (let tentativa = 1; ; tentativa++) {
       const aprovacao = await pedirAprovacao(titulo, remoto, erro)
-      if (!aprovacao) return resposta
-      const nova = await anterior(entrada, { ...init, body: JSON.stringify({ ...corpo, aprovacao }) })
+      if (!aprovacao) { fecharJanela(); return resposta }
+      const nova = await anterior(entrada, { ...init, body: JSON.stringify({ ...corpo, aprovacao }) }).catch((e) => { fecharJanela(); throw e })
       const jn = nova.headers.has(CABECALHO) ? await lerJson(nova) : null
-      if (jn && ERROS_DE_PIN.has(String(jn.codigo))) { erro = typeof jn.error === 'string' ? jn.error : 'Não aprovado.'; continue }
+      if (jn && ERROS_DE_PIN.has(String(jn.codigo))) {
+        // Número da tentativa no texto: o mesmo erro duas vezes também limpa o PIN digitado.
+        erro = `${typeof jn.error === 'string' ? jn.error : 'Não aprovado.'}${tentativa > 1 ? ` (tentativa ${tentativa})` : ''}`
+        continue
+      }
+      fecharJanela()
       return nova
     }
   }
