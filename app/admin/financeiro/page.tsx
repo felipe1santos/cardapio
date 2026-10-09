@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { Suspense, useCallback, useEffect, useState } from 'react'
 import { TopBar } from '@/components/layout/topbar'
 import { SubmenuVertical, type ItemSubmenu } from '@/components/admin/submenu-vertical'
@@ -23,6 +24,12 @@ import { Card, FIN_BTN, FIN_COR, SeloMeta } from '@/components/graficos/kit-meta
  * Visual "estilo Meta" (item 4b, 2026-10-04): o tema .fin-meta vale do menu lateral para dentro; o topo não muda.
  */
 type Secao = 'caixa' | 'fluxo' | 'motoboys' | 'pix' | 'movimentacoes' | 'cmv' | 'contas' | 'dashboard' | 'risco' | 'regras' | 'auditoria'
+
+/** Seção do guia (/admin/financeiro/guia) de cada tela — o ícone "i" leva direto para ela. */
+const ANCORA_GUIA: Record<Secao, string> = {
+  caixa: 'caixa', fluxo: 'fluxo', motoboys: 'motoboys', pix: 'pix', movimentacoes: 'movimentacoes', cmv: 'cmv',
+  contas: 'contas-pagar', dashboard: 'dashboard', risco: 'risco', regras: 'regras', auditoria: 'auditoria',
+}
 
 const SECOES: { id: Secao; label: string; exige: AcaoFin; fase: string }[] = [
   { id: 'caixa', label: 'Caixa', exige: 'caixa_abrir', fase: '' },
@@ -98,6 +105,13 @@ export default function FinanceiroPage() {
         <div className="fin-meta flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row" data-financeiro-raiz>
           <SubmenuVertical itens={itens} ativo={secao} onSelecionar={setSecao} titulo="Seções do financeiro" />
           <div className="flex min-w-0 flex-1 flex-col space-y-4 overflow-y-auto p-4 sm:p-5 lg:p-6" data-financeiro-area>
+            {atual && (
+              <div className="flex items-center gap-2" data-testid="fin-titulo-secao">
+                <h1 className="text-[18px] font-semibold" style={{ color: FIN_COR.texto }}>{atual.label}</h1>
+                <Link href={`/admin/financeiro/guia#${ANCORA_GUIA[atual.id]}`} aria-label={`Guia: ${atual.label}`} title="Como usar esta tela (guia do Financeiro)" data-testid="fin-guia-i"
+                  className="grid h-[24px] w-[24px] place-items-center rounded-full border text-[13px] font-semibold italic leading-none hover:bg-[#F5F6F7]" style={{ color: '#0B5CAD', borderColor: '#BFD7F2' }}>i</Link>
+              </div>
+            )}
             {secao === 'fluxo' && acoes.includes('financeiro') ? (
               <Suspense fallback={<p className="text-[14px]" style={{ color: FIN_COR.texto2 }}>Carregando…</p>}><FluxoCaixa usuarioId={usuarioId} /></Suspense>
             ) : secao === 'cmv' && acoes.includes('custos_ver') ? <SecaoCmv /> : secao === 'contas' && acoes.includes('contas_pagar') ? <SecaoContas /> : secao === 'dashboard' && acoes.includes('financeiro') ? <SecaoDashboard /> : secao === 'risco' && acoes.includes('auditoria_ver') ? <SecaoRisco /> : secao === 'regras' && acoes.includes('financeiro') ? <SecaoRegras /> : secao === 'motoboys' ? <SecaoMotoboys /> : secao === 'pix' ? <SecaoPix /> : (secao === 'caixa' || secao === 'movimentacoes') ? (
