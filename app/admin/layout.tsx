@@ -17,6 +17,7 @@ import { caminhoPermitidoCompleto, normalizarAcessos, type Acessos } from '@/lib
 import { useAvisarPedido, useNotificacoesPedidos } from '@/components/admin/notificacoes-pedidos'
 import { FichaDaLoja } from '@/components/admin/ficha-loja'
 import { IndicadorSalvar } from '@/components/admin/indicador-salvar'
+import { AprovacaoGlobal } from '@/components/admin/aprovacao-global'
 import { AvisoNovaImpressao } from '@/components/admin/aviso-nova-impressao'
 import { TravaSessao } from '@/components/admin/trava-sessao'
 import { JanelaSairComCaixa } from '@/components/financeiro/aviso-caixa'
@@ -359,6 +360,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </div>
       {/* "Salvando… / Salvo" no centro da tela para toda gravação feita pelo usuário. */}
       <IndicadorSalvar />
+      {/* PIN de outra pessoa quando o servidor pede (estorno, cancelamento depois da cozinha). Depois do indicador: embrulha o fetch dele. */}
+      <AprovacaoGlobal />
       {/* Central de atendimento do WhatsApp: só o botão (leve); o painel vem sob demanda. */}
       {/* Botão flutuante do atendimento: fora do PDV, Mesas, Comandas e Balcão — lá ele cobria a barra de ações. */}
       {restauranteId && papel && pode(papel, 'whatsapp.atender') && !focusMode && !/^\/admin\/(pdv|mesas)(\/|$)/.test(pathname) && <LancadorAtendimento restauranteId={restauranteId} lado={/^\/admin\/pedidos(\/|$)/.test(pathname) ? 'esquerda' : 'direita'} />}

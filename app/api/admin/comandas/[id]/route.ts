@@ -5,6 +5,7 @@ import { ajustarValores, cancelarComanda } from '@/lib/queries/conta'
 import { ehFormaOferecida } from '@/lib/conta'
 import * as conta from '@/lib/servicos/conta-presencial'
 import { registrarAuditoria } from '@/lib/auditoria'
+import { avisarDonoSensivel, exigirSegundaPessoa, type AcaoSensivel } from '@/lib/financeiro/aprovacao-sensivel'
 
 /**
  * Conta presencial (mesa ou balcão) no PDV v2: leitura completa (GET) e toda ação que
@@ -19,6 +20,22 @@ const texto = (v: unknown, max = 300) => (typeof v === 'string' ? v.trim().slice
 
 function ator(ctx: ContextoPresencial): conta.Ator {
   return { restauranteId: ctx.sessao.restauranteId, userId: ctx.sessao.userId, nome: ctx.sessao.nome, papel: ctx.sessao.papel }
+}
+
+/**
+ * Estorno e cancelamento do que já foi lançado (= enviado à cozinha): com o financeiro ligado, PIN de
+ * outra pessoa e alerta para o dono (lib/financeiro/aprovacao-sensivel.ts).
+ */
+async function comSegundaPessoa<T>(
+  ctx: ContextoPresencial, corpo: unknown, acao: AcaoSensivel, resumo: string, valorCentavos: number | null, motivo: string | null,
+  executar: () => Promise<conta.Resultado<T> & { pendencias?: unknown }>,
+) {
+  const eu = ator(ctx)
+  const lib = await exigirSegundaPessoa(ctx.admin, { sessao: eu, corpo, acao, valorCentavos, resumo })
+  if (!lib.ok) return lib.resposta
+  const r = await executar()
+  if (r.ok) await avisarDonoSensivel(ctx.admin, { sessao: eu, acao, aprovadoPor: lib.aprovadoPor, resumo, motivo, valorCentavos })
+  return responder(r)
 }
 
 function responder<T>(r: conta.Resultado<T> & { pendencias?: unknown }) {
@@ -89,8 +106,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     case 'pagamento':
       return responder(await conta.pagar(ctx.admin, eu, c, corpo as never, ctx.loja.formasPagamento, 'pdv'))
 
-    case 'estorno':
-      return responder(await conta.estornar(ctx.admin, eu, c, texto(corpo.pagamentoId, 36), texto(corpo.motivo), 'pdv'))
+    case 'estorno': {
+      const pag = c.pagamentos.find((p) => p.id === texto(corpo.pagamentoId, 36) && !p.estornado)
+      if (!pag) return NextResponse.json({ error: 'Pagamento não pertence a esta conta ou já foi estornado.', codigo: 'pagamento_inexistente' }, { status: 404 })
+      if (!texto(corpo.motivo)) return NextResponse.json({ error: 'Informe o motivo do estorno.', codigo: 'motivo_obrigatorio' }, { status: 400 })
+      return comSegundaPessoa(ctx, corpo, 'estorno', `o pagamento em ${pag.forma} da conta #${c.numero ?? ''}`, Math.round(Number(pag.valor) * 100), texto(corpo.motivo),
+        () => conta.estornar(ctx.admin, eu, c, pag.id, texto(corpo.motivo), 'pdv'))
+    }
 
     case 'ajustar_valores': {
       const num = (v: unknown) => (v === undefined || v === null || v === '' ? null : Number(v))
@@ -172,6 +194,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         return NextResponse.json({ error: 'Sem permissão para resolver pendências no fechamento.', codigo: 'sem_permissao_resolver' }, { status: 403 })
       }
       if (acao === 'simular_fechamento') return responder(await conta.simularFechamento(ctx.admin, eu, c.id, s.acoes))
+      const cancela = s.acoes.filter((d) => d.acao === 'cancelar')
+      const resumoFechar = `${cancela.length} pedido(s) no fechamento da conta #${c.numero ?? ''}`
+      let aprovadoPor: string | null = null
+      if (cancela.length) {
+        const lib = await exigirSegundaPessoa(ctx.admin, { sessao: eu, corpo, acao: 'cancelamento', valorCentavos: null, resumo: resumoFechar })
+        if (!lib.ok) return lib.resposta
+        aprovadoPor = lib.aprovadoPor
+      }
       const fechou = await conta.fecharCompleto(ctx.admin, eu, c, s, ctx.loja.formasPagamento, 'pdv', forcada && !ctx.pode('comanda.resolver_forcado') ? 'comanda.fechamento_resolver' : forcada ? 'comanda.resolver_forcado' : null)
       // Conta fechada com saldo ZERO (ex.: tudo cancelado): registra explicitamente quem
       // fechou e que foi recebido R$ 0,00 (2026-10-01).
@@ -186,6 +216,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           })
         }
       }
+      if (fechou.ok && cancela.length) await avisarDonoSensivel(ctx.admin, { sessao: eu, acao: 'cancelamento', aprovadoPor, resumo: resumoFechar })
       return responder(fechou)
     }
 
@@ -201,7 +232,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       if (!s.acoes.every((a) => c.pedidos.some((p) => p.id === a.pedido_id))) {
         return NextResponse.json({ error: 'Há pedido que não pertence a esta conta.' }, { status: 400 })
       }
-      return responder(await conta.resolver(ctx.admin, eu, c, s, 'pdv'))
+      const cancela = s.acoes.filter((a) => a.acao === 'cancelar_pedido' || a.acao === 'cancelar_itens')
+      if (!cancela.length) return responder(await conta.resolver(ctx.admin, eu, c, s, 'pdv'))
+      return comSegundaPessoa(ctx, corpo, 'cancelamento', `${cancela.length} pedido(s) da conta #${c.numero ?? ''}`, null, null,
+        () => conta.resolver(ctx.admin, eu, c, s, 'pdv'))
     }
 
     case 'reabrir':
@@ -222,10 +256,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           { status: 409 },
         )
       }
+      // Conta com pedido lançado (já foi para a cozinha): PIN de outra pessoa com o financeiro ligado.
+      const lancados = c.pedidos.filter((p) => p.status !== 'cancelado').length
+      const resumo = `a conta #${c.numero ?? ''} com ${lancados} pedido(s) lançado(s)`
+      let aprovadoPor: string | null = null
+      if (lancados) {
+        const lib = await exigirSegundaPessoa(ctx.admin, { sessao: eu, corpo, acao: 'cancelamento', valorCentavos: null, resumo })
+        if (!lib.ok) return lib.resposta
+        aprovadoPor = lib.aprovadoPor
+      }
       const r = await cancelarComanda(ctx.admin, {
         restauranteId: eu.restauranteId, comandaId: c.id, motivo, atorId: eu.userId, atorNome: eu.nome,
       })
       if (!r.ok) return NextResponse.json({ error: r.erro, codigo: r.codigo }, { status: r.codigo === 'comanda_com_pagamento' ? 409 : 400 })
+      if (lancados) await avisarDonoSensivel(ctx.admin, { sessao: eu, acao: 'cancelamento', aprovadoPor, resumo, motivo })
       return NextResponse.json({ ok: true, resultado: r.valor })
     }
 
@@ -234,7 +278,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       if (!p) return NextResponse.json({ error: 'Pedido não pertence a esta conta.' }, { status: 404 })
       const motivo = texto(corpo.motivo, 200)
       if (!motivo) return NextResponse.json({ error: 'Informe o motivo.', codigo: 'motivo_obrigatorio' }, { status: 400 })
-      return responder(await conta.cancelarPedido(ctx.admin, eu, p.id, motivo, ctx.pode('pedidos.presencial.cancelar'), 'pdv'))
+      return comSegundaPessoa(ctx, corpo, 'cancelamento', `o pedido #${p.numero}`, null, motivo,
+        () => conta.cancelarPedido(ctx.admin, eu, p.id, motivo, ctx.pode('pedidos.presencial.cancelar'), 'pdv'))
     }
 
     case 'solicitar_cancelamento': {
@@ -260,7 +305,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     case 'cancelar_item': {
       const motivo = texto(corpo.motivo, 200)
       if (!motivo) return NextResponse.json({ error: 'Informe o motivo.', codigo: 'motivo_obrigatorio' }, { status: 400 })
-      return responder(await conta.cancelarItem(ctx.admin, eu, c, texto(corpo.itemId, 36), motivo, 'pdv'))
+      const itemId = texto(corpo.itemId, 36)
+      const doPedido = c.pedidos.find((p) => p.itens.some((i) => i.id === itemId))
+      return comSegundaPessoa(ctx, corpo, 'cancelamento', `um item do pedido #${doPedido?.numero ?? ''}`, null, motivo,
+        () => conta.cancelarItem(ctx.admin, eu, c, itemId, motivo, 'pdv'))
     }
 
     case 'reimprimir':

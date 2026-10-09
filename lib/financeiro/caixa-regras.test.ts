@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { avaliarContagem, linhasDaAbertura, linhasDoAjuste, linhasDoMovimento, MOVIMENTOS, permissaoDoMovimento, precisaAprovacao, tempoAberto } from './caixa-regras'
+import { avaliarContagem, faltaNaGaveta, linhasDaAbertura, linhasDoAjuste, linhasDoMovimento, MOVIMENTOS, permissaoDoMovimento, precisaAprovacao, tempoAberto } from './caixa-regras'
 
 const soma = (ls: { valorCentavos: number }[]) => ls.reduce((s, l) => s + l.valorCentavos, 0)
 const naGaveta = (ls: { carteira: string; valorCentavos: number }[]) => soma(ls.filter((l) => l.carteira === 'gaveta'))
@@ -53,5 +53,16 @@ describe('fechamento', () => {
     expect(tempoAberto('2026-10-02T14:45:00Z', agora)).toBe('15 min')
     expect(tempoAberto('2026-10-02T11:40:00Z', agora)).toBe('3 h 20 min')
     expect(tempoAberto('2026-10-02T12:00:00Z', agora)).toBe('3 h')
+  })
+})
+
+describe('sangria maior que a gaveta', () => {
+  it('recusa com quanto há na gaveta', () => {
+    expect(faltaNaGaveta({ movimento: 'sangria', valor: 15000, gaveta: 10900 })).toBe('Só há R$ 109,00 na gaveta.')
+    expect(faltaNaGaveta({ movimento: 'sangria', valor: 100, gaveta: -5100 })).toBe('Só há R$ 0,00 na gaveta.')
+  })
+  it('até o valor da gaveta passa; outros movimentos não entram na regra', () => {
+    expect(faltaNaGaveta({ movimento: 'sangria', valor: 10900, gaveta: 10900 })).toBeNull()
+    expect(faltaNaGaveta({ movimento: 'despesa', valor: 99999, gaveta: 0 })).toBeNull()
   })
 })

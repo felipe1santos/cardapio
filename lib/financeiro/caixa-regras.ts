@@ -1,5 +1,6 @@
 import type { AcaoFin } from './permissoes'
 import type { LinhaLancamento } from './ledger'
+import { formatarCentavos } from './centavos'
 
 /**
  * Regras do caixa (Fase 2) — puras, testadas, usadas pelo servidor.
@@ -57,6 +58,15 @@ export function linhasDaAbertura(fundo: number): LinhaLancamento[] {
 export function precisaAprovacao(p: { movimento: Movimento; valor: number; limite: number; papel: string }): boolean {
   if (p.papel === 'dono' || p.movimento === 'reforco') return false
   return p.valor > p.limite
+}
+
+/**
+ * Sangria maior que o dinheiro esperado na gaveta: recusa com "Só há R$ X na gaveta". Sem isso a
+ * gaveta ficava negativa (sangria de R$ 150 com R$ 109 — auditoria de 09/10). null = pode.
+ */
+export function faltaNaGaveta(p: { movimento: Movimento; valor: number; gaveta: number }): string | null {
+  if (p.movimento !== 'sangria' || p.valor <= p.gaveta) return null
+  return `Só há ${formatarCentavos(Math.max(0, p.gaveta))} na gaveta.`
 }
 
 /** Resultado da contagem cega: diferença (contado − esperado) e se passa do limite da loja. */

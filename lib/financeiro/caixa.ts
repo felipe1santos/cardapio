@@ -7,7 +7,7 @@ import { criarAlerta } from './alertas'
 import { podeFin } from './permissoes'
 import { formatarCentavos } from './centavos'
 import {
-  avaliarContagem, linhasDaAbertura, linhasDoAjuste, linhasDoMovimento, permissaoDoMovimento, precisaAprovacao,
+  avaliarContagem, faltaNaGaveta, linhasDaAbertura, linhasDoAjuste, linhasDoMovimento, permissaoDoMovimento, precisaAprovacao,
   ROTULO_MOVIMENTO, type Movimento,
 } from './caixa-regras'
 import { exigenciasDoFechamento, TEXTO_MOTIVO, type Motivo } from './fechamento-regras'
@@ -195,6 +195,11 @@ export async function movimentar(ctx: ContextoFin, p: { movimento: Movimento; va
   const { data: ja } = await ctx.admin.from('fin_lancamentos').select('aprovado_por_nome').eq('restaurante_id', loja).eq('chave_idempotencia', `mov:${p.chave}`).limit(1)
   if (ja?.length) return { ok: true, repetido: true, aprovadoPor: (ja[0].aprovado_por_nome as string | null) ?? null }
 
+  // Antes do PIN: não gasta a aprovação de ninguém numa sangria que não cabe na gaveta.
+  if (p.movimento === 'sangria') {
+    const falta = faltaNaGaveta({ movimento: p.movimento, valor: p.valorCentavos, gaveta: (await saldosDoTurno(ctx.admin, loja, turno.id)).gaveta })
+    if (falta) return falha(falta, 409, 'gaveta_insuficiente')
+  }
   const cfg = await configFin(ctx.admin, loja)
   let aprovacao: { id: string; nome: string } | null = null
   if (precisaAprovacao({ movimento: p.movimento, valor: p.valorCentavos, limite: cfg.limiteSaida, papel: ctx.sessao.papel })) {

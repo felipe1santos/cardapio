@@ -47,7 +47,8 @@ function instalar() {
     ouvintes.forEach((f) => f('inicio'))
     try {
       const resposta = await original(entrada, init)
-      ouvintes.forEach((f) => f(resposta.ok ? 'ok' : 'erro'))
+      // Pedido de aprovação (PIN) não é erro: a janela de aprovação assume (aprovacao-global.tsx).
+      ouvintes.forEach((f) => f(resposta.ok || resposta.headers.has('x-menuzia-aprovacao') ? 'ok' : 'erro'))
       return resposta
     } catch (err) {
       // Requisição cancelada pela própria tela (troca de página, AbortController) não é

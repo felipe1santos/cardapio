@@ -7,6 +7,7 @@ import { reverterBeneficiosPedidoCancelado } from '@/lib/fidelidade'
 import { motivoValido, rotuloMotivo, STATUS_NAO_CANCELAVEIS } from '@/lib/cancelamento'
 import * as conta from '@/lib/servicos/conta-presencial'
 import { registrarAuditoria } from '@/lib/auditoria'
+import { avisarDonoSensivel, exigirSegundaPessoa, foiParaCozinha } from '@/lib/financeiro/aprovacao-sensivel'
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -37,33 +38,43 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // de mesa por aqui em qualquer estado.
   const { data: ped } = await admin
     .from('pedidos')
-    .select('id, canal, comanda_id')
+    .select('id, numero, canal, comanda_id, status, impresso')
     .eq('id', id)
     .eq('restaurante_id', restauranteId)
     .maybeSingle()
   if (!ped) return NextResponse.json({ error: 'Pedido não encontrado.' }, { status: 404 })
 
-  if (ped.comanda_id && (ped.canal === 'mesa' || ped.canal === 'balcao')) {
-    const qualquer = pode(sessao.papel, 'pedidos.presencial.cancelar')
-    if (!qualquer && !pode(sessao.papel, 'pedidos.presencial.cancelar_recebido')) {
-      return NextResponse.json({ error: 'Sem permissão para cancelar pedido de conta.' }, { status: 403 })
-    }
-    const texto = observacao ? `${rotuloMotivo(motivo)} — ${observacao}` : rotuloMotivo(motivo)
+  // Já foi para a cozinha (lançado na conta, aceito ou impresso): com o financeiro ligado, PIN de
+  // outra pessoa e alerta para o dono (lib/financeiro/aprovacao-sensivel.ts).
+  const eu = { restauranteId, userId: sessao.userId, nome: sessao.nome, papel: sessao.papel }
+  const presencial = !!ped.comanda_id && (ped.canal === 'mesa' || ped.canal === 'balcao')
+  const resumo = `o pedido #${ped.numero}`
+  const textoMotivo = observacao ? `${rotuloMotivo(motivo)} — ${observacao}` : rotuloMotivo(motivo)
+  const qualquer = pode(sessao.papel, 'pedidos.presencial.cancelar')
+  if (presencial ? !qualquer && !pode(sessao.papel, 'pedidos.presencial.cancelar_recebido') : !pode(sessao.papel, 'pedidos.delivery.cancelar')) {
+    return NextResponse.json({ error: presencial ? 'Sem permissão para cancelar pedido de conta.' : 'Sem permissão para cancelar.' }, { status: 403 })
+  }
+  let aprovadoPor: string | null = null
+  const sensivel = presencial || foiParaCozinha({ status: ped.status as string, impresso: ped.impresso === true })
+  if (sensivel) {
+    const lib = await exigirSegundaPessoa(admin, { sessao: eu, corpo: body, acao: 'cancelamento', valorCentavos: null, resumo })
+    if (!lib.ok) return lib.resposta
+    aprovadoPor = lib.aprovadoPor
+  }
+
+  if (presencial) {
     const r = await conta.cancelarPedido(
       admin,
-      { restauranteId, userId: sessao.userId, nome: sessao.nome, papel: sessao.papel },
+      eu,
       id,
-      texto,
+      textoMotivo,
       qualquer,
       'pdv',
     )
     if (!r.ok) return NextResponse.json({ error: r.erro, codigo: r.codigo }, { status: r.status })
+    await avisarDonoSensivel(admin, { sessao: eu, acao: 'cancelamento', aprovadoPor, resumo, motivo: textoMotivo })
     reverterBeneficiosPedidoCancelado(admin, restauranteId, id).catch(console.error)
     return NextResponse.json({ ok: true })
-  }
-
-  if (!pode(sessao.papel, 'pedidos.delivery.cancelar')) {
-    return NextResponse.json({ error: 'Sem permissão para cancelar.' }, { status: 403 })
   }
 
   const { data: auth } = await session.auth.getUser()
@@ -105,6 +116,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     entidadeId: id,
     dados: { motivo, observacao: observacao || null, canal: 'delivery' },
   }).catch(() => {})
+  if (sensivel) await avisarDonoSensivel(admin, { sessao: eu, acao: 'cancelamento', aprovadoPor, resumo, motivo: textoMotivo })
 
   reverterBeneficiosPedidoCancelado(admin, restauranteId, id).catch(console.error)
   return NextResponse.json({ ok: true })

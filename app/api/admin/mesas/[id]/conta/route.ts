@@ -3,6 +3,7 @@ import type { Permissao } from '@/lib/auth/permissoes'
 import { contextoSalao, type ContextoSalao } from '@/lib/auth/salao'
 import { ehFormaOferecida, formatarResumoPagamento } from '@/lib/conta'
 import { registrarAuditoria } from '@/lib/auditoria'
+import { avisarDonoSensivel, exigirSegundaPessoa } from '@/lib/financeiro/aprovacao-sensivel'
 import * as servicoConta from '@/lib/servicos/conta-presencial'
 import {
   ajustarValores,
@@ -152,6 +153,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const falhou = (r: { erro: string; codigo: string }) =>
     NextResponse.json({ error: r.erro, codigo: r.codigo }, { status: STATUS_CONFLITO.has(r.codigo) ? 409 : 400 })
 
+  // Estorno e cancelamento do que já foi lançado (= enviado à cozinha): com o financeiro ligado, PIN de
+  // outra pessoa e alerta para o dono (lib/financeiro/aprovacao-sensivel.ts).
+  const eu = { restauranteId: sessao.restauranteId, userId: sessao.userId, nome: sessao.nome, papel: sessao.papel }
+  const segundaPessoa = (acaoS: 'estorno' | 'cancelamento', resumo: string, valorCentavos: number | null = null) =>
+    exigirSegundaPessoa(admin, { sessao: eu, corpo, acao: acaoS, valorCentavos, resumo: `${resumo} (${mesa.nome})` })
+  const avisarDono = (acaoS: 'estorno' | 'cancelamento', aprovadoPor: string | null, resumo: string, motivo: string, valorCentavos: number | null = null) =>
+    avisarDonoSensivel(admin, { sessao: eu, acao: acaoS, aprovadoPor, resumo: `${resumo} (${mesa.nome})`, motivo, valorCentavos })
+
   switch (acao) {
     case 'pagamento': {
       const forma = corpo.forma
@@ -190,8 +199,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       // O pagamento tem que ser DESTA conta — id de outra mesa não serve.
       const pag = conta!.pagamentos.find((p) => p.id === pagamentoId)
       if (!pag) return NextResponse.json({ error: 'Pagamento não pertence a esta conta.' }, { status: 404 })
+      const resumoEst = `o pagamento em ${pag.forma} da conta #${conta!.numero ?? ''}`
+      const lib = await segundaPessoa('estorno', resumoEst, Math.round(Number(pag.valor) * 100))
+      if (!lib.ok) return lib.resposta
       const r = await estornarPagamento(admin, { restauranteId: sessao.restauranteId, pagamentoId, motivo, atorNome: sessao.nome })
       if (!r.ok) return falhou(r)
+      await avisarDono('estorno', lib.aprovadoPor, resumoEst, motivo, Math.round(Number(pag.valor) * 100))
       await auditar('conta.estorno', conta!.comandaId, {
         resumo: formatarResumoPagamento(pag.forma, pag.valor, 0), motivo, pagamento_id: pagamentoId,
       })
@@ -338,12 +351,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     case 'cancelar_comanda': {
       const motivo = texto(corpo.motivo)
       if (!motivo) return NextResponse.json({ error: 'Informe o motivo.' }, { status: 400 })
+      const lancados = conta!.lancamentos.filter((l) => l.status !== 'cancelado').length
+      const resumoCc = `a conta #${conta!.numero ?? ''} com ${lancados} pedido(s) lançado(s)`
+      let aprovadoPor: string | null = null
+      if (lancados) {
+        const lib = await segundaPessoa('cancelamento', resumoCc)
+        if (!lib.ok) return lib.resposta
+        aprovadoPor = lib.aprovadoPor
+      }
       // A função do banco audita por dentro, na mesma transação do cancelamento.
       const r = await cancelarComanda(admin, {
         restauranteId: sessao.restauranteId, comandaId: conta!.comandaId, motivo,
         atorId: sessao.userId, atorNome: sessao.nome,
       })
       if (!r.ok) return falhou(r)
+      if (lancados) await avisarDono('cancelamento', aprovadoPor, resumoCc, motivo)
       return NextResponse.json({ ok: true, ...r.valor })
     }
 
@@ -352,8 +374,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const motivo = texto(corpo.motivo)
       const item = conta!.lancamentos.flatMap((l) => l.itens).find((i) => i.id === itemId)
       if (!item) return NextResponse.json({ error: 'Item não pertence a esta conta.' }, { status: 404 })
+      const resumoIt = `${item.quantidade}× ${item.nome}`
+      const lib = await segundaPessoa('cancelamento', resumoIt)
+      if (!lib.ok) return lib.resposta
       const r = await cancelarItem(admin, { restauranteId: sessao.restauranteId, itemId, motivo, atorNome: sessao.nome })
       if (!r.ok) return falhou(r)
+      await avisarDono('cancelamento', lib.aprovadoPor, resumoIt, motivo)
       await auditar('conta.cancelou_item', conta!.comandaId, {
         resumo: `${item.quantidade}× ${item.nome}`, motivo, item_id: itemId, de: 'ativo', para: 'cancelado',
       })
@@ -364,12 +390,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const pedidoId = typeof corpo.pedidoId === 'string' ? corpo.pedidoId : ''
       const motivo = texto(corpo.motivo)
       if (!motivo) return NextResponse.json({ error: 'Informe o motivo.' }, { status: 400 })
-      if (!conta!.lancamentos.some((l) => l.id === pedidoId)) {
+      const lanc = conta!.lancamentos.find((l) => l.id === pedidoId)
+      if (!lanc) {
         return NextResponse.json({ error: 'Lançamento não pertence a esta conta.' }, { status: 404 })
       }
+      const lib = await segundaPessoa('cancelamento', `o pedido #${lanc.numero}`)
+      if (!lib.ok) return lib.resposta
       // Função do banco: trava a comanda, confere o que já foi pago e audita.
       const r = await cancelarPedido(admin, { restauranteId: sessao.restauranteId, pedidoId, motivo, atorId: sessao.userId, atorNome: sessao.nome })
       if (!r.ok) return falhou(r)
+      await avisarDono('cancelamento', lib.aprovadoPor, `o pedido #${lanc.numero}`, motivo)
       return NextResponse.json({ ok: true })
     }
 

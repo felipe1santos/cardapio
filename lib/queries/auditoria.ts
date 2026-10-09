@@ -101,6 +101,8 @@ export const ROTULO_EVENTO: Record<string, string> = {
   'sessao.definiu_pin': 'Criou ou trocou o próprio PIN',
   // Financeiro (0132).
   'fin.aprovou': 'Aprovou uma ação com o PIN',
+  'fin.estorno_aprovado': 'Estornou um pagamento (com aprovação)',
+  'fin.cancelamento_aprovado': 'Cancelou o que já foi para a cozinha (com aprovação)',
   'fin.pin_recusado': 'PIN de aprovação recusado',
   'fin.verificou_integridade': 'Verificou a integridade dos registros',
   'fin.exportou_fluxo': 'Exportou o Fluxo de Caixa (CSV/PDF)',
