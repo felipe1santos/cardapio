@@ -141,7 +141,11 @@ function Desenho({ aba, baldes, ant, temLucro, ocultas, alternar }: { aba: Aba; 
         onPointerMove={(e) => setFoco(indiceDe(e.clientX))} onPointerDown={(e) => setFoco(indiceDe(e.clientX))} onPointerLeave={(e) => { if (e.pointerType === 'mouse') setFoco(null) }}>
         <svg width={largura} height={altura} role="img" aria-label={`Gráfico de ${aba}`} className="block max-w-full">
           {ticks.map((t) => <g key={t}><line x1={esq} x2={largura - dir} y1={y(t)} y2={y(t)} stroke={COR.grade} /><text x={esq - 6} y={y(t) + 4} textAnchor="end" fontSize="11" fill={COR.eixo}>{fmtEixo(t)}</text></g>)}
-          {marcas.map((i) => <text key={i} x={x(i)} y={altura - 8} textAnchor="middle" fontSize="11" fill={COR.eixo}>{baldes[i].rotulo}</text>)}
+          {marcas.map((i) => {
+            // Primeiro e último rótulo encostados na borda: alinham para dentro (não cortam "9 out").
+            const ancora = !empilhado && n > 1 && i === n - 1 ? 'end' : !empilhado && n > 1 && i === 0 ? 'start' : 'middle'
+            return <text key={i} x={x(i)} y={altura - 8} textAnchor={ancora} fontSize="11" fill={COR.eixo}>{baldes[i].rotulo}</text>
+          })}
           {foco !== null && !empilhado && <line x1={x(foco)} x2={x(foco)} y1={topo} y2={topo + h} stroke={COR.hover} />}
           {foco !== null && empilhado && <rect x={x(foco) - w / n / 2} y={topo} width={w / n} height={h} fill="#F2F2F2" />}
           {empilhado && baldes.map((_, i) => {
