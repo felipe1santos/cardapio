@@ -13,7 +13,7 @@ export interface Conciliacao {
   itensCentavos: number
   taxasCentavos: number
   descontosCentavos: number
-  /** Recebido − total dos pedidos: taxa de serviço da comanda, gorjeta, pagamento parcial ou a mais. */
+  /** Recebido − (itens + taxas − descontos): gorjeta, pagamento parcial ou a mais (taxas e descontos da conta entram nas próprias linhas desde a 0163). */
   outrosCentavos: number
   /** Recebido agora de venda cujo primeiro recebimento foi em outro período. */
   outroPeriodoCentavos: number
