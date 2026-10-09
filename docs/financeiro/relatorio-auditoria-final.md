@@ -147,3 +147,42 @@ Commits publicados hoje (cada um com typecheck, lint e a suíte de unidade intei
 6ca6f63, 3abf6ec, b452435, 441302e, e70ce93, d26bbb9, c8922dd. Depois de cada deploy, o Assistente que estava
 buscando pedidos (só o da Menuzia estava ligado à tarde) voltou a buscar em menos de 5 min; os cardápios
 da Villa, da Ponto 400 e da Estância abriram (200) depois do último deploy. Nenhuma reversão foi necessária.
+
+## Todas as lojas (09/10, noite)
+
+**Ajustes antes de ligar (publicados):**
+- **DRE (0163):** taxa extra, taxa de serviço, entrega e desconto aplicados NA CONTA entram nas linhas Taxas e Descontos da conciliação (antes: "outros"). Ensaio nas 11 lojas: faturamento e itens iguais. Exemplo R$ 18 + R$ 3 − R$ 2: taxas +R$ 3, descontos +R$ 2, outros R$ 1 → R$ 0. Conciliação: 0 diferença. Commit 836dde9.
+- **Fluxo de Caixa:** turno que atravessa a meia-noite mostra "Turno aberto em 09/10, inclui vendas até 01h30 de 10/10" (linha, cartão do celular e extrato). Commit 65f1731.
+- **"Criar meu PIN" sem o financeiro ligado:** o raio-x mostrou que nenhuma loja conseguia ter gerente com PIN antes de ligar, porque o menu só oferecia o PIN com o financeiro já ligado. Corrigido (commit ee2e04e).
+- **Checklist (`financeiro-flag.mjs --checklist`):** bloqueia só o que a loja resolve antes de ligar: gerente com PIN, contas abertas, motoboy com dinheiro, caixa aberto com financeiro. Caixa automático do dia, custo dos itens e fundo/WhatsApp viram tarefa do 1º dia (só existem dentro do Financeiro).
+
+**Raio-x (só leitura):**
+
+| Loja | Gerente com PIN | Contas abertas | Caixa aberto | Motoboys pendentes | Top 15 com custo | Fundo e WhatsApp | PRONTA? |
+|---|---|---|---|---|---|---|---|
+| DB Doces | não | 0 | não | nenhum | sem vendas (30 d) | não definidos | NÃO |
+| Estância Burger | não | 1 (desde 04/10) | não | nenhum | 0/15 | não definidos | NÃO |
+| Golden Burger | não | 0 | não | nenhum | sem vendas (30 d) | não definidos | NÃO |
+| Mama Pizza | não | 0 | não | nenhum | sem vendas (30 d) | não definidos | NÃO |
+| Angus Burguer *(já ligada)* | Gerente Aprovador (teste), Gerente Teste | 0 | não | nenhum | 0/13 | fundo R$ 50.00, WhatsApp sim | **SIM** |
+| Nossa Cozinha - IFS | não | 0 | não | nenhum | sem vendas (30 d) | não definidos | NÃO |
+| Pizza do Rosa | não | 0 | não | nenhum | sem vendas (30 d) | não definidos | NÃO |
+| PONTO 400 HAMBURGUERIA | não | 1 (desde 06/10) | sim (desde 08/10, Automático (1ª entrega)) | nenhum | 0/15 | não definidos | NÃO |
+| teste | não | 0 | não | nenhum | sem vendas (30 d) | não definidos | NÃO |
+| Villalanches Gourmet | não | 1 (desde 07/10) | sim (desde 08/10, Automático (1ª entrega)) | nenhum | 0/15 | não definidos | NÃO |
+| W Lanches Reviver | não | 0 | não | nenhum | sem vendas (30 d) | não definidos | NÃO |
+
+"PRONTA?" segue o checklist acima (a coluna "Top 15 com custo" e "Fundo e WhatsApp" são informativas). A Angus Burguer
+é a loja de teste Menuzia, já ligada.
+
+**Lojas ligadas: nenhuma** (nenhuma loja real passou no checklist). O que falta em cada uma:
+- Estância Burger: gerente com PIN; fechar/cancelar a conta #31 (R$ 125,50, desde 04/10).
+- Ponto 400: gerente com PIN; fechar/cancelar a conta #7 (R$ 33,00, desde 06/10).
+- Villalanches: gerente com PIN (equipe tem atendente e garçons, nenhum gerente); cancelar a conta #62 (R$ 0,00, desde 07/10).
+- Pizza do Rosa, Mama Pizza, Golden Burger, Nossa Cozinha, W Lanches Reviver, DB Doces: só gerente com PIN.
+
+Mensagens prontas para cada lojista: `docs/financeiro/mensagens-lojistas.md`.
+
+**Decisão para revisar:** o campo "Preço de custo" do Gestor de Cardápio NÃO entra no CMV (o CMV usa só a ficha
+técnica de Financeiro › Precificação/CMV). Quem preencher o custo no cardápio vai continuar vendo "sem custo".
+Opções: fazer o CMV usar esse campo quando o item não tem ficha, ou esconder/renomear o campo.
