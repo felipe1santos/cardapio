@@ -8,11 +8,10 @@ import { ModalAjudaImpressao } from '@/components/impressao/ajuda-impressao'
 import { ImpressoraModal } from '@/components/impressao/documentos'
 import { EnvioImpressora } from '@/components/impressao/envio-impressora'
 import type { LojaPrevia } from '@/components/impressao/modal-previa'
-import { ModalPareamento, ModalTestes, nomeDisp, TAMANHOS_LETRA, type PainelDados, type ResultadoTeste, type TamanhoLetra, type TipoTeste } from '@/components/impressao/beta-cards'
+import { ModalPareamento, ModalTestes, nomeDisp, type PainelDados, type ResultadoTeste, type TamanhoLetra, type TipoTeste } from '@/components/impressao/beta-cards'
 import { Flutuante, ModalCentral, NoTopo } from '@/components/ui/flutuante'
 import { ROTULO_MODO_BETA, DOWNLOAD_ASSISTENTE_ATUAL, DOWNLOAD_ASSISTENTE_BETA, instaladorConectado } from '@/lib/impressao/rotulos'
 import { modoDependeDoAgente, ehImpressoraVirtual, pareamentoAntigo } from '@/lib/impressao/regras-modo'
-import { envioDiretoSugerido } from '@/lib/impressao/regras-calibracao'
 import { prontidaoBeta, versaoInstalada } from '@/lib/impressao/opcao'
 import { compararVersao, VERSAO_IMPRESSAO_V3 } from '@/lib/avisos-painel'
 import { SUPORTE_MENUZIA } from '@/lib/suporte'
@@ -79,8 +78,9 @@ function conexao(d: DispositivoVisao): string {
 const detalhe = (d: DispositivoVisao) => [conexao(d), `papel ${d.larguraMm} mm`].filter(Boolean).join(' · ')
 
 /** Opções do papel (as reais). Preço dos adicionais e letra maior só existem no Assistente antigo. */
-type ChaveOpcao = 'imprimirLogo' | 'mostrarNumeroItem' | 'mostrarNomeComplementos' | 'multiplicarOpcoesQtd' | 'viaCozinha' | 'qr' | 'mostrarPrecoComplementos' | 'fonteMaiorProducao'
+type ChaveOpcao = 'impressaoAutomatica' | 'imprimirLogo' | 'mostrarNumeroItem' | 'mostrarNomeComplementos' | 'multiplicarOpcoesQtd' | 'viaCozinha' | 'qr' | 'mostrarPrecoComplementos' | 'fonteMaiorProducao'
 const OPCOES_PAPEL: { chave: ChaveOpcao; titulo: string; frase: string }[] = [
+  { chave: 'impressaoAutomatica', titulo: 'Imprimir sozinho', frase: 'Imprime o pedido assim que ele chega.' },
   { chave: 'imprimirLogo', titulo: 'Logo da loja', frase: 'A logo em preto e branco no topo do papel.' },
   { chave: 'mostrarNumeroItem', titulo: 'Quantidade no item', frase: 'Mostra "2x" antes do nome do produto.' },
   { chave: 'mostrarNomeComplementos', titulo: 'Adicionais', frase: 'Mostra os adicionais que o cliente escolheu.' },
@@ -112,7 +112,6 @@ export function PainelImpressao() {
   const [testando, setTestando] = useState(false)
   const [ajuda, setAjuda] = useState(false)
   const [calibrar, setCalibrar] = useState<string | null>(null)
-  const [avancado, setAvancado] = useState(false)
   const [dadosPrevia, setDadosPrevia] = useState<LojaPrevia | null>(null)
   const [trocar, setTrocar] = useState<'beta' | 'antigo' | null>(null)
   const [modalImpressora, setModalImpressora] = useState<{ id: string; input: ImpressoraInput } | null>(null)
@@ -399,6 +398,36 @@ export function PainelImpressao() {
                     )}
                   </div>
                 </div>
+                {/* 09/10: sem "Avançado" — o que a loja ainda precisa fica aqui, discreto. */}
+                {todosAtivos.length > 0 && (
+                  <div className="ti-av mt-3" data-testid="computadores">
+                    {todosAtivos.map((a) => (
+                      <div key={a.id} className="ti-av-linha" data-testid={`av-agente-${a.id}`}>
+                        <span className="min-w-0"><b>{a.nome}</b><small>{agenteAntigo(a) ? 'pareamento antigo — pode desconectar · ' : ''}versão {a.versao ?? '—'} · {a.online ? 'conectado agora' : `sem sinal desde ${quando(a.vistoEm) || '—'}`}</small></span>
+                        <button type="button" className="ti-link" style={{ fontSize: 12, fontWeight: 400 }} onClick={() => revogar(a)} disabled={ocupado} data-testid={`revogar-${a.nome}`}>Desconectar</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                  {ativos.length > 0 && <button type="button" className="ti-link" style={{ fontSize: 12, fontWeight: 400 }} onClick={() => void abrirPareamento()} disabled={ocupado} data-testid="trocar-computador">Trocar computador</button>}
+                  {!antigo && !p.somenteNova && <button type="button" className="ti-link" style={{ fontSize: 12, fontWeight: 400 }} onClick={() => setTrocar('antigo')} data-testid="voltar-antigo">Usar impressão antiga</button>}
+                </div>
+                {antigo && !p.somenteNova && (
+                  <div className="ti-av mt-3" data-testid="av-antigo"><p className="ti-rot"><b>Assistente antigo</b> (enquanto a loja usa)</p>
+                    <div className="ti-av-linha">
+                      <span className="min-w-0"><span className="block">Sinal: {atualOnline ? 'conectado' : atualVistoEm ? `sem sinal desde ${quando(atualVistoEm)}` : 'nunca conectou'}</span><small>Impressora: {impAntiga?.nome ?? '—'}</small></span>
+                      <span className="ti-acoes">
+                        {podeEditar && token && <button type="button" className="ti-btn sm" onClick={() => navigator.clipboard.writeText(token).then(() => { setCopiado(true); setTimeout(() => setCopiado(false), 2000) })} data-testid="token-copiar">{copiado ? 'Token copiado' : 'Copiar token'}</button>}
+                        {podeEditar && <button type="button" className="ti-btn sm" onClick={() => void gerarToken()} data-testid="token-gerar">{token ? 'Gerar novo token' : 'Gerar token'}</button>}
+                        {podeEditar && impAntiga && <button type="button" className="ti-btn sm" onClick={() => setModalImpressora({ id: impAntiga.id, input: { nome: impAntiga.nome, tamanhoFonte: impAntiga.tamanhoFonte, largura: impAntiga.largura, copias: impAntiga.copias } })}>Editar impressora</button>}
+                      </span>
+                    </div>
+                    {config && <div className="ti-av-linha"><span>Assistente antigo ativado</span><button type="button" className="ti-sw" role="switch" aria-checked={config.ativarAssistente} aria-label="Assistente antigo ativado" disabled={!podeEditar} onClick={() => void patchConfig({ ativarAssistente: !config.ativarAssistente })} data-testid="opcao-ativarAssistente" /></div>}
+                    <a className="ti-btn sm" href={DOWNLOAD_ASSISTENTE_ATUAL.url}>Instalador do antigo ({DOWNLOAD_ASSISTENTE_ATUAL.versao})</a>
+                  </div>
+                )}
+
                 {antigo && !p.somenteNova && (
                   <Aviso testid="aviso-antigo" acao={prontidao?.pronto ? <button type="button" className="ti-btn" onClick={() => setTrocar('beta')} data-testid="usar-novo">Usar o assistente novo</button> : undefined}>
                     Sua loja usa o assistente antigo. Instale o novo para continuar imprimindo.
@@ -415,7 +444,7 @@ export function PainelImpressao() {
                 )}
                 {!antigo && desatualizado && (
                   <Aviso testid="aviso-versao" acao={<a className="ti-btn" href={DOWNLOAD_ASSISTENTE_BETA.url} data-testid="aviso-versao-baixar"><Download aria-hidden /> Baixar a versão nova</a>}>
-                    Este computador está na versão <b>{versao.replace(/^0.2.0-/, '')}</b>. Baixe a <b>{VERSAO_IMPRESSAO_V3.replace(/^0.2.0-/, '')}</b> e abra o instalador no computador da impressora: ele instala por cima, sem desinstalar, e o assistente volta conectado sozinho.{compararVersao(versao, '0.2.0-beta.11') >= 0 ? ' Este computador já se atualiza sozinho fora do horário de pico.' : ' A partir desta versão ele se atualiza sozinho.'}
+                    Este computador está na versão <b>{versao.replace(/^0.2.0-/, '')}</b>. Baixe a <b>{DOWNLOAD_ASSISTENTE_BETA.versao.replace(/^0.2.0-/, '')}</b> e abra o instalador no computador da impressora: ele instala por cima, sem desinstalar, e o assistente volta conectado sozinho.{compararVersao(versao, '0.2.0-beta.11') >= 0 ? ' Este computador já se atualiza sozinho fora do horário de pico.' : ' A partir desta versão ele se atualiza sozinho.'}
                   </Aviso>
                 )}
                 {!p.betaLiberado && (
@@ -469,7 +498,6 @@ export function PainelImpressao() {
                 {config && !podeEditar && <p className="ti-rot mt-2">Só o dono da loja altera estas opções.</p>}
               </Card>
 
-              <button type="button" className="ti-avancado" onClick={() => setAvancado(true)} data-testid="abrir-avancado">Avançado</button>
             </>
           )}
 
@@ -477,93 +505,6 @@ export function PainelImpressao() {
           <NoTopo classe="tela-impressao"><ModalAjudaImpressao aberto={ajuda} onFechar={() => setAjuda(false)} /></NoTopo>
           {pareando && <ModalPareamento codigo={pareando.codigo} erro={pareando.erro} conectado={pareando.conectado} onGerarOutro={() => void abrirPareamento()} onFechar={() => setPareando(null)} />}
           {testando && p && <NoTopo classe="tela-impressao"><ModalTestes p={{ ...p, dispositivos: naLista }} onTestar={testar} onFechar={() => setTestando(false)} /></NoTopo>}
-          {p && (
-            <ModalCentral aberto={avancado} onFechar={() => setAvancado(false)} largura={640} classeTema="tela-impressao" testid="modal-avancado" titulo="Avançado" subtitulo="Para o suporte: computador, papel e formato de envio (tudo já vem automático).">
-              <div className="ti-av">
-                <SecaoAv titulo="Computador" testid="av-computador">
-                  {todosAtivos.length ? todosAtivos.map((a) => (
-                    <div key={a.id} className="ti-av-linha" data-testid={`av-agente-${a.id}`}>
-                      <span className="min-w-0"><b>{a.nome}</b><small>{agenteAntigo(a) ? 'pareamento antigo — pode desconectar · ' : ''}versão {a.versao ?? '—'} · {a.online ? 'conectado agora' : `sem sinal desde ${quando(a.vistoEm) || '—'}`}</small></span>
-                      <button type="button" className="ti-btn sm" onClick={() => revogar(a)} disabled={ocupado} data-testid={`revogar-${a.nome}`}>Desconectar</button>
-                    </div>
-                  )) : <p className="ti-rot">Nenhum computador conectado.</p>}
-                  <div className="ti-acoes mt-2">
-                    {semCodigo && <button type="button" className="ti-btn sm" onClick={() => void conectarEsteComputador()} disabled={ocupado} data-testid="av-conectar-este">Conectar este computador</button>}
-                    <button type="button" className="ti-btn sm" onClick={() => void abrirPareamento()} disabled={ocupado} data-testid="trocar-computador">{ativos.length ? 'Trocar computador / parear novo PC' : 'Parear com código'}</button>
-                  </div>
-                </SecaoAv>
-
-                <SecaoAv titulo="Largura do papel" testid="av-largura">
-                  {naLista.length ? naLista.map((d) => (
-                    <div key={d.id} className="ti-av-linha">
-                      <span className="min-w-0 truncate">{nomeDisp(d)}</span>
-                      <div className="ti-seg" role="group" aria-label={`Largura do papel de ${nomeDisp(d)}`}>
-                        {([80, 58] as const).map((mm) => <button key={mm} type="button" aria-pressed={d.larguraMm === mm} disabled={ocupado} onClick={() => mm !== d.larguraMm && void ajustar(d, { larguraMm: mm })} data-testid={`largura-${d.id}-${mm}`}>{mm} mm</button>)}
-                      </div>
-                    </div>
-                  )) : <p className="ti-rot">Adicione uma impressora no card 2.</p>}
-                </SecaoAv>
-
-                <SecaoAv titulo="Formato de envio" testid="av-envio" frase="Automático: tenta o envio direto (mais rápido) e, se falhar, imprime pelo Windows.">
-                  {naLista.map((d) => {
-                    const direto = d.envio === 'raw_fila' || d.envio === 'raw_rede'
-                    return (
-                      <div key={d.id} className="ti-av-linha">
-                        <span className="min-w-0"><span className="block truncate">{nomeDisp(d)}</span>{d.envioCaminho && <small data-testid={`caminho-${d.id}`}>última: {d.envioCaminho === 'driver' ? 'pelo Windows' : 'envio direto'}</small>}</span>
-                        <div className="ti-seg" role="group" aria-label={`Formato de envio de ${nomeDisp(d)}`}>
-                          <button type="button" aria-pressed={d.envio === 'auto'} disabled={ocupado} onClick={() => d.envio !== 'auto' && void ajustar(d, { envio: 'auto' })} data-testid={`envio-${d.id}-auto`}>Automático</button>
-                          <button type="button" aria-pressed={direto} disabled={ocupado} onClick={() => !direto && void ajustar(d, { envio: envioDiretoSugerido(d) })} data-testid={`envio-${d.id}-direto`}>Envio direto</button>
-                          <button type="button" aria-pressed={d.envio === 'driver'} disabled={ocupado} onClick={() => d.envio !== 'driver' && void ajustar(d, { envio: 'driver' })} data-testid={`envio-${d.id}-windows`}>Pelo Windows</button>
-                        </div>
-                      </div>
-                    )
-                  })}
-                  {!naLista.length && <p className="ti-rot">Adicione uma impressora no card 2.</p>}
-                </SecaoAv>
-
-                {/* 08/10: sem "Calibrar" — largura vem do driver e o envio é direto (com o Windows de reserva). */}
-                <SecaoAv titulo="Tamanho da letra" testid="av-letra" frase="A largura do papel e o envio são automáticos.">
-                  {naLista.map((d) => (
-                    <div key={d.id} className="ti-av-linha">
-                      <span className="min-w-0 truncate">{nomeDisp(d)}</span>
-                      <span className="ti-acoes">
-                        <select className="ti-campo h-[32px]" aria-label={`Tamanho da letra de ${nomeDisp(d)}`} value={d.tamanhoFonte} disabled={ocupado} onChange={(e) => void ajustar(d, { tamanhoFonte: e.target.value as TamanhoLetra })} data-testid={`letra-${d.id}`}>
-                          {TAMANHOS_LETRA.map((t) => <option key={t.valor} value={t.valor}>{t.rotulo}</option>)}
-                        </select>
-                      </span>
-                    </div>
-                  ))}
-                  {!naLista.length && <p className="ti-rot">Adicione uma impressora no card 2.</p>}
-                </SecaoAv>
-
-                {config && (
-                  <SecaoAv titulo="Pedidos" testid="av-pedidos">
-                    <div className="ti-av-linha"><span>Imprimir sozinho quando o pedido chega</span><button type="button" className="ti-sw" role="switch" aria-checked={config.impressaoAutomatica} aria-label="Imprimir sozinho quando o pedido chega" disabled={!podeEditar} onClick={() => void patchConfig({ impressaoAutomatica: !config.impressaoAutomatica })} data-testid="opcao-impressaoAutomatica" /></div>
-                  </SecaoAv>
-                )}
-
-                {antigo && !p.somenteNova && (
-                  <SecaoAv titulo="Assistente antigo (enquanto a loja usa)" testid="av-antigo">
-                    <div className="ti-av-linha">
-                      <span className="min-w-0"><span className="block">Sinal: {atualOnline ? 'conectado' : atualVistoEm ? `sem sinal desde ${quando(atualVistoEm)}` : 'nunca conectou'}</span><small>Impressora: {impAntiga?.nome ?? '—'}</small></span>
-                      <span className="ti-acoes">
-                        {podeEditar && token && <button type="button" className="ti-btn sm" onClick={() => navigator.clipboard.writeText(token).then(() => { setCopiado(true); setTimeout(() => setCopiado(false), 2000) })} data-testid="token-copiar">{copiado ? 'Token copiado' : 'Copiar token'}</button>}
-                        {podeEditar && <button type="button" className="ti-btn sm" onClick={() => void gerarToken()} data-testid="token-gerar">{token ? 'Gerar novo token' : 'Gerar token'}</button>}
-                        {podeEditar && impAntiga && <button type="button" className="ti-btn sm" onClick={() => setModalImpressora({ id: impAntiga.id, input: { nome: impAntiga.nome, tamanhoFonte: impAntiga.tamanhoFonte, largura: impAntiga.largura, copias: impAntiga.copias } })}>Editar impressora</button>}
-                      </span>
-                    </div>
-                    {config && <div className="ti-av-linha"><span>Assistente antigo ativado</span><button type="button" className="ti-sw" role="switch" aria-checked={config.ativarAssistente} aria-label="Assistente antigo ativado" disabled={!podeEditar} onClick={() => void patchConfig({ ativarAssistente: !config.ativarAssistente })} data-testid="opcao-ativarAssistente" /></div>}
-                    <a className="ti-btn sm" href={DOWNLOAD_ASSISTENTE_ATUAL.url}>Instalador do antigo ({DOWNLOAD_ASSISTENTE_ATUAL.versao})</a>
-                  </SecaoAv>
-                )}
-
-                <div className="ti-av-rodape">
-                  <button type="button" className="ti-btn sm" onClick={() => { setAvancado(false); setAjuda(true) }}>Guia e diagnóstico</button>
-                  {!antigo && !p.somenteNova && <button type="button" className="ti-link" style={{ fontSize: 12, fontWeight: 400 }} onClick={() => setTrocar('antigo')} data-testid="voltar-antigo">Usar impressão antiga</button>}
-                </div>
-              </div>
-            </ModalCentral>
-          )}
           <ModalCentral
             aberto={trocar !== null}
             onFechar={() => setTrocar(null)}
@@ -609,15 +550,6 @@ function Card({ cor, n, ico, titulo, sub, extra, children, testid }: { cor: 'azu
   )
 }
 
-function SecaoAv({ titulo, frase, children, testid }: { titulo: string; frase?: string; children: React.ReactNode; testid: string }) {
-  return (
-    <section className="ti-av-secao" data-testid={testid}>
-      <h4>{titulo}</h4>
-      {frase && <p className="ti-rot mb-2">{frase}</p>}
-      <div className="space-y-2">{children}</div>
-    </section>
-  )
-}
 
 /** Uma impressora da lista: apelido (editável) e nome técnico, situação, funções e remover. */
 function LinhaImpressora({ d, p, online, ocupado, onApelido, onFuncao, onRemover }: {
