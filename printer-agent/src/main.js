@@ -558,7 +558,8 @@ const filas = new FilasPorDispositivo(
       const doc = montarTesteLargura(t.snapshot, diagnosticos[t.nomeSistema] || {}, perfil)
       saida = await imprimirDocumentoBeta(t.nomeSistema, doc, largura, perfil)
     } else if (cozinhaTeste) {
-      const doc = montarComandaV3(t.snapshot.pedido, { config: {}, lojaNome: t.snapshot.loja, loja: t.loja, extras: t.snapshot.extras, qr: t.snapshot.qr || t.qr, teste: true })
+      // beta.13: as MESMAS opções do papel da comanda real (o servidor manda no teste).
+      const doc = montarComandaV3(t.snapshot.pedido, { config: t.snapshot.config || {}, lojaNome: t.snapshot.loja, loja: t.loja, extras: t.snapshot.extras, qr: t.snapshot.qr || t.qr, teste: true })
       const tLogo = Date.now()
       const logo = perfil.imprimirLogo ? await logoParaDesenho(t.logoVersao) : null
       if (perfil.tempos) { perfil.tempos.logoMs = Date.now() - tLogo; perfil.tempos._t0 = Date.now() }

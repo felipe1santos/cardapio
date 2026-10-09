@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { larguraDoDriver } from './largura-auto'
+import { buscarConfigImpressao } from '@/lib/queries/impressao'
 import { registrarAuditoria } from '@/lib/auditoria'
 import { traduzirErro } from '@/lib/servicos/conta-presencial'
 import { gerarCodigoPareamento, gerarConvitePareamento, gerarCredencial, hashCodigo, VALIDADE_CODIGO_MIN, VALIDADE_CONVITE_H } from './credenciais'
@@ -455,6 +456,12 @@ export async function criarReciboTeste(
     try { qr = qrDaRotaImpressa('00000000-0000-4000-8000-000000000061') } catch { qr = null }
   }
   const snapshot = modelo === 'cozinha' ? snapshotCozinhaTeste(destino, op.nome, qr) : snapshotReciboTeste(destino, op.nome)
+  // 09/10: o teste da Cozinha usa as MESMAS opções do papel que a comanda real ("O que aparece no
+  // papel"): quantidade no item, adicionais, múltipla escolha… (Assistente 0.2.0-beta.13+).
+  if (modelo === 'cozinha') {
+    const cfg = await buscarConfigImpressao(admin, op.restauranteId).catch(() => null)
+    if (cfg) snapshot.config = cfg
+  }
   const { data: novo, error } = await admin
     .from('impressao_trabalhos')
     .insert({

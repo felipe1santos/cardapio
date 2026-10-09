@@ -84,7 +84,7 @@ describe('Comanda da cozinha do Beta — padrão docs/referencias/impressao/coma
 
   it('dados da entrega pensados para o motoboy: cliente, telefone, endereço com complemento, bairro, cidade, referência e troco', () => {
     expect(blocos(doc(), 'dado').map((b) => [b.rotulo, b.valor])).toEqual([
-      ['Cliente:', 'TESTE CLAUDE'], ['Telefone:', '(27) 9992-0804'], ['Endereço:', 'Avenida Henrique Moscoso, 1, Apto 1203, bloco B'], ['Bairro:', 'JABURUNA'],
+      ['Cliente:', 'CLIENTE DE TESTE'], ['Telefone:', '(27) 9992-0804'], ['Endereço:', 'Avenida Henrique Moscoso, 1, Apto 1203, bloco B'], ['Bairro:', 'JABURUNA'],
       ['Cidade:', 'Vila Velha/ES'], ['Ref.:', 'Em frente à padaria, portão verde'],
     ])
     const longo = doc({
@@ -93,7 +93,7 @@ describe('Comanda da cozinha do Beta — padrão docs/referencias/impressao/coma
     })
     const dd = blocos(longo, 'dado')
     expect(dd.map((b) => [b.rotulo, b.valor, !!b.negrito])).toEqual([
-      ['Cliente:', 'TESTE CLAUDE', true], ['Telefone:', '(27) 9992-0804', true], ['Endereço:', 'Avenida Henrique Moscoso, 1, Apto 1203 bloco B', false],
+      ['Cliente:', 'CLIENTE DE TESTE', true], ['Telefone:', '(27) 9992-0804', true], ['Endereço:', 'Avenida Henrique Moscoso, 1, Apto 1203 bloco B', false],
       ['Bairro:', 'JABURUNA', true], ['Cidade:', 'Vila Velha/ES', false], ['Ref.:', 'Em frente à padaria, portão verde', false], ['Troco:', 'Troco para R$ 100,00', true],
     ])
     // Troco da entrega é do motoboy: sai nos dados, não em VALORES.

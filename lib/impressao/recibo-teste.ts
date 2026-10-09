@@ -100,7 +100,7 @@ export function snapshotCozinhaTeste(
     origem: 'cardapio',
     formaPagamento: 'pix',
     trocoPara: null,
-    clienteNome: 'teste claude',
+    clienteNome: 'Cliente de teste',
     clienteTelefone: '552799920804',
     enderecoRua: 'Avenida Henrique Moscoso',
     enderecoNumero: '1',
