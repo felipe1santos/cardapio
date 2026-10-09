@@ -10,11 +10,11 @@
  */
 export const ATUALIZACAO_ASSISTENTE = {
   ligada: true,
-  versao: '0.2.0-beta.11',
-  url: 'https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.2.0-beta.11/AssistenteMenuziaBeta-Setup-0.2.0-beta.11.exe',
-  sha512: 'JlkvgkqLdopdC2dyNjMFoy42oak5CCv7ZBZ+1o1CRzbF0XmLLV6ChEe5BDU9XnttNsJOzUuLAkhZv/l9buSyog==',
-  tamanho: 82454479,
-  data: '2026-10-08T05:00:00.000Z',
+  versao: '0.2.0-beta.12',
+  url: 'https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.2.0-beta.12/AssistenteMenuziaBeta-Setup-0.2.0-beta.12.exe',
+  sha512: 'x2y8KG7y33TurVQyVV2bsA3noQtoKfcj5FPmAxqXsDdNzXQNI6HX1/a4bOUJ4x5Y9eqP726Fu9Lq57U7g944EA==',
+  tamanho: 82454805,
+  data: '2026-10-09T03:00:00.000Z',
 }
 
 /** O `latest.yml` no formato que o electron-updater lê (provedor genérico). */

@@ -123,6 +123,10 @@ if (!obtevePrimazia) {
 let mainWindow = null
 let pollTimer = null
 let polling = false
+// Vigia do laço de pedidos (beta.12): em 08/10 o laço parou sem erro e o Assistente seguiu dando
+// sinal (trabalhos) sem imprimir a cozinha. Cada volta marca a hora; parado há 3 min → recomeça.
+let voltaPedidosEm = Date.now()
+let geracaoLaco = 0
 let cicloRodando = false // trava de reentrância: impede dois ciclos imprimirem o mesmo pedido
 // Atualização automática (beta.11): só instala com o Assistente parado. Marca a última impressão
 // (pedido ou trabalho recebido) e se há algo sendo impresso agora.
@@ -199,7 +203,7 @@ async function consultarDiagnostico(token) {
 
 async function avisarImpresso(pedidoId, auth) {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/agente/pedidos/${pedidoId}/imprimir`, { method: 'POST', headers: auth })
+    const res = await fetch(`${API_BASE_URL}/api/agente/pedidos/${pedidoId}/imprimir`, { method: 'POST', headers: auth, signal: AbortSignal.timeout(15_000) })
     return res.ok
   } catch {
     return false
@@ -216,6 +220,8 @@ async function cicloDePolling() {
   // senão dois ciclos veriam impresso=false e imprimiriam o mesmo pedido em duplicidade.
   if (cicloRodando) return
   cicloRodando = true
+  // Teste do vigia (só com a variável): a 1ª volta trava para sempre, como em 08/10.
+  if (process.env.MENUZIA_TESTE_TRAVAR_LACO === '1' && !globalThis.__travouUmaVez) { globalThis.__travouUmaVez = true; await new Promise(() => {}) }
   ultimoCicloPedidos = { longo: false, erro: false, semSucesso: false }
 
   // Computador pareado (0.1.26+) usa a própria credencial; senão, o token antigo da loja.
@@ -712,17 +718,39 @@ function iniciarPolling() {
  * o intervalo de sempre. Pedido que volta sem conseguir imprimir: pausa, sem laço quente.
  */
 async function lacoPedidos(intervaloMs) {
+  const minha = ++geracaoLaco
   let erros = 0
-  while (polling) {
-    const inicio = Date.now()
-    await cicloDePolling()
-    if (!polling) break
-    const u = ultimoCicloPedidos
-    erros = u.erro ? erros + 1 : 0
-    if (u.erro) await esperar(Math.min(30_000, intervaloMs * erros))
-    else if (!u.longo || u.semSucesso) await esperar(intervaloMs)
-    else if (Date.now() - inicio < 250) await esperar(500)
+  while (polling && minha === geracaoLaco) {
+    voltaPedidosEm = Date.now()
+    try {
+      const inicio = Date.now()
+      await cicloDePolling()
+      if (!polling || minha !== geracaoLaco) break
+      const u = ultimoCicloPedidos
+      erros = u.erro ? erros + 1 : 0
+      if (u.erro) await esperar(Math.min(30_000, intervaloMs * erros))
+      else if (!u.longo || u.semSucesso) await esperar(intervaloMs)
+      else if (Date.now() - inicio < 250) await esperar(500)
+    } catch (err) {
+      // Nada pode matar o laço da cozinha: registra e tenta de novo.
+      logArquivo(`PEDIDOS: volta do laço falhou: ${descreverErro(err)}`)
+      await esperar(5000)
+    }
   }
+}
+
+/** Vigia: laço de pedidos sem dar volta há 3 min (ligado e sem impressão longa) → recomeça. */
+function vigiarLacoPedidos() {
+  setInterval(() => {
+    if (!polling || !EH_BETA) return
+    const parado = Date.now() - voltaPedidosEm
+    if (parado < 3 * 60_000 || imprimindoPedidos) return
+    log(`Consulta de pedidos parada há ${Math.round(parado / 60_000)} min — recomeçando sozinho.`)
+    cicloRodando = false
+    voltaPedidosEm = Date.now()
+    const config = carregarConfig()
+    void lacoPedidos(Math.max(2, config.intervaloSegundos || 3) * 1000)
+  }, 30_000)
 }
 
 function pararPolling() {
@@ -763,6 +791,7 @@ app.whenReady().then(() => {
   criarJanela()
   iniciarPolling()
   iniciarTrabalhos()
+  vigiarLacoPedidos()
   if (EH_BETA && !lerCredencial()) {
     const doLink = conviteDosArgumentos(process.argv)
     const doInstalador = doLink ? null : conviteNosDownloads(app.getPath('downloads'))
