@@ -81,6 +81,8 @@ export interface LinhaPreco {
   status: string; alvo: { tipo: AlvoTipo; id: string; tamanhoId: string | null }
   precoCentavos: number; custoCentavos: number | null; lucroCentavos: number | null; margemPct: number | null
   margemBaixa: boolean; temFicha: boolean; custoManualCentavos: number | null
+  /** De onde veio o custo (mesma regra da venda, 0164): ficha técnica com componentes, senão o preço de custo do cardápio. */
+  origemCusto: 'ficha' | 'cardapio' | null
   margemAlvoPct: number; sugestaoCentavos: number | null
 }
 
@@ -110,7 +112,9 @@ export async function listaPrecificacao(admin: SupabaseClient, loja: string) {
   for (const f of fichas) fichaDe.set(`${f.alvo_tipo}:${f.alvo_id}:${f.tamanho_padrao_id ?? ''}`, f.id as string)
   const custoDe = (tipo: AlvoTipo, id: string, tam: string | null = null): number | null => {
     const f = fichaDe.get(`${tipo}:${id}:${tam ?? ''}`)
-    return f ? custoFicha(compsPorFicha.get(f) ?? []) : null
+    // Ficha sem componentes = sem ficha (igual à venda, 0164): não tapa o preço de custo do cardápio.
+    const comps = f ? compsPorFicha.get(f) ?? [] : []
+    return comps.length ? custoFicha(comps) : null
   }
   const grupoNome = new Map(grupos.map((g) => [g.id as string, g.nome as string]))
   const manual = new Map(gestao.map((g) => [g.item_id as string, g.preco_custo === null ? null : reais(g.preco_custo)]))
@@ -119,13 +123,15 @@ export async function listaPrecificacao(admin: SupabaseClient, loja: string) {
   const empurrar = (it: Record<string, unknown>, variante: string | null, alvo: LinhaPreco['alvo'], preco: number, custoBruto: number | null) => {
     const grupoId = (it.grupo_id as string) ?? null
     const alvoPct = (grupoId && config.porCategoria[grupoId] !== undefined) ? config.porCategoria[grupoId] : config.margemAlvoPct
-    const custo = custoBruto === null ? null : centavos(custoBruto)
+    const manualItem = manual.get(it.id as string) ?? null
+    const origemCusto: LinhaPreco['origemCusto'] = custoBruto !== null ? 'ficha' : manualItem !== null && manualItem > 0 ? 'cardapio' : null
+    const custo = custoBruto !== null ? centavos(custoBruto) : origemCusto === 'cardapio' ? manualItem : null
     const m = custo === null ? null : margemPct(preco, custo)
     linhas.push({
       chave: `${alvo.tipo}:${alvo.id}:${alvo.tamanhoId ?? ''}`, itemId: it.id as string, nome: it.nome as string, variante, categoria: grupoNome.get(grupoId ?? '') ?? '—', grupoId,
       foto: (it.imagem_thumb_url as string) || (it.imagem_url as string) || null, status: it.status as string, alvo,
       precoCentavos: preco, custoCentavos: custo, lucroCentavos: custo === null ? null : preco - custo, margemPct: m,
-      margemBaixa: m !== null && m < config.margemBaixaPct, temFicha: custo !== null, custoManualCentavos: manual.get(it.id as string) ?? null,
+      margemBaixa: m !== null && m < config.margemBaixaPct, temFicha: custoBruto !== null, custoManualCentavos: manualItem, origemCusto,
       margemAlvoPct: alvoPct, sugestaoCentavos: custo === null ? null : precoSugerido(custo, alvoPct, config.custosVariaveisPct, config.arredondamento),
     })
   }

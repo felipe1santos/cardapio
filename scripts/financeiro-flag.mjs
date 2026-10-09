@@ -42,8 +42,9 @@ try {
 
   // 1. gerente (ou outro aprovador) com PIN além do dono
   const equipe = await q(`select nome, papel, pin_hash is not null pin from usuarios where restaurante_id = $1 and desativado_em is null order by papel, nome`, [L])
-  const aprovadores = equipe.filter((u) => u.papel !== 'dono' && u.pin && ['gerente'].includes(u.papel))
-  item(aprovadores.length > 0, `Gerente com PIN além do dono: ${aprovadores.length ? aprovadores.map((u) => u.nome).join(', ') : 'NENHUM'} (equipe: ${equipe.map((u) => `${u.nome}/${u.papel}${u.pin ? '/PIN' : ''}`).join(', ')})`)
+  // O dono da conta vale como gerente aprovador ("Gerente (você)"): dono OU gerente com PIN satisfaz.
+  const aprovadores = equipe.filter((u) => u.pin && ['dono', 'gerente'].includes(u.papel))
+  item(aprovadores.length > 0, `Dono ou gerente com PIN: ${aprovadores.length ? aprovadores.map((u) => `${u.nome} (${u.papel})`).join(', ') : 'NENHUM'} (equipe: ${equipe.map((u) => `${u.nome}/${u.papel}${u.pin ? '/PIN' : ''}`).join(', ')})`)
   // 2. contas (comandas) abertas
   const contas = await q(`select numero, tipo, cliente_nome, aberta_em, (select total from comanda_totais(c.id)) total from comandas c where restaurante_id = $1 and status = 'aberta' order by aberta_em`, [L])
   item(contas.length === 0, `Contas abertas: ${contas.length}${contas.length ? ' — ' + contas.map((c) => `#${c.numero} ${c.tipo} ${c.cliente_nome ?? ''} R$ ${c.total} desde ${new Date(c.aberta_em).toLocaleDateString('pt-BR')}`).join('; ') : ''}`)
@@ -63,12 +64,16 @@ try {
   const top = await q(`select i.item_id, max(i.nome) nome, sum(i.quantidade)::int qtd from pedido_itens i join pedidos p on p.id = i.pedido_id
     where p.restaurante_id = $1 and p.status = 'entregue' and p.criado_em > now() - interval '30 days' and i.cancelado_em is null and i.item_id is not null
     group by 1 order by 3 desc limit 15`, [L])
-  const comFicha = new Set((await q(`select distinct f.item_id from cmv_fichas f join cmv_ficha_componentes c on c.ficha_id = f.id where f.restaurante_id = $1 and f.item_id is not null`, [L])).map((r) => r.item_id))
+  // Com custo = ficha técnica com componentes OU "Preço de custo" do Gestor de Cardápio > 0 (mesma regra da venda, 0164).
+  const comFicha = new Set([
+    ...(await q(`select distinct f.item_id from cmv_fichas f join cmv_ficha_componentes c on c.ficha_id = f.id where f.restaurante_id = $1 and f.item_id is not null`, [L])).map((r) => r.item_id),
+    ...(await q(`select item_id from itens_cardapio_gestao where restaurante_id = $1 and preco_custo > 0`, [L])).map((r) => r.item_id),
+  ])
   const semCusto = top.filter((t) => !comFicha.has(t.item_id))
   // Custo (ficha técnica) só se cadastra em Financeiro › Precificação/CMV, que aparece depois de ligar — e o
   // "preço de custo" do Gestor de Cardápio NÃO entra no CMV. Informa (tarefa do 1º dia), não bloqueia: sem
   // custo o dinheiro funciona igual, só o CMV mostra "Cadastre o custo dos itens".
-  console.log(`${semCusto.length ? 'ℹ️ ' : '✅'} Custo dos 15 mais vendidos (30 dias): ${top.length - semCusto.length}/${top.length} com ficha${semCusto.length ? ' — cadastrar no 1º dia (Financeiro › Precificação/CMV): ' + semCusto.map((t) => `${t.nome} (${t.qtd})`).join(', ') : ''}`)
+  console.log(`${semCusto.length ? 'ℹ️ ' : '✅'} Custo dos 15 mais vendidos (30 dias): ${top.length - semCusto.length}/${top.length} com custo${semCusto.length ? ' — cadastrar o preço de custo (Gestor de Cardápio) ou a ficha: ' + semCusto.map((t) => `${t.nome} (${t.qtd})`).join(', ') : ''}`)
   // 6. regras da loja
   const cfg = await um(`select limite_saida_centavos, limite_divergencia_centavos, tolerancia_fechamento_centavos, fundo_padrao_centavos, alerta_whatsapp from fin_config where restaurante_id = $1`, [L])
   // Fundo e WhatsApp só se definem na tela Financeiro › Regras, que aparece depois de ligar: informa, não bloqueia.

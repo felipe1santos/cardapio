@@ -23,7 +23,7 @@ interface Linha {
   chave: string; itemId: string; nome: string; variante: string | null; categoria: string; grupoId: string | null; foto: string | null; status: string
   alvo: { tipo: 'item' | 'tamanho' | 'sabor'; id: string; tamanhoId: string | null }
   precoCentavos: number; custoCentavos: number | null; lucroCentavos: number | null; margemPct: number | null; margemBaixa: boolean; temFicha: boolean
-  custoManualCentavos: number | null; margemAlvoPct: number; sugestaoCentavos: number | null
+  custoManualCentavos: number | null; margemAlvoPct: number; sugestaoCentavos: number | null; origemCusto?: 'ficha' | 'cardapio' | null
 }
 interface Dados {
   linhas: Linha[]; resumo: { total: number; comFicha: number; semFicha: number; margemBaixa: number; margemMediaPct: number | null }
@@ -139,7 +139,7 @@ export function SecaoCmv() {
                       <td className="px-3 py-2 text-text-subtle">{l.categoria}</td>
                       <td className="px-3 py-2">{l.status === 'disponivel' ? <Selo cor="#006B4E">Ativo</Selo> : <Selo cor="#465A69">{ROT_STATUS[l.status] ?? l.status}</Selo>}</td>
                       <td className="whitespace-nowrap px-3 py-2 text-right">{brl(l.precoCentavos)}</td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right" data-testid="cmv-custo">{l.temFicha ? brl(l.custoCentavos) : <Selo cor="#8A4B00" testid="cmv-sem-ficha-selo">Sem ficha</Selo>}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right" data-testid="cmv-custo">{l.custoCentavos !== null ? <>{brl(l.custoCentavos)} <OrigemCusto o={l.origemCusto} /></> : <Selo cor="#8A4B00" testid="cmv-sem-ficha-selo">Sem custo</Selo>}</td>
                       <td className="whitespace-nowrap px-3 py-2 text-right">{brl(l.lucroCentavos)}</td>
                       <td className="whitespace-nowrap px-3 py-2 text-right">{l.margemPct === null ? '—' : <span className="inline-flex rounded-[4px] px-1.5 py-[1px] font-semibold text-white" style={{ backgroundColor: corMargem(l) }} data-testid="cmv-margem">{pct(l.margemPct)}</span>}</td>
                       <td className="whitespace-nowrap px-3 py-2 text-right" data-testid="cmv-sugerido">{brl(l.sugestaoCentavos)}</td>
@@ -161,9 +161,9 @@ export function SecaoCmv() {
               <button type="button" key={l.chave} onClick={() => abrirFicha(l)} className="fin-card p-4 text-left transition-colors hover:bg-[#F5F7F9] active:bg-[#E4E7EA]" data-testid="cmv-cartao">
                 <div className="flex items-start justify-between gap-2">
                   <span className="min-w-0"><b className="block truncate text-[14px]">{l.nome}</b>{l.variante && <span className="block truncate text-[12px] text-text-subtle">{l.variante}</span>}</span>
-                  {l.temFicha ? <span className="rounded-[4px] px-1.5 py-[1px] text-[12px] font-semibold text-white" style={{ backgroundColor: corMargem(l) }}>{pct(l.margemPct)}</span> : <Selo cor="#8A4B00">Sem ficha</Selo>}
+                  {l.margemPct !== null ? <span className="rounded-[4px] px-1.5 py-[1px] text-[12px] font-semibold text-white" style={{ backgroundColor: corMargem(l) }}>{pct(l.margemPct)}</span> : <Selo cor="#8A4B00">Sem custo</Selo>}
                 </div>
-                <p className="mt-1 text-[12.5px] text-text-subtle">Preço {brl(l.precoCentavos)} · custo {brl(l.custoCentavos)} · lucro {brl(l.lucroCentavos)}</p>
+                <p className="mt-1 text-[12.5px] text-text-subtle">Preço {brl(l.precoCentavos)} · custo {brl(l.custoCentavos)} {l.custoCentavos !== null && <OrigemCusto o={l.origemCusto} />} · lucro {brl(l.lucroCentavos)}</p>
               </button>
             ))}
           </div>
@@ -302,5 +302,17 @@ function ConfigCmv({ d, onSalvou, toast }: { d: Dados; onSalvou: () => void; toa
       </div>
       {d.pode.editar && <button type="button" className={`${BOTAO.primario} self-start`} onClick={() => void salvar()} data-testid="cfg-salvar">Salvar</button>}
     </div>
+  )
+}
+
+/** De onde veio o custo (regra da venda, 0164): ficha técnica ou o "Preço de custo" do Gestor de Cardápio. */
+function OrigemCusto({ o }: { o: 'ficha' | 'cardapio' | null | undefined }) {
+  if (!o) return null
+  return (
+    <span className="ml-1 rounded-[4px] border px-1 py-[1px] text-[11px] font-semibold" data-testid="cmv-origem"
+      style={o === 'ficha' ? { color: '#0B5CAD', borderColor: '#BFD7F2' } : { color: '#8A4B00', borderColor: '#F2D9B6' }}
+      title={o === 'ficha' ? 'Custo da ficha técnica' : 'Preço de custo do Gestor de Cardápio (sem ficha técnica)'}>
+      {o === 'ficha' ? 'Ficha' : 'Cardápio'}
+    </span>
   )
 }
