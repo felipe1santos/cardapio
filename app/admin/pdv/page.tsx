@@ -960,7 +960,7 @@ export default function PdvPage() {
   )
   const extrasCelular = (
     <>
-      {sessaoPdv?.financeiroAtivo && <span className="md:hidden"><AvisoCaixa /></span>}
+      {sessaoPdv?.controleCaixa && <span className="md:hidden"><AvisoCaixa /></span>}
       <MenuAcoesCelular
         className="md:hidden"
         testid="pdv-menu-acoes"

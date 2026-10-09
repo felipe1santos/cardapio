@@ -4,6 +4,7 @@ import { criarAlerta } from './alertas'
 import { turnoAberto } from './caixa'
 import { formatarCentavos } from './centavos'
 import { descontoAlto, horasDesde, minutosDesdeAbertura } from './vigia-regras'
+import { nivelDe } from './nivel'
 
 /**
  * Vigia do financeiro (Fase 6): alertas que dependem de TEMPO ou de olhar o conjunto, feitos por varredura
@@ -33,7 +34,7 @@ export async function varrerLoja(admin: SupabaseClient, loja: string, agora = Da
   const diaSP = new Date(agora).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
   const [{ data: cfg }, { data: rest }, turno] = await Promise.all([
     admin.from('fin_config').select('*').eq('restaurante_id', loja).maybeSingle(),
-    admin.from('restaurantes').select('status_loja, horario_funcionamento').eq('id', loja).maybeSingle(),
+    admin.from('restaurantes').select('status_loja, horario_funcionamento, financeiro_ativo, controle_caixa_ativo').eq('id', loja).maybeSingle(),
     turnoAberto(admin, loja),
   ])
   const c = {
@@ -42,15 +43,18 @@ export async function varrerLoja(admin: SupabaseClient, loja: string, agora = Da
     minSemAbrir: Number(cfg?.minutos_caixa_sem_abrir ?? 30), maxSensiveis: Number(cfg?.max_acoes_sensiveis_turno ?? 10),
   }
 
+  // Caixa e motoboy só com o controle de caixa ativo (nível 2, 0167): no nível 1 o caixa é automático.
+  const controle = nivelDe(rest as { financeiro_ativo?: boolean; controle_caixa_ativo?: boolean } | null).controleCaixa
+
   // Caixa esquecido aberto.
-  if (turno && horasDesde(turno.aberto_em, agora) >= c.horasCaixa) {
+  if (controle && turno && horasDesde(turno.aberto_em, agora) >= c.horasCaixa) {
     conta('caixa_aberto_demais', await criarAlerta(admin, { restauranteId: loja, tipo: 'caixa_aberto_demais', gravidade: 'atencao',
       mensagem: `O caixa aberto por ${turno.aberto_por_nome ?? '—'} está aberto há ${Math.floor(horasDesde(turno.aberto_em, agora))} horas.`,
       dedupeMin: 6 * 60, dedupeChave: turno.id }))
   }
 
   // Caixa sem abrir no horário de funcionamento.
-  if (!turno && rest) {
+  if (controle && !turno && rest) {
     const min = minutosDesdeAbertura({ statusLoja: (rest.status_loja as StatusLoja) ?? 'automatico', grade: (rest.horario_funcionamento as HorarioFuncionamento | null) ?? null,
       dia: diaSemanaSaoPaulo(agoraIso), hora: horaSP })
     if (min !== null && min >= c.minSemAbrir) {
@@ -73,6 +77,7 @@ export async function varrerLoja(admin: SupabaseClient, loja: string, agora = Da
     porMoto.set(k, s)
   }
   for (const [ent, s] of porMoto) {
+    if (!controle) break
     if (!s.saldo || !s.desde || horasDesde(s.desde, agora) < c.horasMotoboy) continue
     const { data: e } = await admin.from('entregadores').select('nome').eq('id', ent).maybeSingle()
     conta('motoboy_pendente', await criarAlerta(admin, { restauranteId: loja, tipo: 'motoboy_pendente', gravidade: 'atencao',

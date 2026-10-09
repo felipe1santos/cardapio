@@ -12,6 +12,7 @@ import { cookies } from 'next/headers'
 import { registrarSessao } from '@/lib/financeiro/sessoes'
 import { COOKIE_TERMINAL, dispositivoDaRequisicao } from '@/lib/financeiro/contexto'
 import { registrarAuditoria } from '@/lib/auditoria'
+import { nivelFinanceiro } from '@/lib/financeiro/nivel'
 
 // Força bruta: 10 senhas erradas em 15 min no mesmo usuário, ou 30 no mesmo IP (a loja
 // inteira pode sair pelo mesmo IP), travam novas tentativas até a janela passar (B16).
@@ -121,9 +122,11 @@ async function registrarEntrada(admin: ReturnType<typeof getAdminSupabase>, usua
   const d = await dispositivoDaRequisicao()
   const terminal = jar.get(COOKIE_TERMINAL)?.value ?? d.terminal
   const { data: u } = await admin.from('usuarios').select('nome, restaurante_id').eq('id', usuarioId).maybeSingle()
-  if (!(await financeiroLigado(admin, u?.restaurante_id as string | undefined))) return
+  const nivel = await nivelFinanceiro(admin, u?.restaurante_id as string | undefined)
+  if (!nivel.financeiro) return
   // Abertura rápida do caixa (Fase 6): a primeira tela depois do login pergunta se abre o caixa (1 min de validade).
-  jar.set('menuzia_recem_entrou', '1', { httpOnly: false, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/', maxAge: 60 })
+  // Só com o controle de caixa ativo (nível 2, 0167): no nível 1 o caixa é automático.
+  if (nivel.controleCaixa) jar.set('menuzia_recem_entrou', '1', { httpOnly: false, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/', maxAge: 60 })
   await registrarSessao(admin, { usuarioId, usuarioNome: (u?.nome as string) ?? '', restauranteId: (u?.restaurante_id as string) ?? null, ip: d.ip, dispositivo: d.dispositivo, terminal })
   if (u?.restaurante_id) {
     await registrarAuditoria(admin, { restauranteId: u.restaurante_id as string, usuarioId, usuarioNome: (u.nome as string) ?? '', acao: 'sessao.entrou', entidade: 'usuario', entidadeId: usuarioId, dados: { dispositivo: d.dispositivo } })
@@ -131,9 +134,7 @@ async function registrarEntrada(admin: ReturnType<typeof getAdminSupabase>, usua
 }
 
 async function financeiroLigado(admin: ReturnType<typeof getAdminSupabase>, restauranteId: string | undefined): Promise<boolean> {
-  if (!restauranteId) return false
-  const { data } = await admin.from('restaurantes').select('financeiro_ativo').eq('id', restauranteId).maybeSingle()
-  return !!data?.financeiro_ativo
+  return (await nivelFinanceiro(admin, restauranteId)).financeiro
 }
 
 async function auditarFalhaDeLogin(email: string) {

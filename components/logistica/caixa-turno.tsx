@@ -24,8 +24,8 @@ export function CaixaTurnoGaveta({ aberto, onFechar }: { aberto: boolean; onFech
   const [erro, setErro] = useState<string | null>(null)
   const [declarado, setDeclarado] = useState<Record<string, string>>({})
   const [enviando, setEnviando] = useState(false)
-  // Financeiro ligado (Fase 2): abrir e fechar são no Financeiro › Caixa (fundo e contagem cega).
-  const financeiro = !!useEstadoSessao()?.financeiroAtivo
+  // Controle de caixa ativo (nível 2, 0167): abrir e fechar são no Financeiro › Caixa (fundo e contagem cega).
+  const financeiro = !!useEstadoSessao()?.controleCaixa
   const linkFin = <Link href="/admin/financeiro?secao=caixa" className="text-[12px] font-semibold text-primary underline" data-testid="caixa-no-financeiro">Abrir/fechar em Financeiro › Caixa</Link>
 
   const carregar = useCallback(async () => {

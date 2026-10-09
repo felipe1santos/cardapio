@@ -378,7 +378,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       )}
       {/* Financeiro (Fase 6): aprovação pelo celular para quem aprova; abertura rápida do caixa logo após o login. */}
       {estadoSessao?.financeiroAtivo && papel && podeFin(papel, acessos, 'aprovar') && <FaixaAprovacoes />}
-      {estadoSessao?.financeiroAtivo && papel && podeFin(papel, acessos, 'caixa_abrir') && <AberturaRapidaCaixa />}
+      {estadoSessao?.controleCaixa && papel && podeFin(papel, acessos, 'caixa_abrir') && <AberturaRapidaCaixa />}
       {alertaAberto && (
         <SetupAlerta
           pendencias={pendencias}

@@ -4,6 +4,7 @@ import { conferirAprovacao } from './caixa'
 import { criarAlerta } from './alertas'
 import { formatarCentavos } from './centavos'
 import { registrarAuditoria } from '@/lib/auditoria'
+import { controleCaixaAtivo } from './nivel'
 
 /**
  * Estorno e cancelamento depois de enviado à cozinha (plano do financeiro, §5: "sempre").
@@ -35,8 +36,8 @@ export async function exigirSegundaPessoa(admin: SupabaseClient, p: {
   sessao: Solicitante; corpo: unknown; acao: AcaoSensivel; valorCentavos?: number | null; resumo: string; contexto?: Record<string, unknown>
 }): Promise<Liberacao> {
   const loja = p.sessao.restauranteId
-  const { data: r } = await admin.from('restaurantes').select('financeiro_ativo').eq('id', loja).maybeSingle()
-  if (!precisaSegundaPessoa({ financeiroAtivo: r?.financeiro_ativo === true, papel: p.sessao.papel })) return { ok: true, aprovadoPor: null }
+  // Nível 2 (0167): só o controle de caixa ativo pede o PIN de outra pessoa.
+  if (!precisaSegundaPessoa({ financeiroAtivo: await controleCaixaAtivo(admin, loja), papel: p.sessao.papel })) return { ok: true, aprovadoPor: null }
 
   const a = (p.corpo as { aprovacao?: { aprovadorId?: unknown; pin?: unknown; remotaId?: unknown } } | null)?.aprovacao
   const remotaId = typeof a?.remotaId === 'string' && a.remotaId ? a.remotaId : null

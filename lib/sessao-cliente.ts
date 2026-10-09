@@ -10,6 +10,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
  */
 export interface EstadoSessao {
   financeiroAtivo: boolean
+  /** Nível 2 (0167): caixa à mão, trava de tela, troca de operador, aviso de caixa. */
+  controleCaixa: boolean
   temPin: boolean
   inatividadeMin: number
   travada: boolean

@@ -16,6 +16,7 @@ import { SecaoDashboard } from '@/components/financeiro/dashboard/secao-dashboar
 import { SecaoRisco } from '@/components/financeiro/risco/secao-risco'
 import { SecaoRegras } from '@/components/financeiro/regras'
 import { PassoPin } from '@/components/financeiro/passo-pin'
+import { ControleCaixa } from '@/components/financeiro/controle-caixa'
 import { Card, FIN_BTN, FIN_COR, SeloMeta } from '@/components/graficos/kit-meta'
 
 /**
@@ -117,7 +118,7 @@ export default function FinanceiroPage() {
             {secao === 'fluxo' && acoes.includes('financeiro') ? (
               <Suspense fallback={<p className="text-[14px]" style={{ color: FIN_COR.texto2 }}>Carregando…</p>}><FluxoCaixa usuarioId={usuarioId} /></Suspense>
             ) : secao === 'cmv' && acoes.includes('custos_ver') ? <SecaoCmv /> : secao === 'contas' && acoes.includes('contas_pagar') ? <SecaoContas /> : secao === 'dashboard' && acoes.includes('financeiro') ? <SecaoDashboard /> : secao === 'risco' && acoes.includes('auditoria_ver') ? <SecaoRisco /> : secao === 'regras' && acoes.includes('financeiro') ? <SecaoRegras /> : secao === 'motoboys' ? <SecaoMotoboys /> : secao === 'pix' ? <SecaoPix /> : (secao === 'caixa' || secao === 'movimentacoes') ? (
-              <SecaoCaixa key={secao} modo={secao} />
+              <>{secao === 'caixa' && <ControleCaixa />}<SecaoCaixa key={secao} modo={secao} /></>
             ) : secao === 'auditoria' && acoes.includes('auditoria_ver') ? (
               <AuditoriaAlertas />
             ) : (

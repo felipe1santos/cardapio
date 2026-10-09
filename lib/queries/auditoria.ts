@@ -111,6 +111,8 @@ export const ROTULO_EVENTO: Record<string, string> = {
   'fin.recusou_aprovacao': 'Recusou um pedido de aprovação',
   'fin.viu_risco': 'Abriu o relatório de risco por funcionário',
   'fin.config_alterada': 'Mudou as regras e limites do financeiro',
+  'fin.controle_caixa_ativado': 'Ativou o controle de caixa (nível 2)',
+  'fin.controle_caixa_desativado': 'Desativou o controle de caixa (volta ao caixa automático)',
   'seguranca.valor_manipulado': 'Pedido chegou com valor mexido por fora do app',
   // Precificação / CMV (Fase 5).
   'cmv.insumo_criado': 'Cadastrou um insumo',

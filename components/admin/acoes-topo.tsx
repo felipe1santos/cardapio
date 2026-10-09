@@ -89,7 +89,7 @@ export function AcoesTopo() {
 
   return (
     <div className="flex flex-shrink-0 items-center gap-[4px] sm:gap-2" data-testid="acoes-topo">
-      {sessao?.financeiroAtivo && <AvisoCaixa />}
+      {sessao?.controleCaixa && <AvisoCaixa />}
       {/* Impressão: atalho para a configuração, com o estado na própria cor. */}
       <Dica texto={rotuloBeta ?? ROTULO_IMPRESSORA[impressora]}>
         <button
@@ -174,7 +174,7 @@ export function AcoesTopo() {
             {sessao.temPin ? 'Trocar meu PIN' : 'Criar meu PIN'}
           </button>
         )}
-        {sessao?.financeiroAtivo && (
+        {sessao?.controleCaixa && (
           <>
             {sessao.temPin && (
               <button type="button" data-testid="menu-bloquear"

@@ -8,6 +8,7 @@ import { dispositivoDaRequisicao } from '@/lib/financeiro/contexto'
 import { lojaDoTerminal } from '@/lib/financeiro/terminal'
 import { criarLimitador } from '@/lib/limite-taxa'
 import { criarAlerta } from '@/lib/financeiro/alertas'
+import { nivelDe } from '@/lib/financeiro/nivel'
 
 /**
  * Terminal travado (0132):
@@ -23,8 +24,9 @@ async function contexto() {
   const admin = getAdminSupabase()
   const loja = await lojaDoTerminal(admin, d.terminal)
   if (!loja) return { erro: NextResponse.json({ error: 'Este aparelho ainda não foi aberto com senha. Entre com usuário e senha.' }, { status: 403 }) } as const
-  const { data: r } = await admin.from('restaurantes').select('financeiro_ativo, nome').eq('id', loja).maybeSingle()
-  if (!r?.financeiro_ativo) return { erro: NextResponse.json({ error: 'Entrada por PIN não está ativa nesta loja.' }, { status: 403 }) } as const
+  const { data: r } = await admin.from('restaurantes').select('financeiro_ativo, controle_caixa_ativo, nome').eq('id', loja).maybeSingle()
+  // Entrada por PIN é do controle de caixa (nível 2, 0167).
+  if (!r || !nivelDe(r).controleCaixa) return { erro: NextResponse.json({ error: 'Entrada por PIN não está ativa nesta loja.' }, { status: 403 }) } as const
   return { d, admin, loja, nomeLoja: r.nome as string } as const
 }
 

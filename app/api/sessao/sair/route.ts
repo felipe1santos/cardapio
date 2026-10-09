@@ -6,6 +6,7 @@ import { encerrarSessoes, travarSessao } from '@/lib/financeiro/sessoes'
 import { dispositivoDaRequisicao } from '@/lib/financeiro/contexto'
 import { registrarAuditoria } from '@/lib/auditoria'
 import { criarAlerta } from '@/lib/financeiro/alertas'
+import { controleCaixaAtivo } from '@/lib/financeiro/nivel'
 
 /**
  * Sair do painel ou travar a tela (0132).
@@ -26,8 +27,8 @@ export async function POST(request: Request) {
   const d = await dispositivoDaRequisicao()
   let justificativa: string | null = null
   if (motivo === 'saiu') {
-    const { data: loja } = await admin.from('restaurantes').select('financeiro_ativo').eq('id', sessao.restauranteId).maybeSingle()
-    if (loja?.financeiro_ativo) {
+    // Sair com o caixa aberto só pede justificativa com o controle de caixa ativo (nível 2, 0167).
+    if (await controleCaixaAtivo(admin, sessao.restauranteId)) {
       const { data: t } = await admin.from('caixa_turnos').select('id, aberto_por').eq('restaurante_id', sessao.restauranteId).is('fechado_em', null).maybeSingle()
       if (t?.aberto_por === sessao.userId) {
         const j = typeof corpo?.justificativa === 'string' ? corpo.justificativa.trim().slice(0, 500) : ''

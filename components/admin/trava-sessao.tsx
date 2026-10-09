@@ -8,7 +8,7 @@ import { deveTravar } from '@/lib/financeiro/trava'
 import { TecladoPin } from './teclado-pin'
 
 /**
- * Tela travada e troca rápida de operador (0132) — só com o módulo financeiro ligado.
+ * Tela travada e troca rápida de operador (0132) — só com o controle de caixa ativo (nível 2, 0167).
  *
  * Travar NÃO derruba a sessão: o painel por baixo continua recebendo pedidos e imprimindo.
  * O servidor marca a sessão deste terminal como travada e recusa ações de dinheiro até
@@ -63,19 +63,19 @@ export function TravaSessao() {
 
   // Pedido do menu de conta.
   useEffect(() => {
-    const ao = (e: Event) => { if (estado?.financeiroAtivo) void travar((e as CustomEvent).detail === 'trocar' ? 'trocar' : 'travar') }
+    const ao = (e: Event) => { if (estado?.controleCaixa) void travar((e as CustomEvent).detail === 'trocar' ? 'trocar' : 'travar') }
     window.addEventListener(EVENTO_TRAVAR, ao)
     return () => window.removeEventListener(EVENTO_TRAVAR, ao)
-  }, [estado?.financeiroAtivo, travar])
+  }, [estado?.controleCaixa, travar])
 
   // Atividade + inatividade + ping.
   useEffect(() => {
-    if (!estado?.financeiroAtivo) return
+    if (!estado?.controleCaixa) return
     const mexeu = () => { ultima.current = Date.now() }
     const eventos = ['pointerdown', 'keydown', 'wheel', 'touchstart'] as const
     eventos.forEach((n) => window.addEventListener(n, mexeu, { passive: true }))
     const relogio = window.setInterval(() => {
-      if (deveTravar({ ...estado, travada, pathname, ultimaAtividade: ultima.current, agora: Date.now() })) void travar('travar')
+      if (deveTravar({ ...estado, financeiroAtivo: estado.controleCaixa, travada, pathname, ultimaAtividade: ultima.current, agora: Date.now() })) void travar('travar')
     }, 15_000)
     const ping = () => void fetch('/api/sessao/ping', { method: 'POST' }).catch(() => {})
     ping()
@@ -107,7 +107,7 @@ export function TravaSessao() {
     if (await sairDoPainel(supabase)) window.location.href = '/login'
   }
 
-  if (!travada || !estado?.financeiroAtivo) return null
+  if (!travada || !estado?.controleCaixa) return null
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[#111827]/95 p-4" role="dialog" aria-modal="true" aria-label="Tela bloqueada" data-testid="tela-travada">

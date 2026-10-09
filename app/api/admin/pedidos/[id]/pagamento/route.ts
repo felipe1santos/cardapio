@@ -5,6 +5,7 @@ import { getCurrentSession } from '@/lib/auth/session'
 import { registrarAuditoria } from '@/lib/auditoria'
 import { daPedido, erroPagamentoPdv, lerPagamentoPdv, paraPedido, rotuloForma } from '@/lib/pdv-pagamento'
 import { conferirAprovacao } from '@/lib/financeiro/caixa'
+import { controleCaixaAtivo } from '@/lib/financeiro/nivel'
 
 /**
  * Alterar a forma de pagamento / troco de um pedido já lançado (0135).
@@ -49,8 +50,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!['dono', 'gerente'].includes(sessao.papel)) {
       return NextResponse.json({ error: 'O pedido já saiu para entrega ou foi pago: só o gerente ou o dono altera.', codigo: 'precisa_gerencia' }, { status: 403 })
     }
-    const { data: r } = await admin.from('restaurantes').select('financeiro_ativo').eq('id', loja).maybeSingle()
-    if (r?.financeiro_ativo && sessao.papel !== 'dono') {
+    // PIN de outra pessoa só com o controle de caixa ativo (nível 2, 0167).
+    if (await controleCaixaAtivo(admin, loja) && sessao.papel !== 'dono') {
       const a = corpo?.aprovacao
       const remotaId = typeof a?.remotaId === 'string' ? a.remotaId : null
       if (!a || (!remotaId && (typeof a.aprovadorId !== 'string' || typeof a.pin !== 'string'))) {

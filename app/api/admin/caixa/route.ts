@@ -11,6 +11,7 @@ import { veValoresFin } from '@/lib/financeiro/permissoes'
 import { normalizarAcessos } from '@/lib/acessos'
 import { trocoLevar } from '@/lib/pdv-pagamento'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { controleCaixaAtivo } from '@/lib/financeiro/nivel'
 
 /**
  * Turno de caixa e acerto do entregador (0114).
@@ -55,8 +56,8 @@ export async function GET(request: Request) {
 
 /** Dinheiro com os motoboys e troco a entregar no despacho. null quando o financeiro está desligado. */
 async function blocoFinanceiro(admin: SupabaseClient, loja: string, userId: string, papel: string) {
-  const { data: r } = await admin.from('restaurantes').select('financeiro_ativo').eq('id', loja).maybeSingle()
-  if (!r?.financeiro_ativo) return null
+  // Só com o controle de caixa ativo (nível 2, 0167); no nível 1 a Logística segue como sem financeiro.
+  if (!(await controleCaixaAtivo(admin, loja))) return null
   const [{ modo }, situacao, { data: usu }, { data: peds }] = await Promise.all([
     modoTroco(admin, loja),
     situacaoMotoboys(admin, loja),
@@ -104,8 +105,8 @@ export async function POST(request: Request) {
     registrarAuditoria(admin, { restauranteId: sessao.restauranteId, usuarioId: sessao.userId, usuarioNome: sessao.nome, acao: nome, entidade: 'caixa', entidadeId, dados }).catch(() => {})
   // Financeiro ligado (0133): abrir e fechar o caixa passam pelo Financeiro › Caixa (fundo de troco,
   // contagem cega); aqui fica só o acerto do motoboy, que também entra no livro-caixa.
-  const { data: loja } = await admin.from('restaurantes').select('financeiro_ativo').eq('id', sessao.restauranteId).maybeSingle()
-  const financeiro = !!loja?.financeiro_ativo
+  // Nível 1 (0167): abrir/fechar e acerto seguem aqui, como sem financeiro.
+  const financeiro = await controleCaixaAtivo(admin, sessao.restauranteId)
   if (acao === 'troco') {
     // Troco que sai da gaveta para o motoboy (0136), pelo contexto do financeiro (flag, trava de tela).
     const c = await contextoFinanceiro()

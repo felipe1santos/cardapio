@@ -14,6 +14,7 @@ import { mensagemDeErroConta } from '@/lib/conta'
 import { registrarAuditoria } from '@/lib/auditoria'
 import { lerEntradaDoQr } from '@/lib/motoboy/qr-rota'
 import { enderecoCompletoPedido } from '@/lib/queries/pedidos'
+import { controleCaixaAtivo } from '@/lib/financeiro/nivel'
 
 /**
  * Motoboy (Fase 3, 0136): o MESMO serviço atende o link/QR antigo (token) e o app com login. Quem
@@ -23,10 +24,10 @@ import { enderecoCompletoPedido } from '@/lib/queries/pedidos'
  */
 export type Resultado = { ok: true; dados?: Record<string, unknown> } | { ok: false; erro: string; status: number; codigo?: string }
 
+// Registro da entrega no livro-caixa (forma, troco, acerto cego): só com o controle de caixa ativo (nível 2, 0167).
 async function financeiroAtivo(admin: SupabaseClient, restauranteId: string) {
   try {
-    const { data } = await admin.from('restaurantes').select('financeiro_ativo').eq('id', restauranteId).maybeSingle()
-    return !!(data as { financeiro_ativo?: boolean } | null)?.financeiro_ativo
+    return await controleCaixaAtivo(admin, restauranteId)
   } catch {
     return false
   }

@@ -4,6 +4,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { acertoDosEntregadores, acertoPendente, diaSaoPaulo, resumoDoDia, type FechamentoEntregador, type LinhaEntregador, type PagamentoCaixa, type PedidoCaixa, type ResumoDiario, type Turno } from '@/lib/caixa-turno'
 import { lerTodas } from './ler-todas'
+import { controleCaixaAtivo } from '@/lib/financeiro/nivel'
 
 export interface TurnoCaixa extends Turno {
   abertoPorNome: string | null
@@ -132,8 +133,8 @@ async function carregarPendencias(admin: SupabaseClient, restauranteId: string) 
 }
 
 export async function painelCaixa(admin: SupabaseClient, restauranteId: string, dia = diaSaoPaulo(new Date().toISOString())): Promise<PainelCaixa> {
-  const { data: loja } = await admin.from('restaurantes').select('financeiro_ativo').eq('id', restauranteId).maybeSingle()
-  const financeiro = !!loja?.financeiro_ativo
+  // Controle de caixa ativo (nível 2, 0167): pendências pelo livro-caixa. Nível 1 e sem financeiro: como antes.
+  const financeiro = await controleCaixaAtivo(admin, restauranteId)
   // Sem financeiro (0135): o turno automático é o dia operacional — vira sozinho às 05:00.
   if (!financeiro) await admin.rpc('caixa_turno_virar_dia', { p_restaurante: restauranteId }).then(() => {}, () => {})
   const d = await carregar(admin, restauranteId, dia)
