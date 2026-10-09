@@ -226,7 +226,7 @@ export default function EquipePage() {
                     <SeloSituacao s={f.situacaoVista} />
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-text-subtle">
-                    <SeloCargo c={f.cargoVisto} />
+                    <SeloCargo c={f.papel === 'dono' && f.id === eu ? 'gerente' : f.cargoVisto} rotulo={f.papel === 'dono' && f.id === eu ? 'Gerente (você)' : undefined} />
                     <AvisoCargo f={f} />
                     <Permissoes f={f} />
                     <span>· {quando(f.ultimoLoginEm)}</span>
@@ -263,7 +263,7 @@ export default function EquipePage() {
                           {f.id === eu && <span className="ml-1.5 text-[11px] font-normal text-text-subtle">(você)</span>}
                         </td>
                         <td className="px-4 py-3 font-mono text-[12px] text-text-subtle">{f.usuario || '—'}</td>
-                        <td className="px-4 py-3"><span className="inline-flex flex-wrap items-center gap-1"><SeloCargo c={f.cargoVisto} /><AvisoCargo f={f} /></span></td>
+                        <td className="px-4 py-3"><span className="inline-flex flex-wrap items-center gap-1"><SeloCargo c={f.papel === 'dono' && f.id === eu ? 'gerente' : f.cargoVisto} rotulo={f.papel === 'dono' && f.id === eu ? 'Gerente (você)' : undefined} /><AvisoCargo f={f} /></span></td>
                         <td className="px-4 py-3 text-[12.5px]" data-testid="acessos-resumo"><Permissoes f={f} /></td>
                         <td className="px-4 py-3"><SeloSituacao s={f.situacaoVista} /></td>
                         <td className="px-4 py-3 text-[12px] text-text-subtle">{quando(f.ultimoLoginEm)}</td>
@@ -335,11 +335,12 @@ export default function EquipePage() {
   )
 }
 
-function SeloCargo({ c }: { c: Cargo }) {
+/** O dono da conta vale como gerente aprovador: na própria linha aparece "Gerente (você)". */
+function SeloCargo({ c, rotulo }: { c: Cargo; rotulo?: string }) {
   const cor = COR_CARGO[c]
   return (
     <span className="inline-flex items-center whitespace-nowrap rounded-[4px] px-2 py-[3px] text-[11.5px] font-semibold" style={{ backgroundColor: cor.fundo, color: cor.cor }} data-testid="cargo">
-      {ROTULO_CARGO[c]}
+      {rotulo ?? ROTULO_CARGO[c]}
     </span>
   )
 }

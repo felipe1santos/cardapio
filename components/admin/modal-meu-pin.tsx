@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { estadoMudou } from '@/lib/sessao-cliente'
 
 /**
- * "Meu PIN" (0132): cria ou troca o PIN pessoal de 6 dígitos. Exige a senha atual — quem
+ * "Meu PIN" (0132): cria ou troca o PIN pessoal de 4 a 6 dígitos. Exige a senha atual — quem
  * acha o painel aberto não troca o PIN de ninguém. O PIN serve para destravar a tela, trocar
  * de operador e (Fase 2) aprovar ações de outra pessoa.
  */
@@ -18,7 +18,7 @@ export function ModalMeuPin({ temPin, onFechar }: { temPin: boolean; onFechar: (
 
   async function salvar() {
     setErro(null)
-    if (!/^[0-9]{6}$/.test(pin)) return setErro('O PIN tem 6 números.')
+    if (!/^[0-9]{4,6}$/.test(pin)) return setErro('O PIN tem de 4 a 6 números.')
     if (pin !== conf) return setErro('Os dois PINs não batem.')
     if (!senha) return setErro('Digite a sua senha.')
     setSalvando(true)
@@ -38,7 +38,7 @@ export function ModalMeuPin({ temPin, onFechar }: { temPin: boolean; onFechar: (
       <div className="w-full max-w-[380px] rounded-[3px] border border-[#E5E7EB] bg-white shadow-xl">
         <div className="border-b border-[#E5E7EB] px-[16px] py-[12px]">
           <h2 className="text-[15px] font-semibold text-[#1F2937]">{temPin ? 'Trocar meu PIN' : 'Criar meu PIN'}</h2>
-          <p className="mt-[2px] text-[12px] leading-relaxed text-[#6B7280]">6 números, só seu. Serve para destravar a tela, trocar de operador e aprovar ações. Ninguém da loja consegue ver.</p>
+          <p className="mt-[2px] text-[12px] leading-relaxed text-[#6B7280]">De 4 a 6 números, só seu. Serve para aprovar sangrias, estornos e diferenças de caixa dos funcionários, destravar a tela e trocar de operador. Ninguém da loja consegue ver.</p>
         </div>
         {ok ? (
           <div className="px-[16px] py-[16px]">

@@ -15,6 +15,7 @@ import { SecaoContas } from '@/components/financeiro/contas/secao-contas'
 import { SecaoDashboard } from '@/components/financeiro/dashboard/secao-dashboard'
 import { SecaoRisco } from '@/components/financeiro/risco/secao-risco'
 import { SecaoRegras } from '@/components/financeiro/regras'
+import { PassoPin } from '@/components/financeiro/passo-pin'
 import { Card, FIN_BTN, FIN_COR, SeloMeta } from '@/components/graficos/kit-meta'
 
 /**
@@ -105,6 +106,7 @@ export default function FinanceiroPage() {
         <div className="fin-meta flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row" data-financeiro-raiz>
           <SubmenuVertical itens={itens} ativo={secao} onSelecionar={setSecao} titulo="Seções do financeiro" />
           <div className="flex min-w-0 flex-1 flex-col space-y-4 overflow-y-auto p-4 sm:p-5 lg:p-6" data-financeiro-area>
+            <PassoPin papel={papel} />
             {atual && (
               <div className="flex items-center gap-2" data-testid="fin-titulo-secao">
                 <h1 className="text-[18px] font-semibold" style={{ color: FIN_COR.texto }}>{atual.label}</h1>

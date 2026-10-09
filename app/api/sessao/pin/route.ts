@@ -7,7 +7,7 @@ import { registrarAuditoria } from '@/lib/auditoria'
 import { criarLimitador } from '@/lib/limite-taxa'
 
 /**
- * Definir o PRÓPRIO PIN (6 dígitos) — exige a senha atual: quem acha o painel aberto não troca o
+ * Definir o PRÓPRIO PIN (4 a 6 dígitos) — exige a senha atual: quem acha o painel aberto não troca o
  * PIN de ninguém. O PIN é pessoal: nem o dono vê; o gerente/dono só pode APAGAR (Equipe).
  *   POST { senha, pin }
  */
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
   const corpo = await request.json().catch(() => null)
   const senha = typeof corpo?.senha === 'string' ? corpo.senha : ''
   const pin = typeof corpo?.pin === 'string' ? corpo.pin : ''
-  if (!/^[0-9]{6}$/.test(pin)) return NextResponse.json({ error: 'O PIN tem 6 números.' }, { status: 400 })
+  if (!/^[0-9]{4,6}$/.test(pin)) return NextResponse.json({ error: 'O PIN tem de 4 a 6 números.' }, { status: 400 })
   if (erros.excedeu(user.id)) return NextResponse.json({ error: 'Muitas tentativas. Aguarde alguns minutos.' }, { status: 429 })
   const conf = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, { auth: { persistSession: false, autoRefreshToken: false } })
   const { data: ok, error: e } = await conf.auth.signInWithPassword({ email: user.email, password: senha })

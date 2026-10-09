@@ -3,8 +3,9 @@
 import { useEffect } from 'react'
 
 /**
- * Teclado de PIN (6 dígitos) — tela travada, troca de operador e, na Fase 2, aprovação do
- * gerente. Aceita também o teclado físico. O PIN nunca fica guardado fora deste estado.
+ * Teclado de PIN (4 a 6 dígitos) — tela travada, troca de operador e aprovação do gerente/dono.
+ * Com 6 números confirma sozinho; com 4 ou 5, no botão OK (ou Enter). Aceita o teclado físico.
+ * O PIN nunca fica guardado fora deste estado.
  */
 export function TecladoPin({
   valor,
@@ -26,11 +27,14 @@ export function TecladoPin({
     if (novo.length === 6) onCompleto(novo)
   }
   const apagar = () => { if (!ocupado) onMudar(valor.slice(0, -1)) }
+  const podeConfirmar = !ocupado && valor.length >= 4 && valor.length < 6
+  const confirmar = () => { if (podeConfirmar) onCompleto(valor) }
 
   useEffect(() => {
     const tecla = (e: KeyboardEvent) => {
       if (/^[0-9]$/.test(e.key)) { e.preventDefault(); tocar(e.key) }
       else if (e.key === 'Backspace') { e.preventDefault(); apagar() }
+      else if (e.key === 'Enter' && podeConfirmar) { e.preventDefault(); confirmar() }
     }
     window.addEventListener('keydown', tecla)
     return () => window.removeEventListener('keydown', tecla)
@@ -51,7 +55,10 @@ export function TecladoPin({
             {d}
           </button>
         ))}
-        <span />
+        <button type="button" onClick={confirmar} disabled={!podeConfirmar} aria-label="Confirmar PIN" data-testid="pin-ok"
+          className="h-[56px] rounded-[3px] text-[13px] font-semibold uppercase tracking-wide text-[#0688D4] hover:bg-[#EDEEF1] disabled:opacity-30">
+          OK
+        </button>
         <button type="button" onClick={() => tocar('0')} disabled={ocupado} data-testid="pin-0"
           className="h-[56px] rounded-[3px] border border-[#E5E7EB] bg-white text-[22px] font-semibold text-[#1F2937] hover:bg-[#EDEEF1] disabled:opacity-50">
           0
