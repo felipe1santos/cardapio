@@ -17,13 +17,13 @@ nenhum UPDATE/DELETE no livro-caixa ou na auditoria. Scripts e resultados brutos
 | Fase 1 (CMV %, piloto, retirada/compra) | 3 | 3 | 1 | 1 (B1) | — |
 | 1. Caixa / turno | 9 | 9 | 0 | — | — |
 | 2. Movimentações | 5 | 5 | 1 | 1 (B2) | — |
-| 3. Acerto de motoboys | 6 | 4 | 0 | — | 3.1 entregue pago (regra 6: entrega de teste termina "Não entregue"; coberto pelo e2e da Fase 3 99/99); 3.4 entregue automático (sem relógio simulado; item 61 testado em 08/10) |
+| 3. Acerto de motoboys | 6 | 5 | 0 | — | 3.1 entregue pago (regra 6: entrega de teste termina "Não entregue"; coberto pelo e2e da Fase 3 99/99). 3.4 feito no Acabamento ✅ |
 | 4. Pix | 4 | 4 | 0 | — | 4.3 sem reexecução (e2e local de 07/10: 54/54; exige stack local inteira) |
 | 5. Integração PDV/mesa/Kanban/delivery | 7 | 7 | 1 | 1 (B5) | — |
 | 6. Precificação / CMV | 4 | 4 | (B1) | (B1) | — |
 | 7. Contas e compras | 4 | 4 | 0 | — | 7.4 sem reexecução (e2e atômico de 04/10) |
 | 8. Fluxo, DRE, Dashboard | 4 | 4 | 0 | — | — |
-| 9. Alertas, risco, auditoria, integridade | 5 | 4 | 0 | — | 9.4 pgaudit só registra ddl/role: a 0141 continua pendente com o Felipe |
+| 9. Alertas, risco, auditoria, integridade | 5 | 5 | 0 | — | — (a 0141 já estava aplicada desde 08/10; ver Acabamento) |
 | 10. Permissões e PIN | 6 | 6 | 1 | 1 (B3, janela de PIN) | 10.5 "expirar" (esperar 10 min) |
 | 11. Sincronização | 5 | 5 | 1 | 1 (B4) | — |
 | 12. Carga leve | 1 | 1 | 0 | — | — |
@@ -53,7 +53,8 @@ abertura; pela ordem: 102/102 campos iguais); "fila não segurou na rodada 1" (o
 | Depois da carga (30 vendas + 10 movimentos) | 101 | 0 | íntegra |
 | Depois da limpeza (1ª rodada), 09/10 | 103 | 0 | íntegra |
 | Semana inteira 01/10 → 09/10 | todas | 0 | íntegra |
-| FINAL, depois da 2ª rodada e da limpeza | 121 | 0 | íntegra (âncora diária conferida: 07:00Z de hoje) |
+| Depois da 2ª rodada e da limpeza | 121 | 0 | íntegra (âncora diária conferida: 07:00Z de hoje) |
+| FINAL, depois do Acabamento (0162 + testes de concorrência no banco + entregue automático) | 127 | 0 | íntegra |
 
 **Segunda rodada (Fase 5)**: os blocos que tinham rodado antes das correções (caixa/movimentações,
 integração, sincronização) rodaram de novo sobre o código final publicado. Única mudança em relação à 1ª
@@ -74,15 +75,15 @@ se tentar passar do que sobrou. Caixa fechado no A → o B recebe "caixa fechado
 3. No fechamento, qualquer diferença (mesmo dentro da tolerância de R$ 2) pede justificativa; PIN e alerta grave só acima de R$ 5.
 4. DRE: a coluna "% do fat." continua sobre o faturamento inteiro; a % do CMV (sobre vendas com custo) aparece numa nota abaixo da tabela. "X% sem custo" é medido em valor vendido.
 5. Venda manual que cita pedido do sistema agora bloqueia em qualquer conta a receber (antes só "Venda avulsa").
-6. Fila da gaveta é em memória: vale porque o app roda numa instância só no Coolify. Se um dia rodar em várias, levar a conferência para dentro da transação do banco (migration).
-7. Taxa extra e desconto da CONTA aparecem em "outros" na conciliação do DRE (os do pedido/entrega entram em Taxas/Descontos). O total bate; é só a classificação.
-8. Fluxo de Caixa agrupa o turno pelo dia de ABERTURA; DRE e Dashboard pelo dia de cada lançamento. Caixa que vira a meia-noite: as vendas depois da meia-noite aparecem no dia seguinte no DRE e no turno do dia anterior no Fluxo.
+6. ~~Fila da gaveta em memória~~ → resolvido no Acabamento: a trava agora é do banco (0162).
+7. **Taxas e descontos no DRE.** O DRE tem uma "conciliação" que explica o faturamento em partes: itens + taxas − descontos + outros. A taxa de entrega e o desconto/cupom que vêm no PEDIDO (vitrine, entrega) caem nas linhas "Taxas" e "Descontos". Já a taxa extra que o caixa coloca na CONTA (ex.: embalagem, taxa de serviço) e o desconto dado na CONTA no PDV caem na linha "outros". O dinheiro total está certo e o lucro também; só a etiqueta é diferente. No teste: conta de R$ 18 + taxa de R$ 3 − desconto de R$ 2 = R$ 19 recebidos → "itens R$ 18, outros R$ 1". Se você quiser ver "Taxas R$ 3" e "Descontos R$ 2" separados também nesse caso, é um ajuste só na conta do relatório (não mexe em dinheiro).
+8. **Caixa que atravessa a meia-noite.** Um caixa aberto às 18h do dia 09 e fechado às 02h do dia 10 é UM turno só. O Fluxo de Caixa mostra esse turno inteiro no dia 09 (o dia em que ele abriu), com todas as vendas dele, inclusive as da 01h. O DRE e o Dashboard contam cada venda no dia em que ela aconteceu (horário de Brasília): a venda da 01h aparece no dia 10. Por isso, olhando só o dia 09, o Fluxo pode mostrar mais vendas que o DRE; somando os dois dias, os números batem. A fronteira do dia é sempre meia-noite de Brasília (conferido no banco).
 9. Insumos de teste foram desativados (o produto não exclui insumo: o histórico de compras aponta para ele).
 
 ## As 4 condições do piloto (por inteiro)
 
 1. **A loja precisa de pelo menos um gerente com PIN, além do dono.** Sem isso, ninguém além do dono consegue estornar, cancelar o que já foi para a cozinha, fazer sangria/despesa/retirada acima do limite ou fechar o caixa com diferença ou com pendências. Na Ponto 400 hoje só existe o dono (sem PIN).
-2. **Começar com a casa limpa:** nenhuma conta antiga aberta e nenhum motoboy com dinheiro a acertar. Senão todo fechamento pede justificativa e PIN (foi o que aconteceu na Menuzia com as contas de 04/10 e os R$ 12 do Jose). Na Ponto 400 há 1 conta aberta (#7, R$ 33,00, de 07/10) e um caixa automático aberto desde 08/10.
+2. **Começar com a casa limpa:** nenhuma conta antiga aberta e nenhum motoboy com dinheiro a acertar. Senão todo fechamento pede justificativa e PIN (foi o que aconteceu na Menuzia com as contas de 04/10 e os R$ 12 do Jose). Na Ponto 400 há 1 conta aberta (#7, R$ 33,00, de 06/10) e um caixa automático aberto desde 08/10.
 3. **CMV só funciona com custo cadastrado, e só a partir das vendas feitas depois do cadastro.** Sem custo, o Dashboard mostra "Cadastre o custo dos itens para ver o CMV"; com custo parcial, a % vale só para as vendas com custo e aparece quantos % das vendas estão sem custo. Na Ponto 400 não há nenhum custo cadastrado (lista dos 15 mais vendidos no guia do piloto).
 4. **Ainda não testado pelo dono: a aprovação pelo celular.** O fluxo foi testado por API hoje (pedir, aparecer para o aprovador, quem pede não aprova, PIN errado, aprovar, recusar, valor diferente recusado, uso único), mas o checklist do piloto previa que o próprio dono fizesse o teste no celular dele, com o "Gerente Teste" e o "Gerente Aprovador (teste)" da Menuzia, antes de ligar numa loja real.
 
@@ -92,12 +93,44 @@ Guia completo do piloto (checklist, ligar/desligar, guia de 1 página para a equ
 ## O que não foi testado e por quê
 
 - Entrega PAGA na porta (dinheiro, cartão, Pix, mista): a regra do dia manda encerrar entrega de teste como "Não entregue". Coberto pelo e2e da Fase 3 (99/99, 03/10) e pela entrega #184 (09/10 madrugada).
-- "Entregue automático em 1h30": sem relógio simulado no servidor de produção; testado no item 61 (08/10).
 - Pix online pago/webhook: proibido pagar Pix real e forjar webhook em produção; coberto pelo e2e local com Mercado Pago simulado (54/54, 07/10) e testes de unidade. Não reexecutado (stack local inteira com 8 GB).
 - Atomicidade com falha injetada: e2e de 04/10; não reexecutado.
 - Aprovação pelo celular "expirar" (esperar 10 min).
-- pgaudit registrando escrita no livro: depende da 0141 (pendente com você).
 - Telas "Auditoria", "Risco" e "Regras" em 1366×768 (o robô saiu do Financeiro no meio); conferidas em 390×844.
+
+## Acabamento (09/10, depois da auditoria)
+
+**1. Trava da gaveta no banco (migration 0162, aplicada e publicada).** A conferência "há dinheiro na gaveta?"
+agora acontece dentro do banco, na mesma operação que grava a saída, com uma trava por caixa
+(`pg_advisory_xact_lock`): vale para sangria, retirada, despesa, perda e compra/conta paga com o caixa, com
+quantas instâncias do app estiverem rodando (inclusive durante o deploy). A fila em memória continua só para
+não pedir PIN à toa. Antes de aplicar: ensaio em produção dentro de uma transação desfeita; backup das
+funções em `~/menuzia-backups/funcoes-antes-0162-*.sql`; rollback em `docs/rollback/0162_*.down.sql`.
+Testes direto no banco, sem passar pelo app:
+| Teste | Resultado |
+|---|---|
+| 2 processos × 1 sangria de R$ 60 com R$ 100 | 1 passou, 1 recusada; sobrou R$ 40 ✅ |
+| 10 saídas de R$ 25 em paralelo com R$ 100 | 4 passaram; saldo R$ 0,00 (nunca negativo) ✅ |
+| 2 processos Node (= 2 instâncias) × 10 saídas de R$ 17 com R$ 200 | 11 passaram; sobrou R$ 13 ✅ |
+Conciliação depois: ver tabela de conciliação (0 diferença). Commit d641f65.
+
+**2. Entregue automático em 1h30.** Teste de unidade com o relógio injetado (`lib/motoboy/entregue-automatico.test.ts`,
+5/5): aos 89 min não marca, aos 90 marca; "Não entregue", cancelado, já entregue ou sem motoboy não mexe;
+dois crons ao mesmo tempo marcam uma vez só. O dinheiro foi conferido no banco de produção dentro de uma
+transação desfeita: com troco de R$ 38 levado, ao virar "entregue automático" o sistema lança a pendência do
+motoboy com o valor do pedido (R$ 9) e o "troco para R$ 50" anotado — o motoboy passa a dever R$ 47; rodar de
+novo não lança outra pendência. Commit 7ce1ab8.
+
+**3. Migration 0141 — ela já estava aplicada.** Conferido no banco hoje: a função da âncora, o papel de
+auditoria com as permissões nas 3 tabelas imutáveis e o pgaudit configurado no `postgres` e na API. Foi
+aplicada em 08/10 por volta das 06h (registro da varredura daquela madrugada); a âncora diária grava às 04h
+(Brasília) e as verificações de hoje conferiram as âncoras. Os relatórios e a memória que diziam "pendente"
+estavam desatualizados.
+
+**4. Script para ligar/desligar o financeiro:** `node scripts/financeiro-flag.mjs <loja> on|off` mostra o
+checklist do piloto (gerente com PIN, contas abertas, motoboys com dinheiro, caixa aberto, custo dos 15 mais
+vendidos, regras) e só altera com `--confirmar`, guardando backup e registrando na auditoria. Não foi executado
+em nenhuma loja (rodado sem `--confirmar` na Ponto 400: 5 pendências). Commit 0cace9c.
 
 ## Estado final da Menuzia (17:50Z)
 
