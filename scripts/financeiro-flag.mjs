@@ -53,14 +53,22 @@ try {
   item(mot.length === 0 && emRota.n === 0, `Motoboys com dinheiro a acertar: ${mot.length ? mot.map((m) => `${m.nome} ${brl(m.s)}`).join(', ') : 'nenhum'} | entregas em rota agora: ${emRota.n}`)
   // 4. caixa aberto
   const cx = await um(`select aberto_em, aberto_por_nome from caixa_turnos where restaurante_id = $1 and fechado_em is null`, [L])
-  item(!cx, `Caixa aberto: ${cx ? `SIM, por ${cx.aberto_por_nome} desde ${new Date(cx.aberto_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })} — fechar antes de ${modo === 'on' ? 'ligar' : 'desligar'}` : 'não'}`)
+  const desde = cx ? new Date(cx.aberto_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : ''
+  // Loja SEM financeiro: o caixa "Automático (1ª entrega)" é o do dia operacional (sem fundo, sem livro-caixa) e
+  // não tem botão de fechar no painel. Não bloqueia: depois de ligar, o gerente fecha em Financeiro › Caixa
+  // (contagem R$ 0,00) e abre o caixa novo com o fundo contado. Caixa aberto com o financeiro ligado bloqueia.
+  if (cx && !loja.financeiro_ativo && /^Autom/i.test(cx.aberto_por_nome ?? '')) console.log(`ℹ️  Caixa automático do dia aberto desde ${desde}: logo depois de ligar, fechar em Financeiro › Caixa (contagem R$ 0,00) e abrir o novo com o fundo`)
+  else item(!cx, `Caixa aberto: ${cx ? `SIM, por ${cx.aberto_por_nome} desde ${desde} — fechar antes de ${modo === 'on' ? 'ligar' : 'desligar'}` : 'não'}`)
   // 5. itens mais vendidos sem custo (sem ficha técnica com componentes)
   const top = await q(`select i.item_id, max(i.nome) nome, sum(i.quantidade)::int qtd from pedido_itens i join pedidos p on p.id = i.pedido_id
     where p.restaurante_id = $1 and p.status = 'entregue' and p.criado_em > now() - interval '30 days' and i.cancelado_em is null and i.item_id is not null
     group by 1 order by 3 desc limit 15`, [L])
   const comFicha = new Set((await q(`select distinct f.item_id from cmv_fichas f join cmv_ficha_componentes c on c.ficha_id = f.id where f.restaurante_id = $1 and f.item_id is not null`, [L])).map((r) => r.item_id))
   const semCusto = top.filter((t) => !comFicha.has(t.item_id))
-  item(semCusto.length === 0, `Custo dos 15 mais vendidos (30 dias): ${top.length - semCusto.length}/${top.length} com ficha${semCusto.length ? ' — sem custo: ' + semCusto.map((t) => `${t.nome} (${t.qtd})`).join(', ') : ''}`)
+  // Custo (ficha técnica) só se cadastra em Financeiro › Precificação/CMV, que aparece depois de ligar — e o
+  // "preço de custo" do Gestor de Cardápio NÃO entra no CMV. Informa (tarefa do 1º dia), não bloqueia: sem
+  // custo o dinheiro funciona igual, só o CMV mostra "Cadastre o custo dos itens".
+  console.log(`${semCusto.length ? 'ℹ️ ' : '✅'} Custo dos 15 mais vendidos (30 dias): ${top.length - semCusto.length}/${top.length} com ficha${semCusto.length ? ' — cadastrar no 1º dia (Financeiro › Precificação/CMV): ' + semCusto.map((t) => `${t.nome} (${t.qtd})`).join(', ') : ''}`)
   // 6. regras da loja
   const cfg = await um(`select limite_saida_centavos, limite_divergencia_centavos, tolerancia_fechamento_centavos, fundo_padrao_centavos, alerta_whatsapp from fin_config where restaurante_id = $1`, [L])
   // Fundo e WhatsApp só se definem na tela Financeiro › Regras, que aparece depois de ligar: informa, não bloqueia.
