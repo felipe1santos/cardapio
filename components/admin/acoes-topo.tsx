@@ -166,13 +166,16 @@ export function AcoesTopo() {
           </svg>
           Ajustes da loja
         </button>
+        {/* O PIN pode ser criado ANTES de ligar o financeiro: a loja precisa de um gerente com PIN para poder ligar. */}
+        {sessao && (
+          <button type="button" data-testid="menu-meu-pin"
+            onClick={() => { setMenuAberto(false); setPinAberto(true) }}
+            className="flex w-full items-center gap-2.5 border-t border-[var(--adm-borda)] px-3.5 py-2.5 text-left text-[12.8px] text-[var(--adm-texto)] transition-colors hover:bg-[var(--adm-hover)]">
+            {sessao.temPin ? 'Trocar meu PIN' : 'Criar meu PIN'}
+          </button>
+        )}
         {sessao?.financeiroAtivo && (
           <>
-            <button type="button" data-testid="menu-meu-pin"
-              onClick={() => { setMenuAberto(false); setPinAberto(true) }}
-              className="flex w-full items-center gap-2.5 border-t border-[var(--adm-borda)] px-3.5 py-2.5 text-left text-[12.8px] text-[var(--adm-texto)] transition-colors hover:bg-[var(--adm-hover)]">
-              {sessao.temPin ? 'Trocar meu PIN' : 'Criar meu PIN'}
-            </button>
             {sessao.temPin && (
               <button type="button" data-testid="menu-bloquear"
                 onClick={() => { setMenuAberto(false); pedirTrava('travar') }}
