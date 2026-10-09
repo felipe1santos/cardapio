@@ -188,6 +188,8 @@ export const ROTULO_EVENTO: Record<string, string> = {
   'impressao.recibo_teste': 'Imprimiu Recibo/Extrato de teste',
   'impressao.cozinha_teste': 'Imprimiu comanda da cozinha de teste',
   'impressao.calibracao': 'Pediu página de calibração da impressora',
+  'impressao.passou_para_novo': 'Loja passou sozinha para o assistente novo',
+  'impressao.somente_nova': 'Loja passou a imprimir só pelo assistente novo',
   'impressao.modo_alterado': 'Mudou o modo do Assistente Beta (teste, caixa ou cozinha e caixa)',
   'impressao.beta_liberado': 'Plataforma liberou o Assistente Beta para a loja',
   'impressao.beta_retirado': 'Plataforma retirou a loja do piloto do Assistente Beta',

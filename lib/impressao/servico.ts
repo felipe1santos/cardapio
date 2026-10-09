@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { tentarPassarParaNovo } from './passar-para-novo'
 import { larguraDoDriver } from './largura-auto'
 import { buscarConfigImpressao } from '@/lib/queries/impressao'
 import { registrarAuditoria } from '@/lib/auditoria'
@@ -407,6 +408,9 @@ export async function atribuirFuncao(
   await auditar(admin, op, 'impressao.funcao_atribuida', 'impressao_dispositivo', dispositivoId, {
     funcao, compartilhada: jaTem?.dispositivo_id === dispositivoId, resumo: `${funcao} → ${d.apelido ?? d.nome_sistema}`,
   })
+  // Loja "só assistente novo" ainda no antigo: escolheu a impressora → passa na hora.
+  const { data: dAg } = await admin.from('impressao_dispositivos').select('agente_id').eq('id', dispositivoId).maybeSingle()
+  if (dAg?.agente_id) await tentarPassarParaNovo(admin, dAg.agente_id as string).catch(() => null)
   // Trocar para uma impressora que o modo ligado não pode usar (ex.: de computador desconectado) recua o modo.
   const recuou = await garantirModoValido(admin, op)
   return { ok: true, valor: null, modoRecuou: recuou }
@@ -560,6 +564,8 @@ export async function descobrir(admin: SupabaseClient, agenteId: string, nomes: 
       }
     }
   }
+  // 09/10: loja "só assistente novo" que ainda imprime pelo antigo passa sozinha (passar-para-novo.ts).
+  if (r.ok) await tentarPassarParaNovo(admin, agenteId).catch((e) => console.error('[passagem automática]', (e as Error).message))
   return r
 }
 
