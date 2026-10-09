@@ -32,6 +32,8 @@ export function BlocoPagamento({ comandaId, subtotalCarrinho, versao, onMudar }:
   const [escolha, setEscolha] = useState<EscolhaPdv | null>(null)
   const [precisaTroco, setPrecisaTroco] = useState<boolean | null>(null)
   const [trocoTxt, setTrocoTxt] = useState('')
+  // "Cobrar agora" registra o pagamento junto com o lançamento; o padrão é receber depois (como sempre foi).
+  const [cobrarAgora, setCobrarAgora] = useState(false)
 
   useEffect(() => {
     let vivo = true
@@ -47,6 +49,7 @@ export function BlocoPagamento({ comandaId, subtotalCarrinho, versao, onMudar }:
         setPrecisaTroco(j.atual.escolha === 'dinheiro' ? j.atual.trocoPara !== null : null)
         setTrocoTxt(j.atual.trocoPara ? String(j.atual.trocoPara).replace('.', ',') : '')
       } else { setEscolha(null); setPrecisaTroco(null); setTrocoTxt('') }
+      setCobrarAgora(false)
     }).catch(() => {})
     return () => { vivo = false }
   }, [comandaId, versao])
@@ -54,13 +57,13 @@ export function BlocoPagamento({ comandaId, subtotalCarrinho, versao, onMudar }:
   const exige = info?.tipo === 'balcao'
   const total = Math.round(((info?.totalAtual ?? 0) + (info?.taxaPendente ?? 0) + subtotalCarrinho) * 100) / 100
   const trocoPara = escolha === 'dinheiro' && precisaTroco ? Number(trocoTxt.replace(/\./g, '').replace(',', '.')) || 0 : null
-  const pagamento: PagamentoPdv | null = escolha ? { escolha, trocoPara: escolha === 'dinheiro' && precisaTroco ? trocoPara : null } : null
+  const pagamento: PagamentoPdv | null = escolha ? { escolha, trocoPara: escolha === 'dinheiro' && precisaTroco ? trocoPara : null, ...(cobrarAgora ? { cobrarAgora: true } : {}) } : null
   const erro = !exige ? null
     : escolha === 'dinheiro' && precisaTroco === null ? 'Diga se precisa de troco.'
     : escolha === 'dinheiro' && precisaTroco && !trocoTxt.trim() ? 'Informe para quanto é o troco.'
     : erroPagamentoPdv(pagamento, total)
 
-  const chaveEstado = `${exige}|${escolha}|${precisaTroco}|${trocoTxt}|${total}`
+  const chaveEstado = `${exige}|${escolha}|${precisaTroco}|${trocoTxt}|${total}|${cobrarAgora}`
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { onMudar({ exige, pagamento: exige ? pagamento : null, erro }) }, [chaveEstado])
 
@@ -73,7 +76,14 @@ export function BlocoPagamento({ comandaId, subtotalCarrinho, versao, onMudar }:
     <section className="rounded-menuzia border border-border bg-[#f9fafb] p-3" data-testid="pdv-pagamento" aria-label="Pagamento">
       <div className="mb-2 flex items-center justify-between">
         <span className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Pagamento</span>
-        <span className="text-[12px] text-text-subtle">{statusAReceber(info.entrega ? 'entrega' : 'retirada')}</span>
+        <span className="text-[12px] text-text-subtle">{cobrarAgora ? 'Pago no lançamento' : statusAReceber(info.entrega ? 'entrega' : 'retirada')}</span>
+      </div>
+      <div className="mb-2 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Quando cobrar">
+        {([[true, 'Cobrar agora'], [false, info.entrega ? 'Receber na entrega' : 'Receber na retirada']] as const).map(([v, r]) => (
+          <button key={r} type="button" role="radio" aria-checked={cobrarAgora === v} data-testid={v ? 'pdv-cobrar-agora' : 'pdv-cobrar-depois'}
+            onClick={() => setCobrarAgora(v)}
+            className={`min-h-[44px] rounded-menuzia border px-3 text-[13px] font-semibold transition-colors ${cobrarAgora === v ? 'border-primary bg-primary text-white' : 'border-border bg-white text-text-main hover:border-primary'}`}>{r}</button>
+        ))}
       </div>
       <div className="grid grid-cols-2 gap-2">
         {formas.map((f) => {
@@ -125,7 +135,7 @@ export function BlocoPagamento({ comandaId, subtotalCarrinho, versao, onMudar }:
       </div>
       {levar > 0 && !erro && (
         <p className="mt-2 rounded-menuzia bg-[#FEF3C7] px-3 py-2 text-[15px] font-semibold text-[#92400E]" data-testid="pdv-levar-troco">
-          Levar de troco: {brl(levar)}
+          {cobrarAgora ? 'Troco a dar agora' : 'Levar de troco'}: {brl(levar)}
         </p>
       )}
       {erro && escolha && <p className="mt-2 text-[12.5px] font-medium text-danger" data-testid="pdv-pag-erro">{erro}</p>}

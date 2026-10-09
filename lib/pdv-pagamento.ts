@@ -20,6 +20,9 @@ export interface PagamentoPdv {
   escolha: EscolhaPdv
   /** Só dinheiro: "troco para" em reais. Nulo = não precisa de troco. */
   trocoPara: number | null
+  /** "Cobrar agora" (09/10): registra o pagamento junto com o lançamento (entra no caixa e no Financeiro).
+   *  Ausente = receber depois (na entrega/retirada), como sempre foi. */
+  cobrarAgora?: boolean
 }
 
 /** Escolha da tela → colunas do pedido (modelo da vitrine). */
@@ -75,10 +78,17 @@ export function lerPagamentoPdv(v: unknown): PagamentoPdv | null {
   if (typeof o.escolha !== 'string' || !(ESCOLHAS_PDV as string[]).includes(o.escolha)) return null
   const t = o.trocoPara === null || o.trocoPara === undefined || o.trocoPara === '' ? null : Number(o.trocoPara)
   if (t !== null && (!Number.isFinite(t) || t < 0 || t > 100000)) return null
-  return { escolha: o.escolha as EscolhaPdv, trocoPara: o.escolha === 'dinheiro' && t ? t : null }
+  return { escolha: o.escolha as EscolhaPdv, trocoPara: o.escolha === 'dinheiro' && t ? t : null, ...(o.cobrarAgora === true ? { cobrarAgora: true } : {}) }
 }
 
 /** Atalhos de "troco para" que fazem sentido para o total (só os maiores que ele). */
 export function atalhosTroco(total: number): number[] {
   return [20, 50, 100, 200].filter((v) => v > total)
+}
+
+/** Chave do pagamento do "Cobrar agora": derivada da chave do lançamento (repetir o envio não cobra duas vezes). */
+export function chavePagamentoDoLancamento(chaveLancamento: string): string {
+  const h = chaveLancamento.replace(/-/g, '').toLowerCase()
+  // Troca o último bloco (12 hex) por um marcador fixo: continua UUID válido e diferente da chave do lançamento.
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-c0b4a0${h.slice(20, 26)}`
 }

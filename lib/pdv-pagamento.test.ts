@@ -44,3 +44,19 @@ describe('pagamento do PDV', () => {
     expect(lerPagamentoPdv({ escolha: 'dinheiro', trocoPara: -1 })).toBeNull()
   })
 })
+
+describe('cobrar agora (09/10)', () => {
+  it('lê cobrarAgora só quando verdadeiro', async () => {
+    const { lerPagamentoPdv } = await import('./pdv-pagamento')
+    expect(lerPagamentoPdv({ escolha: 'pix', cobrarAgora: true })).toEqual({ escolha: 'pix', trocoPara: null, cobrarAgora: true })
+    expect(lerPagamentoPdv({ escolha: 'pix', cobrarAgora: 'sim' })).toEqual({ escolha: 'pix', trocoPara: null })
+  })
+  it('chave do pagamento: UUID válido, fixa para o mesmo lançamento e diferente da do lançamento', async () => {
+    const { chavePagamentoDoLancamento } = await import('./pdv-pagamento')
+    const k = '3f2b8c1e-9a7d-4e21-b5c3-0d9e8f7a6b5c'
+    const p = chavePagamentoDoLancamento(k)
+    expect(p).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
+    expect(p).toBe(chavePagamentoDoLancamento(k))
+    expect(p).not.toBe(k)
+  })
+})

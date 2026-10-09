@@ -773,7 +773,7 @@ export default function PdvPage() {
     if (!alvoV2 || comanda.length === 0 || launching) return
     setLaunching(true)
     setLaunchMsg(null)
-    const r = await chamar<{ id: string; numero: number; comandaId: string; idempotente: boolean }>('/api/admin/pdv/lancamento', {
+    const r = await chamar<{ id: string; numero: number; comandaId: string; idempotente: boolean; cobranca?: { ok: true; troco: number } | { ok: false; erro: string } | null }>('/api/admin/pdv/lancamento', {
       method: 'POST',
       body: JSON.stringify({
         comandaId: alvoV2.comandaId,
@@ -804,7 +804,10 @@ export default function PdvPage() {
     chaveLancamento.current = novaChave()
     setComanda([])
     setVersaoPag((v) => v + 1)
-    setToastLancado({ texto: `Pedido #${r.dados.numero} lançado em ${alvoV2.rotulo}!`, comandaId: r.dados.comandaId })
+    const cob = r.dados.cobranca
+    setToastLancado({ texto: `Pedido #${r.dados.numero} lançado em ${alvoV2.rotulo}${cob?.ok ? ` e pago${cob.troco > 0 ? ` (troco ${cob.troco.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})` : ''}` : ''}!`, comandaId: r.dados.comandaId })
+    // Lançou, mas a cobrança não passou: o pedido segue a receber — o operador precisa saber na hora.
+    if (cob && !cob.ok) setLaunchMsg({ type: 'err', text: `Pedido lançado, mas o pagamento NÃO foi registrado: ${cob.erro} Receba pela conta.` })
     // A mesa livre ganhou comanda no primeiro lançamento: os próximos caem nela.
     setAlvoV2((a) => (a ? { ...a, comandaId: r.dados!.comandaId } : a))
     void recarregarMesas()
