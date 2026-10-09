@@ -262,12 +262,15 @@ async function validarConta(admin: SupabaseClient, loja: string, e: EntradaConta
 async function vendaJaNoSistema(admin: SupabaseClient, loja: string, e: EntradaConta, categoria: Categoria) {
   const chave = categoria.nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
   const vazio = { citados: [] as { numero: number; total: number }[], mesmoValor: [] as { numero: number; total: number }[] }
-  if (e.tipo !== 'receber' || !chave.startsWith('venda')) return vazio
+  if (e.tipo !== 'receber') return vazio
+  // Citar um pedido do sistema bloqueia em QUALQUER conta a receber (auditoria 09/10: em "Outras receitas"
+  // ou "Repasse" passava e duplicava o faturamento). O aviso de mesmo valor continua só na categoria de venda.
   const numeros = numerosDePedidoCitados(`${e.descricao} ${e.observacao ?? ''}`)
   if (numeros.length) {
     const { data } = await admin.from('pedidos').select('numero, total').eq('restaurante_id', loja).in('numero', numeros).neq('status', 'cancelado')
     for (const p of data ?? []) vazio.citados.push({ numero: Number(p.numero), total: Math.round(Number(p.total) * 100) })
   }
+  if (!chave.startsWith('venda')) return vazio
   const ini = new Date(`${e.vencimento}T00:00:00-03:00`).toISOString()
   const fim = new Date(new Date(`${e.vencimento}T00:00:00-03:00`).getTime() + 86_400_000).toISOString()
   const { data: mesmos } = await admin.from('pedidos').select('numero, total').eq('restaurante_id', loja).neq('status', 'cancelado')
