@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useAtualizacaoAutomatica } from '../usar-atualizacao'
 import { AlertTriangle, ArrowUpFromLine, Bike, CheckCircle2, ChefHat, Clock, CreditCard, Scale, Ticket, TrendingDown, TrendingUp, Wallet } from 'lucide-react'
 import { formatarCentavos } from '@/lib/financeiro/centavos'
 import { ATALHOS, periodoDoAtalho, type Atalho } from '@/lib/financeiro/fluxo-regras'
@@ -44,19 +45,24 @@ export function SecaoDashboard() {
   /** Mesmo dashboard no período anterior de mesmo tamanho — só para a variação ▲▼ dos indicadores. */
   const [ant, setAnt] = useState<Dados | null>(null)
   const [erro, setErro] = useState<string | null>(null)
+  const temDados = useRef(false)
   const carregar = useCallback(async () => {
     const p = periodoDoAtalho(atalho)
     const a = periodoAnterior(p.de, p.ate)
     const [r, ra] = await Promise.all([
-      fetch(`/api/admin/financeiro/dashboard?de=${p.de}&ate=${p.ate}&grupo=${grupo}`, { cache: 'no-store' }),
+      fetch(`/api/admin/financeiro/dashboard?de=${p.de}&ate=${p.ate}&grupo=${grupo}`, { cache: 'no-store' }).catch(() => null),
       fetch(`/api/admin/financeiro/dashboard?de=${a.de}&ate=${a.ate}&grupo=${grupo}`, { cache: 'no-store' }).catch(() => null),
     ])
+    if (!r) { if (!temDados.current) setErro('Sem conexão. Confira a internet e tente de novo.'); return }
     const j = await r.json().catch(() => ({}))
-    if (!r.ok) { setErro(j.error ?? 'Não foi possível carregar.'); return }
+    if (!r.ok) { if (!temDados.current) setErro(j.error ?? 'Não foi possível carregar.'); return }
+    temDados.current = true
     setErro(null); setD(j)
     setAnt(ra?.ok ? await ra.json().catch(() => null) : null)
   }, [atalho, grupo])
   useEffect(() => { void carregar() }, [carregar])
+  // Vendas de outros aparelhos entram sozinhas (a cada 30 s com a aba visível).
+  useAtualizacaoAutomatica(carregar, true, 30_000)
 
   const c = d?.cards
   const ca = ant?.cards

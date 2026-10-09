@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useAtualizacaoAutomatica } from './usar-atualizacao'
 import { AprovacaoPin, CampoDinheiro, Janela, botao, brl, type AprovacaoDada, type PedidoRemoto } from './apoio'
 import { DESCRICAO_MOVIMENTO, MOVIMENTOS, ROTULO_MOVIMENTO, tempoAberto, type Movimento } from '@/lib/financeiro/caixa-regras'
 import { BotaoGaveta, Card, FIN_COR, Kpi, SeloMeta, ValorSinal } from '@/components/graficos/kit-meta'
@@ -68,13 +69,18 @@ export function SecaoCaixa({ modo }: { modo: 'caixa' | 'movimentacoes' }) {
   const [erro, setErro] = useState<string | null>(null)
   const [janela, setJanela] = useState<null | 'abrir' | 'fechar' | 'reabrir' | Movimento>(null)
 
+  const temDados = useRef(false)
   const carregar = useCallback(async () => {
     const r = await fetch('/api/admin/financeiro/caixa', { cache: 'no-store' }).catch(() => null)
     const j = r ? await r.json().catch(() => ({})) : {}
-    if (!r?.ok) { setErro(j.error ?? 'Não foi possível carregar o caixa.'); return }
+    // Falha numa atualização automática (rede caiu um instante) não apaga a tela que já estava certa.
+    if (!r?.ok) { if (!temDados.current) setErro(j.error ?? 'Não foi possível carregar o caixa.'); return }
+    temDados.current = true
     setErro(null); setE(j)
   }, [])
   useEffect(() => { void carregar() }, [carregar])
+  // Outro aparelho vendeu, fez sangria ou fechou o caixa: aparece aqui sem recarregar (pausa com janela aberta).
+  useAtualizacaoAutomatica(carregar, janela === null)
   const fechar = () => { setJanela(null); void carregar(); window.dispatchEvent(new Event('menuzia:caixa-mudou')) }
 
   if (erro) return <p className="text-[13px] text-danger" data-testid="caixa-erro">{erro}</p>
