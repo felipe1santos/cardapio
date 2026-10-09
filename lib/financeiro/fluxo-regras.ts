@@ -257,6 +257,21 @@ export function dataHoraBR(iso: string | null | undefined): string {
   const g = (t: string) => p.find((x) => x.type === t)?.value ?? ''
   return `${g('day')}/${g('month')}/${g('year')} ${g('hour')}:${g('minute')}`
 }
+/**
+ * Turno que atravessa a meia-noite (horário de Brasília): o Fluxo mostra o turno no dia em que ABRIU, mas ele
+ * tem vendas do dia seguinte (que o DRE e o Dashboard contam no dia delas). Devolve o aviso
+ * "Turno aberto em 09/10, inclui vendas até 01h30 de 10/10" — ou null se abriu e fechou no mesmo dia.
+ * Turno ainda aberto usa a hora de agora e diz "(em andamento)".
+ */
+export function avisoMeiaNoite(abertoEm: string | null | undefined, fechadoEm: string | null | undefined, agora = new Date()): string | null {
+  if (!abertoEm) return null
+  const fim = fechadoEm ?? agora.toISOString()
+  const a = dataHoraBR(abertoEm), f = dataHoraBR(fim)
+  if (a.slice(0, 10) === f.slice(0, 10)) return null
+  const [hh, mm] = f.slice(11, 16).split(':')
+  return `Turno aberto em ${a.slice(0, 5)}, inclui vendas até ${hh}h${mm} de ${f.slice(0, 5)}${fechadoEm ? '' : ' (em andamento)'}`
+}
+
 /** "2026-10-04" → "04/10/2026". */
 export function dataBR(dia: string | null | undefined): string {
   if (!dia) return ''

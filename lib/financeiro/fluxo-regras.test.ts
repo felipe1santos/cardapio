@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  BOM, atalhoDoPeriodo, corDiferenca, dataBR, dataHoraBR, filtrosParaQuery, gerarCsvBR, lerFiltros, periodoDoAtalho, protegerFormula, valorBR,
+  BOM, atalhoDoPeriodo, avisoMeiaNoite, corDiferenca, dataBR, dataHoraBR, filtrosParaQuery, gerarCsvBR, lerFiltros, periodoDoAtalho, protegerFormula, valorBR,
 } from './fluxo-regras'
 
 // 2026-10-04 10:00 em São Paulo (13:00 UTC).
@@ -67,4 +67,17 @@ describe('fluxo de caixa: cor da diferença', () => {
     expect(corDiferenca(100)).toBe('#8A4B00')
     expect(corDiferenca(null)).toBeNull()
   })
+})
+
+describe('fluxo de caixa: turno que atravessa a meia-noite (Brasília)', () => {
+  it('abriu 09/10 18h e fechou 10/10 01h30 → aviso com a hora da última venda possível', () => {
+    expect(avisoMeiaNoite('2026-10-09T21:00:00Z', '2026-10-10T04:30:00Z')).toBe('Turno aberto em 09/10, inclui vendas até 01h30 de 10/10')
+  })
+  it('abriu e fechou no mesmo dia de Brasília (mesmo que o UTC já tenha virado): sem aviso', () => {
+    expect(avisoMeiaNoite('2026-10-09T21:00:00Z', '2026-10-10T02:59:00Z')).toBeNull()
+  })
+  it('ainda aberto depois da meia-noite: usa a hora de agora', () => {
+    expect(avisoMeiaNoite('2026-10-09T21:00:00Z', null, new Date('2026-10-10T03:15:00Z'))).toBe('Turno aberto em 09/10, inclui vendas até 00h15 de 10/10 (em andamento)')
+  })
+  it('sem abertura: nada', () => { expect(avisoMeiaNoite(null, null)).toBeNull() })
 })

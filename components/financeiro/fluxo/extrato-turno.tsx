@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { AlertTriangle, Download, FileText, Printer, RotateCcw } from 'lucide-react'
 import { formatarCentavos } from '@/lib/financeiro/centavos'
 import {
-  COR_SITUACAO, ROTULO_CARTEIRA, ROTULO_FORMA, ROTULO_ORIGEM, ROTULO_SITUACAO, ROTULO_TIPO, corDiferenca, dataBR, type LancamentoExtrato, type Situacao,
+  COR_SITUACAO, ROTULO_CARTEIRA, ROTULO_FORMA, ROTULO_ORIGEM, ROTULO_SITUACAO, ROTULO_TIPO, avisoMeiaNoite, corDiferenca, dataBR, type LancamentoExtrato, type Situacao,
 } from '@/lib/financeiro/fluxo-regras'
 import { BOTAO, PainelLateral, Selo } from '../ui/blocos'
 
@@ -54,7 +54,7 @@ export function ExtratoTurno({ turnoId, podeExportar, onFechar, onAbrirTurno, on
   return (
     <PainelLateral testid="extrato-turno"
       titulo={t ? `Turno de ${dataBR(diaDe(t.aberto_em))}` : 'Turno'}
-      subtitulo={t ? <span className="inline-flex items-center gap-2">{sit && <Selo cor={COR_SITUACAO[sit]} testid="extrato-situacao">{ROTULO_SITUACAO[sit]}</Selo>} aberto {hora(t.aberto_em)}{t.fechado_em ? ` · fechado ${hora(t.fechado_em)}` : ' · em andamento'}</span> : null}
+      subtitulo={t ? <span className="inline-flex items-center gap-2">{sit && <Selo cor={COR_SITUACAO[sit]} testid="extrato-situacao">{ROTULO_SITUACAO[sit]}</Selo>} aberto {hora(t.aberto_em)}{t.fechado_em ? ` · fechado ${hora(t.fechado_em)}` : ' · em andamento'}{avisoMeiaNoite(t.aberto_em, t.fechado_em) && <span className="text-[#8A4B00]" data-testid="extrato-meia-noite"> · {avisoMeiaNoite(t.aberto_em, t.fechado_em)}</span>}</span> : null}
       onFechar={onFechar}
       acoes={t ? <>
         {t.fechado_em && <button type="button" className={BOTAO.neutro} onClick={() => void reimprimir()} data-testid="reimprimir-relatorio"><Printer className="h-4 w-4" /> Reimprimir relatório</button>}

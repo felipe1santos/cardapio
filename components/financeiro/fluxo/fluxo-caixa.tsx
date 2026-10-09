@@ -8,7 +8,7 @@ import { PilhaToasts, useToasts } from '@/components/admin/toasts'
 import { Flutuante } from '@/components/ui/flutuante'
 import { ICONES } from '@/lib/icones-painel'
 import {
-  ATALHOS, COLUNAS, COLUNAS_PADRAO, COR_SITUACAO, FORMAS, ORIGENS, ROTULO_SITUACAO, SITUACOES, atalhoDoPeriodo, corDiferenca, dataBR,
+  ATALHOS, COLUNAS, COLUNAS_PADRAO, COR_SITUACAO, FORMAS, ORIGENS, ROTULO_SITUACAO, SITUACOES, atalhoDoPeriodo, avisoMeiaNoite, corDiferenca, dataBR,
   filtrosParaQuery, lerFiltros, periodoDoAtalho, temFiltroAlemDoPeriodo, type ColunaFluxo, type FiltrosFluxo, type LinhaFluxo, type Somavel,
 } from '@/lib/financeiro/fluxo-regras'
 import { formatarCentavos } from '@/lib/financeiro/centavos'
@@ -33,7 +33,15 @@ const brl = (c: number | null | undefined) => (c === null || c === undefined ? '
 
 function Valor({ col, l }: { col: ColunaFluxo; l: LinhaFluxo }) {
   switch (col.id) {
-    case 'data': return <span className="font-semibold">{l.data ? dataBR(l.data) : 'Fora de turno'}</span>
+    case 'data': {
+      const aviso = avisoMeiaNoite(l.abertoEm, l.fechadoEm)
+      return (
+        <span className="font-semibold">
+          {l.data ? dataBR(l.data) : 'Fora de turno'}
+          {aviso && <span className="mt-[2px] block max-w-[190px] text-[11.5px] font-normal leading-[15px] text-[#8A4B00]" data-testid="fluxo-meia-noite">{aviso}</span>}
+        </span>
+      )
+    }
     case 'situacao':
       return (
         <span className="inline-flex flex-wrap items-center gap-1">
@@ -307,6 +315,7 @@ export function FluxoCaixa({ usuarioId }: { usuarioId: string }) {
               <p className="text-[15px] font-semibold">{l.data ? dataBR(l.data) : 'Fora de turno'}</p>
               <Selo cor={COR_SITUACAO[l.situacao]}>{ROTULO_SITUACAO[l.situacao]}</Selo>
             </div>
+            {avisoMeiaNoite(l.abertoEm, l.fechadoEm) && <p className="mt-1 text-[12px] leading-[16px] text-[#8A4B00]">{avisoMeiaNoite(l.abertoEm, l.fechadoEm)}</p>}
             <div className="mt-2 flex items-end justify-between gap-3 text-[13px]">
               <div><p className="text-[11px] text-text-subtle">Recebido</p><p className="font-semibold text-[#006B4E]">{brl(l.recebido)}</p></div>
               <div className="text-right"><p className="text-[11px] text-text-subtle">Diferença</p>
