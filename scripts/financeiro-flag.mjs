@@ -1,6 +1,7 @@
 /**
  * Liga/desliga o módulo Financeiro de UMA loja, com o checklist do piloto antes (docs/financeiro/piloto-ponto400.md).
  *
+ *   node scripts/financeiro-flag.mjs <slug-da-loja> --checklist [--json] → só o checklist e o veredito PRONTA (não muda nada)
  *   node scripts/financeiro-flag.mjs <slug-da-loja> on|off            → só mostra o checklist (não muda nada)
  *   node scripts/financeiro-flag.mjs <slug-da-loja> on|off --confirmar → muda a flag (com backup da linha antes)
  *
@@ -15,8 +16,9 @@ import pg from 'pg'
 
 const [slug, modo, ...resto] = process.argv.slice(2)
 const confirmar = resto.includes('--confirmar')
-if (!slug || !['on', 'off'].includes(modo ?? '')) {
-  console.error('uso: node scripts/financeiro-flag.mjs <slug-da-loja> on|off [--confirmar]')
+const soChecklist = modo === '--checklist', comoJson = resto.includes('--json')
+if (!slug || !['on', 'off', '--checklist'].includes(modo ?? '')) {
+  console.error('uso: node scripts/financeiro-flag.mjs <slug-da-loja> on|off|--checklist [--confirmar] [--json]')
   process.exit(2)
 }
 if (!process.env.DATABASE_URL && existsSync('.env.local')) {
@@ -34,7 +36,7 @@ try {
   const loja = await um(`select id, nome, slug, financeiro_ativo from restaurantes where slug = $1`, [slug])
   if (!loja) { console.error(`Loja "${slug}" não encontrada.`); process.exitCode = 2; throw new Error('sem loja') }
   const L = loja.id
-  console.log(`\nLoja: ${loja.nome} (${loja.slug}) — financeiro hoje: ${loja.financeiro_ativo ? 'LIGADO' : 'desligado'} → pedido: ${modo === 'on' ? 'LIGAR' : 'DESLIGAR'}\n`)
+  console.log(`\nLoja: ${loja.nome} (${loja.slug}) — financeiro hoje: ${loja.financeiro_ativo ? 'LIGADO' : 'desligado'} → pedido: ${soChecklist ? 'só checklist' : modo === 'on' ? 'LIGAR' : 'DESLIGAR'}\n`)
   const avisos = []
   const item = (ok, texto) => { console.log(`${ok ? '✅' : '⚠️ '} ${texto}`); if (!ok) avisos.push(texto) }
 
@@ -61,8 +63,21 @@ try {
   item(semCusto.length === 0, `Custo dos 15 mais vendidos (30 dias): ${top.length - semCusto.length}/${top.length} com ficha${semCusto.length ? ' — sem custo: ' + semCusto.map((t) => `${t.nome} (${t.qtd})`).join(', ') : ''}`)
   // 6. regras da loja
   const cfg = await um(`select limite_saida_centavos, limite_divergencia_centavos, tolerancia_fechamento_centavos, fundo_padrao_centavos, alerta_whatsapp from fin_config where restaurante_id = $1`, [L])
-  item(!!cfg, cfg ? `Regras: saída sem PIN até ${brl(cfg.limite_saida_centavos)}, diferença com PIN acima de ${brl(cfg.limite_divergencia_centavos)}, fundo padrão ${cfg.fundo_padrao_centavos === null ? '—' : brl(cfg.fundo_padrao_centavos)}, WhatsApp de alertas ${cfg.alerta_whatsapp ? 'definido' : 'NÃO definido'}` : 'Regras (fin_config) ainda não existem: nascem com os padrões ao ligar (saída sem PIN até R$ 100,00; diferença com PIN acima de R$ 5,00) — definir fundo e WhatsApp de alertas')
+  // Fundo e WhatsApp só se definem na tela Financeiro › Regras, que aparece depois de ligar: informa, não bloqueia.
+  console.log('ℹ️  ' + (cfg ? `Regras: saída sem PIN até ${brl(cfg.limite_saida_centavos)}, diferença com PIN acima de ${brl(cfg.limite_divergencia_centavos)}, fundo padrão ${cfg.fundo_padrao_centavos === null ? '—' : brl(cfg.fundo_padrao_centavos)}, WhatsApp de alertas ${cfg.alerta_whatsapp ? 'definido' : 'NÃO definido'}` : 'Regras (fin_config) ainda não existem: nascem com os padrões ao ligar (saída sem PIN até R$ 100,00; diferença com PIN acima de R$ 5,00) — definir fundo e WhatsApp de alertas no 1º dia, em Financeiro › Regras e limites'))
 
+  const pronta = avisos.length === 0
+  console.log(`\nPRONTA para ligar: ${pronta ? 'SIM' : `NÃO (${avisos.length} pendência(s))`}`)
+  if (soChecklist) {
+    if (comoJson) console.log('JSON ' + JSON.stringify({
+      slug, nome: loja.nome, financeiro: loja.financeiro_ativo, pronta,
+      gerentesComPin: aprovadores.map((u) => u.nome), equipe: equipe.map((u) => ({ nome: u.nome, papel: u.papel, pin: u.pin })),
+      contas: contas.map((c) => ({ numero: c.numero, tipo: c.tipo, total: c.total, desde: c.aberta_em })), caixa: cx ? { desde: cx.aberto_em, por: cx.aberto_por_nome } : null,
+      motoboys: mot.map((m) => ({ nome: m.nome, centavos: Number(m.s) })), emRota: emRota.n,
+      top: top.map((t) => ({ nome: t.nome, qtd: t.qtd, custo: comFicha.has(t.item_id) })), regras: cfg ? { fundo: cfg.fundo_padrao_centavos, whatsapp: !!cfg.alerta_whatsapp } : null,
+    }))
+    throw new Error('nada a fazer')
+  }
   const alvo = modo === 'on'
   console.log(`\n${avisos.length ? `${avisos.length} pendência(s) acima (⚠️). ` : 'Checklist limpo. '}${loja.financeiro_ativo === alvo ? `A flag JÁ está ${alvo ? 'ligada' : 'desligada'}: nada a fazer.` : ''}`)
   if (loja.financeiro_ativo === alvo) throw new Error('nada a fazer')
