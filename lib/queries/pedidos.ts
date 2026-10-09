@@ -959,6 +959,8 @@ export async function contarBadgesNav(supabase: SupabaseClient, restauranteId: s
 // --- Dashboard (agregados reais a partir dos pedidos) ---
 
 export interface PedidoDashboard {
+  /** Id do pedido: liga o custo gravado na venda (gráfico de lucro, 0165). */
+  id: string
   total: number
   /**
    * Quem pediu. O pedido não guarda id de cliente — quem identifica a pessoa é o
@@ -1000,7 +1002,7 @@ export async function carregarDashboard(supabase: SupabaseClient, restauranteId:
   // perde os de hoje sem aviso.
   const pedidos = await lerTodas<Record<string, unknown>>((de, ate) => supabase
     .from('pedidos')
-    .select('total, tipo, status, forma_pagamento, criado_em, cliente_nome, cliente_telefone, observacao, endereco_rua, endereco_numero, endereco_bairro, endereco_cep, canal, origem, origem_canal, pedido_itens ( item_id, nome, quantidade, preco_unitario )')
+    .select('id, total, tipo, status, forma_pagamento, criado_em, cliente_nome, cliente_telefone, observacao, endereco_rua, endereco_numero, endereco_bairro, endereco_cep, canal, origem, origem_canal, pedido_itens ( item_id, nome, quantidade, preco_unitario )')
     .eq('restaurante_id', restauranteId)
     // Pix online ainda não pago (0148) não é venda: entra quando a API confirmar.
     .not('status', 'in', '(cancelado,aguardando_pagamento)')
@@ -1019,6 +1021,7 @@ export async function carregarDashboard(supabase: SupabaseClient, restauranteId:
   }
 
   const mapped: PedidoDashboard[] = ((pedidos ?? []) as unknown as {
+    id: string
     total: number
     tipo: TipoPedido
     status: StatusPedido
@@ -1036,6 +1039,7 @@ export async function carregarDashboard(supabase: SupabaseClient, restauranteId:
     origem: string | null
     pedido_itens: { item_id: string | null; nome: string; quantidade: number; preco_unitario: number }[]
   }[]).map((p) => ({
+    id: p.id,
     total: Number(p.total),
     tipo: p.tipo,
     status: p.status,

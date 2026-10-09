@@ -39,7 +39,6 @@ export interface DadosAnalises {
 }
 
 const brl = (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-const brlCurto = (v: number) => (v >= 1000 ? `R$ ${(v / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}k` : `R$ ${Math.round(v)}`)
 const inteiro = (v: number) => v.toLocaleString('pt-BR')
 
 function abaDaUrl(validas: AbaAnalise[]): AbaAnalise {
@@ -123,10 +122,6 @@ function AbaPedidos({ d }: { d: DadosAnalises }) {
             { nome: 'De clientes novos', tipo: 'linha', cor: 1, secao: 'Pedidos', semArea: true, valores: d.serie.map((p) => p.novos) },
             { nome: 'De clientes recorrentes', tipo: 'linha', cor: 2, secao: 'Pedidos', semArea: true, valores: d.serie.map((p) => p.recorrentes) },
           ]} />
-      </Card>
-      <Card titulo="Faturamento no período" subtitulo="Receita dos pedidos não cancelados, por dia.">
-        <GraficoFinanceiro testid="dash54-grafico-faturamento" rotulos={d.rotulos} periodos={d.periodos} formatar={brl} formatarEixo={brlCurto}
-          series={[{ nome: 'Faturamento', tipo: 'linha', cor: 1, secao: 'Vendas', valores: d.serie.map((p) => p.receita) }]} />
       </Card>
     </div>
   )

@@ -23,6 +23,7 @@ const AGORA = new Date(2026, 8, 23, 15, 0, 0).getTime()
 
 function pedido(over: Partial<PedidoDashboard> = {}): PedidoDashboard {
   return {
+    id: "p-teste",
     total: 50,
     tipo: 'entrega',
     status: 'entregue',

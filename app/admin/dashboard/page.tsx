@@ -14,6 +14,7 @@ import { LOJAS_DE_TESTE } from '@/lib/dashboard-limpeza'
 import { resumoPorOrigem } from '@/lib/dashboard-origem'
 import { OrigemVisitas } from '@/components/dashboard/origem-visitas'
 import { MiniGrafico } from '@/components/dashboard/mini-grafico'
+import { GraficoVendas } from '@/components/dashboard/grafico-vendas'
 import { ICONES } from '@/lib/icones-painel'
 import {
   carregarAnalyticsVitrine,
@@ -346,6 +347,32 @@ export default function DashboardPage() {
     return funilDaVitrine(vitrine, diasDoIntervalo(intervalo, agora, maisAntigo))
   }, [vitrine, intervalo, agora])
 
+  // Gráfico de Faturamento / Pedidos / Ticket (09/10): MESMA lista do Resumo do período (mesmos filtros).
+  const grafico = useMemo(() => {
+    const historico = LOJAS_DE_TESTE.has(lojaSlug) ? dados.pedidos : dados.pedidos.filter((p) => !p.teste)
+    const ant = intervaloAnterior(intervalo)
+    return { pedidos: filtrarPorIntervalo(historico, intervalo), anteriores: ant ? filtrarPorIntervalo(historico, ant) : [], anterior: ant }
+  }, [dados.pedidos, lojaSlug, intervalo])
+  // Custo gravado na venda de cada pedido (só dono e gerente: 403 para os outros → sem lucro).
+  const [custos, setCustos] = useState<Map<string, number> | null>(null)
+  const [podeLucro, setPodeLucro] = useState(true)
+  useEffect(() => {
+    if (!restauranteId) return
+    let ativo = true
+    setCustos(null)
+    const ant = intervaloAnterior(intervalo)
+    const de = new Date(Math.max(Date.UTC(2024, 0, 1), ant?.inicio ?? intervalo.inicio)).toISOString()
+    fetch(`/api/admin/dashboard/custos?de=${encodeURIComponent(de)}&ate=${encodeURIComponent(new Date(intervalo.fim).toISOString())}`, { cache: 'no-store' })
+      .then(async (r) => {
+        if (!ativo) return
+        if (r.status === 403) { setPodeLucro(false); return }
+        const j = r.ok ? await r.json().catch(() => null) : null
+        if (ativo) setCustos(new Map(Object.entries((j?.custos ?? {}) as Record<string, number>)))
+      })
+      .catch(() => ativo && setCustos(new Map()))
+    return () => { ativo = false }
+  }, [restauranteId, intervalo])
+
   // Origem das visitas e dos pedidos por canal (item 55): visitas da vitrine + pedidos com origem (0149).
   const origem = useMemo(() => resumoPorOrigem(vitrine?.origens ?? [], m.pedidos), [vitrine, m.pedidos])
 
@@ -398,6 +425,9 @@ export default function DashboardPage() {
             Em “Tudo” não há período anterior para comparar — por isso as variações não aparecem.
           </p>
         )}
+
+        <GraficoVendas pedidos={grafico.pedidos} anteriores={grafico.anteriores} intervalo={intervalo} intervaloAnterior={grafico.anterior}
+          custos={podeLucro ? custos : null} podeLucro={podeLucro} carregando={false} erro={error} />
 
         {/* Funil da vitrine: do visitante ao pedido fechado. */}
         {vitrine === null ? (
