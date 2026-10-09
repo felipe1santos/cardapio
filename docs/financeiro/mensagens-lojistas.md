@@ -61,3 +61,25 @@ conta antiga aberta. Mande a mensagem da loja e, quando o lojista disser que fez
 
 Lojas fora da lista: **Menuzia** (loja de teste, financeiro já ligado) e **teste** (loja interna).
 Guia completo para a equipe: `docs/financeiro/piloto-ponto400.md`, seção 3.
+
+---
+
+## Mensagem única para quando o Financeiro for ligado (nível 1) — AINDA NÃO ENVIAR
+
+> Status em 09/10, 17h: o Financeiro **não foi ligado** nas lojas reais. O nível 1 ("Financeiro ligado" sem
+> exigir caixa) depende da migration 0167, que mexe no gatilho de pagamento de todas as lojas e ficou para
+> depois do movimento de sexta (a aplicação foi bloqueada pela permissão do terminal). Ligar a flag SEM a 0167
+> faria o PDV exigir caixa aberto. Mande esta mensagem só depois de ligar.
+
+> Oi! O **Financeiro** chegou no seu Menuzia. 🎉
+> 1. Abra o menu **Financeiro** no painel.
+> 2. Crie seu **PIN de aprovação** (4 a 6 números) — aparece logo no topo. Como dono, você vale como gerente.
+> 3. Siga o **passo a passo "Ativar controle de caixa"** quando quiser começar a abrir e fechar o caixa.
+> 4. Dúvidas? Toque no ícone **i** ao lado do título de cada tela: abre o guia, com tudo explicado.
+> Até você ativar o controle de caixa, o PDV, as mesas e o delivery continuam funcionando exatamente como hoje.
+
+**O que vai aparecer pendente no passo a passo de cada loja (raio-x de 09/10):**
+- Estância Burger: conta #31 (R$ 125,50, desde 04/10); PIN do dono.
+- Ponto 400: conta #7 (R$ 33,00, desde 06/10); PIN do dono.
+- Villalanches: conta #62 (R$ 0,00, desde 07/10); PIN do dono.
+- Pizza do Rosa, Mama Pizza, Golden Burger, Nossa Cozinha, W Lanches Reviver, DB Doces: só o PIN do dono.

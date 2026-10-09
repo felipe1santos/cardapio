@@ -186,3 +186,32 @@ Mensagens prontas para cada lojista: `docs/financeiro/mensagens-lojistas.md`.
 **Decisão para revisar:** o campo "Preço de custo" do Gestor de Cardápio NÃO entra no CMV (o CMV usa só a ficha
 técnica de Financeiro › Precificação/CMV). Quem preencher o custo no cardápio vai continuar vendo "sem custo".
 Opções: fazer o CMV usar esse campo quando o item não tem ficha, ou esconder/renomear o campo.
+
+## Sexta 09/10, 17h — custo do cardápio, gráfico, dono como gerente, guia e os dois níveis
+
+**Publicado:**
+- **A — Custo do item (0164 + 0166):** na venda, 1º ficha técnica (com componentes), 2º "Preço de custo" do Gestor de
+  Cardápio (> 0), 3º sem custo; `pedido_itens_custo.origem` = ficha | cardapio | nenhum; gravado em TODAS as lojas
+  desde as 17h05 (gatilho inteiro protegido: nada derruba o pedido). Complementos/borda/massa: só ficha (não existe
+  preço de custo para eles no cardápio). Precificação/CMV mostra a origem (Ficha / Cardápio). Testes na Menuzia: sem
+  nada → nenhum; só preço R$ 2,50 → cardápio 250; ficha R$ 3,10 + preço → ficha 310; mudar o preço depois não muda
+  a venda antiga. **Lojas com algum item com preço de custo preenchido: 0** (só leitura).
+- **B — Gráfico de Faturamento, Pedidos e Ticket médio** no Dashboard (substitui "Faturamento no período"), lucro
+  bruto só para dono/gerente (0165, só leitura, < 100 ms com 6 meses). Totais = Resumo do período nas 4 lojas
+  conferidas (hoje, 7 dias, 30 dias, 6 meses), ex.: **Ponto 400, 30 dias: R$ 8.465,93 (136 pedidos) nos dois** — o
+  exemplo do pedido era da Ponto 400, não da Villa (Villa, 30 dias: R$ 1.072,30).
+- **C — Dono = "Gerente (você)":** aparece assim na Equipe; vale como aprovador quando tem PIN; passo "Crie seu PIN de
+  aprovação (4 a 6 números)" no Financeiro; PIN aceita 4 a 6 números (teclado com OK). Checklist aceita dono com PIN.
+- **E — Guia do Financeiro** em /admin/financeiro/guia, com "i" ao lado do título de cada tela.
+
+**Não feito (D e F):** a migration 0167 (os dois níveis: "Financeiro ligado" sem exigir caixa × "Controle de caixa
+ativo") está pronta no repositório, mas a aplicação em produção foi **bloqueada pela permissão do terminal** — ela
+altera o gatilho de pagamento de todas as lojas, e era sexta às 17h, perto do movimento. Sem ela, ligar a flag numa
+loja real faria o PDV exigir caixa aberto; por isso **nenhuma loja foi ligada** (F) e o passo a passo "Ativar
+controle de caixa" não foi construído. Ver "O que depende do Felipe".
+
+**O que depende do Felipe:**
+1. Autorizar a aplicação da 0167 (de preferência fora do horário de movimento) — depois disso, faço o código do
+   nível 1/2 + passo a passo + testes na Menuzia e ligo as lojas uma por vez.
+2. Decidir no nível 1 se o acerto do motoboy continua na Logística (proposta: sim, igual a hoje; o dinheiro das
+   entregas entra no livro-caixa só no nível 2).
