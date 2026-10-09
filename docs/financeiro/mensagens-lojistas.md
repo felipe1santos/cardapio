@@ -64,12 +64,12 @@ Guia completo para a equipe: `docs/financeiro/piloto-ponto400.md`, seção 3.
 
 ---
 
-## Mensagem única para quando o Financeiro for ligado (nível 1) — AINDA NÃO ENVIAR
+## Mensagem única — Financeiro ligado (nível 1) — PODE ENVIAR
 
-> Status em 09/10, 17h: o Financeiro **não foi ligado** nas lojas reais. O nível 1 ("Financeiro ligado" sem
-> exigir caixa) depende da migration 0167, que mexe no gatilho de pagamento de todas as lojas e ficou para
-> depois do movimento de sexta (a aplicação foi bloqueada pela permissão do terminal). Ligar a flag SEM a 0167
-> faria o PDV exigir caixa aberto. Mande esta mensagem só depois de ligar.
+> Status em 09/10, 19:39: o Financeiro foi **ligado no nível 1** em todas as lojas reais (Estância, Ponto 400, Villa, Pizza do
+> Rosa, Mama Pizza, Nossa Cozinha, DB Doces, W Lanches, Jhonatan), com a 0167 aplicada às 19:18. PDV, mesa e delivery vendem
+> sem abrir caixa (caixa automático do dia). Nenhuma loja está no nível 2 (controle de caixa): quem liga é o dono, no
+> passo a passo de Financeiro › Caixa. A Menuzia (teste) segue no nível 2.
 
 > Oi! O **Financeiro** chegou no seu Menuzia. 🎉
 > 1. Abra o menu **Financeiro** no painel.
