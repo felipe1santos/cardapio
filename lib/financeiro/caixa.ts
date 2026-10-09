@@ -6,6 +6,7 @@ import { aprovar } from './aprovacao'
 import { criarAlerta } from './alertas'
 import { podeFin } from './permissoes'
 import { formatarCentavos } from './centavos'
+import { naFilaDaGaveta } from './fila-gaveta'
 import {
   avaliarContagem, faltaNaGaveta, linhasDaAbertura, linhasDoAjuste, linhasDoMovimento, permissaoDoMovimento, precisaAprovacao,
   ROTULO_MOVIMENTO, type Movimento,
@@ -181,8 +182,16 @@ export async function abrirCaixa(ctx: ContextoFin, fundoCentavos: number): Promi
 }
 
 // ─── movimentos ─────────────────────────────────────────────────────────────
-export async function movimentar(ctx: ContextoFin, p: { movimento: Movimento; valorCentavos: number; motivo: string; chave: string; aprovacao?: Aprovacao | null }):
-  Promise<{ ok: true; repetido: boolean; aprovadoPor: string | null } | Falha> {
+type EntradaMovimento = { movimento: Movimento; valorCentavos: number; motivo: string; chave: string; aprovacao?: Aprovacao | null }
+type ResultadoMovimento = { ok: true; repetido: boolean; aprovadoPor: string | null } | Falha
+
+/** Saída da gaveta passa pela fila da loja (conferir + gravar em sequência); reforço (entrada) não precisa. */
+export async function movimentar(ctx: ContextoFin, p: EntradaMovimento): Promise<ResultadoMovimento> {
+  if (p.movimento === 'reforco') return movimentarAgora(ctx, p)
+  return naFilaDaGaveta(ctx.sessao.restauranteId, () => movimentarAgora(ctx, p))
+}
+
+async function movimentarAgora(ctx: ContextoFin, p: EntradaMovimento): Promise<ResultadoMovimento> {
   const loja = ctx.sessao.restauranteId
   if (!podeFin(ctx.sessao.papel, ctx.acessos, permissaoDoMovimento(p.movimento))) return falha('Você não tem permissão para este movimento.', 403, 'sem_permissao_acao')
   if (!Number.isSafeInteger(p.valorCentavos) || p.valorCentavos <= 0 || p.valorCentavos > 10_000_000) return falha('Informe o valor.', 400)

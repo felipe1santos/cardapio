@@ -8,6 +8,7 @@ import { faltaNaGavetaParaPagar } from './caixa-regras'
 import { formatarCentavos } from './centavos'
 import { diferencasPorTurno, vendasDoPeriodo } from './vendas-base'
 import { cmvPercentual } from './cmv-pct'
+import { naFilaDaGaveta } from './fila-gaveta'
 import {
   FORMAS_CONTA, custoCompraNovo, hojeSP, linhasDaBaixa, montarDre, numerosDePedidoCitados, ocorrenciasAGerar,
   periodoAnterior, precisaAprovacaoBaixa, quantidadeNaBase, statusExibido, variacaoPct,
@@ -357,7 +358,12 @@ export async function editarConta(c: ContextoFin, id: string, e: EntradaConta): 
 }
 
 /** Baixa: marca como paga (ou recebida) e lança no livro-caixa. Gaveta exige caixa aberto. */
+/** Baixa com o dinheiro do caixa passa pela fila da gaveta (fila-gaveta.ts): conferir e gravar em sequência. */
 export async function baixarConta(c: ContextoFin, id: string, p: { carteira: CarteiraConta; forma: FormaConta; aprovacao?: Aprovacao | null }): Promise<Res<{ aprovadoPor: string | null; repetido: boolean }>> {
+  return p.carteira === 'gaveta' ? naFilaDaGaveta(c.sessao.restauranteId, () => baixarContaAgora(c, id, p)) : baixarContaAgora(c, id, p)
+}
+
+async function baixarContaAgora(c: ContextoFin, id: string, p: { carteira: CarteiraConta; forma: FormaConta; aprovacao?: Aprovacao | null }): Promise<Res<{ aprovadoPor: string | null; repetido: boolean }>> {
   const loja = c.sessao.restauranteId
   if (!['gaveta', 'empresa'].includes(p.carteira)) return falha('Escolha de onde sai (ou entra) o dinheiro.')
   if (!(FORMAS_CONTA as readonly string[]).includes(p.forma)) return falha('Escolha a forma.')
@@ -503,7 +509,12 @@ export function lerEntradaCompra(b: Record<string, unknown> | null): EntradaComp
  * todo produto que usa o insumo; e gera a conta a pagar (a prazo), a conta já paga pela empresa, ou a saída do
  * caixa do turno. Quantidades ficam guardadas na unidade base (estoque futuro).
  */
+/** Compra paga com o dinheiro do caixa passa pela fila da gaveta (fila-gaveta.ts). */
 export async function registrarCompra(c: ContextoFin, e: EntradaCompra, chave: string, aprov?: Aprovacao | null): Promise<Res<{ id: string; contaId: string | null; repetido: boolean; insumosAtualizados: number }>> {
+  return e.pagamento === 'caixa' ? naFilaDaGaveta(c.sessao.restauranteId, () => registrarCompraAgora(c, e, chave, aprov)) : registrarCompraAgora(c, e, chave, aprov)
+}
+
+async function registrarCompraAgora(c: ContextoFin, e: EntradaCompra, chave: string, aprov?: Aprovacao | null): Promise<Res<{ id: string; contaId: string | null; repetido: boolean; insumosAtualizados: number }>> {
   const loja = c.sessao.restauranteId
   if (!/^[\w:.-]{8,120}$/.test(chave)) return falha('Chave inválida.')
   const { data: ja } = await c.admin.from('fin_compras').select('id, conta_id').eq('restaurante_id', loja).eq('chave_idempotencia', `compra:${chave}`).maybeSingle()
