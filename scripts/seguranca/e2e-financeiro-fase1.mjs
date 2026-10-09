@@ -132,7 +132,8 @@ try {
   await ger.p.getByTestId('menu-bloquear').click()
   await ger.p.getByTestId('tela-travada').waitFor({ timeout: 5000 })
   await foto(ger.p, '02-tela-travada')
-  ok('estado: travada=true', (await api(ger.p, '/api/sessao/estado')).json?.travada === true)
+  let travou = false; for (let i = 0; i < 15 && !travou; i++) { travou = (await api(ger.p, '/api/sessao/estado')).json?.travada === true; if (!travou) await ger.p.waitForTimeout(200) }
+  ok('estado: travada=true (servidor grava a trava em até 3 s)', travou)
   const r423 = await api(ger.p, '/api/admin/financeiro/auditoria')
   ok('❌ esperado: ação de dinheiro com a tela travada (tirando a sobreposição pelo DevTools)', r423.status === 423, String(r423.status))
   await ger.p.reload({ waitUntil: 'networkidle' })
