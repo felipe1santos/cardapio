@@ -22,6 +22,7 @@ interface Dados {
     faturamentoBrutoCentavos: number; vendas: number; ticketMedioCentavos: number | null; pagosCentavos: number; naoPagosCentavos: number; aConferirCentavos: number
     despesasCentavos: number; sangriasCentavos: number; diferencasCaixaCentavos: number; sobrasCentavos: number; faltasCentavos: number; divergenciasCentavos: number; turnosDivergentes: number; motoboyAgoraCentavos: number
     cmvCentavos: number | null; lucroBrutoCentavos: number | null; lucroLiquidoCentavos: number | null; cmvPct: number | null; cmvAlvoPct: number; semCustoRegistrado: number | null
+    cmvSemCustoPct?: number | null; cmvAviso?: string | null
   }
   porOrigem: Record<string, number>; porForma: Record<string, number>
   diferencasPorTurno: { turnoId: string | null; abertoEm: string | null; fechadoEm: string | null; fechadoPorNome: string | null; diferencaCentavos: number; diferencaCartaoCentavos: number; justificativa: string | null }[]
@@ -124,12 +125,17 @@ export function SecaoDashboard() {
                   ]}
                   metas={[...(meta !== null ? [{ valor: meta, rotulo: 'Meta', estilo: 'solida' as const }] : []), { valor: media, rotulo: 'Média do período', estilo: 'tracejada' as const }]} />
               </div>
-              {c.cmvPct !== null && (
+              {c.cmvPct !== null ? (
                 <div className="flex flex-shrink-0 flex-col items-center gap-2 lg:w-[220px] lg:border-l lg:border-[#E4E7EA] lg:pl-5">
                   <Medidor valor={Math.min(100, c.cmvPct)} alerta={c.cmvPct > c.cmvAlvoPct} rotulo={`Meta <= ${c.cmvAlvoPct.toFixed(0)}%`} texto={pct(c.cmvPct)} testid="dash-medidor-cmv" />
-                  <p className="text-center text-[13px] leading-[18px]" style={{ color: FIN_COR.texto2 }}>CMV do faturamento: quanto do que entrou foi custo do que foi vendido.</p>
+                  <p className="text-center text-[13px] leading-[18px]" style={{ color: FIN_COR.texto2 }}>CMV das vendas com custo cadastrado: quanto do vendido foi custo do produto.</p>
+                  {c.cmvAviso && <p className="text-center text-[12.5px] font-semibold leading-[17px]" style={{ color: '#B45309' }} data-testid="dash-cmv-aviso">{c.cmvAviso}</p>}
                 </div>
-              )}
+              ) : c.cmvAviso ? (
+                <div className="flex flex-shrink-0 items-center lg:w-[220px] lg:border-l lg:border-[#E4E7EA] lg:pl-5">
+                  <p className="text-center text-[13px] font-semibold leading-[18px]" style={{ color: '#B45309' }} data-testid="dash-cmv-aviso">{c.cmvAviso}</p>
+                </div>
+              ) : null}
             </div>
           </Card>
 

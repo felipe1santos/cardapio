@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { dre } from './contas'
 import { diferencasPorTurno, vendasDoPeriodo, type ItemVendido } from './vendas-base'
+import { cmvPercentual } from './cmv-pct'
 
 /**
  * Dashboard financeiro (Fase 6, 0144; mesma base em 0145). Tudo a partir do livro-caixa (fin_dashboard) e do custo GUARDADO na venda
@@ -51,6 +52,12 @@ export async function dashboardFinanceiro(admin: SupabaseClient, loja: string, d
   const diasDoBucket = (b: string) => (grupo === 'dia' ? 1 : grupo === 'semana' ? 7 : new Date(Date.UTC(Number(b.slice(0, 4)), Number(b.slice(5, 7)), 0)).getUTCDate())
   const cmvAlvoPct = 100 - Number(cmvCfg?.margem_alvo_pct ?? 65)
   const cmv = dreR?.atual.cmvCentavos ?? null
+  // % do CMV sobre as vendas COM custo gravado (cmv-pct.ts) — a mesma regra do DRE e da tela de CMV.
+  const cmvP = cmv === null ? null : cmvPercentual({
+    cmvCentavos: cmv,
+    vendidoComCustoCentavos: Math.round(itens.porItem.reduce((t, i) => t + i.receitaComCusto, 0)),
+    vendidoCentavos: Math.round(itens.porItem.reduce((t, i) => t + i.receita, 0)),
+  })
   return {
     periodo: { de, ate, grupo },
     cards: {
@@ -73,7 +80,9 @@ export async function dashboardFinanceiro(admin: SupabaseClient, loja: string, d
       cmvCentavos: cmv,
       lucroBrutoCentavos: dreR?.atual.lucroBrutoCentavos ?? null,
       lucroLiquidoCentavos: dreR?.atual.lucroLiquidoCentavos ?? null,
-      cmvPct: cmv !== null && fat > 0 ? (cmv / fat) * 100 : null,
+      cmvPct: cmvP?.pct ?? null,
+      cmvSemCustoPct: cmvP?.semCustoPct ?? null,
+      cmvAviso: cmvP?.aviso ?? null,
       cmvAlvoPct,
       semCustoRegistrado: dreR?.cmv.semCustoRegistrado ?? null,
     },

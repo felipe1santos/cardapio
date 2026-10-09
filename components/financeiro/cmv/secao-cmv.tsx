@@ -251,9 +251,10 @@ function CmvVendas() {
       <div className="grid grid-cols-1 gap-2.5 min-[400px]:grid-cols-2 lg:grid-cols-4">
         <CartaoNumero icone={ICONES.dinheiro} tom="verde" rotulo="Vendido (com custo registrado)" valor={<span data-testid="vendas-vendido">{brl(v?.vendidoComCustoCentavos as number)}</span>} />
         <CartaoNumero icone={ICONES.cartao} tom="laranja" rotulo="CMV (custo guardado)" valor={<span data-testid="vendas-cmv">{brl(v?.cmvCentavos as number)}</span>} />
-        <CartaoNumero icone={ICONES.subindo} tom="azul" rotulo="CMV %" valor={<span data-testid="vendas-cmv-pct">{pct((v?.cmvPct as number) ?? null)}</span>} />
+        <CartaoNumero icone={ICONES.subindo} tom="azul" rotulo="CMV % (vendas com custo)" valor={<span data-testid="vendas-cmv-pct">{pct((v?.cmvPct as number) ?? null)}</span>} />
         <CartaoNumero icone={ICONES.aviso} tom="ambar" rotulo="Vendas sem custo registrado" valor={<span data-testid="vendas-sem-custo">{v?.semCustoRegistrado ?? '—'}</span>} />
       </div>
+      {typeof v?.cmvAviso === 'string' && <p className="text-[13px] font-semibold" style={{ color: '#B45309' }} data-testid="vendas-cmv-aviso">{v.cmvAviso as string}</p>}
       {typeof v?.cmvPct === 'number' && (
         <Card titulo="CMV das vendas no período" subtitulo="Quanto do vendido (com custo registrado) foi custo do produto.">
           <Medidor valor={Math.min(100, v.cmvPct as number)} alerta={(v.cmvPct as number) > 35} rotulo="Referência <= 35%" texto={pct(v.cmvPct as number)} testid="vendas-medidor" />

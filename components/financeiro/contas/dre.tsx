@@ -14,7 +14,7 @@ import { Chip } from '../ui/blocos'
 interface Resposta {
   periodo: { de: string; ate: string }; anterior: { de: string; ate: string; dre: Dre }; atual: Dre
   variacao: Record<'faturamento' | 'cmv' | 'lucroBruto' | 'despesas' | 'lucroLiquido' | 'outrasReceitas' | 'diferencasCaixa', number | null>
-  cmv: { semCustoRegistrado: number; comErro: number; linhas: number }
+  cmv: { semCustoRegistrado: number; comErro: number; linhas: number; pct?: number | null; semCustoPct?: number | null; aviso?: string | null }
   diferencasPorTurno: { turnoId: string | null; fechadoEm: string | null; fechadoPorNome: string | null; diferencaCentavos: number }[]
 }
 const brl = (c: number) => formatarCentavos(c)
@@ -80,7 +80,8 @@ export function SecaoDre() {
             </table>
           </div>
           <div className="grid gap-1 text-[12.5px] text-text-subtle" data-testid="dre-notas">
-            {r.cmv.semCustoRegistrado > 0 && <p>⚠ {r.cmv.semCustoRegistrado} item(ns) vendido(s) sem custo registrado (sem ficha ou de antes da Fase 5): o CMV está abaixo do real.</p>}
+            {typeof r.cmv.pct === 'number' && <p data-testid="dre-cmv-pct">CMV das vendas com custo cadastrado: <b>{r.cmv.pct.toFixed(1).replace('.', ',')}%</b> (a coluna “% do fat.” mostra o CMV sobre o faturamento inteiro).</p>}
+            {r.cmv.aviso && <p data-testid="dre-cmv-aviso">⚠ {r.cmv.aviso}{r.cmv.pct === null || r.cmv.pct === undefined ? '' : ': o CMV em reais está abaixo do real.'}</p>}
             <p>Fora do resultado: compras de insumos no período {brl(r.atual.comprasInsumosCentavos)} (o custo delas entra no CMV quando o produto é vendido){r.atual.foraDoResultadoCentavos ? ` · aportes ${brl(r.atual.foraDoResultadoCentavos)}` : ''}.</p>
             <p>Faturamento = o que entrou no livro-caixa pelas vendas (data do recebimento). Despesas = contas pagas e saídas do caixa no período (regime de caixa). Diferenças de caixa = sobras − faltas dos fechamentos: ficam fora das despesas e entram à parte no lucro líquido.</p>
           </div>

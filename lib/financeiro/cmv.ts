@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { registrarAuditoria } from '@/lib/auditoria'
 import type { ContextoFin } from './contexto'
+import { cmvPercentual } from './cmv-pct'
 import {
   centavos, conversaoPadrao, custoFicha, custoPorBase, lerQuantidadeTexto, margemPct, precoSugerido,
   type Arredondamento, type UnidadeBase, type UnidadeCompra,
@@ -434,6 +435,7 @@ export async function cmvDoPeriodo(admin: SupabaseClient, loja: string, de: stri
   }
   return {
     linhas: linhas.length, vendidoCentavos: Math.round(vendido), cmvCentavos: Math.round(cmv), vendidoComCustoCentavos: Math.round(vendidoComCusto),
-    cmvPct: vendidoComCusto > 0 ? (cmv / vendidoComCusto) * 100 : null, semCustoRegistrado: semCusto, comErro,
+    ...(({ pct, semCustoPct, aviso }) => ({ cmvPct: pct, semCustoPct, cmvAviso: aviso }))(cmvPercentual({ cmvCentavos: Math.round(cmv), vendidoComCustoCentavos: Math.round(vendidoComCusto), vendidoCentavos: Math.round(vendido) })),
+    semCustoRegistrado: semCusto, comErro,
   }
 }

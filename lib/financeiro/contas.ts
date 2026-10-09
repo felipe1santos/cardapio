@@ -7,6 +7,7 @@ import { conferirAprovacao, saldosDoTurno, turnoAberto, type Aprovacao } from '.
 import { faltaNaGavetaParaPagar } from './caixa-regras'
 import { formatarCentavos } from './centavos'
 import { diferencasPorTurno, vendasDoPeriodo } from './vendas-base'
+import { cmvPercentual } from './cmv-pct'
 import {
   FORMAS_CONTA, custoCompraNovo, hojeSP, linhasDaBaixa, montarDre, numerosDePedidoCitados, ocorrenciasAGerar,
   periodoAnterior, precisaAprovacaoBaixa, quantidadeNaBase, statusExibido, variacaoPct,
@@ -640,7 +641,15 @@ export async function dre(admin: SupabaseClient, loja: string, de: string, ate: 
       faturamento: v('faturamentoCentavos'), cmv: v('cmvCentavos'), lucroBruto: v('lucroBrutoCentavos'), despesas: v('despesasCentavos'), lucroLiquido: v('lucroLiquidoCentavos'),
       outrasReceitas: v('outrasReceitasCentavos'), diferencasCaixa: v('diferencasCaixaCentavos'),
     },
-    cmv: { semCustoRegistrado: atual.cmv.semCustoRegistrado, comErro: atual.cmv.comErro, linhas: atual.cmv.linhas },
+    cmv: {
+      semCustoRegistrado: atual.cmv.semCustoRegistrado, comErro: atual.cmv.comErro, linhas: atual.cmv.linhas,
+      // % do CMV sobre as vendas COM custo gravado (cmv-pct.ts): a coluna "% do fat." do DRE continua sobre o faturamento.
+      ...cmvPercentual({
+        cmvCentavos: atual.cmv.cmvCentavos,
+        vendidoComCustoCentavos: Math.round(atual.cmv.porItem.reduce((t, i) => t + i.receitaComCusto, 0)),
+        vendidoCentavos: Math.round(atual.cmv.porItem.reduce((t, i) => t + i.receita, 0)),
+      }),
+    },
     diferencasPorTurno: turnos,
     conciliacao: atual.cmv.conciliacao,
     conferencia: { resultadoLedgerCentavos: atual.resultadoLedgerCentavos },
