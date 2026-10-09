@@ -12,7 +12,7 @@ import { ModalPareamento, ModalTestes, nomeDisp, TAMANHOS_LETRA, type PainelDado
 import { Flutuante, ModalCentral, NoTopo } from '@/components/ui/flutuante'
 import { ROTULO_MODO_BETA, DOWNLOAD_ASSISTENTE_ATUAL, DOWNLOAD_ASSISTENTE_BETA, instaladorConectado } from '@/lib/impressao/rotulos'
 import { modoDependeDoAgente, ehImpressoraVirtual, pareamentoAntigo } from '@/lib/impressao/regras-modo'
-import { avisoDriver, envioDiretoSugerido } from '@/lib/impressao/regras-calibracao'
+import { envioDiretoSugerido } from '@/lib/impressao/regras-calibracao'
 import { prontidaoBeta, versaoInstalada } from '@/lib/impressao/opcao'
 import { compararVersao, VERSAO_IMPRESSAO_V3 } from '@/lib/avisos-painel'
 import { SUPORTE_MENUZIA } from '@/lib/suporte'
@@ -406,7 +406,7 @@ export function PainelImpressao() {
                     )}
                   </div>
                 </div>
-                {antigo && (
+                {antigo && !p.somenteNova && (
                   <Aviso testid="aviso-antigo" acao={prontidao?.pronto ? <button type="button" className="ti-btn" onClick={() => setTrocar('beta')} data-testid="usar-novo">Usar o assistente novo</button> : undefined}>
                     Sua loja usa o assistente antigo. Instale o novo para continuar imprimindo.
                   </Aviso>
@@ -499,7 +499,7 @@ export function PainelImpressao() {
             />
           )}
           {p && (
-            <ModalCentral aberto={avancado} onFechar={() => setAvancado(false)} largura={640} classeTema="tela-impressao" testid="modal-avancado" titulo="Avançado" subtitulo="Computador, papel, formato de envio e calibração.">
+            <ModalCentral aberto={avancado} onFechar={() => setAvancado(false)} largura={640} classeTema="tela-impressao" testid="modal-avancado" titulo="Avançado" subtitulo="Para o suporte: computador, papel e formato de envio (tudo já vem automático).">
               <div className="ti-av">
                 <SecaoAv titulo="Computador" testid="av-computador">
                   {todosAtivos.length ? todosAtivos.map((a) => (
@@ -542,24 +542,18 @@ export function PainelImpressao() {
                   {!naLista.length && <p className="ti-rot">Adicione uma impressora no card 2.</p>}
                 </SecaoAv>
 
-                <SecaoAv titulo="Calibrar impressora" testid="av-calibrar" frase="Imprime uma folha de teste e ajusta largura, letra e intensidade.">
-                  {naLista.map((d) => {
-                    const drv = avisoDriver(d)
-                    return (
-                      <div key={d.id} className="space-y-2">
-                        <div className="ti-av-linha">
-                          <span className="min-w-0 truncate">{nomeDisp(d)}</span>
-                          <span className="ti-acoes">
-                            <select className="ti-campo h-[32px]" aria-label={`Tamanho da letra de ${nomeDisp(d)}`} value={d.tamanhoFonte} disabled={ocupado} onChange={(e) => void ajustar(d, { tamanhoFonte: e.target.value as TamanhoLetra })} data-testid={`letra-${d.id}`}>
-                              {TAMANHOS_LETRA.map((t) => <option key={t.valor} value={t.valor}>{t.rotulo}</option>)}
-                            </select>
-                            <button type="button" className="ti-btn sm" onClick={() => { setAvancado(false); setCalibrar(d.id) }} disabled={!agenteDe(d)?.online} data-testid={`calibrar-${d.id}`}>Calibrar</button>
-                          </span>
-                        </div>
-                        {drv && <Aviso testid={`aviso-calibrar-${d.id}`}>{drv}</Aviso>}
-                      </div>
-                    )
-                  })}
+                {/* 08/10: sem "Calibrar" — largura vem do driver e o envio é direto (com o Windows de reserva). */}
+                <SecaoAv titulo="Tamanho da letra" testid="av-letra" frase="A largura do papel e o envio são automáticos.">
+                  {naLista.map((d) => (
+                    <div key={d.id} className="ti-av-linha">
+                      <span className="min-w-0 truncate">{nomeDisp(d)}</span>
+                      <span className="ti-acoes">
+                        <select className="ti-campo h-[32px]" aria-label={`Tamanho da letra de ${nomeDisp(d)}`} value={d.tamanhoFonte} disabled={ocupado} onChange={(e) => void ajustar(d, { tamanhoFonte: e.target.value as TamanhoLetra })} data-testid={`letra-${d.id}`}>
+                          {TAMANHOS_LETRA.map((t) => <option key={t.valor} value={t.valor}>{t.rotulo}</option>)}
+                        </select>
+                      </span>
+                    </div>
+                  ))}
                   {!naLista.length && <p className="ti-rot">Adicione uma impressora no card 2.</p>}
                 </SecaoAv>
 
@@ -569,7 +563,7 @@ export function PainelImpressao() {
                   </SecaoAv>
                 )}
 
-                {antigo && (
+                {antigo && !p.somenteNova && (
                   <SecaoAv titulo="Assistente antigo (enquanto a loja usa)" testid="av-antigo">
                     <div className="ti-av-linha">
                       <span className="min-w-0"><span className="block">Sinal: {atualOnline ? 'conectado' : atualVistoEm ? `sem sinal desde ${quando(atualVistoEm)}` : 'nunca conectou'}</span><small>Impressora: {impAntiga?.nome ?? '—'}</small></span>
@@ -586,7 +580,7 @@ export function PainelImpressao() {
 
                 <div className="ti-av-rodape">
                   <button type="button" className="ti-btn sm" onClick={() => { setAvancado(false); setAjuda(true) }}>Guia e diagnóstico</button>
-                  {!antigo && <button type="button" className="ti-link" style={{ fontSize: 12, fontWeight: 400 }} onClick={() => setTrocar('antigo')} data-testid="voltar-antigo">Usar impressão antiga</button>}
+                  {!antigo && !p.somenteNova && <button type="button" className="ti-link" style={{ fontSize: 12, fontWeight: 400 }} onClick={() => setTrocar('antigo')} data-testid="voltar-antigo">Usar impressão antiga</button>}
                 </div>
               </div>
             </ModalCentral>

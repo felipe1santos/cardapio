@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { somenteNova } from '@/lib/impressao/servico'
 import { getServerSupabase } from '@/lib/supabase/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { getCurrentSession } from '@/lib/auth/session'
@@ -29,6 +30,8 @@ async function contexto() {
 export async function GET() {
   const { sessao, erro } = await contexto()
   if (erro) return erro
+  // 0161: loja só do assistente novo não tem (nem gera) token do assistente antigo.
+  if (await somenteNova(getAdminSupabase(), sessao.restauranteId)) return NextResponse.json({ token: null, somenteNova: true }, { headers: { 'Cache-Control': 'no-store' } })
   const token = await buscarTokenAgente(getAdminSupabase(), sessao.restauranteId)
   return NextResponse.json({ token }, { headers: { 'Cache-Control': 'no-store' } })
 }
@@ -37,6 +40,7 @@ export async function POST() {
   const { sessao, erro } = await contexto()
   if (erro) return erro
   const admin = getAdminSupabase()
+  if (await somenteNova(admin, sessao.restauranteId)) return NextResponse.json({ error: 'Esta loja imprime só pelo assistente novo.' }, { status: 409 })
   const token = await gerarTokenAgente(admin, sessao.restauranteId)
   // Quem trocou e quando — sem o valor.
   await registrarAuditoria(admin, {

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { larguraDoDriver } from './largura-auto'
 import { registrarAuditoria } from '@/lib/auditoria'
 import { traduzirErro } from '@/lib/servicos/conta-presencial'
 import { gerarCodigoPareamento, gerarConvitePareamento, gerarCredencial, hashCodigo, VALIDADE_CODIGO_MIN, VALIDADE_CONVITE_H } from './credenciais'
@@ -189,7 +190,7 @@ export async function painelImpressao(admin: SupabaseClient, restauranteId: stri
     admin.from('impressao_dispositivos').select(`id, agente_id, nome_sistema, apelido, largura_mm, tamanho_fonte, largura_pontos, deslocamento_pontos, diagnostico, calibrado_em, calibrado_por_nome, disponivel, visto_em, ultimo_uso_em, ultimo_erro, ultimo_erro_em, envio_caminho, envio_caminho_em, envio_caminho_obs, na_lista, ${COLUNAS_ENVIO}`).eq('restaurante_id', restauranteId).order('criado_em'),
     admin.from('impressao_funcoes').select('funcao, dispositivo_id').eq('restaurante_id', restauranteId),
     admin.from('impressao_trabalhos').select('id, tipo, via, estado, erro, tentativas, criado_em, enviado_em, criado_por_nome, comanda_id, calibracao:snapshot->>calibracao, recibo_teste:snapshot->>recibo_teste, cozinha_teste:snapshot->>cozinha_teste, impressao_dispositivos ( apelido, nome_sistema )').eq('restaurante_id', restauranteId).order('criado_em', { ascending: false }).limit(30),
-    admin.from('restaurantes').select('impressao_cozinha_por_funcao, impressao_agente_visto_em, impressao_beta_liberado, impressao_beta_modo, impressao_cozinha_transferida_em').eq('id', restauranteId).maybeSingle(),
+    admin.from('restaurantes').select('impressao_cozinha_por_funcao, impressao_agente_visto_em, impressao_beta_liberado, impressao_beta_modo, impressao_cozinha_transferida_em, impressao_somente_nova').eq('id', restauranteId).maybeSingle(),
   ])
   const agora = Date.now()
   const funcoes = (fns ?? []) as { funcao: FuncaoImpressora; dispositivo_id: string }[]
@@ -250,6 +251,7 @@ export async function painelImpressao(admin: SupabaseClient, restauranteId: stri
     cozinhaPorFuncao: loja?.impressao_cozinha_por_funcao === true,
     betaLiberado: loja?.impressao_beta_liberado === true,
     modo: ((loja?.impressao_beta_modo as string | undefined) ?? 'teste') as ModoBeta,
+    somenteNova: loja?.impressao_somente_nova === true,
     cozinhaTransferidaEm: (loja?.impressao_cozinha_transferida_em as string | null) ?? null,
     assistenteAntigoVistoEm: vistoLegado,
     assistenteAntigoOnline: !!vistoLegado && agora - new Date(vistoLegado).getTime() < 2 * 60_000,
@@ -320,6 +322,7 @@ export async function ajustarDispositivo(
       return falha('Largura útil inválida (entre 256 e 832 pontos).')
     }
     patch.largura_pontos = a.larguraPontos
+    patch.largura_manual = true // ajuste do suporte: a detecção automática não mexe mais
   }
   if (a.deslocamentoPontos !== undefined) {
     if (!(Number.isInteger(a.deslocamentoPontos) && (a.deslocamentoPontos as number) >= -64 && (a.deslocamentoPontos as number) <= 64)) {
@@ -339,6 +342,7 @@ export async function ajustarDispositivo(
   if (a.larguraMm !== undefined) {
     if (a.larguraMm !== 58 && a.larguraMm !== 80) return falha('Largura do papel: 58 ou 80 mm.')
     patch.largura_mm = a.larguraMm
+    patch.largura_manual = true // ajuste do suporte: a detecção automática não mexe mais
   }
   if (a.tamanhoFonte !== undefined) {
     if (!['grande', 'media', 'pequena'].includes(a.tamanhoFonte as string)) return falha('Tamanho de fonte inválido.')
@@ -538,6 +542,15 @@ export async function descobrir(admin: SupabaseClient, agenteId: string, nomes: 
       const limpo = sanearDiagnostico(d)
       if (!limpo) continue
       await admin.from('impressao_dispositivos').update({ diagnostico: limpo }).eq('agente_id', agenteId).eq('nome_sistema', nome)
+      // Largura automática (08/10): a do driver, se ninguém ajustou à mão no Avançado. Só grava quando
+      // muda o papel (58 ↔ 80) ou ainda não havia largura em pontos — calibração que já funciona fica.
+      const { data: atual } = await admin.from('impressao_dispositivos').select('id, largura_mm, largura_pontos, largura_manual').eq('agente_id', agenteId).eq('nome_sistema', nome).maybeSingle()
+      if (atual && !atual.largura_manual) {
+        const auto = larguraDoDriver(limpo)
+        if (atual.largura_mm !== auto.larguraMm || atual.largura_pontos == null) {
+          await admin.from('impressao_dispositivos').update({ largura_mm: auto.larguraMm, largura_pontos: auto.larguraPontos }).eq('id', atual.id).eq('largura_manual', false)
+        }
+      }
     }
   }
   return r
@@ -729,6 +742,7 @@ export const MODOS_BETA: ModoBeta[] = ['teste', 'caixa', 'cozinha_caixa']
  */
 export async function definirModo(admin: SupabaseClient, op: Operador, modo: unknown): Promise<Resultado<{ modo: ModoBeta; idempotente: boolean }>> {
   if (!MODOS_BETA.includes(modo as ModoBeta)) return falha(MENSAGENS.modo_invalido, 400, 'modo_invalido')
+  if (modo !== 'cozinha_caixa' && (await somenteNova(admin, op.restauranteId))) return falha('Esta loja imprime só pelo assistente novo.', 409, 'somente_nova')
   // Modo real só com as impressoras que ele usa válidas (regras-modo): o erro aparece aqui,
   // e não no PDV na frente do cliente.
   if (modo !== 'teste') {
@@ -777,10 +791,18 @@ export async function estadoRegra(admin: SupabaseClient, restauranteId: string) 
  * "Somente Caixa" se o Caixa estiver bom, senão tudo volta para "Somente teste" (a cozinha
  * volta ao Assistente antigo na hora). Falta de sinal momentânea não derruba o modo.
  */
+/** A loja imprime só pelo assistente novo (0161)? */
+export async function somenteNova(admin: SupabaseClient, restauranteId: string): Promise<boolean> {
+  const { data } = await admin.from('restaurantes').select('impressao_somente_nova').eq('id', restauranteId).maybeSingle()
+  return (data as { impressao_somente_nova?: boolean } | null)?.impressao_somente_nova === true
+}
+
 export async function garantirModoValido(admin: SupabaseClient, op: Operador): Promise<ModoBeta | null> {
-  const { data: l } = await admin.from('restaurantes').select('impressao_beta_modo').eq('id', op.restauranteId).maybeSingle()
+  const { data: l } = await admin.from('restaurantes').select('impressao_beta_modo, impressao_somente_nova').eq('id', op.restauranteId).maybeSingle()
   const atual = (l?.impressao_beta_modo as ModoBeta | undefined) ?? 'teste'
   if (atual === 'teste') return null
+  // Loja só do assistente novo: não há antigo para onde voltar — fica no novo e a tela avisa o que falta.
+  if (l?.impressao_somente_nova === true) return null
   const av = avaliarModos(await estadoRegra(admin, op.restauranteId), Date.now(), false)
   if (av.modos[atual].ok) return null
   const novo: ModoBeta = atual === 'cozinha_caixa' && av.modos.caixa.ok ? 'caixa' : 'teste'

@@ -29,6 +29,8 @@ export interface PainelDados {
   cozinhaPorFuncao: boolean
   betaLiberado: boolean
   modo: ModoBeta
+  /** 0161: a loja imprime só pelo assistente novo (sem escolha nem volta para o antigo). */
+  somenteNova?: boolean
   cozinhaTransferidaEm: string | null
   assistenteAntigoVistoEm: string | null
   assistenteAntigoOnline: boolean
