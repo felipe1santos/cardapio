@@ -76,12 +76,6 @@ try {
   await dp.getByTestId('passo-3').waitFor({ timeout: 20000 })
   ok('aviso "Cadastre o Instagram da loja…" com link para o Perfil', /Cadastre o Instagram da loja para sair o QR na pré-conta/.test(await dp.getByTestId('aviso-instagram').innerText().catch(() => '')) && (await dp.getByTestId('aviso-instagram').locator('a[href="/admin/ajustes"]').count()) === 1)
   ok('sem a opção "Via da cozinha"; QR é o do Instagram na pré-conta', (await dp.getByTestId('opcao-viaCozinha').count()) === 0 && /QR Code do Instagram na pré-conta/.test(await dp.getByTestId('opcoes-impressao').innerText()))
-  await dp.getByTestId('ver-modelo').click(); await dp.getByTestId('modal-previa').waitFor({ timeout: 8000 })
-  const abas = await dp.locator('[data-testid^="modal-doc-"]').allInnerTexts()
-  // Loja no assistente antigo: a prévia tem um modelo só (sem abas). No novo: Cozinha e Pré-conta.
-  ok('"Ver modelo de impressão": só Cozinha e Pré-conta (sem "Via da cozinha"/"Comanda de entrega")', (abas.length === 0 || JSON.stringify(abas) === JSON.stringify(['Cozinha', 'Pré-conta'])) && !/Via da cozinha|Comanda de entrega/.test(await dp.getByTestId('modal-previa').innerText()), JSON.stringify(abas))
-  await dp.screenshot({ path: join(PRINTS, 'A1-previa-cozinha.png') })
-  await dp.keyboard.press('Escape')
   await db.query(`update restaurantes set instagram_url='https://instagram.com/cantina_e2e' where id=$1`, [loja.id])
   pv = (await api('/api/admin/impressao/previa')).j
   ok('com Instagram: pré-conta com o QR do Instagram', pv?.qr?.origem === 'instagram' && pv?.qr?.url === 'https://instagram.com/cantina_e2e' && pv?.temInstagram === true)

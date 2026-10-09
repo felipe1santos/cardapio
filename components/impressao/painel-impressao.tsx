@@ -1,13 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, Check, ChevronDown, Download, Monitor, Pencil, Printer, ReceiptText, ScrollText, Trash2, X } from 'lucide-react'
+import { AlertTriangle, Check, ChevronDown, Download, Monitor, Pencil, Printer, ScrollText, Trash2, X } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { chamar, novaChave } from '@/components/pdv/util'
 import { ModalAjudaImpressao } from '@/components/impressao/ajuda-impressao'
 import { ImpressoraModal } from '@/components/impressao/documentos'
 import { EnvioImpressora } from '@/components/impressao/envio-impressora'
-import { ModalPrevia, type LojaPrevia, type PapelPrevia } from '@/components/impressao/modal-previa'
+import type { LojaPrevia } from '@/components/impressao/modal-previa'
 import { ModalPareamento, ModalTestes, nomeDisp, TAMANHOS_LETRA, type PainelDados, type ResultadoTeste, type TamanhoLetra, type TipoTeste } from '@/components/impressao/beta-cards'
 import { Flutuante, ModalCentral, NoTopo } from '@/components/ui/flutuante'
 import { ROTULO_MODO_BETA, DOWNLOAD_ASSISTENTE_ATUAL, DOWNLOAD_ASSISTENTE_BETA, instaladorConectado } from '@/lib/impressao/rotulos'
@@ -16,7 +16,6 @@ import { envioDiretoSugerido } from '@/lib/impressao/regras-calibracao'
 import { prontidaoBeta, versaoInstalada } from '@/lib/impressao/opcao'
 import { compararVersao, VERSAO_IMPRESSAO_V3 } from '@/lib/avisos-painel'
 import { SUPORTE_MENUZIA } from '@/lib/suporte'
-import ReciboAntigo from '@/lib/impressao/recibo-antigo-canvas.js'
 import type { AgenteVisao, DispositivoVisao, ModoBeta } from '@/lib/impressao/servico'
 import { ROTULO_FUNCAO_IMPRESSORA, type FuncaoImpressora } from '@/lib/impressao/funcoes'
 
@@ -51,8 +50,6 @@ import {
  */
 
 const MOTIVO_RECUO = 'O modo voltou para a segurança porque a impressora que ele usava deixou de valer.'
-const PAPEL_PADRAO: PapelPrevia = { larguraMm: 80, larguraPontos: null, tamanhoFonte: 'grande', intensidade: 'normal' }
-const papelDe = (d: DispositivoVisao | undefined): PapelPrevia => (d ? { larguraMm: d.larguraMm <= 58 ? 58 : 80, larguraPontos: d.larguraPontos, tamanhoFonte: d.tamanhoFonte, intensidade: d.intensidade } : PAPEL_PADRAO)
 const SUPORTE_URL = `https://wa.me/${SUPORTE_MENUZIA.whatsapp}?text=${encodeURIComponent('Olá! Quero liberar o Assistente novo (impressão) na minha loja.')}`
 const quando = (iso: string | null) => {
   if (!iso) return ''
@@ -115,7 +112,6 @@ export function PainelImpressao() {
   const [testando, setTestando] = useState(false)
   const [ajuda, setAjuda] = useState(false)
   const [calibrar, setCalibrar] = useState<string | null>(null)
-  const [previa, setPrevia] = useState(false)
   const [avancado, setAvancado] = useState(false)
   const [dadosPrevia, setDadosPrevia] = useState<LojaPrevia | null>(null)
   const [trocar, setTrocar] = useState<'beta' | 'antigo' | null>(null)
@@ -349,10 +345,8 @@ export function PainelImpressao() {
     .filter((d) => !d.naLista && agenteDe(d) && d.disponivel && !antigoPareamento(d))
     .sort((a, b) => Number(ehImpressoraVirtual(a.nomeSistema)) - Number(ehImpressoraVirtual(b.nomeSistema)) || a.nomeSistema.localeCompare(b.nomeSistema))
   const dCozinha = p?.dispositivos.find((d) => d.id === p.funcoes.cozinha)
-  const dCaixa = p?.dispositivos.find((d) => d.id === p.funcoes.caixa)
   const prontidao = p ? prontidaoBeta(p) : null
   const impAntiga = impAntigas.find((i) => i.id === atualImpressoraId) ?? impAntigas.find((i) => i.ativa) ?? impAntigas[0] ?? null
-  const larguraAnt = impAntiga?.largura ?? 48
   const tudoCerto = !!p && !antigo && online.length > 0 && !!dCozinha && !!agenteDe(dCozinha)?.online
   const semCodigo = instaladorConectado() && p?.betaLiberado === true
 
@@ -367,7 +361,6 @@ export function PainelImpressao() {
               <h2>Impressão de pedidos</h2>
               <p>Deixe a impressora pronta e escolha o que sai no papel.</p>
             </div>
-            <button type="button" className="ti-btn" onClick={() => setPrevia(true)} disabled={!p} data-testid="ver-modelo"><ReceiptText aria-hidden /> Ver modelo de impressão</button>
           </div>
 
           {aviso && (
@@ -459,7 +452,7 @@ export function PainelImpressao() {
               </Card>
 
               {/* ── 3. O que aparece no papel ──────────────────────────────── */}
-              <Card cor="verde" n={3} ico={<ScrollText />} titulo="O que aparece no papel" sub={'Vale para a próxima impressão. Confira em "Ver modelo de impressão".'} testid="passo-3">
+              <Card cor="verde" n={3} ico={<ScrollText />} titulo="O que aparece no papel" sub="Vale para a próxima impressão." testid="passo-3">
                 {config ? (
                   <div className="ti-switches" data-testid="opcoes-impressao">
                     {[...OPCOES_PAPEL, ...(antigo ? OPCOES_ANTIGO : [])].map((o) => (
@@ -484,20 +477,6 @@ export function PainelImpressao() {
           <NoTopo classe="tela-impressao"><ModalAjudaImpressao aberto={ajuda} onFechar={() => setAjuda(false)} /></NoTopo>
           {pareando && <ModalPareamento codigo={pareando.codigo} erro={pareando.erro} conectado={pareando.conectado} onGerarOutro={() => void abrirPareamento()} onFechar={() => setPareando(null)} />}
           {testando && p && <NoTopo classe="tela-impressao"><ModalTestes p={{ ...p, dispositivos: naLista }} onTestar={testar} onFechar={() => setTestando(false)} /></NoTopo>}
-          {p && (
-            <ModalPrevia
-              aberto={previa}
-              onFechar={() => setPrevia(false)}
-              opcao={antigo ? 'antigo' : 'beta'}
-              docInicial="comanda"
-              dados={dadosPrevia}
-              config={config}
-              papelBeta={papelDe(dCozinha)}
-              papelPreConta={papelDe(dCaixa ?? dCozinha)}
-              antigo={{ larguraMm: larguraAnt <= 40 ? 58 : 80, colunas: ReciboAntigo.colsParaFonte(impAntiga?.tamanhoFonte, larguraAnt) }}
-              versaoAssistente={agenteDe(dCozinha)?.versao ?? versao ?? DOWNLOAD_ASSISTENTE_BETA.versao}
-            />
-          )}
           {p && (
             <ModalCentral aberto={avancado} onFechar={() => setAvancado(false)} largura={640} classeTema="tela-impressao" testid="modal-avancado" titulo="Avançado" subtitulo="Para o suporte: computador, papel e formato de envio (tudo já vem automático).">
               <div className="ti-av">

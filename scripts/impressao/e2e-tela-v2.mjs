@@ -96,7 +96,7 @@ try {
   const col = await p.evaluate(() => ['passo-1', 'passo-2', 'passo-3'].map((t) => document.querySelector(`[data-testid="${t}"]`).getBoundingClientRect()).map((r) => [Math.round(r.left), Math.round(r.width), Math.round(r.top)]))
   ok('cards com a mesma largura, um embaixo do outro', col[0][0] === col[1][0] && col[1][0] === col[2][0] && col[0][1] === col[2][1] && col[0][2] < col[1][2] && col[1][2] < col[2][2], JSON.stringify(col))
   ok('escolha "antigo × novo" saiu da tela', (await p.getByTestId('opcao-antigo').count()) === 0 && (await p.getByTestId('opcao-beta').count()) === 0)
-  ok('"Ver modelo de impressão" no canto direito do cabeçalho', await p.getByTestId('ver-modelo').isVisible())
+  ok('sem o botão "Ver modelo de impressão" (pedido do dono, 09/10)', (await p.getByTestId('ver-modelo').count()) === 0 && (await p.getByTestId('modal-previa').count()) === 0)
 
   secao('card 1 — assistente')
   ok('sem computador: "Desconectado" em âmbar', /Desconectado/.test(await p.getByTestId('assistente-situacao').innerText()) && (await p.getByTestId('assistente-situacao').getAttribute('class')).includes('warn'))
@@ -245,75 +245,11 @@ try {
   const sw = await p.getByTestId('opcoes-impressao').locator('[role="switch"]').count()
   const colunas = await p.getByTestId('opcoes-impressao').evaluate((e) => getComputedStyle(e).gridTemplateColumns.split(' ').length)
   ok('switches reais em 2 colunas (item 61: sem a "Via da cozinha")', sw >= 5 && colunas === 2, `${sw} switches, ${colunas} colunas`)
-  const alturaPrevia = async () => {
-    await p.getByTestId('ver-modelo').click()
-    await p.getByTestId('modal-previa').waitFor({ timeout: 8000 })
-    await p.waitForFunction(() => !document.querySelector('[data-testid="modal-previa-carregando"]') && document.querySelector('[data-testid="modal-previa-canvas"]')?.height > 100, null, { timeout: 20000 })
-    const h = await p.getByTestId('modal-previa-canvas').evaluate((c) => c.height)
-    await p.keyboard.press('Escape')
-    await p.waitForTimeout(300)
-    return h
-  }
-  const h1 = await alturaPrevia()
   await p.getByTestId('opcao-qr').click()
   await p.waitForTimeout(800)
   ok('switch grava no banco', (await um('select impressao_qr q from restaurantes where id=$1', [L])).q === false)
-  const h2 = await alturaPrevia()
-  // Item 59: a comanda de ENTREGA (a da prévia) leva o QR da rota, que é operacional e não
-  // depende do QR do cardápio — o papel não muda. A retirada perde o QR (conferido na fila acima).
-  ok('comanda de entrega mantém o QR da rota com o QR do cardápio desligado', h2 === h1, `${h1} → ${h2}`)
   await p.getByTestId('opcao-qr').click()
   await p.waitForTimeout(600)
-
-  secao('modal "Ver modelo de impressão"')
-  await p.getByTestId('ver-modelo').click()
-  await p.getByTestId('modal-previa').waitFor({ timeout: 8000 })
-  await p.waitForFunction(() => !document.querySelector('[data-testid="modal-previa-carregando"]') && document.querySelector('[data-testid="modal-previa-canvas"]')?.width >= 256, null, { timeout: 20000 })
-  await p.waitForTimeout(400)
-  const jan = await p.getByTestId('modal-previa').evaluate((el) => { const r = el.getBoundingClientRect(); return { w: r.width, h: r.height, vh: innerHeight, cx: r.left + r.width / 2, vw: innerWidth } })
-  ok('vertical, centralizada, estreita e alta', jan.w <= 440 && jan.h >= jan.vh - 40 && Math.abs(jan.cx - jan.vw / 2) < 2, JSON.stringify(jan))
-  ok('item 61: abas Cozinha / Pré-conta (sem Via da cozinha) e tipo Entrega/Retirada/Mesa/Balcão', /Cozinha/.test(await p.getByTestId('modal-doc-comanda').innerText()) && (await p.getByTestId('modal-doc-pre_conta').count()) === 1 && (await p.getByTestId('modal-doc-via_cozinha').count()) === 0 && (await p.getByTestId('modal-tipo').locator('option').count()) === 4)
-  const z0 = await p.getByTestId('modal-zoom-valor').innerText()
-  await p.getByTestId('modal-zoom-mais').click()
-  const z1 = await p.getByTestId('modal-zoom-valor').innerText()
-  await p.getByTestId('modal-zoom-inteira').click()
-  ok('zoom + e "Inteira"', z0 !== z1, `${z0} → ${z1}`)
-  ok('computador no beta.10: sem aviso de atualizar', (await p.getByTestId('modal-previa-atualizar').count()) === 0)
-  {
-    // Computador no beta.9: a prévia mostra o QR que sai de verdade (o de sempre) + o aviso discreto.
-    const abrirModelo = async () => {
-      await abrir(); await p.getByTestId('ver-modelo').click(); await p.getByTestId('modal-previa').waitFor({ timeout: 8000 })
-      await p.waitForFunction(() => !document.querySelector('[data-testid="modal-previa-carregando"]'), null, { timeout: 20000 })
-    }
-    await db.query("update impressao_agentes set versao = '0.2.0-beta.9' where restaurante_id = $1 and nome = $2 and revogado_em is null", [L, NOME_AG])
-    await abrirModelo()
-    ok('computador no beta.9: aviso "Atualize o assistente…" na entrega', /Atualize o assistente para imprimir o QR da rota do entregador\./.test(await p.getByTestId('modal-previa-atualizar').innerText().catch(() => '')))
-    await p.getByTestId('modal-tipo').selectOption('retirada'); await p.waitForTimeout(300)
-    ok('beta.9: sem o aviso fora da entrega', (await p.getByTestId('modal-previa-atualizar').count()) === 0)
-    await db.query("update impressao_agentes set versao = '0.2.0-beta.10' where restaurante_id = $1 and nome = $2 and revogado_em is null", [L, NOME_AG])
-    await abrirModelo()
-    await p.waitForTimeout(400)
-  }
-  // prévia = renderizador do Assistente (comanda de entrega com a config da loja)
-  await p.getByTestId('modal-zoom-largura').click()
-  const dados = await api('/api/admin/impressao/previa')
-  const cfgRow = await um('select impressao_mostrar_numero_item a, impressao_mostrar_nome_complementos b, impressao_mostrar_preco_complementos c, impressao_multiplicar_opcoes_qtd d, impressao_fonte_maior_producao e, impressao_logo f, impressao_via_cozinha g, impressao_qr h from restaurantes where id=$1', [L])
-  const cfg = { mostrarNumeroItem: cfgRow.a, mostrarNomeComplementos: cfgRow.b, mostrarPrecoComplementos: cfgRow.c, multiplicarOpcoesQtd: cfgRow.d, fonteMaiorProducao: cfgRow.e, imprimirLogo: cfgRow.f, viaCozinha: cfgRow.g, qr: cfgRow.h }
-  if (!dados.json?.logoUrl) {
-    const u = await p.getByTestId('modal-previa-canvas').evaluate((c) => c.toDataURL('image/png'))
-    writeFileSync(join(PRINTS, 'modal-comanda.png'), Buffer.from(u.split(',')[1], 'base64'))
-    const d0 = pedidoDemonstracao('entrega')
-    const docT = montarComandaV3(d0.pedido, { config: cfg, lojaNome: dados.json.loja.nome, loja: dados.json.loja, extras: d0.extras, qr: dados.json.qrRota, via: 'cliente' })
-    await renderizarTicket(docT, { larguraMm: 80, logo: null, imprimirLogo: cfg.imprimirLogo !== false, saida: join(PRINTS, 'ref-comanda.png') })
-    const d = await dif1bit(join(PRINTS, 'modal-comanda.png'), join(PRINTS, 'ref-comanda.png'))
-    ok('prévia = desenho do Assistente (renderizador real)', d.mesmo, d.txt)
-  } else {
-    console.log('   (loja local com logo: comparação 1:1 pulada)')
-  }
-  await p.screenshot({ path: join(PRINTS, '04-modal-modelo-1366.png') })
-  await p.keyboard.press('Escape')
-  await p.waitForTimeout(300)
-  ok('Esc fecha a prévia', (await p.getByTestId('modal-previa').count()) === 0)
 
   secao('Avançado')
   const cor = async () => p.getByTestId('abrir-avancado').evaluate((e) => getComputedStyle(e).color)
@@ -414,11 +350,6 @@ try {
     ok(`${w}px: Avançado em tela cheia`, t.w === t.vw && t.h === t.vh, JSON.stringify(t))
     if (w === 390) await m.screenshot({ path: join(PRINTS, '07-celular-avancado-390.png') })
     await m.keyboard.press('Escape')
-    await m.getByTestId('ver-modelo').click()
-    await m.getByTestId('modal-previa').waitFor({ timeout: 8000 })
-    const pv = await m.getByTestId('modal-previa').evaluate((e) => { const r = e.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height), vw: innerWidth, vh: innerHeight } })
-    ok(`${w}px: modelo em tela cheia`, pv.w === pv.vw && pv.h >= pv.vh - 1, JSON.stringify(pv))
-    if (w === 390) { await m.waitForTimeout(1200); await m.screenshot({ path: join(PRINTS, '08-celular-modelo-390.png') }) }
     await cx.close()
   }
 } catch (e) {
