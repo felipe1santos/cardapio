@@ -61,12 +61,18 @@ export function precisaAprovacao(p: { movimento: Movimento; valor: number; limit
 }
 
 /**
- * Sangria maior que o dinheiro esperado na gaveta: recusa com "Só há R$ X na gaveta". Sem isso a
- * gaveta ficava negativa (sangria de R$ 150 com R$ 109 — auditoria de 09/10). null = pode.
+ * Saída da gaveta (sangria, retirada, despesa, perda) maior que o dinheiro esperado nela: recusa com
+ * "Só há R$ X na gaveta". Sem isso a gaveta ficava negativa (sangria de R$ 150 com R$ 109 —
+ * auditoria de 09/10). Reforço é entrada: nunca. null = pode.
  */
 export function faltaNaGaveta(p: { movimento: Movimento; valor: number; gaveta: number }): string | null {
-  if (p.movimento !== 'sangria' || p.valor <= p.gaveta) return null
-  return `Só há ${formatarCentavos(Math.max(0, p.gaveta))} na gaveta.`
+  if (p.movimento === 'reforco') return null
+  return faltaNaGavetaParaPagar(p.valor, p.gaveta)
+}
+
+/** Qualquer pagamento com o dinheiro do caixa (conta a pagar, compra de insumo): mesma trava. */
+export function faltaNaGavetaParaPagar(valor: number, gaveta: number): string | null {
+  return valor <= gaveta ? null : `Só há ${formatarCentavos(Math.max(0, gaveta))} na gaveta.`
 }
 
 /** Resultado da contagem cega: diferença (contado − esperado) e se passa do limite da loja. */

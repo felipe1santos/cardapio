@@ -195,8 +195,8 @@ export async function movimentar(ctx: ContextoFin, p: { movimento: Movimento; va
   const { data: ja } = await ctx.admin.from('fin_lancamentos').select('aprovado_por_nome').eq('restaurante_id', loja).eq('chave_idempotencia', `mov:${p.chave}`).limit(1)
   if (ja?.length) return { ok: true, repetido: true, aprovadoPor: (ja[0].aprovado_por_nome as string | null) ?? null }
 
-  // Antes do PIN: não gasta a aprovação de ninguém numa sangria que não cabe na gaveta.
-  if (p.movimento === 'sangria') {
+  // Antes do PIN: não gasta a aprovação de ninguém numa saída que não cabe na gaveta.
+  if (p.movimento !== 'reforco') {
     const falta = faltaNaGaveta({ movimento: p.movimento, valor: p.valorCentavos, gaveta: (await saldosDoTurno(ctx.admin, loja, turno.id)).gaveta })
     if (falta) return falha(falta, 409, 'gaveta_insuficiente')
   }

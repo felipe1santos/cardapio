@@ -3,7 +3,8 @@ import { registrarAuditoria } from '@/lib/auditoria'
 import type { ContextoFin } from './contexto'
 import { criarAlerta } from './alertas'
 import { podeFin } from './permissoes'
-import { conferirAprovacao, turnoAberto, type Aprovacao } from './caixa'
+import { conferirAprovacao, saldosDoTurno, turnoAberto, type Aprovacao } from './caixa'
+import { faltaNaGavetaParaPagar } from './caixa-regras'
 import { formatarCentavos } from './centavos'
 import { diferencasPorTurno, vendasDoPeriodo } from './vendas-base'
 import {
@@ -367,6 +368,11 @@ export async function baixarConta(c: ContextoFin, id: string, p: { carteira: Car
   if (!cat) return falha('Categoria não encontrada.', 404)
   const turno = p.carteira === 'gaveta' ? await turnoAberto(c.admin, loja) : null
   if (p.carteira === 'gaveta' && !turno) return falha('Para pagar com dinheiro do caixa, abra o caixa primeiro.', 409, 'caixa_fechado')
+  // Pagar com a gaveta só o que há nela (antes do PIN, para não gastar a aprovação).
+  if (turno && k.tipo === 'pagar') {
+    const falta = faltaNaGavetaParaPagar(Number(k.valor_centavos), (await saldosDoTurno(c.admin, loja, turno.id)).gaveta)
+    if (falta) return falha(falta, 409, 'gaveta_insuficiente')
+  }
   const lim = await limites(c.admin, loja)
   let aprovacao: { id: string; nome: string } | null = null
   if (precisaAprovacaoBaixa({ tipo: k.tipo, carteira: p.carteira, valor: k.valor_centavos, ...lim, papel: c.sessao.papel })) {
@@ -533,6 +539,10 @@ export async function registrarCompra(c: ContextoFin, e: EntradaCompra, chave: s
 
   const turno = e.pagamento === 'caixa' ? await turnoAberto(c.admin, loja) : null
   if (e.pagamento === 'caixa' && !turno) return falha('Para pagar com dinheiro do caixa, abra o caixa primeiro.', 409, 'caixa_fechado')
+  if (turno) {
+    const falta = faltaNaGavetaParaPagar(total, (await saldosDoTurno(c.admin, loja, turno.id)).gaveta)
+    if (falta) return falha(falta, 409, 'gaveta_insuficiente')
+  }
   const lim = await limites(c.admin, loja)
   let aprovacao: { id: string; nome: string } | null = null
   if (e.pagamento !== 'a_prazo' && precisaAprovacaoBaixa({ tipo: 'pagar', carteira: e.pagamento === 'caixa' ? 'gaveta' : 'empresa', valor: total, ...lim, papel: c.sessao.papel })) {
