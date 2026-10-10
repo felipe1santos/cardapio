@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { contextoImpressao, semCache } from '@/lib/impressao/contexto'
 import { gerarConvite } from '@/lib/impressao/servico'
-import { DOWNLOAD_ASSISTENTE_BETA, instaladorConectado } from '@/lib/impressao/rotulos'
+import { DOWNLOAD_ASSISTENTE_BETA, instaladorConectado, nomeInstalador } from '@/lib/impressao/rotulos'
 
 /**
  * Instalador "já conectado" (noite 5): o MESMO instalador do Assistente Beta, entregue com um
@@ -20,7 +20,7 @@ export async function POST() {
   if (!r.ok) return NextResponse.json({ error: r.erro, codigo: r.codigo }, { status: r.status, headers: semCache })
   const origem = await fetch(DOWNLOAD_ASSISTENTE_BETA.url, { redirect: 'follow' })
   if (!origem.ok || !origem.body) return NextResponse.json({ error: 'Não foi possível baixar o instalador agora. Tente de novo.' }, { status: 502, headers: semCache })
-  const nome = `AssistenteMenuziaBeta-Setup-${DOWNLOAD_ASSISTENTE_BETA.versao}-c${r.valor.convite}.exe`
+  const nome = nomeInstalador(DOWNLOAD_ASSISTENTE_BETA.versao, r.valor.convite)
   return new NextResponse(origem.body, {
     status: 200,
     headers: {

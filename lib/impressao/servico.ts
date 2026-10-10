@@ -168,6 +168,8 @@ export interface DispositivoVisao extends PerfilEnvio {
   envioCaminho: CaminhoEnvio | null
   envioCaminhoEm: string | null
   envioCaminhoObs: string | null
+  /** "Saiu certinho?" depois do primeiro "Imprimir teste" (0172): nulo = ainda não respondeu. */
+  testeResposta: 'ok' | 'nao_saiu' | null
 }
 
 export interface TrabalhoVisao {
@@ -189,7 +191,7 @@ export interface TrabalhoVisao {
 export async function painelImpressao(admin: SupabaseClient, restauranteId: string) {
   const [{ data: ags }, { data: dsp }, { data: fns }, { data: tbs }, { data: loja }] = await Promise.all([
     admin.from('impressao_agentes').select('id, nome, versao, visto_em, revogado_em, criado_em, criado_por_nome').eq('restaurante_id', restauranteId).order('criado_em'),
-    admin.from('impressao_dispositivos').select(`id, agente_id, nome_sistema, apelido, largura_mm, tamanho_fonte, largura_pontos, deslocamento_pontos, diagnostico, calibrado_em, calibrado_por_nome, disponivel, visto_em, ultimo_uso_em, ultimo_erro, ultimo_erro_em, envio_caminho, envio_caminho_em, envio_caminho_obs, na_lista, ${COLUNAS_ENVIO}`).eq('restaurante_id', restauranteId).order('criado_em'),
+    admin.from('impressao_dispositivos').select(`id, agente_id, nome_sistema, apelido, largura_mm, tamanho_fonte, largura_pontos, deslocamento_pontos, diagnostico, calibrado_em, calibrado_por_nome, disponivel, visto_em, ultimo_uso_em, ultimo_erro, ultimo_erro_em, envio_caminho, envio_caminho_em, envio_caminho_obs, na_lista, teste_resposta, ${COLUNAS_ENVIO}`).eq('restaurante_id', restauranteId).order('criado_em'),
     admin.from('impressao_funcoes').select('funcao, dispositivo_id').eq('restaurante_id', restauranteId),
     admin.from('impressao_trabalhos').select('id, tipo, via, estado, erro, tentativas, criado_em, enviado_em, criado_por_nome, comanda_id, calibracao:snapshot->>calibracao, recibo_teste:snapshot->>recibo_teste, cozinha_teste:snapshot->>cozinha_teste, impressao_dispositivos ( apelido, nome_sistema )').eq('restaurante_id', restauranteId).order('criado_em', { ascending: false }).limit(30),
     admin.from('restaurantes').select('impressao_cozinha_por_funcao, impressao_agente_visto_em, impressao_beta_liberado, impressao_beta_modo, impressao_cozinha_transferida_em, impressao_somente_nova').eq('id', restauranteId).maybeSingle(),
@@ -228,6 +230,7 @@ export async function painelImpressao(admin: SupabaseClient, restauranteId: stri
     envioCaminho: ehCaminho(d.envio_caminho) ? d.envio_caminho : null,
     envioCaminhoEm: (d.envio_caminho_em as string | null) ?? null,
     envioCaminhoObs: (d.envio_caminho_obs as string | null) ?? null,
+    testeResposta: d.teste_resposta === 'ok' || d.teste_resposta === 'nao_saiu' ? d.teste_resposta : null,
     ...perfilEnvio(d),
   }))
   const trabalhos: TrabalhoVisao[] = ((tbs ?? []) as unknown as (Record<string, unknown> & { impressao_dispositivos: { apelido: string | null; nome_sistema: string } | null })[]).map((t) => ({
@@ -301,10 +304,17 @@ export async function ajustarDispositivo(
   a: {
     apelido?: unknown; larguraMm?: unknown; tamanhoFonte?: unknown; larguraPontos?: unknown; deslocamentoPontos?: unknown
     intensidade?: unknown; envio?: unknown; modoImpressao?: unknown; redeIp?: unknown; redePorta?: unknown
-    naLista?: unknown
+    naLista?: unknown; testeResposta?: unknown
   },
 ): Promise<Resultado<null> & { modoRecuou?: ModoBeta | null }> {
   const patch: Record<string, unknown> = {}
+  // "Saiu certinho?" (0172, Alfa 1): resposta ao primeiro teste desta impressora.
+  if (a.testeResposta !== undefined) {
+    if (a.testeResposta !== 'ok' && a.testeResposta !== 'nao_saiu') return falha('Resposta inválida.')
+    patch.teste_resposta = a.testeResposta
+    patch.teste_respondido_em = new Date().toISOString()
+    patch.teste_respondido_por_nome = op.nome
+  }
   // Adicionar/remover da lista da tela (0158). Remover tira as funções dela (o modo recua se precisar).
   if (a.naLista !== undefined) {
     if (typeof a.naLista !== 'boolean') return falha('Valor inválido para a lista.')
@@ -359,7 +369,8 @@ export async function ajustarDispositivo(
     const { data: tiradas } = await admin.from('impressao_funcoes').delete().eq('restaurante_id', op.restauranteId).eq('dispositivo_id', id).select('funcao')
     if (tiradas?.length) modoRecuou = await garantirModoValido(admin, op)
   }
-  const acao = patch.na_lista === true ? 'impressao.impressora_adicionada' : patch.na_lista === false ? 'impressao.impressora_removida' : 'impressao.impressora_ajustada'
+  const acao = patch.na_lista === true ? 'impressao.impressora_adicionada' : patch.na_lista === false ? 'impressao.impressora_removida'
+    : patch.teste_resposta !== undefined ? 'impressao.teste_respondido' : 'impressao.impressora_ajustada'
   await auditar(admin, op, acao, 'impressao_dispositivo', id, { ...patch, resumo: (patch.apelido as string) ?? data[0].nome_sistema })
   return { ok: true, valor: null, modoRecuou }
 }
@@ -558,7 +569,8 @@ export async function descobrir(admin: SupabaseClient, agenteId: string, nomes: 
       const { data: atual } = await admin.from('impressao_dispositivos').select('id, largura_mm, largura_pontos, largura_manual').eq('agente_id', agenteId).eq('nome_sistema', nome).maybeSingle()
       if (atual && !atual.largura_manual) {
         const auto = larguraDoDriver(limpo)
-        if (atual.largura_mm !== auto.larguraMm || atual.largura_pontos == null) {
+        // 09/10: também quando o driver informa uma área imprimível diferente (ex.: 574 → 568).
+        if (atual.largura_mm !== auto.larguraMm || atual.largura_pontos == null || atual.largura_pontos !== auto.larguraPontos) {
           await admin.from('impressao_dispositivos').update({ largura_mm: auto.larguraMm, largura_pontos: auto.larguraPontos }).eq('id', atual.id).eq('largura_manual', false)
         }
       }
@@ -617,6 +629,19 @@ export async function reservarTrabalhos(admin: SupabaseClient, agenteId: string)
     ? await admin.from('impressao_dispositivos').select(`id, largura_pontos, deslocamento_pontos, tamanho_fonte, ${COLUNAS_ENVIO}, restaurantes ( slug, instagram_url, impressao_logo, impressao_qr, logo_url, ${COLUNAS_LOJA_IMPRESSAO} )`).in('id', ids)
     : { data: [] as Perfil[] }
   const perfil = new Map(((perfis ?? []) as unknown as Perfil[]).map((p) => [p.id, p]))
+  // Alfa 1: a pré-conta mostra 'N pessoas · R$ X por pessoa' — o número de pessoas vem da conta.
+  const preIds = (r.valor ?? []).filter((t) => t.tipo === 'pre_conta').map((t) => t.id as string)
+  const { data: dosTrab } = preIds.length ? await admin.from('impressao_trabalhos').select('id, comanda_id').in('id', preIds) : { data: [] as { id: string; comanda_id: string | null }[] }
+  const contaDo = new Map(((dosTrab ?? []) as { id: string; comanda_id: string | null }[]).map((x) => [x.id, x.comanda_id]))
+  const contas = [...new Set([...contaDo.values()].filter(Boolean) as string[])]
+  const { data: cms } = contas.length ? await admin.from('comandas').select('id, pessoas').in('id', contas) : { data: [] as { id: string; pessoas: number | null }[] }
+  const pessoas = new Map(((cms ?? []) as { id: string; pessoas: number | null }[]).map((c) => [c.id, c.pessoas]))
+  const comPessoas = (t: Record<string, unknown>) => {
+    const snap = t.snapshot as Record<string, unknown>
+    const conta = contaDo.get(t.id as string)
+    if (t.tipo !== 'pre_conta' || !conta || (snap && snap.pessoas !== undefined && snap.pessoas !== null)) return snap
+    return { ...snap, pessoas: pessoas.get(conta) ?? null }
+  }
   const qrDe = (id: string) => {
     const loja = perfil.get(id)?.restaurantes
     // Item 61: pré-conta = QR do Instagram da loja (sem Instagram, ou com a opção do QR desligada: sem QR).
@@ -630,7 +655,7 @@ export async function reservarTrabalhos(admin: SupabaseClient, agenteId: string)
       id: t.id as string,
       tipo: t.tipo as TrabalhoAgente['tipo'],
       via: t.via as number,
-      snapshot: t.snapshot as Record<string, unknown>,
+      snapshot: comPessoas(t),
       nomeSistema: t.nome_sistema as string,
       larguraMm: t.largura_mm as 58 | 80,
       larguraPontos: perfil.get(t.dispositivo_id as string)?.largura_pontos ?? null,

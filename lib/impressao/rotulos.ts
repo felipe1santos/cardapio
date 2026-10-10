@@ -1,4 +1,5 @@
 import { compararVersao } from '@/lib/avisos-painel'
+import { ATUALIZACAO_ASSISTENTE } from '@/lib/impressao/atualizacao-assistente'
 /**
  * Rótulos dos estados de impressão — usados no painel e no PDV.
  *
@@ -55,14 +56,25 @@ export const ROTULO_MODO_BETA: Record<'teste' | 'caixa' | 'cozinha_caixa', strin
 
 export const EXPLICACAO_RECIBO_EXTRATO = 'Documento não fiscal usado para o cliente conferir a conta antes ou depois do pagamento.'
 
-/** Instaladores. O atual é o que as lojas já usam; o Beta só aparece para loja liberada. */
+/** Instaladores. O antigo (0.1.x) só fica para quem já tem instalado — não aparece mais na tela (Alfa 1, 09/10). */
 export const DOWNLOAD_ASSISTENTE_ATUAL = {
   versao: '0.1.23',
   url: 'https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.1.23/AssistenteImpressaoMenuzia-Setup-0.1.23.exe',
 }
-export const DOWNLOAD_ASSISTENTE_BETA = {
-  versao: '0.2.0-beta.13',
-  url: 'https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.2.0-beta.13/AssistenteMenuziaBeta-Setup-0.2.0-beta.13.exe',
+/** O instalador que a tela oferece: SEMPRE o mesmo da atualização automática (lib/impressao/atualizacao-assistente.ts). */
+export const DOWNLOAD_ASSISTENTE_BETA = { versao: ATUALIZACAO_ASSISTENTE.versao, url: ATUALIZACAO_ASSISTENTE.url }
+
+/** "Alfa 1" (09/10): nome que o usuário vê a partir da 1.1.0 (o número segue maior que o beta.13 para o atualizador). */
+export const VERSAO_ALFA1 = '1.1.0'
+export const NOME_ALFA1 = 'Alfa 1'
+export function rotuloVersaoAssistente(v: string | null | undefined): string {
+  if (!v) return ''
+  return compararVersao(v, VERSAO_ALFA1) >= 0 ? NOME_ALFA1 : `versão ${v.replace(/^0.2.0-/, '')}`
+}
+/** Nome do instalador "já conectado" (convite no nome). O Assistente acha o arquivo pelo prefixo. */
+export function nomeInstalador(versao: string, convite: string): string {
+  const prefixo = compararVersao(versao, VERSAO_ALFA1) >= 0 ? 'AssistenteMenuziaAlfa1' : 'AssistenteMenuziaBeta'
+  return `${prefixo}-Setup-${versao}-c${convite}.exe`
 }
 
 /**

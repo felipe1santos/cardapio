@@ -72,6 +72,8 @@ export interface ExtrasCozinhaBeta {
   prontoEm: string | null
   comandaNumero: number | null
   atendente: string | null
+  /** Alfa 1: quantos pedidos este cliente (pelo telefone) já fez na loja, contando este. */
+  qtdPedidosCliente?: number | null
 }
 
 /** Desconto, horários, comanda e atendente dos pedidos da rodada (leitura, escopada à loja). */
@@ -83,13 +85,20 @@ export async function extrasDaCozinhaBeta(
   if (ids.length === 0) return {}
   const { data, error } = await admin
     .from('pedidos')
-    .select('id, desconto, preparando_em, pronto_em, criado_por_nome, comandas ( numero, responsavel_nome )')
+    .select('id, desconto, preparando_em, pronto_em, criado_por_nome, cliente_telefone, comandas ( numero, responsavel_nome )')
     .eq('restaurante_id', restauranteId)
     .in('id', ids)
   if (error) throw error
+  // Alfa 1: 'Qtd de pedidos' do cliente — contagem pelo telefone (só dígitos), sem os cancelados.
+  const fones = [...new Set(((data ?? []) as { cliente_telefone?: string | null }[]).map((p) => p.cliente_telefone).filter((t): t is string => !!t && t.replace(/D/g, '').length >= 8))]
+  const porFone = new Map<string, number>()
+  if (fones.length) {
+    const { data: hist } = await admin.from('pedidos').select('cliente_telefone').eq('restaurante_id', restauranteId).in('cliente_telefone', fones).neq('status', 'cancelado').limit(20000)
+    for (const h of (hist ?? []) as { cliente_telefone: string }[]) porFone.set(h.cliente_telefone, (porFone.get(h.cliente_telefone) ?? 0) + 1)
+  }
   const out: Record<string, ExtrasCozinhaBeta> = {}
   for (const p of (data ?? []) as unknown as {
-    id: string; desconto: number | null; preparando_em: string | null; pronto_em: string | null; criado_por_nome: string | null
+    id: string; desconto: number | null; preparando_em: string | null; pronto_em: string | null; criado_por_nome: string | null; cliente_telefone: string | null
     comandas: { numero: number | null; responsavel_nome: string | null } | { numero: number | null; responsavel_nome: string | null }[] | null
   }[]) {
     const c = Array.isArray(p.comandas) ? p.comandas[0] : p.comandas
@@ -99,6 +108,7 @@ export async function extrasDaCozinhaBeta(
       prontoEm: p.pronto_em,
       comandaNumero: c?.numero ?? null,
       atendente: (p.criado_por_nome || c?.responsavel_nome || '').trim() || null,
+      qtdPedidosCliente: p.cliente_telefone ? porFone.get(p.cliente_telefone) ?? null : null,
     }
   }
   return out

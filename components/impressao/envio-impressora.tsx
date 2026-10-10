@@ -141,7 +141,7 @@ export function EnvioImpressora({ d, ocupado, agir, onImprimirTeste }: { d: Disp
       <button type="button" disabled={ocupado} onClick={onImprimirTeste} data-testid="imprimir-teste-largura" className="w-full rounded-menuzia border-2 border-primary py-2.5 text-[13px] font-semibold text-primary disabled:opacity-40">
         Imprimir teste de largura
       </button>
-      <p className="text-[11.5px] text-text-subtle">Precisa do Assistente Menuzia Beta 0.2.0-beta.7 ou mais novo no computador da impressora.</p>
+      <p className="text-[11.5px] text-text-subtle">Precisa do Assistente Menuzia Alfa 1 0.2.0-beta.7 ou mais novo no computador da impressora.</p>
     </div>
   )
 }

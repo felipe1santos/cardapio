@@ -7,10 +7,12 @@ import { chamar, novaChave } from '@/components/pdv/util'
 import { ModalAjudaImpressao } from '@/components/impressao/ajuda-impressao'
 import { ImpressoraModal } from '@/components/impressao/documentos'
 import { EnvioImpressora } from '@/components/impressao/envio-impressora'
+import { ModalAvancado } from '@/components/impressao/modal-avancado'
+import { impressorasDoAvancado } from '@/lib/impressao/avancado'
 import type { LojaPrevia } from '@/components/impressao/modal-previa'
 import { ModalPareamento, ModalTestes, nomeDisp, type PainelDados, type ResultadoTeste, type TamanhoLetra, type TipoTeste } from '@/components/impressao/beta-cards'
 import { Flutuante, ModalCentral, NoTopo } from '@/components/ui/flutuante'
-import { ROTULO_MODO_BETA, DOWNLOAD_ASSISTENTE_ATUAL, DOWNLOAD_ASSISTENTE_BETA, instaladorConectado } from '@/lib/impressao/rotulos'
+import { ROTULO_MODO_BETA, DOWNLOAD_ASSISTENTE_BETA, instaladorConectado, rotuloVersaoAssistente } from '@/lib/impressao/rotulos'
 import { modoDependeDoAgente, ehImpressoraVirtual, pareamentoAntigo } from '@/lib/impressao/regras-modo'
 import { prontidaoBeta, versaoInstalada } from '@/lib/impressao/opcao'
 import { compararVersao, VERSAO_IMPRESSAO_V3 } from '@/lib/avisos-painel'
@@ -43,8 +45,8 @@ import {
  *     e cada impressora com apelido, nome técnico, situação, FUNÇÕES (Cozinha, Caixa / pré-conta,
  *     Comanda de entrega, Outra) e remover; "Testar impressão" no rodapé;
  *   3 O que aparece no papel — as opções reais em switches.
- * "Avançado" (link cinza, roxo no hover) abre a janela com computador, papel, envio, calibração e
- * as opções gerais. A escolha "antigo × novo" saiu da tela: loja que ainda imprime pelo antigo vê
+ * "Avançado" (Alfa 1, 09/10): link discreto no rodapé; a janela tem só Imagem/Texto e "Imprimir teste" por
+ * impressora (o Windows é reserva automática do Assistente, sem tela). A escolha "antigo × novo" saiu da tela: loja que ainda imprime pelo antigo vê
  * só o aviso no card 1 — nenhum modo muda sozinho. Visual do kit ti- (fonte dos menus, peso 600).
  */
 
@@ -75,6 +77,8 @@ function conexao(d: DispositivoVisao): string {
   if (/USB/i.test(porta)) return 'USB'
   return ''
 }
+/** "Alfa 1" (1.1.0+) ou "· versão beta.13" (as antigas). */
+const rotuloAssistente = (v: string) => { const r = rotuloVersaoAssistente(v); return r.startsWith('versão') ? `· ${r}` : r }
 const detalhe = (d: DispositivoVisao) => [conexao(d), `papel ${d.larguraMm} mm`].filter(Boolean).join(' · ')
 
 /** Opções do papel (as reais). Preço dos adicionais e letra maior só existem no Assistente antigo. */
@@ -118,6 +122,7 @@ export function PainelImpressao() {
   const [novaId, setNovaId] = useState('')
   const [novoApelido, setNovoApelido] = useState('')
   const [copiado, setCopiado] = useState(false)
+  const [avancado, setAvancado] = useState(false)
   const seq = useRef(0)
   const chavesTeste = useRef<Record<string, string>>({})
 
@@ -214,7 +219,12 @@ export function PainelImpressao() {
   async function agir(url: string, metodo: string, corpo: unknown, sucesso: string) {
     if (ocupado) return null
     setOcupado(true)
-    const r = await chamar<{ modoRecuou?: ModoBeta | null }>(url, { method: metodo, body: JSON.stringify(corpo) })
+    let r = await chamar<{ modoRecuou?: ModoBeta | null }>(url, { method: metodo, body: JSON.stringify(corpo) })
+    // Único computador / outro computador assumindo a impressão: o servidor pergunta; só repete se confirmar.
+    if (!r.ok && (r.codigo === 'unico_computador' || r.codigo === 'outro_computador')) {
+      if (!confirm(r.erro ?? 'Confirmar?')) { setOcupado(false); setAviso({ tom: 'alerta', texto: 'Nada foi alterado.' }); return r }
+      r = await chamar<{ modoRecuou?: ModoBeta | null }>(url, { method: metodo, body: JSON.stringify({ ...(corpo as Record<string, unknown>), confirmar: true }) })
+    }
     setOcupado(false)
     if (!r.ok) setAviso({ tom: 'erro', texto: r.erro ?? 'Não foi possível.' })
     else if (r.dados?.modoRecuou) setAviso({ tom: 'alerta', texto: `${sucesso} ${MOTIVO_RECUO} Modo agora: ${ROTULO_MODO_BETA[r.dados.modoRecuou]}.` })
@@ -270,11 +280,16 @@ export function PainelImpressao() {
 
   function revogar(a: AgenteVisao) {
     if (!p) return
-    const emUso = modoDependeDoAgente(p.modo, a.id, p.dispositivos.map((d) => ({ id: d.id, agenteId: d.agenteId, nomeSistema: d.nomeSistema })), p.funcoes)
-    const texto = emUso
-      ? `"${a.nome}" imprime os pedidos da loja. Ao desconectar, a loja volta na hora para o assistente antigo. Desconectar?`
-      : `Desconectar "${a.nome}"? Ele para de imprimir na hora e precisa ser conectado de novo.`
-    if (confirm(texto)) void agir(`/api/admin/impressao/agentes/${a.id}`, 'POST', { acao: 'revogar' }, 'Computador desconectado.')
+    // Único computador que imprime: quem pergunta é o servidor (409 unico_computador → agir confirma).
+    const outrosOnline = p.agentes.filter((x) => x.id !== a.id && !x.revogado && x.online).length
+    if (outrosOnline > 0) {
+      const emUso = modoDependeDoAgente(p.modo, a.id, p.dispositivos.map((d) => ({ id: d.id, agenteId: d.agenteId, nomeSistema: d.nomeSistema })), p.funcoes)
+      const texto = emUso
+        ? `"${a.nome}" imprime os pedidos da loja. Ao desconectar, os pedidos deixam de sair nele na hora. Desconectar?`
+        : `Desconectar "${a.nome}"? Ele para de imprimir na hora e precisa ser conectado de novo.`
+      if (!confirm(texto)) return
+    }
+    void agir(`/api/admin/impressao/agentes/${a.id}`, 'POST', { acao: 'revogar' }, 'Computador desconectado.')
   }
 
   async function testar(tipo: TipoTeste, d: DispositivoVisao): Promise<ResultadoTeste> {
@@ -379,7 +394,7 @@ export function PainelImpressao() {
                 extra={tudoCerto ? <span className="ti-tudo-certo" data-testid="tudo-certo"><Check aria-hidden />Tudo certo</span> : null}>
                 <div className="ti-linha-asst" data-testid="assistente-linha">
                   <div className="min-w-0">
-                    <b data-testid="assistente-versao">Assistente Menuzia · versão {versao ?? DOWNLOAD_ASSISTENTE_BETA.versao.replace(/^0\.2\.0-/, '')}</b>
+                    <b data-testid="assistente-versao">Assistente Menuzia {rotuloAssistente(versao ?? DOWNLOAD_ASSISTENTE_BETA.versao)}</b>
                     <span className={`ti-estado ${online.length ? 'ok' : 'warn'}`} data-testid="assistente-situacao">
                       <Ponto e={online.length ? 'ok' : 'warn'} />
                       {online.length ? `Conectado em ${online[0].nome}` : ativos.length ? `Desconectado — ${[...ativos].sort((x, y) => (y.vistoEm ?? '').localeCompare(x.vistoEm ?? ''))[0].nome}, último sinal ${quando([...ativos].sort((x, y) => (y.vistoEm ?? '').localeCompare(x.vistoEm ?? ''))[0].vistoEm) || '—'}` : 'Desconectado'}
@@ -424,7 +439,6 @@ export function PainelImpressao() {
                       </span>
                     </div>
                     {config && <div className="ti-av-linha"><span>Assistente antigo ativado</span><button type="button" className="ti-sw" role="switch" aria-checked={config.ativarAssistente} aria-label="Assistente antigo ativado" disabled={!podeEditar} onClick={() => void patchConfig({ ativarAssistente: !config.ativarAssistente })} data-testid="opcao-ativarAssistente" /></div>}
-                    <a className="ti-btn sm" href={DOWNLOAD_ASSISTENTE_ATUAL.url}>Instalador do antigo ({DOWNLOAD_ASSISTENTE_ATUAL.versao})</a>
                   </div>
                 )}
 
@@ -444,7 +458,7 @@ export function PainelImpressao() {
                 )}
                 {!antigo && desatualizado && (
                   <Aviso testid="aviso-versao" acao={<a className="ti-btn" href={DOWNLOAD_ASSISTENTE_BETA.url} data-testid="aviso-versao-baixar"><Download aria-hidden /> Baixar a versão nova</a>}>
-                    Este computador está na versão <b>{versao.replace(/^0.2.0-/, '')}</b>. Baixe a <b>{DOWNLOAD_ASSISTENTE_BETA.versao.replace(/^0.2.0-/, '')}</b> e abra o instalador no computador da impressora: ele instala por cima, sem desinstalar, e o assistente volta conectado sozinho.{compararVersao(versao, '0.2.0-beta.11') >= 0 ? ' Este computador já se atualiza sozinho fora do horário de pico.' : ' A partir desta versão ele se atualiza sozinho.'}
+                    Este computador está na <b>{rotuloVersaoAssistente(versao)}</b>. Baixe o <b>Assistente {rotuloVersaoAssistente(DOWNLOAD_ASSISTENTE_BETA.versao).replace(/^versão /, '')}</b> e abra o instalador no computador da impressora: ele instala por cima, sem desinstalar, e o assistente volta conectado sozinho.{compararVersao(versao, '0.2.0-beta.11') >= 0 ? ' Este computador já se atualiza sozinho.' : ' A partir desta versão ele se atualiza sozinho.'}
                   </Aviso>
                 )}
                 {!p.betaLiberado && (
@@ -498,6 +512,10 @@ export function PainelImpressao() {
                 {config && !podeEditar && <p className="ti-rot mt-2">Só o dono da loja altera estas opções.</p>}
               </Card>
 
+              {/* Alfa 1: Imagem ou Texto por impressora, discreto no rodapé. O Windows não aparece. */}
+              <div className="mt-4 flex justify-center">
+                <button type="button" className="ti-link" style={{ fontSize: 13, fontWeight: 400 }} onClick={() => setAvancado(true)} data-testid="abrir-avancado">Avançado</button>
+              </div>
             </>
           )}
 
@@ -524,6 +542,7 @@ export function PainelImpressao() {
             </p>
           </ModalCentral>
           {calibrar && p?.dispositivos.find((d) => d.id === calibrar) && <NoTopo classe="tela-impressao"><Calibracao d={p.dispositivos.find((d) => d.id === calibrar)!} ocupado={ocupado} agir={agir} onFechar={() => setCalibrar(null)} /></NoTopo>}
+          {p && <ModalAvancado aberto={avancado} impressoras={impressorasDoAvancado(naLista)} onFechar={() => setAvancado(false)} onMudou={() => void carregar()} />}
           {modalImpressora && <NoTopo classe="tela-impressao"><ImpressoraModal initial={modalImpressora.input} onClose={() => setModalImpressora(null)} onSave={salvarImpressoraAntiga} /></NoTopo>}
         </main>
       </div>

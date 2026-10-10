@@ -6,7 +6,7 @@ import { VERSAO_IMPRESSAO_V3, compararVersao } from '@/lib/avisos-painel'
 describe('atualização automática do Assistente', () => {
   it('latest.yml no formato do electron-updater, com o instalador do GitHub', () => {
     const y = latestYml()!
-    expect(y).toMatch(/^version: 0\.2\.0-beta\.\d+\n/)
+    expect(y).toMatch(/^version: \d+\.\d+\.\d+(-beta\.\d+)?\n/)
     expect(y).toContain(`  - url: ${ATUALIZACAO_ASSISTENTE.url}`)
     expect(y).toMatch(/sha512: [A-Za-z0-9+/]{86}==\n/)
     expect(y).toMatch(/size: \d{7,}\n/)

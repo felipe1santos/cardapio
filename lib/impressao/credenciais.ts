@@ -2,6 +2,7 @@ import { createHash, randomBytes, randomInt } from 'node:crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { lerAgenteToken } from '@/lib/agente-token'
 import { resolverRestauranteIdPorToken } from '@/lib/queries/impressao'
+import { deveGravarIp, ipDoRequest } from '@/lib/impressao/atualizacao-bloqueio'
 
 /**
  * Credenciais do Assistente de Impressão — SÓ SERVIDOR.
@@ -72,6 +73,17 @@ export type IdentidadeAgente =
  * Quem está chamando. `null` = sem credencial ou credencial inválida/revogada.
  * Agente autenticado registra sinal de vida e versão (cabeçalho X-Agente-Versao).
  */
+// IP de cada computador (0172): o latest.yml da atualização automática reconhece a loja que não atualiza (Villa).
+// Em memória por instância, no máximo a cada 10 min; best-effort (nunca atrasa nem derruba a busca de pedidos).
+const ultimoIp = new Map<string, { ip: string; em: number }>()
+function gravarIp(admin: SupabaseClient, agenteId: string, ip: string | null) {
+  if (!ip) return
+  const agora = Date.now()
+  if (!deveGravarIp(ultimoIp.get(agenteId), ip, agora)) return
+  ultimoIp.set(agenteId, { ip, em: agora })
+  void admin.from('impressao_agentes').update({ visto_ip: ip }).eq('id', agenteId).then(() => {}, () => {})
+}
+
 export async function identificarAgente(admin: SupabaseClient, request: Request): Promise<IdentidadeAgente | null> {
   const bruto = lerAgenteToken(request)
   if (!bruto) return null
@@ -81,6 +93,7 @@ export async function identificarAgente(admin: SupabaseClient, request: Request)
     const { data, error } = await admin.rpc('impressao_agente_autenticar', { p_credencial_hash: hashSha256(bruto), p_versao: versao })
     if (error) throw error
     const linha = ((data ?? []) as { agente_id: string; restaurante_id: string; nome: string }[])[0]
+    if (linha) gravarIp(admin, linha.agente_id, ipDoRequest(request.headers))
     return linha ? { tipo: 'agente', agenteId: linha.agente_id, restauranteId: linha.restaurante_id, nome: linha.nome } : null
   }
   const restauranteId = await resolverRestauranteIdPorToken(admin, bruto)

@@ -13,7 +13,7 @@ import { agenteOnline, avaliarModos, ehImpressoraVirtual, motivoProblema, paream
 import type { AgenteVisao, DispositivoVisao, Funcao, ModoBeta, TrabalhoVisao } from '@/lib/impressao/servico'
 
 /**
- * Tela Impressão (Assistente Beta), em etapas — 2026-09-28:
+ * Tela Impressão (Assistente Alfa 1), em etapas — 2026-09-28:
  *   ① Conectar computador  ② Impressoras (escolha em pop-up)  ③ Modo de operação
  *   · Testes num pop-up (botão "Testar impressão" no topo) · Ajuda e diagnóstico recolhidos.
  * Visual neutro: cartões brancos, borda cinza clara, uma cor de destaque (#0688D4) e cor
@@ -38,7 +38,7 @@ export interface PainelDados {
 
 export const nomeDisp = (d: DispositivoVisao) => d.apelido || d.nomeSistema
 
-/** Tamanho da letra do Assistente Beta (comanda e pré-conta). Grande = o modelo oficial. */
+/** Tamanho da letra do Assistente Alfa 1 (comanda e pré-conta). Grande = o modelo oficial. */
 export type TamanhoLetra = 'grande' | 'media' | 'pequena'
 export const TAMANHOS_LETRA: { valor: TamanhoLetra; rotulo: string; curto: string }[] = [
   { valor: 'grande', rotulo: 'Grande (modelo)', curto: 'G' },
@@ -51,9 +51,9 @@ const quando = (iso: string | null) =>
 
 export const ROTULO_FUNCAO_CURTO: Record<Funcao, string> = { cozinha: 'Cozinha', caixa: 'Recibo/Extrato' }
 export const TEXTO_MODO: Record<ModoBeta, { titulo: string; curto: string }> = {
-  teste: { titulo: 'Somente teste', curto: 'Beta só imprime testes. Pedidos reais continuam no Assistente atual.' },
-  caixa: { titulo: 'Somente Caixa', curto: 'Recibo/Extrato sai pelo Beta. Cozinha continua no Assistente atual.' },
-  cozinha_caixa: { titulo: 'Cozinha e Caixa', curto: 'Cozinha e Recibo/Extrato saem pelo Beta.' },
+  teste: { titulo: 'Somente teste', curto: 'Alfa 1 só imprime testes. Pedidos reais continuam no Assistente atual.' },
+  caixa: { titulo: 'Somente Caixa', curto: 'Recibo/Extrato sai pelo Alfa 1. Cozinha continua no Assistente atual.' },
+  cozinha_caixa: { titulo: 'Cozinha e Caixa', curto: 'Cozinha e Recibo/Extrato saem pelo Alfa 1.' },
 }
 
 /** Avaliação da regra dos modos no navegador (a mesma do servidor). */
@@ -148,7 +148,7 @@ export function EtapaConectar({ p, ocupado, onParear, onRevogar, onRenomear }: {
     <Etapa numero={1} titulo="Conectar computador" texto="Instale o Assistente no computador ligado às impressoras e pareie com o sistema." concluida={conectados.length > 0} testid="cartao-assistente">
       {!p.betaLiberado ? (
         <p className="flex items-start gap-2 rounded-[8px] border border-[#FDE68A] bg-[#FFFBEB] px-3 py-2.5 text-[13px] text-[#92400E]" data-testid="beta-nao-liberado">
-          <Info className="mt-0.5 h-4 w-4 flex-shrink-0" /> A ativação do Beta nesta loja é feita pelo suporte Menuzia. Até lá, a impressão continua pelo Assistente antigo.
+          <Info className="mt-0.5 h-4 w-4 flex-shrink-0" /> A ativação do Alfa 1 nesta loja é feita pelo suporte Menuzia. Até lá, a impressão continua pelo Assistente antigo.
         </p>
       ) : ativos.length === 0 ? (
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -234,7 +234,7 @@ export function ModalPareamento({ codigo, erro, conectado, onGerarOutro, onFecha
         </div>
       ) : (
         <div className="space-y-3 text-center">
-          <p className="text-[13px] text-[#1F2937]">Digite este código no <strong>Assistente Menuzia Beta</strong> instalado no computador da loja.</p>
+          <p className="text-[13px] text-[#1F2937]">Digite este código no <strong>Assistente Menuzia Alfa 1</strong> instalado no computador da loja.</p>
           <p className="rounded-[10px] bg-[#F3F4F6] py-4 font-mono text-[34px] font-semibold tracking-[0.18em] text-[#111827]" data-testid="codigo-pareamento">{codigo.codigo}</p>
           <p className="text-[13px] text-[#6B7280]">Vale uma vez · expira em <strong className="text-[#111827]" data-testid="pareamento-tempo">{mmss}</strong></p>
           <p className="flex items-center justify-center gap-1.5 text-[12px] text-[#6B7280]"><span className="h-2 w-2 animate-pulse rounded-full bg-[#F59E0B]" /> Aguardando o computador…</p>
@@ -443,7 +443,7 @@ function MaisOpcoes({ d, ocupado, onAjustar }: { d: DispositivoVisao; ocupado: b
 export function EtapaModo({ p, ocupado, onEscolher, onAjuda }: { p: PainelDados; ocupado: boolean; onEscolher: (m: ModoBeta) => void; onAjuda: () => void }) {
   const av = avaliar(p)
   return (
-    <Etapa numero={3} titulo="Modo de operação" texto="O que o Beta imprime nesta loja." concluida={p.modo !== 'teste'} testid="modo-beta"
+    <Etapa numero={3} titulo="Modo de operação" texto="O que o Alfa 1 imprime nesta loja." concluida={p.modo !== 'teste'} testid="modo-beta"
       acao={<button type="button" onClick={onAjuda} data-testid="ajuda-modos" aria-label="O que cada modo faz" className="flex h-[32px] w-[32px] items-center justify-center rounded-[8px] text-[#6B7280] hover:bg-[#F3F4F6] hover:text-[#111827]"><CircleHelp className="h-[18px] w-[18px]" /></button>}>
       <div role="radiogroup" aria-label="Modo de operação" className="grid gap-2.5 md:grid-cols-3">
         {(['teste', 'caixa', 'cozinha_caixa'] as ModoBeta[]).map((m) => {
@@ -492,9 +492,9 @@ export function EtapaModo({ p, ocupado, onEscolher, onAjuda }: { p: PainelDados;
 
 export function ModalModos({ onFechar }: { onFechar: () => void }) {
   const linhas: [ModoBeta, string, string, string][] = [
-    ['teste', 'Assistente atual', 'não sai', 'Use enquanto configura e testa. Nenhum pedido real sai pelo Beta.'],
-    ['caixa', 'Assistente atual', 'Beta (Recibo/Extrato)', 'O botão “Imprimir Recibo/Extrato” do PDV passa a funcionar. Precisa da impressora de Recibo/Extrato.'],
-    ['cozinha_caixa', 'Beta (Cozinha)', 'Beta (Recibo/Extrato)', 'O Assistente atual para de imprimir pedidos. Precisa das duas impressoras e do computador ligado.'],
+    ['teste', 'Assistente atual', 'não sai', 'Use enquanto configura e testa. Nenhum pedido real sai pelo Alfa 1.'],
+    ['caixa', 'Assistente atual', 'Alfa 1 (Recibo/Extrato)', 'O botão “Imprimir Recibo/Extrato” do PDV passa a funcionar. Precisa da impressora de Recibo/Extrato.'],
+    ['cozinha_caixa', 'Alfa 1 (Cozinha)', 'Alfa 1 (Recibo/Extrato)', 'O Assistente atual para de imprimir pedidos. Precisa das duas impressoras e do computador ligado.'],
   ]
   return (
     <ModalBase titulo="O que cada modo faz" onFechar={onFechar} testid="modal-modos" rodape={<button type="button" onClick={onFechar} className={PRIMARIO}>Entendi</button>}>
@@ -672,7 +672,7 @@ export function AjudaDiagnostico({ p, onAjudaCompleta }: { p: PainelDados; onAju
         <ul className="list-disc space-y-1 pl-5 text-[12.5px] text-[#6B7280]">
           <li>Papel não saiu? Veja se tem papel, se a tampa está fechada e se a impressora está ligada.</li>
           <li>Fila do Windows travada: em “Impressoras e scanners”, abra a impressora e cancele os documentos parados.</li>
-          <li>Reinstalou o Beta? Desconecte a entrada antiga do computador e pareie de novo.</li>
+          <li>Reinstalou o Alfa 1? Desconecte a entrada antiga do computador e pareie de novo.</li>
         </ul>
       </div>
     </details>

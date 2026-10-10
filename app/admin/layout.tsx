@@ -19,6 +19,7 @@ import { FichaDaLoja } from '@/components/admin/ficha-loja'
 import { IndicadorSalvar } from '@/components/admin/indicador-salvar'
 import { AprovacaoGlobal } from '@/components/admin/aprovacao-global'
 import { AvisoNovaImpressao } from '@/components/admin/aviso-nova-impressao'
+import { AlertasImpressao } from '@/components/admin/alertas-impressao'
 import { TravaSessao } from '@/components/admin/trava-sessao'
 import { JanelaSairComCaixa } from '@/components/financeiro/aviso-caixa'
 import { sairDoPainel, useEstadoSessao } from '@/lib/sessao-cliente'
@@ -331,6 +332,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     >
       {/* Aviso fixo do novo sistema de impressão: no fluxo, empurra menu e conteúdo. */}
       {mostrarAvisoNovaImpressao(pathname) && <AvisoNovaImpressao />}
+      {/* Alfa 1: Imprimir sozinho desligado com pedido chegando / nenhum computador buscando pedidos. */}
+      <AlertasImpressao />
       {/* Som de pedido bloqueado pelo navegador: aviso grande em qualquer tela (some no 1º toque). */}
       <AvisoSomBloqueado />
       <TravaSessao />

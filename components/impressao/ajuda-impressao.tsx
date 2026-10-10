@@ -30,7 +30,7 @@ const TOPICOS: { titulo: string; texto: React.ReactNode }[] = [
         <br />
         <strong>Assistente atual</strong>: o que a loja já usa. Continua imprimindo normalmente.
         <br />
-        <strong>Assistente Beta</strong>: versão nova, liberada para algumas lojas. É necessária para usar uma impressora
+        <strong>Assistente Alfa 1</strong>: versão nova, liberada para algumas lojas. É necessária para usar uma impressora
         para a Cozinha e outra para o Caixa.
       </>
     ),
@@ -53,7 +53,7 @@ const TOPICOS: { titulo: string; texto: React.ReactNode }[] = [
   },
   {
     titulo: 'Uma ou duas impressoras',
-    texto: 'Com uma impressora, tudo sai nela. Com duas, a Cozinha recebe só os pedidos e o Caixa só o Recibo/Extrato. Duas impressoras exigem o Assistente Beta.',
+    texto: 'Com uma impressora, tudo sai nela. Com duas, a Cozinha recebe só os pedidos e o Caixa só o Recibo/Extrato. Duas impressoras exigem o Assistente Alfa 1.',
   },
   {
     titulo: 'Papel de 58 mm ou 80 mm',
@@ -89,8 +89,8 @@ const TOPICOS: { titulo: string; texto: React.ReactNode }[] = [
     ),
   },
   {
-    titulo: 'Testar o Beta sem tirar o atual',
-    texto: 'O Beta é instalado ao lado do Assistente atual, com nome e pasta próprios. Ele começa em “Somente teste”: não imprime pedido nenhum. Para desistir, volte para “Somente teste” ou desinstale o Beta — o atual continua como está.',
+    titulo: 'Testar o Alfa 1 sem tirar o atual',
+    texto: 'O Alfa 1 é instalado ao lado do Assistente atual, com nome e pasta próprios. Ele começa em “Somente teste”: não imprime pedido nenhum. Para desistir, volte para “Somente teste” ou desinstale o Alfa 1 — o atual continua como está.',
   },
 ]
 

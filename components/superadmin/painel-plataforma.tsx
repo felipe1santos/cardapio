@@ -273,7 +273,7 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin }: { lojas: Lo
                   <Th coluna="ticket" direita>Ticket</Th>
                   <Th coluna="criadoEm">Cadastro</Th>
                   <Th coluna="ultimoLoginEm">Último acesso</Th>
-                  <th className="px-3 py-2.5 text-left uppercase">Impressão Beta</th>
+                  <th className="px-3 py-2.5 text-left uppercase">Impressão Alfa 1</th>
                   <th className="px-3 py-2.5"><span className="sr-only">Ações</span></th>
                 </tr>
               </thead>
@@ -354,7 +354,7 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin }: { lojas: Lo
               {semAcesso && <button role="menuitem" type="button" className={`${ITEM} border-t border-border text-[#15803D]`} onClick={() => abrir({ tipo: 'desbloquear', loja: l })} data-testid="acao-desbloquear">Desbloquear acesso</button>}
               {l.restauranteId && (
                 <button role="menuitem" type="button" className={`${ITEM} border-t border-border`} onClick={() => abrir({ tipo: 'confirmar', loja: l, acao: l.betaLiberado ? 'beta_retirar' : 'beta_liberar' })} data-testid="acao-beta">
-                  {l.betaLiberado ? 'Retirar do piloto de Impressão Beta' : 'Liberar Impressão Beta'}
+                  {l.betaLiberado ? 'Retirar do piloto de Impressão Alfa 1' : 'Liberar Impressão Alfa 1'}
                 </button>
               )}
               {l.situacao === 'pendente' && <button role="menuitem" type="button" className={`${ITEM} border-t border-border text-[#B91C1C]`} onClick={() => abrir({ tipo: 'confirmar', loja: l, acao: 'remover' })} data-testid="acao-remover">Remover pré-cadastro</button>}
@@ -466,7 +466,7 @@ function ModalDetalhes({ loja, onFechar }: { loja: LojaPlataforma; onFechar: () 
     ['Ticket médio', loja.restauranteId ? brl(loja.ticket) : '—'],
     ['Cadastro', dataHora(loja.criadoEm)],
     ['Último acesso', `${dataHora(loja.ultimoLoginEm)}${loja.loginsTotal ? ` (${num(loja.loginsTotal)}×)` : ''}`],
-    ['Impressão Beta', loja.restauranteId ? (loja.betaLiberado ? 'Piloto liberado' : 'Não') : '—'],
+    ['Impressão Alfa 1', loja.restauranteId ? (loja.betaLiberado ? 'Piloto liberado' : 'Não') : '—'],
   ]
   return (
     <Modal titulo={loja.loja || loja.email} testid="modal-detalhes" onFechar={onFechar}>
@@ -503,7 +503,7 @@ function ModalConfirmar({ modal, ocupado, onFechar, onConfirmar }: { modal: Extr
   const textos = {
     bloquear: ['Bloquear acesso', `A loja "${l.loja}" e toda a equipe dela deixam de entrar no painel até você desbloquear. Os dados ficam salvos e a vitrine continua no ar.`, 'Bloquear', BTN_PERIGO],
     remover: ['Remover pré-cadastro', `O convite de ${l.email} será removido. Para cadastrar de novo, use "+ Cadastrar cliente".`, 'Remover', BTN_PERIGO],
-    beta_liberar: ['Liberar Impressão Beta', `"${l.loja}" passa a poder usar o Assistente Beta. Continua no Assistente antigo até o dono escolher outro modo.`, 'Liberar', BTN_PRIMARIO],
+    beta_liberar: ['Liberar Impressão Alfa 1', `"${l.loja}" passa a poder usar o Assistente Alfa 1. Continua no Assistente antigo até o dono escolher outro modo.`, 'Liberar', BTN_PRIMARIO],
     beta_retirar: ['Retirar do piloto', `A impressão de "${l.loja}" volta toda para o Assistente antigo.`, 'Retirar', BTN_PERIGO],
   }[modal.acao]
   return (
