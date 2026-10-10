@@ -28,7 +28,10 @@ export function cifrar(texto: string): string {
 export function decifrar(guardado: string): string {
   const [v, iv, tag, dados] = guardado.split('.')
   if (v !== 'v1' || !iv || !tag || !dados) throw new Error('formato de segredo desconhecido')
-  const d = createDecipheriv('aes-256-gcm', chave(), Buffer.from(iv, 'base64url'))
-  d.setAuthTag(Buffer.from(tag, 'base64url'))
+  // Tag sempre de 16 bytes: o GCM aceitaria uma tag encurtada (auditoria 10/10).
+  const t = Buffer.from(tag, 'base64url')
+  if (t.length !== 16) throw new Error('segredo com tag inválida')
+  const d = createDecipheriv('aes-256-gcm', chave(), Buffer.from(iv, 'base64url'), { authTagLength: 16 })
+  d.setAuthTag(t)
   return Buffer.concat([d.update(Buffer.from(dados, 'base64url')), d.final()]).toString('utf8')
 }

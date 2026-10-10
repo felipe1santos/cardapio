@@ -18,6 +18,13 @@ Em 03–09/10/2026 um loop no mapa do despacho fez ~20 mil chamadas pagas ao Goo
   cotas Geocoding 300/dia, Directions 300/dia, Maps JS 150/dia; orçamento R$ 50/mês; chaves `GOOGLE_MAPS_BROWSER_KEY`
   (Build time) e `GOOGLE_MAPS_SERVER_KEY` (sem Build time) no Coolify; contador em `/superadmin`.
 
+## Regra da impressão: ciclo sem rede (10/10/2026)
+
+O ciclo de impressão do Assistente **NUNCA** faz download nem chamada de rede que não seja estritamente necessária
+para aquele pedido. Logo, fontes e imagens fixas ficam guardadas no computador e só são atualizadas fora do ciclo
+(ao iniciar ou quando a loja mudar a logo). Toda mudança no Assistente mede "pedido criado → impresso" antes e
+depois, e não pode piorar. Detalhes: [docs/impressao/REGRA-CICLO-SEM-REDE.md](docs/impressao/REGRA-CICLO-SEM-REDE.md).
+
 ## Diretrizes Karpathy (sempre)
 
 1. **Pensar antes de codar:** dizer as suposições; se houver mais de uma leitura, mostrar; se algo não está claro, parar e perguntar.
