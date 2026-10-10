@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { chamarApiPaga, limiteDiario } from './guarda'
 import { contarSemTrava, diaSP } from './uso'
+import { avisarSuporte } from './alerta-whatsapp'
 
 /**
  * IA DE ATENDIMENTO (ChatGPT/OpenAI) — contador e teto de gasto, preparados antes da IA existir (10/10/2026,
@@ -82,6 +83,7 @@ export async function chamarIa<T>(
     console.error(`[custo] ia teto: limite diário do ${quem} atingido`)
     await admin.from('api_alertas').insert({ api: 'ia', nivel: 'bloqueio', mensagem: `Teto diário da IA atingido: ${quem}. A IA para até amanhã.`, restaurante_id: p.loja }).then(() => {}, () => {})
     void contarSemTrava(admin, 'ia:bloqueada', p.loja)
+    void avisarSuporte(admin, `ia:teto:${quem}`, `IA (ChatGPT): teto diário do ${quem} atingido. A IA parou até amanhã.`)
     return { ok: false, motivo: 'teto' }
   }
   const r = await chamarApiPaga(admin, { api: 'ia', chave: `conversa:${p.conversa}`, loja: p.loja }, chamar)

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { contarSemTrava } from './uso'
+import { avisarSuporte } from './alerta-whatsapp'
 
 /**
  * GUARDA DE CUSTO (10/10/2026) — por aqui passa TODA chamada a API paga (docs/REGRAS-DE-CUSTO.md).
@@ -58,6 +59,8 @@ async function alertar(admin: SupabaseClient, api: ApiPaga, nivel: 'atencao' | '
   alertados.set(dedupe, agora)
   console.error(`[custo] ${api} ${nivel}: ${mensagem}`)
   await admin.from('api_alertas').insert({ api, nivel, mensagem: mensagem.slice(0, 500), restaurante_id: loja }).then(() => {}, () => {})
+  // Gasto alto (80%, limite, loop): também no WhatsApp do suporte (lib/custo/alerta-whatsapp.ts).
+  if (nivel !== 'erro') void avisarSuporte(admin, `${api}:${nivel}`, `${api} — ${nivel}: ${mensagem}${loja ? ` (loja ${loja})` : ''}`)
 }
 
 export type ResultadoGuarda<T> = { ok: true; valor: T } | { ok: false; motivo: 'disparo' | 'limite' | 'banco' | 'erro'; erro?: string }
