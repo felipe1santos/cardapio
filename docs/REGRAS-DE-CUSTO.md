@@ -98,3 +98,20 @@ Google, com cota diária, e só recebe chave depois de verificado que não tem l
 o limite (verde ≤ 50%, amarela ≤ 80%, vermelha acima), chamadas bloqueadas pela guarda, alertas de disparo e um
 gráfico de 7 dias por API. Lê `api_uso_dia`; os mapas carregados são avisados pelo navegador em `/api/mapa/carregou`
 (uma vez por carregamento do script, só conta). Código: `lib/custo/uso.ts`, `components/superadmin/uso-apis.tsx`.
+
+## IA de atendimento (ChatGPT) — contador preparado (10/10/2026)
+
+A IA ainda não existe no sistema; o contador e o teto já estão prontos para quando ela entrar.
+
+- **Toda chamada à OpenAI passa por `chamarIa()` (`lib/custo/ia.ts`)**, nunca direto. Ela:
+  1. confere o **teto em dinheiro** do dia: `LIMITE_IA_USD_DIA` (US$ 5 no sistema todo) e `LIMITE_IA_USD_DIA_LOJA`
+     (US$ 1 por loja). Passou → não chama, alerta em `api_alertas` e a conversa vai para a reserva (atendente humano);
+  2. passa pela guarda comum (api `ia`): trava de loop (mesma conversa > 20/min) e `LIMITE_IA_CHAMADAS_DIA` (2000);
+  3. grava os **tokens reais** (`usage` da resposta) e o custo em `ia_uso_dia` (0174), por loja, por modelo e no total.
+- **Preço:** tabela `PRECOS_IA` (US$ por 1M tokens) — conferir em openai.com/api/pricing antes de ligar; `IA_PRECOS`
+  (JSON no Coolify) sobrepõe. Modelo desconhecido é cobrado como o mais caro: o contador nunca subestima.
+- **Super Admin:** bloco "IA de atendimento (ChatGPT)" (gasto de hoje × teto, respostas, tokens, mês em US$ e R$ pela
+  `COTACAO_DOLAR`, por modelo, 7 dias) e coluna "IA (ChatGPT)" por loja (hoje e mês). Selo "Ainda não ligada" enquanto
+  não houver `OPENAI_API_KEY` no Coolify.
+- **Ao ligar:** chave da OpenAI própria do Menuzia (projeto próprio na OpenAI, com limite mensal lá também), só no
+  Coolify sem Build time; estimar custo por conversa e por loja no commit.

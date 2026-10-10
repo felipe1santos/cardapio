@@ -10,6 +10,8 @@ import { ICONES } from '@/lib/icones-painel'
 import type { LojaPlataforma, ResumoPlataforma, SituacaoLoja, Sublogin } from '@/lib/queries/plataforma'
 import type { UsoApis } from '@/lib/custo/uso'
 import { BarraUsoLoja, UsoApisResumo } from './uso-apis'
+import type { UsoIa } from '@/lib/custo/ia'
+import { IaDaLoja, UsoIaResumo } from './uso-ia'
 import {
   alterarValidadeAction, alternarBetaImpressaoAction, bloquearAction, desbloquearAction, excluirDadosAction,
   preCadastrarAction, removerPreCadastroAction, sairAction, type ResultadoAcao,
@@ -132,7 +134,7 @@ type ModalAberto =
   | { tipo: 'confirmar'; loja: LojaPlataforma; acao: 'bloquear' | 'remover' | 'beta_liberar' | 'beta_retirar' }
   | { tipo: 'excluir'; loja: LojaPlataforma }
 
-export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis }: { lojas: LojaPlataforma[]; resumo: ResumoPlataforma; emailSuperadmin: string; usoApis?: UsoApis | null }) {
+export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis, usoIa }: { lojas: LojaPlataforma[]; resumo: ResumoPlataforma; emailSuperadmin: string; usoApis?: UsoApis | null; usoIa?: UsoIa | null }) {
   const router = useRouter()
   const toasts = useToasts()
   const [pendente, startTransition] = useTransition()
@@ -235,6 +237,9 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis }: { 
         {/* APIs pagas (guarda de custo, 10/10): uso de hoje, bloqueios, loops e 7 dias. */}
         {usoApis && <UsoApisResumo uso={usoApis} />}
 
+        {/* IA de atendimento (ChatGPT): gasto do sistema e por loja, preparado antes da IA existir. */}
+        {usoIa && <UsoIaResumo ia={usoIa} />}
+
         {/* Barra da lista: busca, filtros e "+ Cadastrar cliente". */}
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <div className={`relative ${buscaAberta ? 'flex' : 'hidden'} w-full sm:flex sm:w-[340px]`}>
@@ -265,7 +270,7 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis }: { 
         {/* Computador/tablet: tabela com cabeçalho fixo e a loja fixa à esquerda. */}
         <div className="hidden overflow-hidden rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white md:block">
           <div className="max-h-[calc(100dvh-330px)] min-h-[260px] overflow-auto" data-testid="tabela-rolagem">
-            <table className="w-full min-w-[1180px] border-separate border-spacing-0 text-[13px]" data-testid="tabela-lojas">
+            <table className="w-full min-w-[1340px] border-separate border-spacing-0 text-[13px]" data-testid="tabela-lojas">
               <thead className="sticky top-0 z-[2] bg-[#F6F7F9] text-[11px] font-semibold tracking-wide text-text-subtle">
                 <tr className="[&>th]:border-b [&>th]:border-border">
                   <Th coluna="loja" className="sticky left-0 z-[3] min-w-[220px] bg-[#F6F7F9] shadow-[1px_0_0_#E5E7EB]">Loja</Th>
@@ -279,13 +284,14 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis }: { 
                   <Th coluna="criadoEm">Cadastro</Th>
                   <Th coluna="ultimoLoginEm">Último acesso</Th>
                   <th className="px-3 py-2.5 text-left uppercase">APIs hoje</th>
+                  <th className="px-3 py-2.5 text-left uppercase">IA (ChatGPT)</th>
                   <th className="px-3 py-2.5 text-left uppercase">Impressão Alfa 1</th>
                   <th className="px-3 py-2.5"><span className="sr-only">Ações</span></th>
                 </tr>
               </thead>
               <tbody>
                 {visiveis.length === 0 && (
-                  <tr><td colSpan={13} className="px-5 py-10 text-center text-text-subtle" data-testid="lista-vazia">Nenhuma loja encontrada.</td></tr>
+                  <tr><td colSpan={14} className="px-5 py-10 text-center text-text-subtle" data-testid="lista-vazia">Nenhuma loja encontrada.</td></tr>
                 )}
                 {visiveis.map((l) => (
                   <tr key={l.chave} className="group align-middle [&>td]:border-b [&>td]:border-border hover:[&>td]:bg-[#F9FAFB]" data-testid="linha-loja" data-chave={l.chave}>
@@ -303,6 +309,7 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis }: { 
                     <td className="whitespace-nowrap px-3 py-2.5 text-[12px] text-text-subtle">{dataCurta(l.criadoEm)}</td>
                     <td className="whitespace-nowrap px-3 py-2.5 text-[12px]">{dataHora(l.ultimoLoginEm)}{l.loginsTotal > 0 && <span className="ml-1 text-[11px] text-text-subtle">({num(l.loginsTotal)}×)</span>}</td>
                     <td className="px-3 py-2.5">{l.restauranteId && usoApis ? <BarraUsoLoja uso={usoApis.porLoja[l.restauranteId]} limites={usoApis.limites} /> : '—'}</td>
+                    <td className="px-3 py-2.5">{l.restauranteId && usoIa ? <IaDaLoja uso={usoIa.porLoja[l.restauranteId]} limites={usoIa.limites} /> : '—'}</td>
                     <td className="px-3 py-2.5">{l.restauranteId ? (l.betaLiberado ? <span className="rounded-[4px] bg-[#0369A1] px-2 py-[3px] text-[11px] font-semibold text-white">Piloto</span> : <span className="text-[12px] text-text-subtle">Não</span>) : '—'}</td>
                     <td className="px-2 py-2.5 text-right"><BotaoMenu l={l} /></td>
                   </tr>
@@ -332,6 +339,7 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis }: { 
                 <div><p className="text-[11px] text-text-subtle">Sublogins</p><BotaoSublogins l={l} /></div>
               </div>
               {l.restauranteId && usoApis && <div className="mt-2.5 border-t border-border pt-2.5"><p className="mb-1 text-[11px] text-text-subtle">APIs pagas hoje</p><BarraUsoLoja uso={usoApis.porLoja[l.restauranteId]} limites={usoApis.limites} /></div>}
+              {l.restauranteId && usoIa && <div className="mt-2.5 border-t border-border pt-2.5"><p className="mb-1 text-[11px] text-text-subtle">IA (ChatGPT)</p><IaDaLoja uso={usoIa.porLoja[l.restauranteId]} limites={usoIa.limites} /></div>}
             </div>
           ))}
         </div>
