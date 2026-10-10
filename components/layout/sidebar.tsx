@@ -70,9 +70,12 @@ const NAV_ICONS: Record<string, string[]> = {
   '/admin/cardapio': ICONES.cardapio,
   '/admin/clientes': ICONES.clientes,
   '/admin/campanhas': ICONES.campanhas,
+  // Sem "Novidades em teste" (0178) estes dois seguem no menu principal, como sempre.
+  '/admin/agente-ia': ICONES.robo,
   '/admin/fidelidade': ICONES.fidelidade,
   '/admin/integracoes': ICONES.integracoes,
   '/admin/equipe': ICONES.equipe,
+  '/admin/impressao': ICONES.impressora,
   '/admin/ajustes': ICONES.ajustes,
   // Gerente: "Ajustes" abre direto na Impressão (lib/menu-lateral.ts).
   '/admin/ajustes/impressao': ICONES.ajustes,

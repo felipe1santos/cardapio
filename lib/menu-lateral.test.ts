@@ -114,3 +114,16 @@ describe('Reorganização dos menus (10/10/2026), com "Novidades em teste"', () 
     }
   })
 })
+
+describe('todo item do menu tem ícone (com e sem "Novidades em teste")', () => {
+  it('cada href do menu tem desenho no sidebar', async () => {
+    const fs = await import('node:fs')
+    const src = fs.readFileSync('components/layout/sidebar.tsx', 'utf8')
+    for (const novidades of [false, true]) {
+      for (const papel of ['dono', 'gerente']) {
+        const l = itensDoMenu({ papel, moduloMesas: true, usaLogistica: true, financeiro: true, modulos: { financeiro: true, agente_ia: true, disparos: true }, novidades })
+        for (const i of l) expect(src.includes(`'${i.href}': ICONES.`), `${i.href} sem ícone (novidades=${novidades})`).toBe(true)
+      }
+    }
+  })
+})

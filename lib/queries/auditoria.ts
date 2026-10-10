@@ -257,7 +257,7 @@ export const GRUPOS_EVENTO: { id: string; label: string; prefixos: string[] }[] 
   { id: 'entrega', label: 'Entregas e motoboys', prefixos: ['entrega.', 'entregador.'] },
   { id: 'integracoes', label: 'Integrações', prefixos: ['integracoes.'] },
   { id: 'clientes', label: 'Clientes', prefixos: ['clientes.'] },
-  { id: 'modulos', label: 'Módulos pagos', prefixos: ['modulo.'] },
+  { id: 'modulos', label: 'Módulos pagos', prefixos: ['modulo.', 'novidades.'] },
   { id: 'whatsapp', label: 'WhatsApp', prefixos: ['whatsapp.', 'campanhas.'] },
   { id: 'impressao', label: 'Impressão', prefixos: ['impressao.'] },
   { id: 'cmv', label: 'Custos (CMV)', prefixos: ['cmv.'] },
