@@ -70,6 +70,11 @@ export function SecaoCaixa({ modo }: { modo: 'caixa' | 'movimentacoes' }) {
   const [janela, setJanela] = useState<null | 'abrir' | 'fechar' | 'reabrir' | Movimento>(null)
 
   const temDados = useRef(false)
+  // Nível 2 (controle de caixa) ou nível 1 (automático): muda só o aviso do "Caixa fechado".
+  const [estrito, setEstrito] = useState<boolean | null>(null)
+  useEffect(() => {
+    void fetch('/api/admin/financeiro/controle-caixa', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((j) => setEstrito(j ? Boolean(j.ativo) : null)).catch(() => {})
+  }, [])
   const carregar = useCallback(async () => {
     const r = await fetch('/api/admin/financeiro/caixa', { cache: 'no-store' }).catch(() => null)
     const j = r ? await r.json().catch(() => ({})) : {}
@@ -107,7 +112,7 @@ export function SecaoCaixa({ modo }: { modo: 'caixa' | 'movimentacoes' }) {
           ) : (
             <div>
               <p className="flex items-center gap-2 text-[18px] font-semibold text-text-main"><span className="h-[9px] w-[9px] rounded-full bg-[#D93616]" /> Caixa fechado</p>
-              <p className="mt-0.5 text-[13px] text-text-subtle">Sem caixa aberto a loja não recebe pagamentos no PDV, no balcão e nas mesas.</p>
+              <p className="mt-0.5 text-[13px] text-text-subtle">{estrito === false ? 'Caixa automático: ele abre sozinho na primeira venda do dia. PDV, balcão e mesas recebem normalmente.' : 'Sem caixa aberto a loja não recebe pagamentos no PDV, no balcão e nas mesas.'}</p>
             </div>
           )}
           <div className="flex flex-wrap gap-2">

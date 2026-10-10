@@ -1,5 +1,33 @@
 # Financeiro — mensagens para os lojistas (WhatsApp)
 
+## Mensagem única (10/10/2026) — mandar para todas as lojas
+
+> **O Financeiro chegou:** abra o menu **Financeiro**, crie seu **PIN**, siga o **passo a passo** e veja o **guia no ícone i**.
+
+O nível 1 (financeiro ligado, caixa automático) está LIGADO nas 9 lojas desde 09/10 19:39: PDV, mesa e delivery vendem
+como antes, sem abrir caixa. O nível 2 (controle de caixa) é o dono que liga, pelo passo a passo, quando a loja estiver pronta.
+
+### Pendências de cada loja para o nível 2 (checklist de 10/10 ~14h, só leitura)
+
+| Loja | Nível 1 | Dono/gerente com PIN | Pendências para o nível 2 |
+|---|---|---|---|
+| DB Doces | ligado | não | criar o PIN |
+| Estância Burger | ligado | não | criar o PIN; fechar/cancelar a conta #36 (Juninho, R$ 61,60, desde 09/10) |
+| Mama Pizza | ligado | não | criar o PIN |
+| Menuzia (teste) | ligado + **nível 2** | sim (gerentes de teste) | contas de teste abertas (#110–#118) |
+| Nossa Cozinha | ligado | não | criar o PIN |
+| Pizza do Rosa | ligado | não | criar o PIN |
+| Ponto 400 | ligado | não | criar o PIN; fechar/cancelar a conta #7 (Girlene Pereira, R$ 33,00, desde 06/10) |
+| Villa Lanches | ligado | não | criar o PIN (impressão da Villa: não mexer) |
+| W Lanches Reviver | ligado | não | criar o PIN |
+
+O caixa automático de ontem da Estância, Ponto 400 e Villa fecha sozinho na virada do dia (05:00), na próxima venda.
+Custo dos 15 mais vendidos: opcional, no passo ⑤ (Financeiro › Precificação / CMV).
+
+---
+
+## Histórico (09/10/2026)
+
 Raio-x de 09/10/2026 (`node scripts/financeiro-flag.mjs <loja> --checklist`, só leitura). Nenhuma loja real
 está pronta: falta, em todas, um **gerente com PIN** além do dono; Estância, Ponto 400 e Villa têm também uma
 conta antiga aberta. Mande a mensagem da loja e, quando o lojista disser que fez, rode o checklist de novo.
