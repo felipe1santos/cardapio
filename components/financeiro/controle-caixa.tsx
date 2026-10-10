@@ -6,6 +6,7 @@ import { FIN_BTN, FIN_COR, SeloMeta } from '@/components/graficos/kit-meta'
 import { formatarCentavos } from '@/lib/financeiro/centavos'
 import { estadoMudou } from '@/lib/sessao-cliente'
 import type { Passo } from '@/lib/financeiro/controle-caixa'
+import { lerControleCaixa } from './ler-controle-caixa'
 
 interface Estado {
   ativo: boolean; ativadoEm: string | null; ativadoPorNome: string | null
@@ -32,9 +33,8 @@ export function ControleCaixa() {
   const [enviando, setEnviando] = useState(false)
 
   const carregar = useCallback(async () => {
-    const r = await fetch('/api/admin/financeiro/controle-caixa', { cache: 'no-store' }).catch(() => null)
-    const j = r ? await r.json().catch(() => null) : null
-    if (!r?.ok || !j) return
+    const j = (await lerControleCaixa()) as unknown as Estado | null
+    if (!j) return
     setE(j as Estado)
     setFundo((f) => f || reais((j as Estado).fundoCentavos ?? 5000))
     setTol((t) => t || reais((j as Estado).toleranciaCentavos ?? 200))

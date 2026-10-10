@@ -23,3 +23,11 @@ Layout ÚNICO e oficial da comanda e da pré-conta. Referência aprovada pelo do
   gravado em `impressao_agentes.visto_ip`.
 - Versão 1.1.0 (maior que 0.2.0-beta.13 para o atualizador; "alpha" seria MENOR que "beta").
   appId, pasta de dados e executável continuam os do Beta: as lojas seguem pareadas.
+
+## Villa Lanches — congelada na 1.1.0 (10/10/2026)
+
+A Villa instalou o Alfa 1 **1.1.0** por conta própria (LAPTOP-LDFT1CH8 e um PC-PRINCIPAL novo) e imprime certo no
+**modo Texto**. Ordem do dono: manter exatamente como está — não alterar modo de impressão, computadores pareados nem
+funções das impressoras, e não atualizar. Trava: `impressao_agentes.sem_atualizacao` nos dois computadores (0175) e
+`restaurantes.impressao_sem_atualizacao` pelo IP (0172). Computador novo pareado na Villa precisa receber
+`sem_atualizacao=true`.

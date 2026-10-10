@@ -2483,8 +2483,11 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     load(tab === 'pedidos')
     // Item 57: com o detalhe aberto ou uma entrega em andamento, o status (e a ilustração, e o aviso de
     // "saiu para entrega") chegam em até 15 s mesmo fora da aba Pedidos.
-    const interval = setInterval(() => load(false), tab === 'pedidos' || detalheAberto ? 8000 : entregaRolando ? 15000 : 30000)
-    return () => { active = false; clearInterval(interval) }
+    // Desempenho (10/10): com a aba escondida (celular bloqueado) não consulta; ao voltar, consulta na hora.
+    const interval = setInterval(() => { if (document.visibilityState !== 'hidden') load(false) }, tab === 'pedidos' || detalheAberto ? 8000 : entregaRolando ? 15000 : 30000)
+    const aoVoltar = () => { if (document.visibilityState === 'visible') load(false) }
+    document.addEventListener('visibilitychange', aoVoltar)
+    return () => { active = false; clearInterval(interval); document.removeEventListener('visibilitychange', aoVoltar) }
   }, [tab, clienteSessao, slug, detalheAberto, entregaRolando])
 
   // Item 57: "Seu pedido saiu para entrega!" — uma vez por pedido; espera checkout/ficha fecharem.

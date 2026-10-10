@@ -6,6 +6,7 @@ import { AprovacaoPin, CampoDinheiro, Janela, botao, brl, type AprovacaoDada, ty
 import { DESCRICAO_MOVIMENTO, MOVIMENTOS, ROTULO_MOVIMENTO, tempoAberto, type Movimento } from '@/lib/financeiro/caixa-regras'
 import { BotaoGaveta, Card, FIN_COR, Kpi, SeloMeta, ValorSinal } from '@/components/graficos/kit-meta'
 import { GraficoFinanceiro } from '@/components/graficos/grafico'
+import { lerControleCaixa } from './ler-controle-caixa'
 
 /**
  * Financeiro › Caixa e Movimentações (Fase 2). A tela só mostra e pede; quem calcula, confere
@@ -73,7 +74,7 @@ export function SecaoCaixa({ modo }: { modo: 'caixa' | 'movimentacoes' }) {
   // Nível 2 (controle de caixa) ou nível 1 (automático): muda só o aviso do "Caixa fechado".
   const [estrito, setEstrito] = useState<boolean | null>(null)
   useEffect(() => {
-    void fetch('/api/admin/financeiro/controle-caixa', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((j) => setEstrito(j ? Boolean(j.ativo) : null)).catch(() => {})
+    void lerControleCaixa().then((j) => setEstrito(j ? Boolean(j.ativo) : null))
   }, [])
   const carregar = useCallback(async () => {
     const r = await fetch('/api/admin/financeiro/caixa', { cache: 'no-store' }).catch(() => null)

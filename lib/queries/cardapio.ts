@@ -330,8 +330,26 @@ function mapItem(row: ItemRow): ItemCardapio {
   }
 }
 
+/**
+ * Desempenho (10/10): na abertura do painel, layout, página e topo pedem o id da loja ao mesmo tempo — eram 3 a 6
+ * idas ao Auth + usuarios. No NAVEGADOR, chamadas dentro de 5 s compartilham a mesma consulta
+ * (sem login não fica guardado). No servidor nada é guardado (estado de módulo seria compartilhado entre usuários).
+ */
+const RID_JANELA_MS = 5000
+let ridEmVoo: { em: number; p: Promise<string | null> } | null = null
+export function _zerarCacheRestauranteId() { ridEmVoo = null }
+
 /** Resolves the tenant id for the currently authenticated admin user. */
 export async function buscarRestauranteIdDoUsuario(supabase: SupabaseClient): Promise<string | null> {
+  if (typeof window === 'undefined') return consultarRestauranteId(supabase)
+  if (ridEmVoo && Date.now() - ridEmVoo.em < RID_JANELA_MS) return ridEmVoo.p
+  const atual = { em: Date.now(), p: consultarRestauranteId(supabase) }
+  ridEmVoo = atual
+  void atual.p.then((id) => { if (!id && ridEmVoo === atual) ridEmVoo = null }, () => { if (ridEmVoo === atual) ridEmVoo = null })
+  return atual.p
+}
+
+async function consultarRestauranteId(supabase: SupabaseClient): Promise<string | null> {
   const { data: auth } = await supabase.auth.getUser()
   if (!auth.user) return null
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { _zerarCacheRestauranteId } from '@/lib/queries/cardapio'
 
 /**
  * Lado do navegador da sessão do painel (0132): sair registrado, estado (financeiro ligado,
@@ -42,6 +43,9 @@ export async function sairDoPainel(supabase: SupabaseClient, justificativa?: str
     /* sem rede: sai do mesmo jeito; a sessão expira pela janela de inatividade */
   }
   await supabase.auth.signOut()
+  // Outra conta pode entrar em seguida neste navegador: nada da sessão anterior fica guardado.
+  _zerarCacheRestauranteId()
+  emVoo = null
   return true
 }
 
@@ -55,11 +59,14 @@ export function estadoMudou() {
   window.dispatchEvent(new Event(EVENTO_ESTADO))
 }
 
-// Menu, conta e trava pedem juntos na montagem: uma ida ao servidor serve aos três.
+// Menu, conta e trava pedem juntos na montagem: uma ida ao servidor serve aos três. Desempenho (10/10): a janela
+// passou de 2 s para 15 s — partes que montam depois (topo, faixa, PDV) pegavam a 2ª e a 3ª ida. Mudança de verdade
+// (PIN, trava, módulo, controle de caixa) chama estadoMudou(), que zera na hora.
+const ESTADO_JANELA_MS = 15_000
 let emVoo: { em: number; p: Promise<EstadoSessao | null> } | null = null
 
 export function buscarEstadoSessao(): Promise<EstadoSessao | null> {
-  if (emVoo && Date.now() - emVoo.em < 2000) return emVoo.p
+  if (emVoo && Date.now() - emVoo.em < ESTADO_JANELA_MS) return emVoo.p
   emVoo = { em: Date.now(), p: buscar() }
   return emVoo.p
 }
@@ -82,7 +89,8 @@ export function useEstadoSessao(): EstadoSessao | null {
     carregar()
     window.addEventListener(EVENTO_ESTADO, carregar)
     // Voltou para a aba: relê (módulo liberado no Super Admin aparece sem novo login, 0176).
-    const aoFocar = () => { if (document.visibilityState === 'visible') { emVoo = null; carregar() } }
+    // Várias instâncias do hook ouvem o mesmo evento: só a primeira relê, as outras pegam a mesma resposta.
+    const aoFocar = () => { if (document.visibilityState === 'visible') { if (!emVoo || Date.now() - emVoo.em > 2000) emVoo = null; carregar() } }
     document.addEventListener('visibilitychange', aoFocar)
     return () => { vivo = false; window.removeEventListener(EVENTO_ESTADO, carregar); document.removeEventListener('visibilitychange', aoFocar) }
   }, [])
