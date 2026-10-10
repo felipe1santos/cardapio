@@ -35,7 +35,8 @@ d) **Geocodificar uma vez e gravar as coordenadas.** O pedido de entrega é geoc
 
 e) **Chave de servidor nunca no navegador; chave de navegador sempre restrita por domínio.**
    - `GOOGLE_MAPS_SERVER_KEY` (só no Coolify, sem `NEXT_PUBLIC`): Geocoding e Directions, restrita pelo IP do servidor.
-   - `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`: só Maps JavaScript API (desenhar o mapa), restrita aos domínios da Menuzia.
+   - `GOOGLE_MAPS_BROWSER_KEY` (Coolify, Build time; vira `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` no `next.config.ts`): só Maps
+     JavaScript API (desenhar o mapa), restrita a `https://app.menuzia.com.br/*`.
    - Nenhuma chave no código, no git ou no JavaScript do site além da de navegador restrita.
 
 f) **Toda API paga nova precisa de limite diário e alerta antes de ir para produção** (novo tipo em `ApiPaga`, limite em
@@ -62,3 +63,38 @@ Limites (Coolify): `LIMITE_GEOCODING_DIA` (300), `LIMITE_DIRECTIONS_DIA` (300), 
 - **Directions:** só quando alguém abre a rota desenhada, com cache de 10 min por rota. Estimativa: 20 a 50 por dia.
 - **Maps JavaScript (carregar o mapa):** 1 por abertura de tela com mapa. Fica no navegador, fora da guarda, mas não tem loop.
 - Tudo isso cabe na cota gratuita mensal do Google.
+
+## Limpeza total do Google e chaves novas (10/10/2026)
+
+**Regra: NENHUM outro sistema usa a chave do Menuzia. Cada sistema tem a sua própria chave, no seu próprio projeto do
+Google, com cota diária, e só recebe chave depois de verificado que não tem loop.**
+
+- **Projetos:** só existe o projeto **"Menuzia"** (`projeto-api-maps-487406`). Os outros 11 foram desligados em 10/10
+  (exclusão definitiva em 09/11): elite-campus-416321, gen-lang-client-0119433185, gen-lang-client-0983815639,
+  integrated-ray-462820-u8, involuted-reach-416321, leadflow-local, leadgen-flow, midyear-clone-466921-k3,
+  plano-ideal-finder, rising-goal-462820-t5, studio-7192778330-64f99. Todas as chaves antigas foram excluídas
+  (inclusive a que NR13 e DISPAROS-LEAD usavam junto com o Menuzia).
+- **Faturamento:** uma conta só, **"Menuzia - Google Maps"** (01456B-8C09EE-838D63), ligada só ao projeto Menuzia.
+  Orçamento **R$ 50/mês** com alerta por e-mail em 50%, 90% e 100% (o orçamento avisa, não corta — quem corta são as cotas).
+- **APIs ativas:** só Maps JavaScript, Geocoding e Directions (+ Service Usage/Service Management, que o console
+  precisa, e Telemetry, que não tem botão de desligar e é gratuita). Todas as outras foram desativadas.
+- **Cotas diárias no Google** (IAM → Cotas; o dia do Google vira à meia-noite do Pacífico, ~04h/05h de Brasília):
+  Geocoding v3 **300/dia** (v4: 0), Directions **300/dia**, Maps JavaScript **150 carregamentos/dia**.
+- **Chaves** (valores só no Coolify, nunca no código, chat, log ou commit):
+  - `GOOGLE_MAPS_BROWSER_KEY` — "Menuzia navegador": só Maps JavaScript, só `https://app.menuzia.com.br/*`.
+    No Coolify com **Build time ligado** (`next.config.ts` a expõe como `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`).
+  - `GOOGLE_MAPS_SERVER_KEY` — "Menuzia servidor": só Geocoding e Directions, só os IPs do servidor
+    (187.77.34.112 e 2a02:4780:6e:9dea::1). No Coolify **sem** Build time.
+  - `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` foi apagada do Coolify.
+  - ⚠️ Abrir telas de onboarding do Maps no console (lista de APIs do Maps, "Começar") pode CRIAR sozinho uma
+    "Maps Platform API Key" sem restrição — conferir Credenciais depois e excluir.
+- **Custo máximo possível por mês:** 300 × 31 = 9.300 Geocoding e 9.300 Directions; 150 × 31 = 4.650 mapas.
+  Tudo abaixo da franquia gratuita mensal de 10 mil por SKU (Essentials) → **R$ 0** no pior caso, se o Google
+  mantiver a franquia. Mesmo sem franquia, o teto seria ≈ US$ 46 + US$ 46 + US$ 33 por mês, e o orçamento avisa antes.
+
+## Contador no Super Admin
+
+`/superadmin` mostra, por loja e no total do dia (São Paulo): Geocoding, Directions e mapas carregados, com barra até
+o limite (verde ≤ 50%, amarela ≤ 80%, vermelha acima), chamadas bloqueadas pela guarda, alertas de disparo e um
+gráfico de 7 dias por API. Lê `api_uso_dia`; os mapas carregados são avisados pelo navegador em `/api/mapa/carregou`
+(uma vez por carregamento do script, só conta). Código: `lib/custo/uso.ts`, `components/superadmin/uso-apis.tsx`.

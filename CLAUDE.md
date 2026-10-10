@@ -9,6 +9,10 @@ Em 03–09/10/2026 um loop no mapa do despacho fez ~20 mil chamadas pagas ao Goo
 - Geocodificar uma vez e gravar as coordenadas (pedido: `entrega_latitude/longitude`; loja: `latitude/longitude`).
 - Chave de servidor (`GOOGLE_MAPS_SERVER_KEY`) só no Coolify; chave do navegador (`NEXT_PUBLIC_…`) só para desenhar o mapa, restrita por domínio.
 - Toda API paga nova precisa de limite diário e alerta antes de produção; estimar custo por dia e por loja no commit/PR.
+- **NENHUM outro sistema usa a chave do Menuzia.** Cada sistema tem a sua própria chave, no seu próprio projeto do Google,
+  com cota diária, e só recebe chave depois de verificado que não tem loop. Google (10/10): só o projeto "Menuzia";
+  cotas Geocoding 300/dia, Directions 300/dia, Maps JS 150/dia; orçamento R$ 50/mês; chaves `GOOGLE_MAPS_BROWSER_KEY`
+  (Build time) e `GOOGLE_MAPS_SERVER_KEY` (sem Build time) no Coolify; contador em `/superadmin`.
 
 ---
 # Menuzia — Plataforma SaaS de Cardápio Digital & Gestão de Delivery
