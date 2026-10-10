@@ -8,7 +8,14 @@ import { Fragment } from 'react'
 
 const INLINE = /(\*[^*\n]+\*|_[^_\n]+_|~[^~\n]+~|`[^`\n]+`)/g
 
+const LINK = /(https?:\/\/\S+)/g
+
+/** Link fica cru (o WhatsApp não formata o "_" de utm_source dentro de um link). */
 function emLinha(texto: string, chave: string) {
+  return texto.split(LINK).flatMap((pedaco, j) => (j % 2 === 1 ? [<Fragment key={`${chave}-u${j}`}>{pedaco}</Fragment>] : formatar(pedaco, `${chave}-${j}`)))
+}
+
+function formatar(texto: string, chave: string) {
   return texto.split(INLINE).map((parte, i) => {
     const k = `${chave}-${i}`
     if (/^\*[^*]+\*$/.test(parte)) return <strong key={k} className="font-semibold">{parte.slice(1, -1)}</strong>
