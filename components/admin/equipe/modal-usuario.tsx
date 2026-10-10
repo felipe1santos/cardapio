@@ -100,6 +100,8 @@ export function ModalUsuario({
   }, [onCancelar, editando])
 
   const total = contarPermissoes(acessos)
+  // Motoboy (10/10): só o app de entregas — nenhuma permissão do painel, a lista some.
+  const ehMoto = cargo === 'motoboy'
   const loginLimpo = login.trim().toLowerCase()
   const erros = {
     nome: nome.trim().length < 2 ? 'Informe o nome (mínimo 2 letras).' : null,
@@ -107,13 +109,14 @@ export function ModalUsuario({
       : !/^[a-z0-9._-]{3,30}$/.test(loginLimpo) ? 'De 3 a 30 caracteres: letras, números, ponto, hífen ou sublinhado.'
       : loginsEmUso.includes(loginLimpo) ? 'Esse login já está em uso.' : null,
     senha: editando ? null : senha.length < SENHA_MINIMA ? `Pelo menos ${SENHA_MINIMA} caracteres.` : null,
-    permissoes: total === 0 ? 'Marque pelo menos uma permissão.' : null,
+    permissoes: !ehMoto && total === 0 ? 'Marque pelo menos uma permissão.' : null,
   }
   const valido = !Object.values(erros).some(Boolean)
 
   const mudou = !editando || nome !== usuario!.nome || telefone.replace(/\D/g, '') !== (usuario!.telefone ?? '') || cargo !== usuario!.cargo || !mesmosAcessos(acessos, acessosIniciais)
 
   function escolherCargo(novo: Cargo) {
+    if (novo === 'motoboy') { setCargo(novo); setAcessos({ areas: [], sensiveis: [] }); return }
     const modelo = modeloDoCargo(novo)
     if (!modelo) { setCargo(novo); return }
     const ajustado = { areas: modelo.areas.filter((a) => podeEquipe || a !== 'equipe'), sensiveis: modelo.sensiveis }
@@ -242,7 +245,18 @@ export function ModalUsuario({
             </div>
           </section>
 
-          {/* ── Coluna direita: permissões ── */}
+          {/* ── Coluna direita: permissões (motoboy: só o aviso) ── */}
+          {ehMoto ? (
+          <section className="flex min-h-0 flex-1 flex-col items-center justify-center bg-[#fafbfc] px-6 py-10" data-testid="aviso-motoboy">
+            <div className="max-w-[420px] rounded-[6px] border border-[#e9d5ff] bg-white p-5 text-center">
+              <p className="text-[14px] font-semibold text-[#1f2937]">Motoboy acessa apenas o app de entregas</p>
+              <p className="mt-1.5 text-[13px] leading-[19px] text-[#5b6472]">
+                Motoboy acessa apenas o app de entregas (<b>app.menuzia.com.br/login</b>). Não tem acesso ao painel.
+              </p>
+              <p className="mt-2 text-[12px] text-[#6b7280]">Ele aparece sozinho em Pedidos › Entregadores e entra com este login e senha.</p>
+            </div>
+          </section>
+          ) : (
           <section className="flex min-h-0 flex-1 flex-col">
             <div className="flex-shrink-0 border-b border-[#e5e7eb] px-5 py-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -312,6 +326,7 @@ export function ModalUsuario({
               })}
             </div>
           </section>
+          )}
         </div>
 
         <footer className="flex flex-shrink-0 items-center gap-3 border-t border-[#e5e7eb] bg-white px-5 py-3">

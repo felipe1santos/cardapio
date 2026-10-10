@@ -78,6 +78,15 @@ export async function middleware(request: NextRequest) {
     acessos = normalizarAcessos((data as { acessos?: unknown } | null)?.acessos)
   }
 
+  // Motoboy (10/10): nenhuma tela nem API do painel — só o app dele. Página → /motoboy; API → 403.
+  if (papel === 'entregador') {
+    if (superficie(pathname) === 'api') return NextResponse.json({ error: 'Motoboy acessa apenas o app de entregas.', codigo: 'so_app_motoboy' }, { status: 403 })
+    const destino = request.nextUrl.clone()
+    destino.pathname = '/motoboy'
+    destino.search = ''
+    return NextResponse.redirect(destino)
+  }
+
   // Módulos pagos (0176): Financeiro, Agente de IA e Disparos com cadeado até o Super Admin liberar na loja.
   // Esconder no menu não basta: a página vai para a tela do cadeado e a API responde 403.
   const modulo = papel ? moduloDoCaminho(pathname) : null

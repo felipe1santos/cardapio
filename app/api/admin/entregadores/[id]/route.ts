@@ -6,6 +6,7 @@ import { pode } from '@/lib/auth/permissoes'
 import { registrarAuditoria } from '@/lib/auditoria'
 import { criarFuncionario, validarSenha } from '@/lib/queries/equipe'
 import { encerrarSessoes } from '@/lib/financeiro/sessoes'
+import { refletirNoUsuario } from '@/lib/motoboy/cadastro'
 
 /**
  * Cadastro do entregador (0136) — sempre no servidor, da loja da sessão.
@@ -38,6 +39,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const desativar = corpo.acao === 'desativar'
       // Desativar também troca o token (o link antigo não volta a valer ao reativar) e derruba o login.
       await admin.from('entregadores').update(desativar ? { desativado_em: new Date().toISOString(), token: crypto.randomUUID(), status: 'offline' } : { desativado_em: null }).eq('id', e.id)
+      // Equipe = Entregadores (10/10): o usuário do motoboy também fica pausado/ativo na Equipe.
+      if (e.usuario_id) await refletirNoUsuario(admin, loja, e.usuario_id as string, !desativar)
       if (desativar && e.usuario_id) {
         await admin.auth.admin.updateUserById(e.usuario_id as string, { ban_duration: '876000h' }).catch(() => {})
         await encerrarSessoes(admin, e.usuario_id as string, 'entregador_desativado')

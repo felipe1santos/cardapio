@@ -41,7 +41,7 @@ const PAPEL_DO_CARGO: Record<Exclude<Cargo, 'dono' | 'personalizado'>, Papel> = 
   caixa: 'atendente',
   garcom: 'garcom',
   cozinha: 'atendente',
-  motoboy: 'logistica',
+  motoboy: 'entregador', // 10/10: só o app de entregas, nenhuma tela do painel
   atendente: 'atendente',
 }
 
@@ -50,7 +50,7 @@ const MODELO_DO_CARGO: Record<Exclude<Cargo, 'dono' | 'personalizado'>, Acessos>
   caixa: MODELOS.find((m) => m.chave === 'caixa')!.acessos,
   garcom: MODELOS.find((m) => m.chave === 'garcom')!.acessos,
   cozinha: MODELOS.find((m) => m.chave === 'cozinha')!.acessos,
-  motoboy: MODELOS.find((m) => m.chave === 'entregador')!.acessos,
+  motoboy: { areas: [], sensiveis: [] },
   atendente: { areas: ['pedidos', 'pdv', 'clientes'], sensiveis: [] },
 }
 

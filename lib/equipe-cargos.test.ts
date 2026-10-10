@@ -10,11 +10,15 @@ const GERENTE_OFERECE = ['garcom', 'atendente', 'logistica'] as const
 
 describe('cargos da equipe', () => {
   it('cada cargo com modelo cai no papel esperado', () => {
-    const esperado = { gerente: 'gerente', caixa: 'atendente', garcom: 'garcom', cozinha: 'atendente', motoboy: 'logistica', atendente: 'atendente' } as const
+    const esperado = { gerente: 'gerente', caixa: 'atendente', garcom: 'garcom', cozinha: 'atendente', atendente: 'atendente' } as const
     for (const [cargo, papel] of Object.entries(esperado)) {
       const m = modeloDoCargo(cargo as never)!
       expect(papelParaAcessos(cargo as never, m, [...DONO_OFERECE])).toBe(papel)
     }
+  })
+
+  it('motoboy (10/10): nenhuma permissão do painel — o servidor grava papel entregador', () => {
+    expect(modeloDoCargo('motoboy')).toEqual({ areas: [], sensiveis: [] })
   })
 
   it('o cargo define o papel: garçom com Painel de Pedidos NÃO sobe (precisa do Personalizado)', () => {

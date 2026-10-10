@@ -8,6 +8,7 @@ import { registrarAuditoria } from '@/lib/auditoria'
 import { AREAS, normalizarAcessos, resumoAcessos } from '@/lib/acessos'
 import { definirAcessos } from '@/lib/queries/equipe'
 import { areasForaDoAlcance, CARGOS, contarPermissoes, excedeOCargo, papelParaAcessos, ROTULO_CARGO, type Cargo } from '@/lib/equipe-cargos'
+import { ACESSOS_MOTOBOY, garantirEntregador } from '@/lib/motoboy/cadastro'
 
 /**
  * Equipe da loja. O middleware já exige `equipe.gerenciar` nesta rota; a checagem se
@@ -58,6 +59,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Cargo inválido.' }, { status: 400 })
     }
     cargo = corpo.cargo as Cargo
+  }
+  // Motoboy (10/10): papel entregador, SEM permissão de painel — só o app. Nada do corpo decide isso.
+  const motoboy = cargo === 'motoboy'
+  if (motoboy) {
+    entrada.papel = 'entregador'
+  } else if (cargo) {
     const pedidos = normalizarAcessos(corpo.acessos)
     if (!pedidos || contarPermissoes(pedidos) === 0) return NextResponse.json({ error: 'Marque pelo menos uma permissão.' }, { status: 400 })
     const oferecidos = papeisQuePodeGerenciar(sessao.papel)
@@ -75,7 +82,8 @@ export async function POST(request: Request) {
     entrada.papel = papel
   }
 
-  const erros = validarNovoFuncionario(entrada, sessao.papel)
+  // Quem pode criar um usuário de logística pode criar motoboy (papel entregador não aparece na lista de papéis).
+  const erros = validarNovoFuncionario(motoboy ? { ...entrada, papel: 'logistica' } : entrada, sessao.papel)
   if (erros.length > 0) return NextResponse.json({ error: erros[0], erros }, { status: 400 })
 
   // Correlação: os eventos desta requisição saem ligados na auditoria.
@@ -94,9 +102,11 @@ export async function POST(request: Request) {
   if (!resultado.ok) return NextResponse.json({ error: resultado.erro }, { status: 409 })
 
   // Acessos escolhidos no cadastro (modelo ou caixas). Só o dono libera a área Equipe.
-  const acessos = normalizarAcessos(corpo.acessos)
+  const acessos = motoboy ? ACESSOS_MOTOBOY : normalizarAcessos(corpo.acessos)
   if (acessos && sessao.papel !== 'dono') acessos.areas = acessos.areas.filter((a) => a !== 'equipe')
   if (acessos) await definirAcessos(admin, sessao.restauranteId, resultado.valor.id, acessos)
+  // Equipe = Entregadores: o motoboy criado aqui já aparece em Pedidos › Entregadores.
+  if (motoboy) await garantirEntregador(admin, sessao.restauranteId, resultado.valor.id)
 
   await registrarAuditoria(admin, {
     restauranteId: sessao.restauranteId,

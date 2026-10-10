@@ -147,6 +147,9 @@ export function decidirAcesso(pathname: string, papel: string | null, moduloMesa
     return onde === 'api' ? { tipo: 'negar', status: 401 } : { tipo: 'redirecionar', para: '/login' }
   }
 
+  // Motoboy (10/10): só o app — nada do painel, nem rota sem permissão listada.
+  if (papel === 'entregador') return onde === 'api' ? { tipo: 'negar', status: 403 } : { tipo: 'redirecionar', para: '/motoboy' }
+
   const inicial = telaInicialDoPapel(papel, moduloMesas)
 
   if (onde === 'pagina' && (pathname === '/admin' || pathname === '/admin/')) {

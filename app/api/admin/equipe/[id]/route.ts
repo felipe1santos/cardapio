@@ -10,6 +10,7 @@ import { normalizarAcessos, resumoAcessos } from '@/lib/acessos'
 import { definirAcessos } from '@/lib/queries/equipe'
 import { AREAS } from '@/lib/acessos'
 import { areasForaDoAlcance, CARGOS, contarPermissoes, excedeOCargo, papelParaAcessos, ROTULO_CARGO, type Cargo } from '@/lib/equipe-cargos'
+import { ACESSOS_MOTOBOY, ehMotoboy, garantirEntregador, refletirNoEntregador } from '@/lib/motoboy/cadastro'
 
 /** Editar nome/papel e ativar/desativar um funcionário. */
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -41,6 +42,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!permitido.ok) return NextResponse.json({ error: MENSAGEM_RECUSA[permitido.motivo] }, { status: 403 })
 
   const acoes: string[] = []
+  let ativoDepois: boolean | undefined
 
   const patch: { nome?: string; papel?: Papel; cargo?: string; telefone?: string } = {}
   if (typeof corpo.telefone === 'string') {
@@ -51,6 +53,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (typeof corpo.cargo === 'string') {
     if (alvo.papel === 'dono') return NextResponse.json({ error: 'O dono sempre tem acesso total.' }, { status: 400 })
     if (!(CARGOS as readonly string[]).includes(corpo.cargo) || corpo.cargo === 'dono') return NextResponse.json({ error: 'Cargo inválido.' }, { status: 400 })
+  }
+  // Motoboy (10/10): papel entregador e NENHUMA permissão do painel — só o app. Ignora o que vier no corpo.
+  if (corpo.cargo === 'motoboy') {
+    if (!(papeisQuePodeGerenciar(sessao.papel) as string[]).includes('logistica')) return NextResponse.json({ error: 'Você não pode atribuir esse cargo.' }, { status: 403 })
+    if (alvo.cargo !== 'motoboy') patch.cargo = 'motoboy'
+    if (alvo.papel !== 'entregador') patch.papel = 'entregador'
+    corpo.acessos = ACESSOS_MOTOBOY
+    delete corpo.papel
+  } else if (typeof corpo.cargo === 'string') {
     const novos = normalizarAcessos(corpo.acessos)
     if (!novos || contarPermissoes(novos) === 0) return NextResponse.json({ error: 'Marque pelo menos uma permissão.' }, { status: 400 })
     // Quem edita pode manter o papel atual do alvo (o dono editando um gerente).
@@ -87,12 +98,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (!['ativo', 'pausado', 'bloqueado', 'excluido'].includes(s)) return NextResponse.json({ error: 'Situação inválida.' }, { status: 400 })
     const atual = alvo.ativo ? 'ativo' : (alvo.situacao ?? 'pausado')
     if (s !== atual) {
+      ativoDepois = s === 'ativo'
       if (s === 'ativo') await definirAtivo(admin, sessao.restauranteId, id, true)
       else await definirAtivo(admin, sessao.restauranteId, id, false, s as 'pausado' | 'bloqueado' | 'excluido')
       await cortarOuDevolverLogin(admin, sessao.restauranteId, id, s === 'ativo', s)
       acoes.push(s === 'ativo' ? 'equipe.reativou' : s === 'pausado' ? 'equipe.pausou' : s === 'bloqueado' ? 'equipe.bloqueou' : 'equipe.excluiu')
     }
   } else if (typeof corpo.ativo === 'boolean' && corpo.ativo !== alvo.ativo) {
+    ativoDepois = corpo.ativo
     await definirAtivo(admin, sessao.restauranteId, id, corpo.ativo)
     await cortarOuDevolverLogin(admin, sessao.restauranteId, id, corpo.ativo, 'desativado')
     acoes.push(corpo.ativo ? 'equipe.reativou' : 'equipe.desativou')
@@ -121,6 +134,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       acao: 'equipe.acessos_alterados', entidade: 'usuario', entidadeId: id,
       dados: { alvo: alvo.nome, login: alvo.usuario, antes: resumoAcessos(alvo.papel, alvo.acessos), depois: acessosDepois, areas: (novos?.areas ?? []).join(', '), sensiveis: (novos?.sensiveis ?? []).join(', ') },
     })
+  }
+
+  // Equipe = Entregadores (10/10): o motoboy reflete no registro de entregador (nome, telefone, situação).
+  const depois = { papel: patch.papel ?? alvo.papel, cargo: patch.cargo ?? alvo.cargo }
+  if (ehMotoboy(depois)) {
+    await garantirEntregador(admin, sessao.restauranteId, id)
+    await refletirNoEntregador(admin, sessao.restauranteId, id, { nome: patch.nome, telefone: patch.telefone, ativo: ativoDepois })
+  } else if (ehMotoboy(alvo)) {
+    // Deixou de ser motoboy: o entregador sai da lista (sem apagar histórico).
+    await refletirNoEntregador(admin, sessao.restauranteId, id, { ativo: false })
   }
 
   for (const acao of acoes) {

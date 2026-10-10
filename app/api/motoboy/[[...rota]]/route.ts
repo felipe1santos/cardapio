@@ -4,6 +4,7 @@ import { getAdminSupabase } from '@/lib/supabase/admin'
 import { getCurrentSession } from '@/lib/auth/session'
 import { buscarEntregadorPorUsuario } from '@/lib/queries/pedidos'
 import { acaoNoPedido, dadosDoPortal, heartbeat, lerQrDaEntrega } from '@/lib/motoboy/servico'
+import { ehMotoboy, garantirEntregador } from '@/lib/motoboy/cadastro'
 
 /**
  * App do motoboy COM LOGIN (0136) — mesmas regras do link/QR (lib/motoboy/servico), mas quem é o
@@ -19,10 +20,14 @@ async function quem() {
   if (!sessao) return { erro: NextResponse.json({ error: 'Entre com o seu login.' }, { status: 401 }) } as const
   const admin = getAdminSupabase()
   // O token da sessão pode durar até expirar: o que manda é o cadastro AGORA (Equipe ativa).
-  const { data: usu, error: erroUsu } = await admin.from('usuarios').select('desativado_em').eq('id', sessao.userId).maybeSingle()
+  const { data: usu, error: erroUsu } = await admin.from('usuarios').select('desativado_em, cargo').eq('id', sessao.userId).maybeSingle()
   if (erroUsu) return { erro: NextResponse.json({ error: 'Não foi possível conferir o seu acesso.' }, { status: 503 }) } as const
   if (!usu || usu.desativado_em) return { erro: NextResponse.json({ error: 'Seu acesso foi desativado. Fale com a loja.', codigo: 'login_desativado' }, { status: 403 }) } as const
-  const entregador = await buscarEntregadorPorUsuario(admin, sessao.userId, sessao.restauranteId).catch(() => null)
+  let entregador = await buscarEntregadorPorUsuario(admin, sessao.userId, sessao.restauranteId).catch(() => null)
+  // Motoboy da Equipe sem o registro de entregador (10/10): cria e segue.
+  if (!entregador && ehMotoboy({ papel: sessao.papel, cargo: (usu as { cargo?: string | null }).cargo })) {
+    if (await garantirEntregador(admin, sessao.restauranteId, sessao.userId)) entregador = await buscarEntregadorPorUsuario(admin, sessao.userId, sessao.restauranteId).catch(() => null)
+  }
   if (!entregador) return { erro: NextResponse.json({ error: 'Seu login não está ligado a um entregador ativo desta loja.', codigo: 'sem_entregador' }, { status: 403 }) } as const
   return { admin, entregador } as const
 }

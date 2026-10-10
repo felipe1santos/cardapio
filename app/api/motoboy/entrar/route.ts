@@ -6,6 +6,7 @@ import { criarLimitador, ipDaRequisicao } from '@/lib/limite-taxa'
 import { pedidoDoCodigo } from '@/lib/motoboy/qr-rota'
 import { registrarAuditoria } from '@/lib/auditoria'
 import { nomeComparavel } from '@/lib/motoboy/login'
+import { ehMotoboy, garantirEntregador } from '@/lib/motoboy/cadastro'
 
 /**
  * Login do app do motoboy (item 61): NOME + senha, cadastrados pela loja no "+ Motoboy".
@@ -63,14 +64,24 @@ export async function POST(request: Request) {
   if (error || !entrou.user) return falhou()
   usuarioId = entrou.user.id
 
-  const [{ data: perfil }, { data: ent }] = await Promise.all([
-    admin.from('usuarios').select('nome, desativado_em, situacao').eq('id', usuarioId).maybeSingle(),
+  const [{ data: perfil }, { data: ent0 }] = await Promise.all([
+    admin.from('usuarios').select('nome, desativado_em, situacao, papel, cargo, restaurante_id').eq('id', usuarioId).maybeSingle(),
     admin.from('entregadores').select('id, restaurante_id').eq('usuario_id', usuarioId).is('desativado_em', null).maybeSingle(),
   ])
-  const p = perfil as { nome?: string; desativado_em?: string | null; situacao?: string | null } | null
-  if (!ent || p?.desativado_em || ['pausado', 'bloqueado', 'excluido'].includes(p?.situacao ?? '')) {
+  const p = perfil as { nome?: string; desativado_em?: string | null; situacao?: string | null; papel?: string; cargo?: string | null; restaurante_id?: string } | null
+  if (p?.desativado_em || ['pausado', 'bloqueado', 'excluido'].includes(p?.situacao ?? '')) {
     await supabase.auth.signOut()
     return NextResponse.json({ error: 'Seu acesso está pausado. Fale com a loja.' }, { status: 403 })
+  }
+  // Motoboy criado pela Equipe sem o registro de entregador (causa do "acesso pausado" de 10/10): cria agora.
+  let ent = ent0
+  if (!ent && ehMotoboy(p) && p?.restaurante_id) {
+    const id = await garantirEntregador(admin, p.restaurante_id, usuarioId)
+    if (id) ent = { id, restaurante_id: p.restaurante_id }
+  }
+  if (!ent) {
+    await supabase.auth.signOut()
+    return NextResponse.json({ error: 'Este login não é de motoboy. Entre pelo painel (app.menuzia.com.br/login) ou peça à loja o seu login de motoboy.' }, { status: 403 })
   }
   falhasPorNome.limpar(chaveNome)
   await registrarLogin(admin, usuarioId).catch(() => {})

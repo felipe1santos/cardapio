@@ -165,3 +165,14 @@ describe('feature flag do módulo de mesas', () => {
     expect(ehRotaDoModuloMesas('/admin/pdv')).toBe(false)
   })
 })
+
+describe('motoboy só no app (10/10)', () => {
+  it('qualquer página do painel vai para /motoboy e qualquer API do painel é 403', () => {
+    for (const p of ['/admin/pedidos', '/admin/lista-pedidos', '/admin/pdv', '/admin/sem-acesso', '/admin/modulo-bloqueado']) {
+      expect(decidirAcesso(p, 'entregador')).toEqual({ tipo: 'redirecionar', para: '/motoboy' })
+    }
+    for (const p of ['/api/admin/pedidos', '/api/admin/entregadores', '/api/admin/qualquer']) {
+      expect(decidirAcesso(p, 'entregador')).toEqual({ tipo: 'negar', status: 403 })
+    }
+  })
+})
