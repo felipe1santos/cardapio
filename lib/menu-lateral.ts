@@ -1,4 +1,5 @@
 import { pode, type Permissao } from '@/lib/auth/permissoes'
+import type { Modulo, ModulosDaLoja } from '@/lib/modulos'
 
 /**
  * Itens do menu lateral do painel, na ordem em que aparecem.
@@ -25,6 +26,7 @@ export const NAV_ITEMS = [
   { href: '/admin/cardapio', label: 'Cardápio' },
   { href: '/admin/clientes', label: 'Clientes' },
   { href: '/admin/campanhas', label: 'Campanhas', novidade: true },
+  { href: '/admin/agente-ia', label: 'Agente de IA' },
   { href: '/admin/fidelidade', label: 'Fidelidade' },
   { href: '/admin/integracoes', label: 'Integrações' },
   { href: '/admin/equipe', label: 'Equipe' },
@@ -32,7 +34,10 @@ export const NAV_ITEMS = [
   { href: '/admin/ajustes', label: 'Ajustes' },
 ] as const
 
-export type ItemMenu = (typeof NAV_ITEMS)[number]
+export type ItemMenu = (typeof NAV_ITEMS)[number] & { /** Módulo pago bloqueado na loja (0176): item meio apagado, com cadeado. */ bloqueado?: Modulo }
+
+/** Item do menu → módulo pago que ele abre (0176). */
+const MODULO_DO_ITEM: Record<string, Modulo> = { '/admin/financeiro': 'financeiro', '/admin/campanhas': 'disparos', '/admin/agente-ia': 'agente_ia' }
 
 /**
  * Permissão que cada tela exige para aparecer no menu.
@@ -51,6 +56,7 @@ export const PERMISSAO_DO_MENU: Record<string, Permissao> = {
   '/admin/cardapio': 'cardapio.editar',
   '/admin/clientes': 'clientes.ver',
   '/admin/campanhas': 'campanhas.gerenciar',
+  '/admin/agente-ia': 'integracoes.gerenciar',
   '/admin/fidelidade': 'fidelidade.gerenciar',
   '/admin/integracoes': 'integracoes.gerenciar',
   '/admin/equipe': 'equipe.gerenciar',
@@ -68,13 +74,24 @@ export function itensDoMenu(opcoes: {
   usaLogistica: boolean
   /** Módulo financeiro ligado na loja E alguma ação liberada para a pessoa (0132). Padrão: some. */
   financeiro?: boolean
+  /**
+   * Módulos pagos liberados (0176). Bloqueado: o item NÃO some — fica meio apagado, com cadeado, e abre o
+   * "Quero liberar". Sem a informação ainda (carregando): tratado como bloqueado (nunca abre o que não pagou).
+   */
+  modulos?: ModulosDaLoja | null
 }): ItemMenu[] {
-  return NAV_ITEMS.filter((item) => {
-    if (item.href === '/admin/lista-pedidos' && !opcoes.usaLogistica) return false
-    if (item.href === '/admin/mesas' && !opcoes.moduloMesas) return false
-    if (item.href === '/admin/financeiro' && !opcoes.financeiro) return false
-    if (opcoes.papel === null) return true
-    const exigida = PERMISSAO_DO_MENU[item.href]
-    return exigida ? pode(opcoes.papel, exigida) : true
-  })
+  const lista: ItemMenu[] = []
+  for (const item of NAV_ITEMS) {
+    if (item.href === '/admin/lista-pedidos' && !opcoes.usaLogistica) continue
+    if (item.href === '/admin/mesas' && !opcoes.moduloMesas) continue
+    if (opcoes.papel !== null) {
+      const exigida = PERMISSAO_DO_MENU[item.href]
+      if (exigida && !pode(opcoes.papel, exigida)) continue
+    }
+    const modulo = MODULO_DO_ITEM[item.href]
+    if (modulo && !opcoes.modulos?.[modulo]) { lista.push({ ...item, bloqueado: modulo }); continue }
+    if (item.href === '/admin/financeiro' && !opcoes.financeiro) continue
+    lista.push(item)
+  }
+  return lista
 }

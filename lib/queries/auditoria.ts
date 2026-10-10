@@ -211,6 +211,10 @@ export const ROTULO_EVENTO: Record<string, string> = {
   'plataforma.excluiu_dados': 'Plataforma excluiu os dados da loja',
   'plataforma.beta_liberou': 'Plataforma liberou o Assistente Beta para a loja',
   'plataforma.beta_retirou': 'Plataforma retirou a loja do piloto do Assistente Beta',
+  'modulo.liberado': 'Plataforma liberou um módulo pago na loja',
+  'modulo.bloqueado': 'Plataforma bloqueou um módulo pago na loja',
+  'plataforma.modulo_liberou': 'Plataforma liberou um módulo pago na loja',
+  'plataforma.modulo_bloqueou': 'Plataforma bloqueou um módulo pago na loja',
   'impressao.cozinha_por_funcao_ligada': 'Passou a cozinha para o Assistente Beta',
   'impressao.cozinha_por_funcao_desligada': 'Devolveu a cozinha ao Assistente antigo',
   // PDV v2 (balcão e conta presencial).
@@ -247,6 +251,7 @@ export const GRUPOS_EVENTO: { id: string; label: string; prefixos: string[] }[] 
   { id: 'entrega', label: 'Entregas e motoboys', prefixos: ['entrega.', 'entregador.'] },
   { id: 'integracoes', label: 'Integrações', prefixos: ['integracoes.'] },
   { id: 'clientes', label: 'Clientes', prefixos: ['clientes.'] },
+  { id: 'modulos', label: 'Módulos pagos', prefixos: ['modulo.'] },
   { id: 'whatsapp', label: 'WhatsApp', prefixos: ['whatsapp.', 'campanhas.'] },
   { id: 'impressao', label: 'Impressão', prefixos: ['impressao.'] },
   { id: 'cmv', label: 'Custos (CMV)', prefixos: ['cmv.'] },

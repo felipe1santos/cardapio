@@ -18,6 +18,8 @@ import { Building2, Clock, Image as ImageIcon, MapPin, Megaphone, PanelTop, Pale
 import { MensagensAutomaticas } from '@/components/admin/campanhas/mensagens-automaticas'
 import { Modelos, useModelos } from '@/components/admin/campanhas/modelos'
 import { PushNotificacoes } from '@/components/admin/push-notificacoes'
+import { JanelaModuloBloqueado } from '@/components/admin/janela-modulo-bloqueado'
+import { useEstadoSessao } from '@/lib/sessao-cliente'
 import { RoboWhatsappCard, type ConexaoWhatsapp } from '@/components/admin/robo-whatsapp'
 import { PilhaToasts, useToasts } from '@/components/admin/toasts'
 import type { ItemSubmenu } from '@/components/admin/submenu-vertical'
@@ -1974,6 +1976,9 @@ function TabMesas({ restauranteId, active }: { restauranteId: string; active: bo
 function TabWhatsapp({ tipo, restauranteId }: { tipo: 'mensagens' | 'modelos' | 'notificacoes' | 'robo'; restauranteId: string }) {
   const router = useRouter()
   const toasts = useToasts()
+  const estadoSessao = useEstadoSessao()
+  const disparosLiberado = !!estadoSessao?.modulos?.disparos
+  const disparosBloqueado = !!estadoSessao && !estadoSessao.modulos?.disparos
   const modelos = useModelos(tipo === 'modelos' ? restauranteId : null)
   const [conexao, setConexao] = useState<ConexaoWhatsapp>(null)
   useEffect(() => {
@@ -1987,12 +1992,14 @@ function TabWhatsapp({ tipo, restauranteId }: { tipo: 'mensagens' | 'modelos' | 
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-5 lg:px-6" data-ajustes-rolagem data-testid={`ajustes-${tipo}`}>
         <div className="max-w-[980px]">
-          {tipo === 'mensagens' && <MensagensAutomaticas onToast={toasts.mostrar} onAtivoMudou={() => {}} />}
+          {/* Mensagens automáticas e push são do módulo Disparos (0176): bloqueado, o cartão do cadeado. */}
+          {disparosBloqueado && (tipo === 'mensagens' || tipo === 'notificacoes') && <JanelaModuloBloqueado inline modulo="disparos" loja={estadoSessao?.lojaNome ?? ''} whatsapp={estadoSessao?.whatsappComercial} />}
+          {tipo === 'mensagens' && disparosLiberado && <MensagensAutomaticas onToast={toasts.mostrar} onAtivoMudou={() => {}} />}
           {tipo === 'modelos' && (
             // "Usar" leva o modelo para um disparo novo em Campanhas.
             <Modelos api={modelos} onUsar={(m) => { router.push(`/admin/campanhas?modelo=${encodeURIComponent(m.id)}`) }} onToast={toasts.mostrar} />
           )}
-          {tipo === 'notificacoes' && <PushNotificacoes />}
+          {tipo === 'notificacoes' && disparosLiberado && <PushNotificacoes />}
           {tipo === 'robo' && (
             <RoboWhatsappCard somenteConfig conexao={conexao} onConectar={() => { router.push('/admin/integracoes?abrir=whatsapp') }} avisar={toasts.mostrar} />
           )}

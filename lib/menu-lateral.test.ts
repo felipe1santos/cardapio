@@ -61,12 +61,38 @@ describe('menu lateral: limpeza', () => {
 describe('Financeiro no menu (0132)', () => {
   const hrefs = (o: Partial<Parameters<typeof itensDoMenu>[0]>) =>
     itensDoMenu({ papel: 'dono', moduloMesas: false, usaLogistica: true, ...o }).map((i) => i.href)
-  it('some por padrão (flag desligada ou sem dizer nada)', () => {
-    expect(hrefs({})).not.toContain('/admin/financeiro')
-    expect(hrefs({ financeiro: false })).not.toContain('/admin/financeiro')
+  const liberado = { financeiro: true, agente_ia: true, disparos: true }
+  it('módulo liberado e flag desligada: some (sem módulo liberado aparece com cadeado — 0176)', () => {
+    expect(hrefs({ modulos: liberado })).not.toContain('/admin/financeiro')
+    expect(hrefs({ financeiro: false, modulos: liberado })).not.toContain('/admin/financeiro')
   })
   it('aparece com a flag e permissão, logo depois de Pedidos (antes Logística)', () => {
-    const h = hrefs({ financeiro: true })
+    const h = hrefs({ financeiro: true, modulos: liberado })
     expect(h.indexOf('/admin/financeiro')).toBe(h.indexOf('/admin/lista-pedidos') + 1)
+  })
+})
+
+describe('Módulos pagos no menu (0176)', () => {
+  const itens = (modulos: Parameters<typeof itensDoMenu>[0]['modulos'], financeiro = true) =>
+    itensDoMenu({ papel: 'dono', moduloMesas: false, usaLogistica: true, financeiro, modulos })
+  it('bloqueado: o item continua no menu, marcado com cadeado', () => {
+    const l = itens({ financeiro: false, agente_ia: false, disparos: false })
+    expect(l.find((i) => i.href === '/admin/financeiro')?.bloqueado).toBe('financeiro')
+    expect(l.find((i) => i.href === '/admin/campanhas')?.bloqueado).toBe('disparos')
+    expect(l.find((i) => i.href === '/admin/agente-ia')?.bloqueado).toBe('agente_ia')
+  })
+  it('carregando (sem a informação): trata como bloqueado', () => {
+    expect(itens(null).find((i) => i.href === '/admin/campanhas')?.bloqueado).toBe('disparos')
+  })
+  it('liberado: item normal; Financeiro liberado mas desligado na loja some como antes', () => {
+    const l = itens({ financeiro: true, agente_ia: true, disparos: true })
+    expect(l.find((i) => i.href === '/admin/financeiro')?.bloqueado).toBeUndefined()
+    expect(l.find((i) => i.href === '/admin/agente-ia')?.bloqueado).toBeUndefined()
+    expect(itens({ financeiro: true, agente_ia: true, disparos: true }, false).some((i) => i.href === '/admin/financeiro')).toBe(false)
+  })
+  it('garçom não vê Financeiro bloqueado nem Campanhas (permissão vem antes do cadeado)', () => {
+    const h = itensDoMenu({ papel: 'garcom', moduloMesas: true, usaLogistica: true, modulos: null }).map((i) => i.href)
+    expect(h).not.toContain('/admin/campanhas')
+    expect(h).not.toContain('/admin/agente-ia')
   })
 })

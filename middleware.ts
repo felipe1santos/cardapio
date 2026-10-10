@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { decidirAcesso, ehRotaDoModuloMesas, superficie } from '@/lib/auth/rotas'
 import { caminhoPermitidoCompleto, normalizarAcessos, podeSensivel, primeiraTela, sensivelDaRequisicao, type Acessos } from '@/lib/acessos'
+import { corpoBloqueado, moduloDoCaminho } from '@/lib/modulos'
 
 /**
  * Porteiro do painel. Esconder item do menu não protege nada: quem digita a URL entra.
@@ -75,6 +76,21 @@ export async function middleware(request: NextRequest) {
     }
     papel = (data?.papel as string | undefined) ?? null
     acessos = normalizarAcessos((data as { acessos?: unknown } | null)?.acessos)
+  }
+
+  // Módulos pagos (0176): Financeiro, Agente de IA e Disparos com cadeado até o Super Admin liberar na loja.
+  // Esconder no menu não basta: a página vai para a tela do cadeado e a API responde 403.
+  const modulo = papel ? moduloDoCaminho(pathname) : null
+  if (modulo) {
+    const { data: liberado, error } = await supabase.rpc('auth_modulo_liberado', { p_modulo: modulo })
+    if (error) console.error('[middleware] não consegui ler o módulo', modulo, error.message)
+    if (error || liberado !== true) {
+      if (superficie(pathname) === 'api') return NextResponse.json(corpoBloqueado(modulo), { status: 403 })
+      const destino = request.nextUrl.clone()
+      destino.pathname = '/admin/modulo-bloqueado'
+      destino.search = `?m=${modulo}`
+      return NextResponse.redirect(destino)
+    }
   }
 
   // Acessos por funcionário (0120): por cima do papel, relidos a cada requisição — a

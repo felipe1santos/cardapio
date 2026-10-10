@@ -14,6 +14,8 @@ export interface SidebarItem {
   /** Pendências de configuração desta seção (ver lib/setup-checklist.ts). */
   alerta?: number
   novidade?: boolean
+  /** Módulo pago bloqueado na loja (0176): meio apagado, com cadeado; o clique abre o "Quero liberar". */
+  bloqueado?: import('@/lib/modulos').Modulo
 }
 
 export interface LojaNoMenu {
@@ -46,6 +48,8 @@ export interface SidebarProps {
    */
   aberta?: boolean
   onFechar?: () => void
+  /** Clique num item com cadeado (0176). */
+  onModuloBloqueado?: (m: import('@/lib/modulos').Modulo) => void
 }
 
 /**
@@ -64,6 +68,7 @@ const NAV_ICONS: Record<string, string[]> = {
   '/admin/cardapio': ICONES.cardapio,
   '/admin/clientes': ICONES.clientes,
   '/admin/campanhas': ICONES.campanhas,
+  '/admin/agente-ia': ICONES.robo,
   '/admin/fidelidade': ICONES.fidelidade,
   '/admin/integracoes': ICONES.integracoes,
   '/admin/equipe': ICONES.equipe,
@@ -83,6 +88,7 @@ const ITEM_INATIVO = 'font-medium text-[#4B5563] hover:bg-[#F6F7F9] hover:text-[
 
 export function Sidebar({
   items,
+  onModuloBloqueado,
   activeHref,
   storeSlug,
   loja,
@@ -200,6 +206,30 @@ export function Sidebar({
           // precisam manter o item do menu destacado.
           const isActive = activeHref === item.href || activeHref.startsWith(`${item.href}/`)
           const iconPath = NAV_ICONS[item.href]
+          if (item.bloqueado) {
+            const modulo = item.bloqueado
+            return (
+              <button
+                key={item.href}
+                type="button"
+                onClick={() => onModuloBloqueado?.(modulo)}
+                className={[ITEM_MENU, ITEM_INATIVO, 'w-full opacity-50 hover:opacity-80'].join(' ')}
+                aria-label={`${item.label} — módulo bloqueado`}
+                data-testid="menu-item-bloqueado"
+                data-modulo={modulo}
+              >
+                {iconPath && (
+                  <svg viewBox="0 0 24 24" className="h-[20px] w-[20px] flex-shrink-0 fill-current text-[#4B5563]" aria-hidden="true">
+                    {iconPath.map((d) => (<path key={d} d={d} />))}
+                  </svg>
+                )}
+                <span className="truncate">{item.label}</span>
+                <svg viewBox="0 0 24 24" className="ml-auto h-[15px] w-[15px] flex-shrink-0 fill-current text-[#4B5563]" aria-hidden="true">
+                  {ICONES.cadeado.map((d) => (<path key={d} d={d} />))}
+                </svg>
+              </button>
+            )
+          }
           return (
             <Link
               key={item.href}

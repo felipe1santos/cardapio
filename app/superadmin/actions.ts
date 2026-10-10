@@ -8,6 +8,7 @@ import { isSuperAdminEmail } from '@/lib/auth/superadmin'
 import { registrarAuditoria } from '@/lib/auditoria'
 import { alterarValidadeLojista, concederAcessoLojista, convidarLojista, excluirLojistaCompleto, removerConvitePendente, revogarAcessoLojista } from '@/lib/queries/lojistas'
 import { auditarPlataforma } from '@/lib/queries/plataforma'
+import { INFO_MODULO, MODULOS, type Modulo } from '@/lib/modulos'
 
 /**
  * Ações do Painel da plataforma. Todas conferem o superadmin NO SERVIDOR (o layout só esconde
@@ -142,6 +143,36 @@ export async function alternarBetaImpressaoAction(restauranteId: string, liberar
   })
   await auditarPlataforma(admin, { ator: quem.email, acao: liberar ? 'plataforma.beta_liberou' : 'plataforma.beta_retirou', restauranteId })
   return terminar({ ok: true, mensagem: liberar ? 'Impressão Beta liberada para a loja.' : 'Loja retirada do piloto de impressão.' })
+}
+
+/**
+ * Módulo pago (0176): liberar/bloquear Financeiro, Agente de IA ou Disparos na loja. Fica na auditoria da loja e da
+ * plataforma. Bloquear o Financeiro NÃO apaga dado nem desliga o caixa automático (as vendas seguem gravadas por baixo);
+ * se a loja estava no nível 2 (controle de caixa), volta para o nível 1 — senão o PDV exigiria um caixa que ela não vê.
+ */
+export async function alternarModuloAction(restauranteId: string, modulo: string, liberar: boolean): Promise<ResultadoAcao> {
+  const quem = await ensureSuperAdmin()
+  if (!UUID.test(restauranteId)) return { ok: false, erro: 'Loja inválida.' }
+  if (!(MODULOS as readonly string[]).includes(modulo)) return { ok: false, erro: 'Módulo inválido.' }
+  const m = modulo as Modulo
+  const admin = getAdminSupabase()
+  const { error } = await admin.from('loja_modulos').upsert(
+    { restaurante_id: restauranteId, modulo: m, liberado: liberar, alterado_por: `Plataforma (${quem.email})`, alterado_em: new Date().toISOString() },
+    { onConflict: 'restaurante_id,modulo' },
+  )
+  if (error) return { ok: false, erro: 'Não foi possível alterar o módulo.' }
+  let voltouNivel1 = false
+  if (m === 'financeiro' && !liberar) {
+    const { data } = await admin.from('restaurantes').update({ controle_caixa_ativo: false }).eq('id', restauranteId).eq('controle_caixa_ativo', true).select('id')
+    voltouNivel1 = !!data?.length
+  }
+  await registrarAuditoria(admin, {
+    restauranteId, usuarioId: null, usuarioNome: `Plataforma (${quem.email})`,
+    acao: liberar ? 'modulo.liberado' : 'modulo.bloqueado', entidade: 'restaurante', entidadeId: restauranteId,
+    dados: { modulo: m, nome: INFO_MODULO[m].nome, ...(voltouNivel1 ? { controle_caixa: 'desativado (voltou ao nível 1)' } : {}) },
+  })
+  await auditarPlataforma(admin, { ator: quem.email, acao: liberar ? 'plataforma.modulo_liberou' : 'plataforma.modulo_bloqueou', restauranteId, alvo: m })
+  return terminar({ ok: true, mensagem: `${INFO_MODULO[m].nome} ${liberar ? 'liberado' : 'bloqueado'} na loja.` })
 }
 
 export async function sairAction() {

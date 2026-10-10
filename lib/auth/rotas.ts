@@ -26,6 +26,7 @@ const PAGINAS: [prefixo: string, permissao: Permissao][] = [
   ['/admin/cardapio', 'cardapio.editar'],
   ['/admin/clientes', 'clientes.ver'],
   ['/admin/campanhas', 'campanhas.gerenciar'],
+  ['/admin/agente-ia', 'integracoes.gerenciar'],
   ['/admin/fidelidade', 'fidelidade.gerenciar'],
   ['/admin/integracoes', 'integracoes.gerenciar'],
   ['/admin/ajustes', 'ajustes.editar'],
@@ -54,6 +55,7 @@ const APIS: [prefixo: string, permissao: Permissao][] = [
   ['/api/admin/comandas', 'comanda.ver'],
   ['/api/admin/pedidos', 'pedidos.delivery.cancelar'],
   ['/api/admin/campanhas', 'campanhas.gerenciar'],
+  ['/api/admin/agente-ia', 'integracoes.gerenciar'],
   ['/api/admin/fidelidade', 'fidelidade.gerenciar'],
   // Nexta: configurar é integração; despachar e cotar é operação de logística.
   // Token da API de Conversões do Meta (0138): credencial, só o dono.

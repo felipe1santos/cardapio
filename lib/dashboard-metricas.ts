@@ -104,6 +104,17 @@ export function variacao(atual: number, anterior: number): number | null {
   return ((atual - anterior) / anterior) * 100
 }
 
+/**
+ * Comparação do gráfico com o período anterior (10/10): anterior zerado OU variação acima de 
+ * LIMITE_VARIACAO_PCT% vira "sem base de comparação" — sair de R$ 5 para R$ 1.900 não é "+37.900%" que ajude alguém.
+ */
+export const LIMITE_VARIACAO_PCT = 500
+export function comparacaoGrafico(atual: number, anterior: number): { tipo: 'pct'; valor: number } | { tipo: 'sem_base' } {
+  if (!(anterior > 0)) return { tipo: 'sem_base' }
+  const v = ((atual - anterior) / anterior) * 100
+  return Math.abs(v) > LIMITE_VARIACAO_PCT ? { tipo: 'sem_base' } : { tipo: 'pct', valor: v }
+}
+
 /** Texto curto da variação, já com o sinal. */
 export function textoVariacao(pct: number | null): string | null {
   if (pct === null) return null

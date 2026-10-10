@@ -22,7 +22,9 @@ import { AvisoNovaImpressao } from '@/components/admin/aviso-nova-impressao'
 import { AlertasImpressao } from '@/components/admin/alertas-impressao'
 import { TravaSessao } from '@/components/admin/trava-sessao'
 import { JanelaSairComCaixa } from '@/components/financeiro/aviso-caixa'
-import { sairDoPainel, useEstadoSessao } from '@/lib/sessao-cliente'
+import { buscarEstadoSessao, estadoMudou, sairDoPainel, useEstadoSessao } from '@/lib/sessao-cliente'
+import { JanelaModuloBloqueado } from '@/components/admin/janela-modulo-bloqueado'
+import { INFO_MODULO, type Modulo } from '@/lib/modulos'
 import { acoesFin, podeFin } from '@/lib/financeiro/permissoes'
 import { FaixaAprovacoes } from '@/components/financeiro/faixa-aprovacoes'
 import { AberturaRapidaCaixa } from '@/components/financeiro/abertura-rapida'
@@ -113,6 +115,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const { estado: estadoNotificacoes, pedirPermissao } = useNotificacoesPedidos()
   const avisarPedido = useAvisarPedido(() => router.push('/admin/pedidos'))
   const [fichaAberta, setFichaAberta] = useState(false)
+  // Módulo pago com cadeado (0176): a janela "Quero liberar".
+  const [moduloAberto, setModuloAberto] = useState<Modulo | null>(null)
 
   // Navegou: a gaveta fecha. Sem isto, no celular o menu ficaria cobrindo a tela que o
   // toque acabou de abrir.
@@ -285,13 +289,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // Regra do menu (papel × flag de mesas × logística) em lib/menu-lateral.ts, testada.
   // Pendências de configuração ficam só no alerta do card da loja (2026-09-30): os
   // marcadores numéricos nos itens do menu saíram.
-  const items = itensDoMenu({ papel, moduloMesas, usaLogistica, financeiro: !!estadoSessao?.financeiroAtivo && acoesFin(papel, acessos).length > 0 }).filter((item) => caminhoPermitidoCompleto(item.href, papel, acessos)).map((item) => {
+  const items = itensDoMenu({ papel, moduloMesas, usaLogistica, financeiro: !!estadoSessao?.financeiroAtivo && acoesFin(papel, acessos).length > 0, modulos: estadoSessao?.modulos ?? null }).filter((item) => caminhoPermitidoCompleto(item.href, papel, acessos)).map((item) => {
     const base = item
     if (item.href === '/admin/pedidos') return { ...base, badge: badges.novosPedidos }
     // Item 58: "Pedidos" (antes Logística) não tem contador — os prontos aparecem no botão Despachar do Kanban.
     if (item.href === '/admin/lista-pedidos') return base
     return base
   })
+
+  // Clique no cadeado: confere de novo no servidor — liberado agora no Super Admin abre na hora, sem novo login.
+  const abrirModuloBloqueado = async (m: Modulo) => {
+    setMenuAberto(false)
+    estadoMudou()
+    const atual = await buscarEstadoSessao().catch(() => null)
+    if (atual?.modulos?.[m]) { router.push(INFO_MODULO[m].href); return }
+    setModuloAberto(m)
+  }
 
   const handleSignOut = async () => {
     if (await sairDoPainel(supabase)) router.push('/login')
@@ -337,11 +350,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Som de pedido bloqueado pelo navegador: aviso grande em qualquer tela (some no 1º toque). */}
       <AvisoSomBloqueado />
       <TravaSessao />
+      {moduloAberto && <JanelaModuloBloqueado modulo={moduloAberto} loja={estadoSessao?.lojaNome || loja?.nome || ''} whatsapp={estadoSessao?.whatsappComercial} onFechar={() => setModuloAberto(null)} />}
       <JanelaSairComCaixa />
       <div className="flex min-h-0 flex-1 overflow-hidden">
       {!focusMode && (
         <Sidebar
           items={items}
+          onModuloBloqueado={(m) => void abrirModuloBloqueado(m)}
           activeHref={pathname}
           storeSlug={storeSlug}
           loja={loja}

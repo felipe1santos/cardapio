@@ -16,6 +16,7 @@ function adminFalso(concluir: (id: string) => { data?: unknown; error?: unknown 
     from: () => vazio,
     rpc: vi.fn(async (fn: string, args: { p_id?: string }) => {
       if (fn === 'campanha_reservar_envios') return { data: [envio('e1'), envio('e2'), envio('e3')], error: null }
+      if (fn === 'modulo_liberado') return { data: true, error: null } // módulo Disparos liberado (0176)
       return concluir(args.p_id!)
     }),
   }
@@ -43,5 +44,23 @@ describe('processarCampanhas (B13)', () => {
     expect(provedor.enviarTexto).toHaveBeenCalledTimes(3)
     expect(r.enviados).toBe(2)
     expect(r.incertos).toBe(1)
+  })
+})
+
+describe('processarCampanhas: módulo Disparos bloqueado (0176)', () => {
+  it('loja bloqueada não envia nada', async () => {
+    const enviar = vi.fn(async () => ({ ok: true, idExterno: 'x' }))
+    const prov = { conexao: vi.fn(async () => 'aberto'), enviarTexto: enviar } as unknown as ProvedorWhatsapp
+    const vazio2 = { select: () => ({ in: async () => ({ data: [], error: null }) }) }
+    const admin = {
+      from: () => vazio2,
+      rpc: vi.fn(async (fn: string) => {
+        if (fn === 'campanha_reservar_envios') return { data: [{ id: 'e9', campanha_id: 'c9', restaurante_id: 'L9', telefone: '27999990000', texto: 'oi', evolution_instance: 'i' }], error: null }
+        if (fn === 'modulo_liberado') return { data: false, error: null }
+        return { data: { concluido: true }, error: null }
+      }),
+    }
+    await processarCampanhas(admin as never, prov, { limite: 10, intervalo: () => 0 }).catch(() => null)
+    expect(enviar).not.toHaveBeenCalled()
   })
 })

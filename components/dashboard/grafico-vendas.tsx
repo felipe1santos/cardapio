@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { marcasX, marcasY } from '@/components/graficos/grafico'
 import { Abas } from '@/components/graficos/kit-meta'
 import { escolherAgrupamento, montarBaldes, resumir, type Balde, type PedidoGrafico } from '@/lib/dashboard-grafico'
-import type { Intervalo } from '@/lib/dashboard-metricas'
+import { comparacaoGrafico, type Intervalo } from '@/lib/dashboard-metricas'
 
 /**
  * Gráfico de Faturamento / Pedidos / Ticket médio do Dashboard (09/10). Mesma lista de pedidos do "Resumo do
@@ -35,7 +35,8 @@ export function GraficoVendas({ pedidos, anteriores, intervalo, intervaloAnterio
 
   const total = aba === 'faturamento' ? r.faturamento : aba === 'pedidos' ? r.pedidos : r.ticket ?? 0
   const totalAnt = aba === 'faturamento' ? ra.faturamento : aba === 'pedidos' ? ra.pedidos : ra.ticket ?? 0
-  const variacao = intervaloAnterior && totalAnt > 0 ? ((total - totalAnt) / totalAnt) * 100 : null
+  const comp = intervaloAnterior ? comparacaoGrafico(total, totalAnt) : null
+  const variacao = comp?.tipo === 'pct' ? comp.valor : null
   const fmtTotal = aba === 'pedidos' ? total.toLocaleString('pt-BR') : brl(total)
   const alternar = (k: string) => setOcultas((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n })
 
@@ -51,6 +52,9 @@ export function GraficoVendas({ pedidos, anteriores, intervalo, intervaloAnterio
             <span className={`text-[13px] font-semibold ${variacao >= 0 ? 'text-[#0A8F4E]' : 'text-[#D93616]'}`} data-testid="grafico-variacao">
               {variacao >= 0 ? '▲' : '▼'} {pct(Math.abs(variacao))} <span className="font-normal text-[#465A69]">vs. período anterior</span>
             </span>
+          )}
+          {comp?.tipo === 'sem_base' && !carregando && (
+            <span className="text-[13px] text-[#465A69]" data-testid="grafico-variacao" data-sem-base="">sem base de comparação</span>
           )}
           {aba === 'faturamento' && temCusto && r.margemPct !== null && (
             <span className="text-[13px] text-[#1C2B33]" data-testid="grafico-lucro">Lucro <b className="font-semibold text-[#0A8F4E]">{brl(r.lucro)}</b> (margem {pct(r.margemPct)})</span>

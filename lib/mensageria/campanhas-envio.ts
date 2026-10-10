@@ -17,6 +17,7 @@ import { erroDeDesconexao, logFalhaEnvio, type EstadoConexaoProvedor, type Prove
 import { montarTextoCampanha, type BotaoCampanha } from './campanhas'
 import { telefoneWhatsapp } from '@/lib/telefone-br'
 import { concluirSaida, registrarSaida } from './historico'
+import { moduloLiberado } from '@/lib/modulos'
 
 interface EnvioReservado {
   id: string
@@ -137,11 +138,16 @@ export async function processarCampanhas(
   const botoes = await botoesDasCampanhas(admin, [...new Set(lista.map((e) => e.campanha_id))])
   for (const e of lista) e.botoes = botoes.get(e.campanha_id) ?? []
   const lojasCaidas = new Set<string>()
+  // Módulo Disparos bloqueado na loja (0176): não envia — a campanha pausa como na loja desconectada.
+  const lojasBloqueadas = new Set<string>()
+  for (const loja of new Set(lista.map((e) => e.restaurante_id))) if (!(await moduloLiberado(admin, loja, 'disparos'))) lojasBloqueadas.add(loja)
 
   for (let i = 0; i < lista.length; i++) {
     const e = lista[i]
     let resultado: ResultadoEnvio
-    if (lojasCaidas.has(e.restaurante_id)) {
+    if (lojasBloqueadas.has(e.restaurante_id)) {
+      resultado = { ok: false, tipo: 'definitivo', erro: 'Módulo de disparos bloqueado na loja' }
+    } else if (lojasCaidas.has(e.restaurante_id)) {
       // O WhatsApp desta loja caiu neste lote: nem tenta, volta para a fila.
       resultado = { ok: false, tipo: 'definitivo', erro: 'WhatsApp da loja desconectado' }
     } else {
@@ -152,7 +158,7 @@ export async function processarCampanhas(
       }
     }
     // Falha que é da conexão da loja (e não do contato) pausa a campanha.
-    let pausa = !resultado.ok && (lojasCaidas.has(e.restaurante_id) || erroDeDesconexao(resultado.erro))
+    let pausa = !resultado.ok && (lojasBloqueadas.has(e.restaurante_id) || lojasCaidas.has(e.restaurante_id) || erroDeDesconexao(resultado.erro))
     if (!resultado.ok && !pausa && resultado.tipo !== 'incerto' && e.evolution_instance) {
       pausa = (await provedor.conexao(e.evolution_instance).catch(() => 'desconhecido' as const)) === 'fechado'
     }

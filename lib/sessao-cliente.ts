@@ -16,6 +16,10 @@ export interface EstadoSessao {
   inatividadeMin: number
   travada: boolean
   nome: string
+  /** Módulos pagos liberados na loja (0176). */
+  modulos?: import('@/lib/modulos').ModulosDaLoja
+  lojaNome?: string
+  whatsappComercial?: string
 }
 
 export const EVENTO_TRAVAR = 'menuzia:travar-tela'
@@ -77,7 +81,10 @@ export function useEstadoSessao(): EstadoSessao | null {
     const carregar = () => void buscarEstadoSessao().then((e) => { if (vivo && e) setEstado(e) })
     carregar()
     window.addEventListener(EVENTO_ESTADO, carregar)
-    return () => { vivo = false; window.removeEventListener(EVENTO_ESTADO, carregar) }
+    // Voltou para a aba: relê (módulo liberado no Super Admin aparece sem novo login, 0176).
+    const aoFocar = () => { if (document.visibilityState === 'visible') { emVoo = null; carregar() } }
+    document.addEventListener('visibilitychange', aoFocar)
+    return () => { vivo = false; window.removeEventListener(EVENTO_ESTADO, carregar); document.removeEventListener('visibilitychange', aoFocar) }
   }, [])
   return estado
 }

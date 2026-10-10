@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { PedidoDashboard } from '@/lib/queries/pedidos'
 import {
+  comparacaoGrafico,
   deCampoData,
   funilDePedidos,
   intervaloAnterior,
@@ -244,5 +245,17 @@ describe('origemDaVenda', () => {
     expect(origemDaVenda('balcao', 'pdv')).toBe('pdv')
     expect(origemDaVenda('delivery', 'pdv')).toBe('pdv')
     expect(origemDaVenda('delivery', 'cardapio')).toBe('vitrine')
+  })
+})
+
+describe('comparação do gráfico com o período anterior (10/10)', () => {
+  it('anterior zerado ou variação gigante: sem base de comparação', () => {
+    expect(comparacaoGrafico(1928.63, 0)).toEqual({ tipo: 'sem_base' })
+    expect(comparacaoGrafico(1928.63, 69.5)).toEqual({ tipo: 'sem_base' }) // +2.675%
+  })
+  it('variação normal: porcentagem', () => {
+    expect(comparacaoGrafico(150, 100)).toEqual({ tipo: 'pct', valor: 50 })
+    expect(comparacaoGrafico(50, 100)).toEqual({ tipo: 'pct', valor: -50 })
+    expect(comparacaoGrafico(600, 100)).toEqual({ tipo: 'pct', valor: 500 })
   })
 })
