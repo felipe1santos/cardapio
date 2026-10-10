@@ -24,16 +24,17 @@ import { BotaoAjudaIntegracao } from '@/components/admin/integracoes/ajuda-integ
  *   Disponível não é erro: sem aviso vermelho/amarelo.
  * - Só integrações que existem de verdade. O Mercado Pago só aparece na loja com o Pix online liberado.
  * - Clicar abre a configuração que já existia (na janela central); a Nexta tem página própria.
- * - Integrações é só CONECTAR. O robô de atendimento foi para Ajustes; os números e quem aguarda
+ * - O robô v1 (liga/desliga) segue em Ajustes; o robô de AUTOATENDIMENTO (0177) tem página própria aqui (/admin/integracoes/robo). Os números e quem aguarda
  *   atendente ficam só na central do WhatsApp (canto inferior direito).
  */
 
-type IdIntegracao = 'whatsapp' | 'mercadopago' | 'facebook' | 'capi' | 'google' | 'nexta'
+type IdIntegracao = 'whatsapp' | 'robo' | 'mercadopago' | 'facebook' | 'capi' | 'google' | 'nexta'
 type Grupo = 'Mensagens' | 'Pagamentos' | 'Marketing e medição' | 'Entregas'
 interface Definicao { id: IdIntegracao; nome: string; grupo: Grupo; logo: string; resumo: string }
 
 const INTEGRACOES: Definicao[] = [
   { id: 'whatsapp', nome: 'WhatsApp', grupo: 'Mensagens', logo: '/icons/integracoes/whatsapp-icon.svg', resumo: 'Avisos do pedido e atendimento pelo WhatsApp da loja.' },
+  { id: 'robo', nome: 'Robô de atendimento', grupo: 'Mensagens', logo: '/icons/integracoes/whatsapp-icon.svg', resumo: 'Responde sozinho no WhatsApp: cardápio, taxa, status, horário e Pix.' },
   { id: 'mercadopago', nome: 'Mercado Pago', grupo: 'Pagamentos', logo: '/icons/integracoes/mercado-pago.svg', resumo: 'Pix online: o cliente paga na hora pelo QR.' },
   { id: 'facebook', nome: 'Facebook Pixel', grupo: 'Marketing e medição', logo: '/icons/integracoes/facebook.svg', resumo: 'Mede o cardápio para os anúncios do Facebook e do Instagram.' },
   { id: 'capi', nome: 'API de Conversões (Meta)', grupo: 'Marketing e medição', logo: '/icons/integracoes/meta-icon.svg', resumo: 'Manda a compra pelo servidor, com o mesmo código do pixel.' },
@@ -50,6 +51,7 @@ interface Situacao {
   capi: boolean | null
   mp: { liberada: boolean; conectada: boolean } | null
   nexta: boolean | null
+  robo: boolean | null
 }
 
 const FONTE_MODELO = { fontFamily: 'var(--font-submenu), var(--font-painel), system-ui, sans-serif' }
@@ -77,8 +79,8 @@ function CardIntegracao({ def, ativa, onAbrir }: { def: Definicao; ativa: boolea
       </div>
     )
   }
-  return def.id === 'nexta'
-    ? <Link href="/admin/integracoes/nexta" className={classe} data-testid={`integracao-${def.id}`} data-ativa={ativa ? 'sim' : 'nao'}>{conteudo}</Link>
+  return def.id === 'nexta' || def.id === 'robo'
+    ? <Link href={`/admin/integracoes/${def.id}`} className={classe} data-testid={`integracao-${def.id}`} data-ativa={ativa ? 'sim' : 'nao'}>{conteudo}</Link>
     : <button type="button" onClick={onAbrir} className={classe} data-testid={`integracao-${def.id}`} data-ativa={ativa ? 'sim' : 'nao'}>{conteudo}</button>
 }
 
@@ -185,7 +187,7 @@ export default function IntegracoesPage() {
   // lerWhatsapp a cada render e o efeito de leitura entrava em loop (centenas de requisições/s).
   const mostrarToast = toasts.mostrar
   const [restauranteId, setRestauranteId] = useState<string | null>(null)
-  const [sit, setSit] = useState<Situacao>({ wa: null, waFalhou: false, pixels: null, capi: null, mp: null, nexta: null })
+  const [sit, setSit] = useState<Situacao>({ wa: null, waFalhou: false, pixels: null, capi: null, mp: null, nexta: null, robo: null })
   const [aberta, setAberta] = useState<IdIntegracao | null>(null)
 
   useEffect(() => { buscarRestauranteIdDoUsuario(supabase).then(setRestauranteId) }, [supabase])
@@ -207,16 +209,18 @@ export default function IntegracoesPage() {
   }, [mostrarToast])
 
   const lerOutras = useCallback(async () => {
-    const [capi, mp, nexta] = await Promise.all([
+    const [capi, mp, nexta, robo] = await Promise.all([
       fetch('/api/admin/integracoes/meta-capi', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
       fetch('/api/admin/pix-online', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
       fetch('/api/admin/nexta/config').then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      fetch('/api/admin/whatsapp/autoatendimento', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
     ])
     setSit((s) => ({
       ...s,
       capi: Boolean(capi?.configurado),
       mp: mp ? { liberada: Boolean(mp.lojaLiberada), conectada: Boolean(mp.conta?.conectada) } : { liberada: false, conectada: false },
       nexta: Boolean(nexta?.config?.ativo),
+      robo: Boolean(robo?.ativo),
     }))
   }, [])
 
@@ -251,6 +255,7 @@ export default function IntegracoesPage() {
     capi: Boolean(sit.capi),
     google: Boolean(sit.pixels?.google),
     nexta: Boolean(sit.nexta),
+    robo: Boolean(sit.robo),
   }
   // Mercado Pago só onde o Pix online foi liberado (mesma regra do card de antes).
   const existentes = INTEGRACOES.filter((i) => i.id !== 'mercadopago' || sit.mp?.liberada)

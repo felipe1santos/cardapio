@@ -22,6 +22,7 @@ import { ehSaidaNossa } from './historico'
 import { rotuloStatusPedidoCliente } from '@/lib/status-pedido-cliente'
 import { normalizarForaDaLista } from '@/lib/frete'
 import type { HorarioFuncionamento, StatusLoja } from '@/lib/timezone'
+import { COLUNAS_CONFIG_AUTO, processarMensagemAuto, type ConfigAuto } from '@/lib/robo-auto/motor'
 
 export const SEGREDO_VALIDO = /^[0-9a-f]{48}$/
 
@@ -134,7 +135,7 @@ async function processarEntradaInterna(admin: SupabaseClient, segredo: string, c
 
   const { data: cfg } = await admin
     .from('whatsapp_robo_config')
-    .select('restaurante_id, robo_ativo, boas_vindas')
+    .select(`robo_ativo, boas_vindas, ${COLUNAS_CONFIG_AUTO}`)
     .eq('webhook_segredo', segredo)
     .maybeSingle()
   if (!cfg) return { ...r, status: 404 }
@@ -175,6 +176,8 @@ async function processarEntradaInterna(admin: SupabaseClient, segredo: string, c
   // Robô da LOJA desligado (0107): a mensagem é gravada para a central de atendimento e a
   // conversa entra como atendimento humano — mas o robô não responde.
   const roboAtivo = cfg.robo_ativo === true
+  // Robô de autoatendimento (0177): interruptor próprio; ligado, ele responde no lugar do v1.
+  const auto = cfg.autoatendimento_ativo === true
 
   const loja: DadosLoja = { nome: lojaRow.nome as string, slug: lojaRow.slug as string, boasVindas: (cfg.boas_vindas as string | null) ?? null }
   const restauranteId = lojaRow.id as string
@@ -210,6 +213,15 @@ async function processarEntradaInterna(admin: SupabaseClient, segredo: string, c
       // Atendente, aviso de pedido, fidelidade, código do checkout ou disparo que a Menuzia
       // mandou (0107): o eco não é a loja respondendo pelo celular.
       if (await ehSaidaNossa(admin, restauranteId, m.telefone, m.waId, m.texto)) { contar(r, 'enviada_pela_menuzia'); continue }
+    }
+
+    if (auto) {
+      const semEntregadorAuto = lojaRow.entrega_sem_entregador === true || lojaRow.usa_logistica === false
+      const ra = await processarMensagemAuto(admin, m, { restauranteId, cfg: cfg as unknown as ConfigAuto, lojaV1: loja, semEntregador: semEntregadorAuto })
+      if (ra.motivo === 'duplicada') contar(r, 'duplicada')
+      else { r.processadas++; contar(r, `auto_${ra.motivo}`) }
+      r.respostas += ra.respostas
+      continue
     }
 
     const intencao = m.deMim ? 'outro' : classificarIntencao(m.tipo, m.texto)

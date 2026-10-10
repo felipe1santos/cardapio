@@ -201,8 +201,9 @@ export async function resumoCentral(admin: SupabaseClient, restauranteId: string
 /** O robô desta loja está respondendo? (servidor liberado + interruptor ligado) */
 export async function roboDaLojaAtivo(admin: SupabaseClient, restauranteId: string): Promise<boolean> {
   if (!roboLiberadoNoServidor()) return false
-  const { data } = await admin.from('whatsapp_robo_config').select('robo_ativo').eq('restaurante_id', restauranteId).maybeSingle()
-  return data?.robo_ativo === true
+  const { data } = await admin.from('whatsapp_robo_config').select('robo_ativo, autoatendimento_ativo').eq('restaurante_id', restauranteId).maybeSingle()
+  // Autoatendimento (0177) também é robô respondendo (o painel mostra pausar/devolver).
+  return data?.robo_ativo === true || data?.autoatendimento_ativo === true
 }
 
 /** Aba do cliente: últimos pedidos com este número nesta loja. */

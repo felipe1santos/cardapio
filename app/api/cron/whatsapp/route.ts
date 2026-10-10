@@ -16,6 +16,8 @@ export async function POST(request: Request) {
   const fila = await processarFila(admin, { limite: 20 })
   const { data: limpeza, error } = await admin.rpc('whatsapp_limpar_antigos')
   if (error) console.error('[whatsapp] limpeza falhou:', error.message)
+  // "Perguntas que o robô não entendeu" ficam 30 dias (0177).
+  await admin.from('whatsapp_auto_nao_entendidas').delete().lt('ultima_em', new Date(Date.now() - 30 * 24 * 3600_000).toISOString())
   // Webhook de toda loja com WhatsApp (a cada 30 min por loja): reconectar pelo celular,
   // sem passar pelo painel, também deixa o SAIR e a central funcionando.
   const { data: lojas } = await admin.from('restaurantes').select('id').not('evolution_instance', 'is', null)

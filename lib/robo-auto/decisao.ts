@@ -1,0 +1,114 @@
+/**
+ * Robô de autoatendimento — máquina de estados pura (sem banco): dada a mensagem classificada e o estado da
+ * conversa, decide a ação e o estado novo. O webhook e o simulador usam a mesma função.
+ * Decisões em docs/robo-whatsapp/autoatendimento-decisoes.md (D6, D7, D11, D12, D13).
+ */
+import { bairroDaFrase, type Assunto, type Classificacao, type Intencao } from './classificador'
+
+export type AcaoAuto =
+  | 'saudacao' | 'menu_curto' | 'cardapio' | 'entrega' | 'entrega_perguntar_bairro' | 'status' | 'status_numero'
+  | 'horario' | 'pagamento' | 'endereco' | 'reclamacao' | 'atendente' | 'parar' | 'nao_entendeu' | 'nada'
+
+export interface EstadoAuto {
+  autoEstado: 'aguardando_bairro' | 'aguardando_numero' | null
+  autoEstadoEm: string | null
+  naoEntendeu: number
+  saudacaoEm: string | null
+}
+
+export const ESTADO_VAZIO: EstadoAuto = { autoEstado: null, autoEstadoEm: null, naoEntendeu: 0, saudacaoEm: null }
+
+export const SAUDACAO_JANELA_MS = 6 * 3600_000
+export const ESTADO_VALIDADE_MS = 15 * 60_000
+/** O dono não desliga estes (segurança do cliente). */
+const SEMPRE_LIGADOS: Assunto[] = ['atendente', 'parar', 'reclamacao']
+
+export interface Decisao {
+  acao: AcaoAuto
+  intencao: Intencao
+  estado: EstadoAuto
+  bairro?: string | null
+  numeroPedido?: number
+  /** Silenciar a conversa: atendente (1 h ou até reativar) ou parar (até "voltar"). */
+  silenciar?: 'atendente' | 'parar'
+  /** Vai para "Perguntas que o robô não entendeu". */
+  naoEntendida: boolean
+  /** Transferido por não entender 2 vezes seguidas. */
+  porNaoEntender?: boolean
+}
+
+export interface EntradaDecisao {
+  classificacao: Classificacao
+  texto: string
+  estado: EstadoAuto
+  agora: Date
+  assuntosDesligados?: Set<Assunto>
+}
+
+const ACAO_DO_ASSUNTO: Record<Assunto, AcaoAuto> = {
+  saudacao: 'saudacao', cardapio: 'cardapio', entrega: 'entrega', status_pedido: 'status', horario: 'horario', pagamento_pix: 'pagamento',
+  endereco_retirada: 'endereco', reclamacao: 'reclamacao', atendente: 'atendente', parar: 'parar',
+}
+
+function valido(estado: EstadoAuto, agora: Date): boolean {
+  return !!estado.autoEstado && !!estado.autoEstadoEm && agora.getTime() - Date.parse(estado.autoEstadoEm) < ESTADO_VALIDADE_MS
+}
+
+export function decidir(e: EntradaDecisao): Decisao {
+  const { classificacao, texto, agora } = e
+  const desligados = e.assuntosDesligados ?? new Set<Assunto>()
+  let intencao = classificacao.intencao
+  if (intencao !== 'ok' && intencao !== 'voltar' && intencao !== 'outro' && desligados.has(intencao) && !SEMPRE_LIGADOS.includes(intencao)) intencao = 'outro'
+
+  const agoraIso = agora.toISOString()
+  const limpo: EstadoAuto = { ...e.estado, autoEstado: null, autoEstadoEm: null }
+  const emEspera = valido(e.estado, agora) ? e.estado.autoEstado : null
+  const entendido = (est: EstadoAuto): EstadoAuto => ({ ...est, naoEntendeu: 0 })
+
+  if (intencao === 'ok' || intencao === 'voltar') return { acao: 'nada', intencao, estado: e.estado, naoEntendida: false }
+
+  // Esperando o número do pedido: um número na mensagem (que não seja pedido de atendente/reclamação).
+  if (emEspera === 'aguardando_numero' && !['atendente', 'reclamacao', 'parar'].includes(intencao)) {
+    const n = /\d{1,7}/.exec(texto)?.[0]
+    if (n && !classificacao.porNumero) return { acao: 'status_numero', intencao: 'status_pedido', numeroPedido: Number(n), estado: entendido(limpo), naoEntendida: false }
+  }
+
+  // Esperando o bairro: a mensagem é o bairro, a não ser que seja outro assunto claro.
+  if (emEspera === 'aguardando_bairro' && (intencao === 'outro' || intencao === 'entrega' || intencao === 'saudacao')) {
+    const bairro = bairroDaFrase(texto) ?? (intencao === 'outro' ? classificacao.normalizado : null)
+    if (bairro) return { acao: 'entrega', intencao: 'entrega', bairro, estado: entendido({ ...e.estado, autoEstadoEm: agoraIso }), naoEntendida: false }
+  }
+
+  if (intencao === 'outro') {
+    const vezes = e.estado.naoEntendeu + 1
+    if (vezes >= 2) {
+      return { acao: 'atendente', intencao, estado: { ...limpo, naoEntendeu: 0 }, silenciar: 'atendente', naoEntendida: true, porNaoEntender: true }
+    }
+    return { acao: 'nao_entendeu', intencao, estado: { ...limpo, naoEntendeu: vezes }, naoEntendida: true }
+  }
+
+  const acao = ACAO_DO_ASSUNTO[intencao]
+  const base = entendido(limpo)
+  switch (acao) {
+    case 'saudacao': {
+      const recente = e.estado.saudacaoEm && agora.getTime() - Date.parse(e.estado.saudacaoEm) < SAUDACAO_JANELA_MS
+      return recente
+        ? { acao: 'menu_curto', intencao, estado: base, naoEntendida: false }
+        : { acao: 'saudacao', intencao, estado: { ...base, saudacaoEm: agoraIso }, naoEntendida: false }
+    }
+    case 'entrega': {
+      const bairro = classificacao.porNumero ? null : bairroDaFrase(texto)
+      const estado = { ...base, autoEstado: 'aguardando_bairro' as const, autoEstadoEm: agoraIso }
+      return bairro
+        ? { acao: 'entrega', intencao, bairro, estado, naoEntendida: false }
+        : { acao: 'entrega_perguntar_bairro', intencao, estado, naoEntendida: false }
+    }
+    case 'atendente':
+    case 'reclamacao':
+      return { acao, intencao, estado: base, silenciar: 'atendente', naoEntendida: false }
+    case 'parar':
+      return { acao, intencao, estado: base, silenciar: 'parar', naoEntendida: false }
+    default:
+      return { acao, intencao, estado: base, naoEntendida: false }
+  }
+}

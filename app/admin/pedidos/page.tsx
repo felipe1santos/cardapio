@@ -73,6 +73,7 @@ import { formatarReal } from '@/lib/moeda'
 import { CartaoNumero } from '@/components/admin/cartao-numero'
 import { ICONES } from '@/lib/icones-painel'
 import { pedidoLiberado, textoAgendado } from '@/lib/agendamento'
+import { AlertaClienteAtendente } from '@/components/admin/robo/alerta-atendente'
 
 function inicioDoDiaISO() {
   const d = new Date()
@@ -976,6 +977,7 @@ export default function PedidosPage() {
   return (
     <>
       {!focusMode && topBar}
+      {!focusMode && <AlertaClienteAtendente />}
       {focusMode && (
         <button type="button" onClick={() => void toggleFocus()} className="fixed right-3 top-3 z-30 inline-flex h-[36px] items-center gap-1.5 rounded-[4px] bg-[#E0F2FE] px-3 text-[13px] font-semibold text-[#0369A1] shadow hover:brightness-95" data-testid="sair-tela-cheia-kanban">
           <Minimize2 className="h-4 w-4" aria-hidden /> Sair da tela cheia

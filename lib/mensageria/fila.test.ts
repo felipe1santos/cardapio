@@ -41,6 +41,14 @@ function adminFalso(envios: Envio[], opts: { tomados?: Set<string>; anterior?: s
 beforeEach(() => { enviarTexto.mockClear(); registrarSaida.mockClear(); concluirSaida.mockClear() })
 
 describe('processarFila', () => {
+  it('envia na ordem de criação mesmo se o banco devolver fora de ordem (chave Pix depois do texto)', async () => {
+    const texto = { ...envio('texto'), texto: 'Formas de pagamento', criado_em: '2026-10-10T22:00:00.100Z' }
+    const chave = { ...envio('chave'), texto: '27999990000', criado_em: '2026-10-10T22:00:00.200Z' }
+    const { admin } = adminFalso([chave, texto])
+    await processarFila(admin)
+    expect((enviarTexto.mock.calls as unknown as string[][]).map((c) => c[2])).toEqual(['Formas de pagamento', '27999990000'])
+  })
+
   it('B10: renova a trava do resto do lote antes de cada envio', async () => {
     const { admin, renovacoes } = adminFalso([envio('a'), envio('b'), envio('c')])
     const r = await processarFila(admin)

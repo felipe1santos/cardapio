@@ -40,6 +40,25 @@ export const PADRAO: Record<Exclude<Etapa, 'aceito'>, string> = {
   entregue: '🎉 Pedido *#{numero}* entregue! Bom apetite 😋',
 }
 
+/**
+ * Padrão no estilo do robô de autoatendimento (0177): *negrito* no título, _itálico_ no nome, `código` no nº do pedido,
+ * citação "> " no aviso. Vale só nas lojas com o autoatendimento ligado (decisão D18); texto próprio da loja nunca é trocado.
+ */
+export const PADRAO_FORMATADO: Record<Exclude<Etapa, 'aceito'>, string> = {
+  recebido: ['*📥 PEDIDO RECEBIDO!*', '', 'Olá, _{nome}_! Recebemos seu pedido `#{numero}` na *{loja}*.', '', '> Aguarde a confirmação da loja 🙌'].join('\n'),
+  agendado: ['*🗓️ PEDIDO AGENDADO!*', '', 'Olá, _{nome}_! Seu pedido `#{numero}` ({tipo}) ficou para *{horario}*.', '', '> A loja começa a preparar perto do horário.'].join('\n'),
+  pronto_retirada: ['*✅ PEDIDO PRONTO!*', '', 'Olá, _{nome}_! Seu pedido `#{numero}` está *pronto para retirada*.', '', '> É só passar no balcão da *{loja}*.'].join('\n'),
+  pronto_entrega: ['*✅ PEDIDO PRONTO!*', '', 'Olá, _{nome}_! Seu pedido `#{numero}` está *pronto* e logo sai para entrega.'].join('\n'),
+  em_rota: ['*🛵 SAIU PARA ENTREGA!*', '', 'Olá, _{nome}_! Seu pedido `#{numero}` está a caminho.', '', '> Chega rapidinho 🚀'].join('\n'),
+  entregue: ['*🎉 PEDIDO ENTREGUE!*', '', 'Bom apetite, _{nome}_! Obrigado por pedir na *{loja}*.'].join('\n'),
+}
+
+/** Modelo formatado: sem nome do cliente, some o ", _{nome}_" junto (nada de "Olá, __!"). */
+export function renderizarFormatado(texto: string, vars: Record<string, string>): string {
+  const t = vars.nome?.trim() ? texto : texto.replace(/,?\s*_\{nome\}_/g, '')
+  return renderizar(t, vars)
+}
+
 export const VARIAVEIS: { chave: string; rotulo: string; exemplo: string }[] = [
   { chave: 'nome', rotulo: 'Primeiro nome do cliente', exemplo: 'Maria' },
   { chave: 'numero', rotulo: 'Número do pedido', exemplo: '1234' },

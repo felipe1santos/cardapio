@@ -138,14 +138,15 @@ export async function processarFila(
     p_restaurante: opcoes.restauranteId ?? null,
   })
   if (error) throw error
-  const envios = (data ?? []) as EnvioReivindicado[]
+  // O "update … returning" do banco não garante ordem: sem ordenar, a chave Pix (2ª mensagem) saía antes do texto.
+  const envios = ((data ?? []) as EnvioReivindicado[]).sort((a, b) => (a.criado_em ?? '').localeCompare(b.criado_em ?? ''))
   if (!envios.length) return { enviados: 0, falhas: 0, reivindicados: [] }
 
   const lojas = [...new Set(envios.map((e) => e.restaurante_id))]
   const conversaIds = [...new Set(envios.filter((e) => e.tipo === 'robo' && e.conversa_id).map((e) => e.conversa_id as string))]
   const [{ data: inst }, { data: cfgs }, { data: convs }] = await Promise.all([
     admin.from('restaurantes').select('id, evolution_instance').in('id', lojas),
-    admin.from('whatsapp_robo_config').select('restaurante_id, robo_ativo').in('restaurante_id', lojas),
+    admin.from('whatsapp_robo_config').select('restaurante_id, robo_ativo, autoatendimento_ativo').in('restaurante_id', lojas),
     conversaIds.length
       ? admin.from('whatsapp_conversas').select('id, estado, silenciada_em').in('id', conversaIds)
       : Promise.resolve({ data: [] }),
@@ -154,7 +155,10 @@ export async function processarFila(
   const instancia = new Map(((inst ?? []) as { id: string; evolution_instance: string | null }[]).map((r) => [r.id, r.evolution_instance]))
   // Resposta do robô conferida NA HORA de sair: servidor liberado e robô da loja ainda
   // ligado. Desligar o robô com resposta na fila cancela o envio (nada sai depois).
-  const roboLigado = new Set(((cfgs ?? []) as { restaurante_id: string; robo_ativo: boolean }[]).filter((c) => c.robo_ativo).map((c) => c.restaurante_id))
+  // Autoatendimento (0177) conta como robô ligado e mostra "digitando..." antes de cada resposta.
+  const cfgLista = (cfgs ?? []) as { restaurante_id: string; robo_ativo: boolean; autoatendimento_ativo?: boolean }[]
+  const roboLigado = new Set(cfgLista.filter((c) => c.robo_ativo || c.autoatendimento_ativo).map((c) => c.restaurante_id))
+  const autoLigado = new Set(cfgLista.filter((c) => c.autoatendimento_ativo).map((c) => c.restaurante_id))
   const liberado = roboLiberadoNoServidor()
   const provedor = provedorAtual()
 
@@ -182,7 +186,7 @@ export async function processarFila(
       const anterior = await saidaDaTentativaAnterior(admin, e).catch(() => null)
       const mensagemId = anterior
         ?? (await registrarSaida(admin, { restauranteId: e.restaurante_id, telefone: e.telefone, texto: e.texto, origem: e.tipo === 'robo' ? 'robo' : 'automatico' }))?.mensagemId
-      const r = await provedor.enviarTexto(nome, e.telefone, e.texto)
+      const r = await provedor.enviarTexto(nome, e.telefone, e.texto, e.tipo === 'robo' && autoLigado.has(e.restaurante_id) ? { digitandoMs: 1200 } : undefined)
       await concluirSaida(admin, mensagemId, r.ok, r.ok ? r.idExterno : null, r.ok ? null : r.erro)
       if (r.ok) {
         resultado = 'enviado'

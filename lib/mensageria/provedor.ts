@@ -52,7 +52,8 @@ export type ResultadoEnvio =
 
 export interface ProvedorWhatsapp {
   nome: string
-  enviarTexto(instancia: string, numero: string, texto: string): Promise<ResultadoEnvio>
+  /** `digitandoMs`: mostra "digitando..." antes de enviar (robô de autoatendimento, 0177). */
+  enviarTexto(instancia: string, numero: string, texto: string, opcoes?: { digitandoMs?: number }): Promise<ResultadoEnvio>
   enviarImagem(instancia: string, numero: string, url: string, legenda: string): Promise<ResultadoEnvio>
   enviarAudio(instancia: string, numero: string, url: string): Promise<ResultadoEnvio>
   interpretarWebhook(corpo: unknown): EventoWebhook
@@ -207,7 +208,8 @@ async function fotoEvolution(inst: string, numero: string): Promise<{ ok: true; 
 
 export const provedorEvolution: ProvedorWhatsapp = {
   nome: 'evolution',
-  enviarTexto: (inst, numero, texto) => postarEvolution(`/message/sendText/${encodeURIComponent(inst)}`, { number: numero, text: texto }),
+  enviarTexto: (inst, numero, texto, opcoes) =>
+    postarEvolution(`/message/sendText/${encodeURIComponent(inst)}`, { number: numero, text: texto, ...(opcoes?.digitandoMs ? { delay: Math.min(3000, Math.max(0, Math.round(opcoes.digitandoMs))) } : {}) }),
   enviarImagem: (inst, numero, url, legenda) =>
     postarEvolution(`/message/sendMedia/${encodeURIComponent(inst)}`, { number: numero, mediatype: 'image', media: url, caption: legenda }),
   enviarAudio: (inst, numero, url) => postarEvolution(`/message/sendWhatsAppAudio/${encodeURIComponent(inst)}`, { number: numero, audio: url }),
@@ -284,7 +286,7 @@ function registrarSimulado(arquivo: string, registro: Record<string, unknown>): 
 export function provedorSimulado(arquivo: string): ProvedorWhatsapp {
   return {
     nome: 'simulado',
-    enviarTexto: async (instancia, numero, texto) => registrarSimulado(arquivo, { instancia, numero, texto }),
+    enviarTexto: async (instancia, numero, texto, opcoes) => registrarSimulado(arquivo, { instancia, numero, texto, ...(opcoes?.digitandoMs ? { digitandoMs: opcoes.digitandoMs } : {}) }),
     enviarImagem: async (instancia, numero, url, legenda) => registrarSimulado(arquivo, { instancia, numero, texto: legenda, midia: url }),
     enviarAudio: async (instancia, numero, url) => registrarSimulado(arquivo, { instancia, numero, midia: url }),
     interpretarWebhook: interpretarWebhookEvolution,

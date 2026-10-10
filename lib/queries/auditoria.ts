@@ -23,6 +23,7 @@ export interface EventoAuditoriaLinha {
 /** Rótulo legível por ação. Ação sem rótulo aparece com o código cru, não em branco. */
 export const ROTULO_EVENTO: Record<string, string> = {
   'whatsapp.robo_configurado': 'Configurou o robô do WhatsApp',
+  'whatsapp.autoatendimento_configurado': 'Configurou o robô de autoatendimento',
   'whatsapp.conversa_reativada': 'Devolveu conversa ao robô do WhatsApp',
   'whatsapp.atendente_respondeu': 'Respondeu cliente pela central de atendimento',
   'mesa.abriu': 'Abriu a mesa',
