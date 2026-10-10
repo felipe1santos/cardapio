@@ -4,6 +4,10 @@ Em 03–09/10/2026 um loop no mapa do despacho fez ~20 mil chamadas pagas ao Goo
 (detalhes, incidente e estimativas em [docs/REGRAS-DE-CUSTO.md](docs/REGRAS-DE-CUSTO.md)):
 
 - Toda chamada a API paga (Google Maps, IA, qualquer outra) passa por `chamarApiPaga()` em `lib/custo/guarda.ts`.
+  **Checagem automática:** `scripts/custo/regra-1.mjs` roda no `npm run build` (prebuild) e no vitest (`lib/custo/regra-1.test.ts`) e FALHA se
+  algum arquivo fora de `lib/custo/` e `lib/geocode/` chamar API paga direto (maps.googleapis.com, Geocoder, DirectionsService,
+  PlacesService, api.openai.com, Gemini, Anthropic…) ou se uma chave de servidor virar `NEXT_PUBLIC`. Única exceção: o script do
+  Maps JS em `lib/maps/loader.ts`. IA: só por `chamarIa()` (`lib/custo/ia.ts`).
 - Nunca chamar API paga em render, `setInterval`, `useEffect` com dependência instável, polling ou retry sem limite. O navegador não chama API paga — pede ao servidor.
 - Cache de sucesso E de falha obrigatório (gravar antes de qualquer `if (cancelado) return`).
 - Geocodificar uma vez e gravar as coordenadas (pedido: `entrega_latitude/longitude`; loja: `latitude/longitude`).

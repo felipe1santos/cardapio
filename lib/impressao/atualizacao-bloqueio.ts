@@ -4,7 +4,8 @@
  * O atualizador do Assistente busca GET /api/agente/atualizacao/latest.yml SEM credencial, então o servidor
  * reconhece a loja pelo IP: cada computador grava em impressao_agentes.visto_ip de onde buscou pedidos, e o
  * latest.yml responde 404 para os IPs dos computadores (não revogados) das lojas com
- * restaurantes.impressao_sem_atualizacao = true. Regras puras aqui; a consulta fica na rota.
+ * restaurantes.impressao_sem_atualizacao = true. Desde a 0175 a trava é do COMPUTADOR pareado
+ * (impressao_agentes.sem_atualizacao + histórico de IPs em impressao_agente_ips). Regras puras aqui; a consulta fica na rota.
  */
 
 /** IP de quem chamou: o primeiro do x-forwarded-for (proxy do Coolify), senão x-real-ip. Nulo se não houver. */
