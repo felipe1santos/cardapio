@@ -22,6 +22,7 @@ import {
 import { formatarReal } from '@/lib/moeda'
 import { NovoMotoboy } from '@/components/pedidos/novo-motoboy'
 import { useCoordenadasPedidos } from '@/lib/mapa/cliente'
+import { definirTokenDoMapa } from '@/lib/maps/loader'
 
 /**
  * Valor sentinela do "entregador" Nexta na seleção. O Nexta ocupa o mesmo lugar de um
@@ -325,6 +326,9 @@ function RotaPanelBase({ supabase, restauranteId, apiKey, onClose, dataSource }:
   // Coordenadas pelo servidor (/api/mapa/coordenadas, gravadas no pedido): só os ids que ainda não vieram,
   // e só quando o conjunto muda. O navegador nunca geocodifica (docs/REGRAS-DE-CUSTO.md).
   const idsNoMapa = useMemo(() => [...visiveis.map((p) => p.id), ...locPedidos.map((p) => p.id)], [visiveis, locPedidos])
+  // Cozinha por token: o aviso de mapa carregado (contador de custo) identifica a loja pelo token. Setter idempotente,
+  // chamado no render porque o efeito do mapa (filho) roda antes dos efeitos deste componente.
+  definirTokenDoMapa(dataSource?.token)
   const coords = useCoordenadasPedidos(idsNoMapa, dataSource?.token)
 
   const stops = useMemo(() => visiveis.map((p) => {

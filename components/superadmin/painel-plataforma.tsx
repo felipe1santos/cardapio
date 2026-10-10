@@ -8,6 +8,8 @@ import { PilhaToasts, useToasts } from '@/components/admin/toasts'
 import { Flutuante } from '@/components/ui/flutuante'
 import { ICONES } from '@/lib/icones-painel'
 import type { LojaPlataforma, ResumoPlataforma, SituacaoLoja, Sublogin } from '@/lib/queries/plataforma'
+import type { UsoApis } from '@/lib/custo/uso'
+import { BarraUsoLoja, UsoApisResumo } from './uso-apis'
 import {
   alterarValidadeAction, alternarBetaImpressaoAction, bloquearAction, desbloquearAction, excluirDadosAction,
   preCadastrarAction, removerPreCadastroAction, sairAction, type ResultadoAcao,
@@ -130,7 +132,7 @@ type ModalAberto =
   | { tipo: 'confirmar'; loja: LojaPlataforma; acao: 'bloquear' | 'remover' | 'beta_liberar' | 'beta_retirar' }
   | { tipo: 'excluir'; loja: LojaPlataforma }
 
-export function PainelPlataforma({ lojas, resumo, emailSuperadmin }: { lojas: LojaPlataforma[]; resumo: ResumoPlataforma; emailSuperadmin: string }) {
+export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis }: { lojas: LojaPlataforma[]; resumo: ResumoPlataforma; emailSuperadmin: string; usoApis?: UsoApis | null }) {
   const router = useRouter()
   const toasts = useToasts()
   const [pendente, startTransition] = useTransition()
@@ -230,6 +232,9 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin }: { lojas: Lo
           <CartaoNumero icone={ICONES.ticket} tom="roxo" rotulo="Ticket médio" valor={<span data-testid="resumo-ticket">{brl(resumo.ticket)}</span>} />
         </div>
 
+        {/* APIs pagas (guarda de custo, 10/10): uso de hoje, bloqueios, loops e 7 dias. */}
+        {usoApis && <UsoApisResumo uso={usoApis} />}
+
         {/* Barra da lista: busca, filtros e "+ Cadastrar cliente". */}
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <div className={`relative ${buscaAberta ? 'flex' : 'hidden'} w-full sm:flex sm:w-[340px]`}>
@@ -273,13 +278,14 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin }: { lojas: Lo
                   <Th coluna="ticket" direita>Ticket</Th>
                   <Th coluna="criadoEm">Cadastro</Th>
                   <Th coluna="ultimoLoginEm">Último acesso</Th>
+                  <th className="px-3 py-2.5 text-left uppercase">APIs hoje</th>
                   <th className="px-3 py-2.5 text-left uppercase">Impressão Alfa 1</th>
                   <th className="px-3 py-2.5"><span className="sr-only">Ações</span></th>
                 </tr>
               </thead>
               <tbody>
                 {visiveis.length === 0 && (
-                  <tr><td colSpan={12} className="px-5 py-10 text-center text-text-subtle" data-testid="lista-vazia">Nenhuma loja encontrada.</td></tr>
+                  <tr><td colSpan={13} className="px-5 py-10 text-center text-text-subtle" data-testid="lista-vazia">Nenhuma loja encontrada.</td></tr>
                 )}
                 {visiveis.map((l) => (
                   <tr key={l.chave} className="group align-middle [&>td]:border-b [&>td]:border-border hover:[&>td]:bg-[#F9FAFB]" data-testid="linha-loja" data-chave={l.chave}>
@@ -296,6 +302,7 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin }: { lojas: Lo
                     <td className="whitespace-nowrap px-3 py-2.5 text-right">{l.restauranteId ? brl(l.ticket) : '—'}</td>
                     <td className="whitespace-nowrap px-3 py-2.5 text-[12px] text-text-subtle">{dataCurta(l.criadoEm)}</td>
                     <td className="whitespace-nowrap px-3 py-2.5 text-[12px]">{dataHora(l.ultimoLoginEm)}{l.loginsTotal > 0 && <span className="ml-1 text-[11px] text-text-subtle">({num(l.loginsTotal)}×)</span>}</td>
+                    <td className="px-3 py-2.5">{l.restauranteId && usoApis ? <BarraUsoLoja uso={usoApis.porLoja[l.restauranteId]} limites={usoApis.limites} /> : '—'}</td>
                     <td className="px-3 py-2.5">{l.restauranteId ? (l.betaLiberado ? <span className="rounded-[4px] bg-[#0369A1] px-2 py-[3px] text-[11px] font-semibold text-white">Piloto</span> : <span className="text-[12px] text-text-subtle">Não</span>) : '—'}</td>
                     <td className="px-2 py-2.5 text-right"><BotaoMenu l={l} /></td>
                   </tr>
@@ -324,6 +331,7 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin }: { lojas: Lo
                 <div><p className="text-[11px] text-text-subtle">Pedidos</p><p className="font-semibold">{l.restauranteId ? num(l.pedidos) : '—'}</p></div>
                 <div><p className="text-[11px] text-text-subtle">Sublogins</p><BotaoSublogins l={l} /></div>
               </div>
+              {l.restauranteId && usoApis && <div className="mt-2.5 border-t border-border pt-2.5"><p className="mb-1 text-[11px] text-text-subtle">APIs pagas hoje</p><BarraUsoLoja uso={usoApis.porLoja[l.restauranteId]} limites={usoApis.limites} /></div>}
             </div>
           ))}
         </div>

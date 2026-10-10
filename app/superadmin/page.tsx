@@ -2,6 +2,7 @@ import { getServerSupabase } from '@/lib/supabase/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { listarLojasPlataforma } from '@/lib/queries/plataforma'
 import { PainelPlataforma } from '@/components/superadmin/painel-plataforma'
+import { lerUsoApis } from '@/lib/custo/uso'
 
 // Dados sempre frescos: é o painel de quem libera e bloqueia contas.
 export const dynamic = 'force-dynamic'
@@ -13,6 +14,8 @@ export const dynamic = 'force-dynamic'
 export default async function SuperadminPage() {
   const supabase = await getServerSupabase()
   const { data } = await supabase.auth.getUser()
-  const { lojas, resumo } = await listarLojasPlataforma(getAdminSupabase())
-  return <PainelPlataforma lojas={lojas} resumo={resumo} emailSuperadmin={data.user?.email ?? ''} />
+  const admin = getAdminSupabase()
+  // Contador de APIs pagas (10/10): falhar aqui não derruba o painel.
+  const [{ lojas, resumo }, usoApis] = await Promise.all([listarLojasPlataforma(admin), lerUsoApis(admin).catch(() => null)])
+  return <PainelPlataforma lojas={lojas} resumo={resumo} emailSuperadmin={data.user?.email ?? ''} usoApis={usoApis} />
 }

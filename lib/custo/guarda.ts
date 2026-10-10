@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { contarSemTrava } from './uso'
 
 /**
  * GUARDA DE CUSTO (10/10/2026) — por aqui passa TODA chamada a API paga (docs/REGRAS-DE-CUSTO.md).
@@ -73,6 +74,7 @@ export async function chamarApiPaga<T>(
   const loja = p.loja ?? null
   if (registrarDisparo(disparos, `${p.api}:${p.chave}`, Date.now())) {
     await alertar(admin, p.api, 'disparo', `A mesma chamada (${p.chave.slice(0, 80)}) passou de ${DISPARO_MAX} vezes em 1 minuto — bloqueada.`, loja, `disparo:${p.api}:${p.chave}`)
+    void contarSemTrava(admin, `${p.api}:bloqueada`, loja)
     return { ok: false, motivo: 'disparo' }
   }
   const limite = limiteDiario(p.api)
@@ -87,6 +89,7 @@ export async function chamarApiPaga<T>(
   const r = data as { permitido: boolean; chamadas: number; limite: number }
   if (!r.permitido) {
     await alertar(admin, p.api, 'bloqueio', `Limite diário atingido (${r.limite}). Chamadas paradas até amanhã; o sistema usa a reserva.`, loja, `bloqueio:${p.api}:${new Date().toDateString()}`)
+    void contarSemTrava(admin, `${p.api}:bloqueada`, loja)
     return { ok: false, motivo: 'limite' }
   }
   if (nivelDoUso(r.chamadas, r.limite) === 'atencao') {
