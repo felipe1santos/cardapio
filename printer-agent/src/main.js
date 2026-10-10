@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, Menu, safeStorage } = require('electron')
 // Remove a barra de menu nativa (File/Edit/View/Window/Help) — deixa a janela limpa.
 Menu.setApplicationMenu(null)
+const { deveBaixarLogoDoCiclo } = require('./ciclo-logo')
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
@@ -284,7 +285,7 @@ async function cicloDePolling() {
     // Logo: baixa uma vez por ciclo (vale pra todos os pedidos da rodada).
     const logoUrl = data.loja?.logoUrl
     let logoPath = null
-    if (configImpressao.imprimirLogo && logoUrl) logoPath = await baixarLogo(logoUrl)
+    if (deveBaixarLogoDoCiclo({ ehBeta: EH_BETA, imprimirLogo: configImpressao.imprimirLogo, logoUrl })) logoPath = await baixarLogo(logoUrl)
     else logArquivo(`LOGO: nao baixada (imprimirLogo=${configImpressao.imprimirLogo}, logoUrl=${logoUrl ? 'presente' : 'AUSENTE'})`)
 
     try {
