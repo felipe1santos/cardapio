@@ -29,6 +29,8 @@ const PAGINAS: [prefixo: string, permissao: Permissao][] = [
   ['/admin/agente-ia', 'integracoes.gerenciar'],
   ['/admin/fidelidade', 'fidelidade.gerenciar'],
   ['/admin/integracoes', 'integracoes.gerenciar'],
+  // Impressão dentro de Ajustes (10/10): mesma permissão de antes (dono e gerente). ANTES de /admin/ajustes (o primeiro que casa vence).
+  ['/admin/ajustes/impressao', 'impressao.configurar'],
   ['/admin/ajustes', 'ajustes.editar'],
   ['/admin/impressao', 'impressao.configurar'],
   // Financeiro (0132): a porta é de quem opera caixa/entregas; cada ação confere a permissão

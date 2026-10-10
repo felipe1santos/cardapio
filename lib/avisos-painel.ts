@@ -22,7 +22,7 @@ export const AVISO_NOVA_IMPRESSAO_ATIVO = AVISO_NOVA_IMPRESSAO_LIGADO && process
 export const VERSAO_IMPRESSAO_V3 = '0.2.0-beta.13'
 
 /** Telas onde o aviso NÃO aparece: o Kanban de pedidos (operação) e a própria Impressão. */
-export const ROTAS_SEM_AVISO_NOVA_IMPRESSAO = ['/admin/pedidos', '/admin/impressao']
+export const ROTAS_SEM_AVISO_NOVA_IMPRESSAO = ['/admin/pedidos', '/admin/impressao', '/admin/ajustes/impressao']
 
 export function mostrarAvisoNovaImpressao(pathname: string, ativo = AVISO_NOVA_IMPRESSAO_ATIVO): boolean {
   if (!ativo) return false

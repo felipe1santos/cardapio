@@ -21,6 +21,8 @@ export interface ItemSubmenu<T extends string> {
   icone?: NomeIconeMaterial | React.ReactNode
   /** Título pequeno de grupo antes deste item (só na coluna do desktop). */
   grupo?: string
+  /** Módulo pago bloqueado (0176): meio apagado, com cadeado (laranja ao passar o mouse). Continua clicável: a seção mostra o "Quero liberar". */
+  bloqueado?: boolean
 }
 
 export function SubmenuVertical<T extends string>({
@@ -60,13 +62,16 @@ export function SubmenuVertical<T extends string>({
               onClick={() => onSelecionar(item.id)}
               aria-current={selecionado ? 'page' : undefined}
               data-submenu-item={item.id}
+              data-bloqueado={item.bloqueado ? 'sim' : undefined}
               className={[
+                'group',
                 'flex min-h-[40px] flex-shrink-0 items-center gap-[12px] whitespace-nowrap rounded-[8px] px-[12px] py-[8px] text-[14.5px] leading-[20px] transition-colors',
                 'focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#0688D4]',
                 'lg:w-full lg:justify-start',
                 selecionado
                   ? 'bg-[#EEF0F3] font-semibold text-[#1F2937]'
                   : 'font-medium text-[#4B5563] hover:bg-[#F6F7F9] hover:text-[#1F2937]',
+                item.bloqueado && !selecionado ? 'opacity-50 hover:opacity-80' : '',
               ].join(' ')}
             >
               {item.icone && (
@@ -75,6 +80,12 @@ export function SubmenuVertical<T extends string>({
                 </span>
               )}
               <span className="truncate">{item.label}</span>
+              {item.bloqueado && (<>
+                <span className="sr-only">(módulo bloqueado)</span>
+                <span aria-hidden className="ml-auto flex h-[15px] w-[15px] flex-shrink-0 text-[#4B5563] transition-colors group-hover:text-[#F97316] [&>svg]:h-[15px] [&>svg]:w-[15px]" data-testid="submenu-cadeado">
+                  <IconeMaterial nome="lock" className="h-[15px] w-[15px]" />
+                </span>
+              </>)}
               {item.contador !== undefined && item.contador > 0 && (
                 <span className="ml-auto flex h-[20px] min-w-[20px] items-center justify-center rounded-full bg-[#E1EDF7] px-1.5 text-[11px] font-semibold text-[#0868A6]">
                   {item.contador}

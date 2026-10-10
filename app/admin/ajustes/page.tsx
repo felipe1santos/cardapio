@@ -16,13 +16,12 @@ import { IlustracaoLanche } from '@/components/admin/ilustracao-lanche'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { Building2, Clock, Image as ImageIcon, MapPin, Megaphone, PanelTop, Palette, Star } from 'lucide-react'
 import { MensagensAutomaticas } from '@/components/admin/campanhas/mensagens-automaticas'
-import { Modelos, useModelos } from '@/components/admin/campanhas/modelos'
-import { PushNotificacoes } from '@/components/admin/push-notificacoes'
 import { JanelaModuloBloqueado } from '@/components/admin/janela-modulo-bloqueado'
 import { useEstadoSessao } from '@/lib/sessao-cliente'
-import { RoboWhatsappCard, type ConexaoWhatsapp } from '@/components/admin/robo-whatsapp'
+import { RoboAtendimentoAjustes } from '@/components/admin/robo/robo-ajustes'
+import { AgenteIa } from '@/components/admin/agente-ia'
+import { abasDoAjustes, ABAS_MOVIDAS, HREF_IMPRESSAO, type AbaAjustes } from '@/components/admin/ajustes-abas'
 import { PilhaToasts, useToasts } from '@/components/admin/toasts'
-import type { ItemSubmenu } from '@/components/admin/submenu-vertical'
 import { normalizarHex } from '@/lib/aviso-vitrine'
 import { normalizarInstagram } from '@/lib/instagram'
 import { fonteVitrine } from '@/lib/fonte-vitrine'
@@ -59,23 +58,11 @@ import { CardModuloMesas } from '@/components/admin/modulo-mesas'
 import { CardapioDaMesaConfig } from '@/app/admin/mesas/cardapio-mesa'
 import { ConfigConta } from '@/app/admin/mesas/config-conta'
 
-type Tab = 'loja' | 'entrega' | 'mesas' | 'qrcode' | 'conta' | 'mensagens' | 'modelos' | 'notificacoes' | 'robo'
-
-// "Aparência" saiu do submenu (2026-10-06): virou o bloco "Aparência da vitrine" do Perfil da loja.
-// Ícones Material preenchidos (submenu-modelo, 2026-10-06). Mensagens, modelos, notificações do app e o
-// robô vieram de Campanhas e de Integrações: Campanhas é só disparo; Integrações, só conectar.
-const TABS: ItemSubmenu<Tab>[] = [
-  { id: 'loja', label: 'Perfil da loja', icone: 'store' },
-  { id: 'entrega', label: 'Entrega', icone: 'delivery_dining' },
-  { id: 'mesas', label: 'Mesas', icone: 'table_restaurant' },
-  { id: 'qrcode', label: 'QR Code', icone: 'qr_code_2' },
-  { id: 'conta', label: 'Conta', icone: 'manage_accounts' },
-  { id: 'mensagens', label: 'Mensagens automáticas', icone: 'chat', grupo: 'WhatsApp e notificações' },
-  { id: 'modelos', label: 'Modelos de mensagem', icone: 'description' },
-  { id: 'notificacoes', label: 'Notificações do app', icone: 'notifications' },
-  { id: 'robo', label: 'Robô de atendimento', icone: 'smart_toy' },
-]
-const TAB_IDS = TABS.map((t) => t.id)
+// Seções em components/admin/ajustes-abas.ts (reorganização 10/10/2026: Impressão e Agente de IA entraram;
+// Modelos de mensagem e Notificações do app foram para Campanhas).
+type Tab = AbaAjustes
+/** Todos os ids possíveis (para ler o ?aba= ao abrir). */
+const TAB_IDS = abasDoAjustes({ podeAjustes: true, podeImpressao: true, agenteLiberado: true }).map((t) => t.id)
 
 /** Bloco de seção do painel de ajustes — agrupa campos afins sob um título. */
 function Secao({
@@ -1973,36 +1960,21 @@ function TabMesas({ restauranteId, active }: { restauranteId: string; active: bo
 // ─── WhatsApp e notificações (vieram de Campanhas e Integrações, 2026-10-06) ─────
 // Os MESMOS componentes e as mesmas rotas de API de antes (permissões checadas no servidor como hoje).
 
-function TabWhatsapp({ tipo, restauranteId }: { tipo: 'mensagens' | 'modelos' | 'notificacoes' | 'robo'; restauranteId: string }) {
-  const router = useRouter()
+function TabWhatsapp({ tipo }: { tipo: 'mensagens' | 'robo' | 'agente' }) {
   const toasts = useToasts()
   const estadoSessao = useEstadoSessao()
-  const disparosLiberado = !!estadoSessao?.modulos?.disparos
-  const disparosBloqueado = !!estadoSessao && !estadoSessao.modulos?.disparos
-  const modelos = useModelos(tipo === 'modelos' ? restauranteId : null)
-  const [conexao, setConexao] = useState<ConexaoWhatsapp>(null)
-  useEffect(() => {
-    if (tipo !== 'robo') return
-    fetch('/api/admin/whatsapp/status', { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((d: { configurado: boolean; connected: boolean; state: string | null }) => setConexao({ configurado: d.configurado, conectado: d.connected, estado: d.state }))
-      .catch(() => setConexao('falhou'))
-  }, [tipo])
+  const agenteLiberado = !!estadoSessao?.modulos?.agente_ia
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-5 lg:px-6" data-ajustes-rolagem data-testid={`ajustes-${tipo}`}>
-        <div className="max-w-[980px]">
-          {/* Notificações do app (push) são do módulo Disparos (0176); as mensagens de status do pedido são livres. */}
-          {disparosBloqueado && tipo === 'notificacoes' && <JanelaModuloBloqueado inline modulo="disparos" loja={estadoSessao?.lojaNome ?? ''} whatsapp={estadoSessao?.whatsappComercial} />}
+        <div className={tipo === 'robo' ? 'max-w-[1240px]' : 'max-w-[980px]'}>
           {tipo === 'mensagens' && <MensagensAutomaticas onToast={toasts.mostrar} onAtivoMudou={() => {}} />}
-          {tipo === 'modelos' && (
-            // "Usar" leva o modelo para um disparo novo em Campanhas.
-            <Modelos api={modelos} onUsar={(m) => { router.push(`/admin/campanhas?modelo=${encodeURIComponent(m.id)}`) }} onToast={toasts.mostrar} />
-          )}
-          {tipo === 'notificacoes' && disparosLiberado && <PushNotificacoes />}
-          {tipo === 'robo' && (
-            <RoboWhatsappCard somenteConfig conexao={conexao} onConectar={() => { router.push('/admin/integracoes?abrir=whatsapp') }} avisar={toasts.mostrar} />
-          )}
+          {/* Tela única dos dois robôs (simples e autoatendimento), 10/10. */}
+          {tipo === 'robo' && <RoboAtendimentoAjustes avisar={toasts.mostrar} />}
+          {/* Agente de IA (módulo pago, 0176): sem o módulo, o "Quero liberar" no lugar. */}
+          {tipo === 'agente' && estadoSessao && (agenteLiberado
+            ? <AgenteIa />
+            : <JanelaModuloBloqueado inline modulo="agente_ia" loja={estadoSessao.lojaNome ?? ''} whatsapp={estadoSessao.whatsappComercial} />)}
         </div>
       </div>
       <PilhaToasts itens={toasts.itens} />
@@ -2017,6 +1989,9 @@ export default function AjustesPage() {
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [restauranteId, setRestauranteId] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('loja')
+  const estadoSessao = useEstadoSessao()
+  // Ajustes é só do dono (ajustes.editar), que também configura a Impressão.
+  const TABS = abasDoAjustes({ podeAjustes: true, podeImpressao: true, agenteLiberado: !!estadoSessao?.modulos?.agente_ia })
 
   useEffect(() => {
     buscarRestauranteIdDoUsuario(supabase).then(setRestauranteId)
@@ -2025,9 +2000,8 @@ export default function AjustesPage() {
   // A Impressão tem uma página só (menu lateral). Link antigo (?aba=impressao) vai para ela.
   useEffect(() => {
     const aba = new URLSearchParams(window.location.search).get('aba')
-    if (aba === 'impressao') router.replace('/admin/impressao')
-    // As estações da cozinha viraram item do menu (2026-09-30): link antigo vai para lá.
-    if (aba === 'cozinha') router.replace('/admin/cozinha')
+    // Abas que mudaram de lugar: Impressão (página própria em Ajustes), Cozinha (menu), Modelos e Notificações do app (Campanhas).
+    if (aba && ABAS_MOVIDAS[aba]) { router.replace(ABAS_MOVIDAS[aba]); return }
     // "Aparência" virou bloco do Perfil da loja (2026-10-06): o link antigo abre o Perfil já nele.
     if (aba === 'aparencia') window.setTimeout(() => document.querySelector('[data-testid="secao-aparencia"]')?.scrollIntoView({ block: 'start' }), 600)
     if (aba && (TAB_IDS as string[]).includes(aba)) setTab(aba as Tab)
@@ -2035,6 +2009,7 @@ export default function AjustesPage() {
 
   // Troca de seção fica na URL (?aba=…): o voltar do navegador e os links diretos funcionam.
   function irPara(id: Tab) {
+    if (id === 'impressao') { router.push(HREF_IMPRESSAO); return }
     setTab(id)
     const u = new URL(window.location.href)
     if (id === 'loja') u.searchParams.delete('aba'); else u.searchParams.set('aba', id)
@@ -2066,10 +2041,9 @@ export default function AjustesPage() {
               <TabMesas restauranteId={restauranteId} active={tab === 'mesas'} />
               <TabQrCode restauranteId={restauranteId} active={tab === 'qrcode'} />
               <TabConta active={tab === 'conta'} />
-              {tab === 'mensagens' && <TabWhatsapp tipo="mensagens" restauranteId={restauranteId} />}
-              {tab === 'modelos' && <TabWhatsapp tipo="modelos" restauranteId={restauranteId} />}
-              {tab === 'notificacoes' && <TabWhatsapp tipo="notificacoes" restauranteId={restauranteId} />}
-              {tab === 'robo' && <TabWhatsapp tipo="robo" restauranteId={restauranteId} />}
+              {tab === 'mensagens' && <TabWhatsapp tipo="mensagens" />}
+              {tab === 'robo' && <TabWhatsapp tipo="robo" />}
+              {tab === 'agente' && <TabWhatsapp tipo="agente" />}
             </>
           )}
         </div>

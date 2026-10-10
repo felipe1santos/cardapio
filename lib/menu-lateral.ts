@@ -14,6 +14,10 @@ import type { Modulo, ModulosDaLoja } from '@/lib/modulos'
  * O selo "Novo" existe para chamar atenção a uma seção recém-lançada — hoje só
  * Campanhas (disparo de mensagem) o usa. É marcação temporária: quando deixar de
  * ser novidade, tira-se a chave daqui.
+ *
+ * Reorganização 10/10/2026 (ordem do dono): Agente de IA e Impressão saíram do menu principal e viraram
+ * itens de Ajustes (Ajustes › Agente de IA, /admin/ajustes/impressao). Quem pode configurar a Impressão mas
+ * não os Ajustes (gerente) continua vendo "Ajustes" no menu, que abre direto na Impressão.
  */
 export const NAV_ITEMS = [
   { href: '/admin/dashboard', label: 'Dashboard' },
@@ -26,18 +30,19 @@ export const NAV_ITEMS = [
   { href: '/admin/cardapio', label: 'Cardápio' },
   { href: '/admin/clientes', label: 'Clientes' },
   { href: '/admin/campanhas', label: 'Campanhas', novidade: true },
-  { href: '/admin/agente-ia', label: 'Agente de IA' },
   { href: '/admin/fidelidade', label: 'Fidelidade' },
   { href: '/admin/integracoes', label: 'Integrações' },
   { href: '/admin/equipe', label: 'Equipe' },
-  { href: '/admin/impressao', label: 'Impressão' },
   { href: '/admin/ajustes', label: 'Ajustes' },
 ] as const
 
-export type ItemMenu = (typeof NAV_ITEMS)[number] & { /** Módulo pago bloqueado na loja (0176): item meio apagado, com cadeado. */ bloqueado?: Modulo }
+/** Impressão dentro de Ajustes (10/10). */
+export const HREF_IMPRESSAO = '/admin/ajustes/impressao'
+
+export type ItemMenu = Omit<(typeof NAV_ITEMS)[number], 'href'> & { href: string; /** Módulo pago bloqueado na loja (0176): item meio apagado, com cadeado. */ bloqueado?: Modulo }
 
 /** Item do menu → módulo pago que ele abre (0176). */
-const MODULO_DO_ITEM: Record<string, Modulo> = { '/admin/financeiro': 'financeiro', '/admin/campanhas': 'disparos', '/admin/agente-ia': 'agente_ia' }
+const MODULO_DO_ITEM: Record<string, Modulo> = { '/admin/financeiro': 'financeiro', '/admin/campanhas': 'disparos' }
 
 /**
  * Permissão que cada tela exige para aparecer no menu.
@@ -56,11 +61,9 @@ export const PERMISSAO_DO_MENU: Record<string, Permissao> = {
   '/admin/cardapio': 'cardapio.editar',
   '/admin/clientes': 'clientes.ver',
   '/admin/campanhas': 'campanhas.gerenciar',
-  '/admin/agente-ia': 'integracoes.gerenciar',
   '/admin/fidelidade': 'fidelidade.gerenciar',
   '/admin/integracoes': 'integracoes.gerenciar',
   '/admin/equipe': 'equipe.gerenciar',
-  '/admin/impressao': 'impressao.configurar',
   '/admin/ajustes': 'ajustes.editar',
 }
 
@@ -86,7 +89,11 @@ export function itensDoMenu(opcoes: {
     if (item.href === '/admin/mesas' && !opcoes.moduloMesas) continue
     if (opcoes.papel !== null) {
       const exigida = PERMISSAO_DO_MENU[item.href]
-      if (exigida && !pode(opcoes.papel, exigida)) continue
+      if (exigida && !pode(opcoes.papel, exigida)) {
+        // Sem os Ajustes, mas com a Impressão (gerente): "Ajustes" abre direto na Impressão — como antes ele tinha o item Impressão.
+        if (item.href === '/admin/ajustes' && pode(opcoes.papel, 'impressao.configurar')) lista.push({ ...item, href: HREF_IMPRESSAO })
+        continue
+      }
     }
     const modulo = MODULO_DO_ITEM[item.href]
     if (modulo && !opcoes.modulos?.[modulo]) { lista.push({ ...item, bloqueado: modulo }); continue }

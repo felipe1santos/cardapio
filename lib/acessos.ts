@@ -22,7 +22,7 @@ export const AREAS = [
   { chave: 'fidelidade', rotulo: 'Fidelidade', href: '/admin/fidelidade', prefixos: ['/admin/fidelidade', '/api/admin/fidelidade'] },
   { chave: 'integracoes', rotulo: 'Integrações', href: '/admin/integracoes', prefixos: ['/admin/integracoes', '/api/admin/nexta', '/api/admin/whatsapp/robo', '/api/admin/whatsapp/conectar', '/api/admin/whatsapp/desconectar', '/api/admin/whatsapp/status'] },
   { chave: 'equipe', rotulo: 'Equipe', href: '/admin/equipe', prefixos: ['/admin/equipe', '/api/admin/equipe'] },
-  { chave: 'impressao', rotulo: 'Impressão', href: '/admin/impressao', prefixos: ['/admin/impressao', '/api/admin/impressao'] },
+  { chave: 'impressao', rotulo: 'Impressão', href: '/admin/ajustes/impressao', prefixos: ['/admin/ajustes/impressao', '/admin/impressao', '/api/admin/impressao'] },
   { chave: 'ajustes', rotulo: 'Ajustes', href: '/admin/ajustes', prefixos: ['/admin/ajustes', '/api/admin/modulos'] },
   // Módulo financeiro (0132): só aparece com a flag da loja; as ações têm permissões próprias.
   { chave: 'financeiro', rotulo: 'Financeiro', href: '/admin/financeiro', prefixos: ['/admin/financeiro', '/api/admin/financeiro'] },

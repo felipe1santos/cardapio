@@ -98,7 +98,8 @@ const OPCOES_ANTIGO: { chave: ChaveOpcao; titulo: string; frase: string }[] = [
   { chave: 'fonteMaiorProducao', titulo: 'Letra maior nos itens', frase: 'Facilita a leitura na cozinha (assistente antigo).' },
 ]
 
-export function PainelImpressao() {
+/** `semTopo`: dentro de Ajustes (10/10), quem desenha a barra de topo e o submenu é a página de Ajustes. */
+export function PainelImpressao({ semTopo = false }: { semTopo?: boolean } = {}) {
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [p, setP] = useState<(PainelDados & { funcoes: Record<FuncaoImpressora, string | null> }) | null>(null)
   const [config, setConfig] = useState<ConfigImpressao | null>(null)
@@ -366,7 +367,7 @@ export function PainelImpressao() {
 
   return (
     <div className="tela-impressao flex h-full min-h-0 flex-col overflow-hidden">
-      <TopBar title="Impressão" breadcrumb="Pedidos no papel" />
+      {!semTopo && <TopBar title="Impressão" breadcrumb="Pedidos no papel" />}
       <div className="ti-fundo min-h-0 flex-1 overflow-y-auto overscroll-contain" data-testid="impressao-rolagem">
         <main className="ti-pagina" data-testid="painel-impressao">
           {/* ── cabeçalho ─────────────────────────────────────────────────────── */}

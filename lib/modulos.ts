@@ -14,7 +14,7 @@ export type ModulosDaLoja = Record<Modulo, boolean>
 
 export const INFO_MODULO: Record<Modulo, { nome: string; frase: string; href: string }> = {
   financeiro: { nome: 'Financeiro', href: '/admin/financeiro', frase: 'Caixa, contas, compras, DRE e lucro: todo o dinheiro que entra e sai da loja num lugar só.' },
-  agente_ia: { nome: 'Agente de IA', href: '/admin/agente-ia', frase: 'Um atendente com inteligência artificial que conversa com o cliente no WhatsApp e tira o pedido sozinho.' },
+  agente_ia: { nome: 'Agente de IA', href: '/admin/ajustes?aba=agente', frase: 'Um atendente com inteligência artificial que conversa com o cliente no WhatsApp e tira o pedido sozinho.' },
   disparos: { nome: 'Disparo de mensagens', href: '/admin/campanhas', frase: 'Campanhas de WhatsApp para a sua base de clientes: promoções, cupons e reativação de quem sumiu.' },
 }
 

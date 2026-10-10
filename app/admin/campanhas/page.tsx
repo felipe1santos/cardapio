@@ -14,19 +14,23 @@ import { SubmenuVertical, type ItemSubmenu } from '@/components/admin/submenu-ve
 import { PilhaToasts, useToasts } from '@/components/admin/toasts'
 import { VisaoGeral } from '@/components/admin/campanhas/visao-geral'
 import { Agendamentos, ListaCampanhas, type AcoesCampanha } from '@/components/admin/campanhas/listas'
-import { useModelos, type ModeloMensagem } from '@/components/admin/campanhas/modelos'
+import { Modelos, useModelos, type ModeloMensagem } from '@/components/admin/campanhas/modelos'
+import { PushNotificacoes } from '@/components/admin/push-notificacoes'
 import { BoasPraticas } from '@/components/admin/campanhas/boas-praticas'
 import { Ajuda, Confirmar } from '@/components/admin/campanhas/comum'
 import { Lightbulb, Send } from 'lucide-react'
 
-// Campanhas = só DISPARO (2026-10-06). Mensagens automáticas, notificações do app e modelos foram para
-// Ajustes; os endereços antigos (?aba=automaticas|notificacoes|modelos) redirecionam para lá.
-type Aba = 'visao' | 'campanhas' | 'agendamentos'
-const MOVIDAS: Record<string, string> = { automaticas: 'mensagens', notificacoes: 'notificacoes', modelos: 'modelos' }
+// Campanhas (10/10/2026, ordem do dono): disparos + "Modelos de mensagem" e "Notificações do app" (push do app do
+// cardápio para os CLIENTES), que voltaram de Ajustes — são das campanhas e ficam sob o mesmo cadeado (módulo
+// Disparos). As mensagens automáticas de STATUS do pedido seguem em Ajustes (livres): ?aba=automaticas vai para lá.
+type Aba = 'visao' | 'campanhas' | 'agendamentos' | 'modelos' | 'notificacoes'
+const MOVIDAS: Record<string, string> = { automaticas: 'mensagens' }
 const ABAS: ItemSubmenu<Aba>[] = [
   { id: 'visao', label: 'Visão geral', icone: 'dashboard' },
   { id: 'campanhas', label: 'Campanhas', icone: 'campaign' },
   { id: 'agendamentos', label: 'Agendamentos', icone: 'schedule' },
+  { id: 'modelos', label: 'Modelos de mensagem', icone: 'description' },
+  { id: 'notificacoes', label: 'Notificações do app', icone: 'notifications' },
 ]
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -395,7 +399,7 @@ export default function CampanhasPage() {
     setErro(null); setEstimativa(null); setDrawerOpen(true)
   }
 
-  // Ajustes › Modelos de mensagem › "Usar": chega aqui com ?modelo=<id> e abre o disparo com ele.
+  // Link antigo com ?modelo=<id> (de quando os modelos ficavam em Ajustes): abre o disparo com ele.
   const modeloDaUrl = useRef(false)
   useEffect(() => {
     if (modeloDaUrl.current || !modelos.modelos.length) return
@@ -533,6 +537,9 @@ export default function CampanhasPage() {
           )}
           {aba === 'campanhas' && <ListaCampanhas campanhas={campanhas} carregando={loading} acoes={acoes} onNovo={abrirNovo} />}
           {aba === 'agendamentos' && <Agendamentos campanhas={campanhas} carregando={loading} acoes={acoes} onNovo={abrirNovo} />}
+          {/* "Usar" abre o disparo com o modelo, aqui mesmo. */}
+          {aba === 'modelos' && <Modelos api={modelos} onUsar={usarModelo} onToast={toasts.mostrar} />}
+          {aba === 'notificacoes' && <PushNotificacoes />}
         </div>
       </div>
 

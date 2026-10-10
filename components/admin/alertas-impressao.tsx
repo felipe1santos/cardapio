@@ -32,7 +32,7 @@ export function AlertasImpressao() {
         <strong className="font-semibold">{vermelho ? 'Nenhum computador está imprimindo os pedidos.' : 'A impressão automática está desligada.'}</strong>{' '}
         <span className="max-sm:hidden">{vermelho ? 'O Assistente não busca pedidos há mais de 2 minutos. Confira se o computador da impressora está ligado.' : 'Os pedidos estão chegando e não estão saindo na impressora.'}</span>
       </p>
-      <Link href="/admin/impressao" data-testid="alerta-impressao-abrir"
+      <Link href="/admin/ajustes/impressao" data-testid="alerta-impressao-abrir"
         className={`inline-flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[8px] px-3 py-1.5 text-[13px] font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${vermelho ? 'bg-white text-[#DC2626] focus-visible:outline-white' : 'bg-[#92400E] text-white focus-visible:outline-[#92400E]'}`}>
         Ver impressão <ArrowRight className="h-4 w-4" aria-hidden />
       </Link>

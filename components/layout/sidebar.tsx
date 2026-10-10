@@ -68,12 +68,12 @@ const NAV_ICONS: Record<string, string[]> = {
   '/admin/cardapio': ICONES.cardapio,
   '/admin/clientes': ICONES.clientes,
   '/admin/campanhas': ICONES.campanhas,
-  '/admin/agente-ia': ICONES.robo,
   '/admin/fidelidade': ICONES.fidelidade,
   '/admin/integracoes': ICONES.integracoes,
   '/admin/equipe': ICONES.equipe,
-  '/admin/impressao': ICONES.impressora,
   '/admin/ajustes': ICONES.ajustes,
+  // Gerente: "Ajustes" abre direto na Impressão (lib/menu-lateral.ts).
+  '/admin/ajustes/impressao': ICONES.ajustes,
 }
 
 /** Fonte, cores e forma dos submenus (submenu-vertical.tsx) no menu principal; letra 14px e respiro
@@ -83,8 +83,9 @@ const ITEM_MENU = [
   'flex min-h-[40px] items-center gap-[10px] rounded-[8px] px-[10px] py-[8px] text-left text-[14px] leading-[20px] transition-colors',
   'focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#0688D4]',
 ].join(' ')
-const ITEM_ATIVO = 'bg-[#EEF0F3] font-semibold text-[#1F2937]'
-const ITEM_INATIVO = 'font-medium text-[#4B5563] hover:bg-[#F6F7F9] hover:text-[#1F2937]'
+// Texto e ícone quase pretos (#111827, o escuro do kit) — pedido do dono 10/10: o cinza #4B5563 ficava apagado demais.
+const ITEM_ATIVO = 'bg-[#EEF0F3] font-semibold text-[#111827]'
+const ITEM_INATIVO = 'font-medium text-[#111827] hover:bg-[#F6F7F9] hover:text-[#111827]'
 
 export function Sidebar({
   items,
@@ -213,18 +214,18 @@ export function Sidebar({
                 key={item.href}
                 type="button"
                 onClick={() => onModuloBloqueado?.(modulo)}
-                className={[ITEM_MENU, ITEM_INATIVO, 'w-full opacity-50 hover:opacity-80'].join(' ')}
+                className={['group', ITEM_MENU, ITEM_INATIVO, 'w-full opacity-50 hover:opacity-80'].join(' ')}
                 aria-label={`${item.label} — módulo bloqueado`}
                 data-testid="menu-item-bloqueado"
                 data-modulo={modulo}
               >
                 {iconPath && (
-                  <svg viewBox="0 0 24 24" className="h-[20px] w-[20px] flex-shrink-0 fill-current text-[#4B5563]" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" className="h-[20px] w-[20px] flex-shrink-0 fill-current text-[#111827]" aria-hidden="true">
                     {iconPath.map((d) => (<path key={d} d={d} />))}
                   </svg>
                 )}
                 <span className="truncate">{item.label}</span>
-                <svg viewBox="0 0 24 24" className="ml-auto h-[15px] w-[15px] flex-shrink-0 fill-current text-[#4B5563]" aria-hidden="true">
+                <svg viewBox="0 0 24 24" className="ml-auto h-[15px] w-[15px] flex-shrink-0 fill-current text-[#111827] transition-colors group-hover:text-[#F97316]" aria-hidden="true" data-testid="menu-cadeado">
                   {ICONES.cadeado.map((d) => (<path key={d} d={d} />))}
                 </svg>
               </button>
@@ -238,7 +239,7 @@ export function Sidebar({
               className={[ITEM_MENU, isActive ? ITEM_ATIVO : ITEM_INATIVO].join(' ')}
             >
               {iconPath && (
-                <svg viewBox="0 0 24 24" className={['h-[20px] w-[20px] flex-shrink-0 fill-current', isActive ? 'text-[#374151]' : 'text-[#4B5563]'].join(' ')} aria-hidden="true">
+                <svg viewBox="0 0 24 24" className={['h-[20px] w-[20px] flex-shrink-0 fill-current', 'text-[#111827]'].join(' ')} aria-hidden="true">
                   {iconPath.map((d) => (
                     <path key={d} d={d} />
                   ))}
@@ -268,7 +269,7 @@ export function Sidebar({
           rel="noopener noreferrer"
           className={['min-w-0 flex-1', ITEM_MENU, ITEM_INATIVO].join(' ')}
         >
-          <svg viewBox="0 0 24 24" className="h-[20px] w-[20px] flex-shrink-0 fill-current text-[#4B5563]" aria-hidden="true">
+          <svg viewBox="0 0 24 24" className="h-[20px] w-[20px] flex-shrink-0 fill-current text-[#111827]" aria-hidden="true">
             {ICONES.abrirFora.map((d) => (<path key={d} d={d} />))}
           </svg>
           <span className="truncate">Ver meu cardápio</span>

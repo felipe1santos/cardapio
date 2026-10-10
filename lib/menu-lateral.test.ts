@@ -79,7 +79,8 @@ describe('Módulos pagos no menu (0176)', () => {
     const l = itens({ financeiro: false, agente_ia: false, disparos: false })
     expect(l.find((i) => i.href === '/admin/financeiro')?.bloqueado).toBe('financeiro')
     expect(l.find((i) => i.href === '/admin/campanhas')?.bloqueado).toBe('disparos')
-    expect(l.find((i) => i.href === '/admin/agente-ia')?.bloqueado).toBe('agente_ia')
+    // Agente de IA saiu do menu principal (10/10): o cadeado dele fica no submenu de Ajustes.
+    expect(l.some((i) => i.href === '/admin/agente-ia')).toBe(false)
   })
   it('carregando (sem a informação): trata como bloqueado', () => {
     expect(itens(null).find((i) => i.href === '/admin/campanhas')?.bloqueado).toBe('disparos')
@@ -87,12 +88,30 @@ describe('Módulos pagos no menu (0176)', () => {
   it('liberado: item normal; Financeiro liberado mas desligado na loja some como antes', () => {
     const l = itens({ financeiro: true, agente_ia: true, disparos: true })
     expect(l.find((i) => i.href === '/admin/financeiro')?.bloqueado).toBeUndefined()
-    expect(l.find((i) => i.href === '/admin/agente-ia')?.bloqueado).toBeUndefined()
     expect(itens({ financeiro: true, agente_ia: true, disparos: true }, false).some((i) => i.href === '/admin/financeiro')).toBe(false)
   })
   it('garçom não vê Financeiro bloqueado nem Campanhas (permissão vem antes do cadeado)', () => {
     const h = itensDoMenu({ papel: 'garcom', moduloMesas: true, usaLogistica: true, modulos: null }).map((i) => i.href)
     expect(h).not.toContain('/admin/campanhas')
     expect(h).not.toContain('/admin/agente-ia')
+  })
+})
+
+describe('Reorganização dos menus (10/10/2026)', () => {
+  it('Agente de IA e Impressão saíram do menu principal', () => {
+    const l = itensDoMenu({ papel: 'dono', moduloMesas: true, usaLogistica: true, financeiro: true, modulos: { financeiro: true, agente_ia: true, disparos: true } })
+    expect(l.map((i) => i.href)).not.toContain('/admin/agente-ia')
+    expect(l.map((i) => i.href)).not.toContain('/admin/impressao')
+    expect(l.find((i) => i.label === 'Ajustes')?.href).toBe('/admin/ajustes')
+  })
+  it('gerente (sem Ajustes, com Impressão) vê "Ajustes" abrindo direto na Impressão', () => {
+    const l = itensDoMenu({ papel: 'gerente', moduloMesas: true, usaLogistica: true, modulos: null })
+    expect(l.find((i) => i.label === 'Ajustes')?.href).toBe('/admin/ajustes/impressao')
+  })
+  it('garçom, atendente, cozinha e logística não ganham Ajustes nem Impressão', () => {
+    for (const papel of ['garcom', 'atendente', 'cozinha', 'logistica']) {
+      const l = itensDoMenu({ papel, moduloMesas: true, usaLogistica: true, modulos: null })
+      expect(l.some((i) => i.label === 'Ajustes'), papel).toBe(false)
+    }
   })
 })
