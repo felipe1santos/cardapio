@@ -111,6 +111,9 @@ function supabaseFrete(loja: Record<string, unknown>, bairrosDb: { bairro: strin
     if (tabela === 'taxas_entrega_bairro') {
       return { select: () => ({ eq: async () => ({ data: bairrosDb, error: null }) }) }
     }
+    if (tabela === 'geocode_cache') {
+      return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }), upsert: async () => ({ error: null }) }
+    }
     if (tabela === 'taxas_entrega_raio') {
       return { select: () => ({ eq: () => ({ order: async () => ({ data: raiosDb, error: null }) }) }) }
     }
@@ -147,13 +150,15 @@ describe('resolverFrete (resposta da API de frete)', () => {
     expect(r.entregavel).toBe(false)
   })
 
-  it('com raio e sem chave de geocode, modo taxa_padrao NÃO destrava: segue recusado', async () => {
+  // 10/10 (incidente do Maps): sem a chave de servidor/Google fora do ar NÃO trava o checkout — reserva pela
+  // taxa fixa da loja (antes recusava a entrega).
+  it('com raio e sem chave de geocode: reserva pela taxa fixa da loja (não trava o checkout)', async () => {
     const { client } = supabaseFrete({ ...LOJA_BASE, frete_fora_da_lista: 'taxa_padrao' }, [{ bairro: 'Centro', taxa: 5 }], [
       { ate_km: 5, taxa: 6 },
     ])
-    // Sem mapsKey o geocode do cliente falha → distância desconhecida.
+    // Sem GOOGLE_MAPS_SERVER_KEY o geocode fica indisponível → distância desconhecida → reserva.
+    delete process.env.GOOGLE_MAPS_SERVER_KEY
     const r = await resolverFrete(client, 'r1', { bairro: 'Bairro Novo', cep: '', rua: '', numero: '' })
-    expect(r.entregavel).toBe(false)
-    expect(r.taxa).toBe(0)
+    expect(r).toEqual({ entregavel: true, taxa: 7, fonte: 'padrao', distanciaKm: null })
   })
 })

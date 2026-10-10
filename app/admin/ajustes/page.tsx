@@ -47,7 +47,7 @@ import {
   type ConfigLoja,
   type TaxaBairro,
 } from '@/lib/queries/ajustes'
-import { geocodeEndereco } from '@/lib/frete'
+import { geocodificarEndereco } from '@/lib/mapa/cliente'
 import { turnosDoDia } from '@/lib/timezone'
 import { StorePinMap } from '@/components/maps/store-pin-map'
 import { composeEndereco } from '@/lib/endereco'
@@ -1170,10 +1170,8 @@ function TabEntrega({ restauranteId, active }: { restauranteId: string; active: 
       if (!cfg) { setCoordStatus('falhou'); return }
       setCepLoja(cfg.cep)
       if (cfg.latitude != null && cfg.longitude != null) { setCoordStatus('ok'); return }
-      const coord = await geocodeEndereco(
-        { cep: cfg.cep || undefined, endereco: cfg.endereco || undefined },
-        process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
-      )
+      // Uma vez, pelo servidor (guarda de custo + cache): o navegador nunca chama o Google.
+      const coord = await geocodificarEndereco([cfg.endereco, cfg.cep].filter(Boolean).join(', '))
       if (!coord) { setCoordStatus('falhou'); return }
       await salvarCoordenadasLoja(supabase, restauranteId, coord.lat, coord.lng)
       setCoordStatus('ok')

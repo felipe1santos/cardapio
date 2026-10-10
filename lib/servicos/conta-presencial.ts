@@ -12,6 +12,7 @@ import { paraPedido, type PagamentoPdv } from '@/lib/pdv-pagamento'
 import { processarFidelidadeComandaFechada } from '@/lib/fidelidade'
 import { validarCupom, type CupomRegra } from '@/lib/fidelidade-regras'
 import { buscarHistoricoCliente, hojeSaoPaulo, normalizarCodigoCupom } from '@/lib/queries/fidelidade'
+import { gravarCoordenadasDoPedido } from '@/lib/mapa/coordenadas-pedidos'
 
 /**
  * Serviço único da conta presencial — PDV (mesa e balcão) e salão usam as mesmas
@@ -481,8 +482,7 @@ export async function abrirBalcao(
     let taxa = e.taxaInformada
     const manual = taxa !== null
     if (taxa === null) {
-      const frete = await resolverFrete(admin, ator.restauranteId, { cep: e.cep, rua: e.rua, numero: e.numero, bairro: e.bairro, cidade: e.cidade },
-        process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY)
+      const frete = await resolverFrete(admin, ator.restauranteId, { cep: e.cep, rua: e.rua, numero: e.numero, bairro: e.bairro, cidade: e.cidade })
       if (!frete.entregavel) {
         return falha(`${frete.motivo || 'A tabela de frete da loja não cobre este endereço.'} Informe a taxa de entrega manualmente.`, 400, 'frete_nao_entregavel')
       }
@@ -681,6 +681,8 @@ export async function lancar(
       ...(tipo === 'balcao' && pagamento ? { pagamento: pagamento.escolha, troco_para: pagamento.trocoPara } : {}),
     })
   }
+  // Delivery do PDV: geocodifica UMA vez no servidor e grava no pedido (só pedido de entrega; sem esperar — 10/10).
+  if (!final.valor.idempotente && tipo === 'balcao') void gravarCoordenadasDoPedido(admin, ator.restauranteId, final.valor.id)
   return { ok: true, valor: { ...final.valor, comandaId: comandaId! } }
 }
 

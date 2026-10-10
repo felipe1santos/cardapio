@@ -1,3 +1,16 @@
+## ⚠️ LEIA PRIMEIRO: REGRAS DE CUSTO
+
+Em 03–09/10/2026 um loop no mapa do despacho fez ~20 mil chamadas pagas ao Google (≈ R$ 200). Regras permanentes
+(detalhes, incidente e estimativas em [docs/REGRAS-DE-CUSTO.md](docs/REGRAS-DE-CUSTO.md)):
+
+- Toda chamada a API paga (Google Maps, IA, qualquer outra) passa por `chamarApiPaga()` em `lib/custo/guarda.ts`.
+- Nunca chamar API paga em render, `setInterval`, `useEffect` com dependência instável, polling ou retry sem limite. O navegador não chama API paga — pede ao servidor.
+- Cache de sucesso E de falha obrigatório (gravar antes de qualquer `if (cancelado) return`).
+- Geocodificar uma vez e gravar as coordenadas (pedido: `entrega_latitude/longitude`; loja: `latitude/longitude`).
+- Chave de servidor (`GOOGLE_MAPS_SERVER_KEY`) só no Coolify; chave do navegador (`NEXT_PUBLIC_…`) só para desenhar o mapa, restrita por domínio.
+- Toda API paga nova precisa de limite diário e alerta antes de produção; estimar custo por dia e por loja no commit/PR.
+
+---
 # Menuzia — Plataforma SaaS de Cardápio Digital & Gestão de Delivery
 
 ## 1. O que é este projeto

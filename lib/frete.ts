@@ -3,6 +3,7 @@
 // a primeira tentativa de coordenadas por CEP é a BrasilAPI, que é gratuita e sem chave.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { geocodificar } from '@/lib/geocode/geocodificar'
 
 export interface Coord {
   lat: number
@@ -83,20 +84,13 @@ function formatarCepGoogle(cep: string): string | null {
   return `${limpo.slice(0, 5)}-${limpo.slice(5)}, Brasil`
 }
 
-/** Geocodifica um texto livre (endereço ou CEP) via Google Geocoding REST. */
-async function coordPorGoogle(consulta: string, mapsKey?: string): Promise<Coord | null> {
-  if (!mapsKey || !consulta.trim()) return null
-  try {
-    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(consulta)}&region=br&key=${mapsKey}`
-    const res = await fetch(url, { signal: AbortSignal.timeout(5000) })
-    if (!res.ok) return null
-    const data = (await res.json()) as { status: string; results?: { geometry?: { location?: Coord } }[] }
-    const loc = data.results?.[0]?.geometry?.location
-    if (loc && Number.isFinite(loc.lat) && Number.isFinite(loc.lng)) return { lat: loc.lat, lng: loc.lng }
-    return null
-  } catch {
-    return null
-  }
+/** Geocodifica um texto livre no Google pelo serviço do servidor (cache + guarda de custo, 10/10). */
+async function coordPorGoogle(admin: SupabaseClient, consulta: string, loja: string | null, estado: { indisponivel: boolean }): Promise<Coord | null> {
+  if (!consulta.trim()) return null
+  const r = await geocodificar(admin, consulta, loja)
+  if (r.coord) return r.coord
+  if (r.motivo === 'indisponivel') estado.indisponivel = true
+  return null
 }
 
 /**
@@ -109,27 +103,30 @@ async function coordPorGoogle(consulta: string, mapsKey?: string): Promise<Coord
  *    retornam ZERO_RESULTS).
  */
 export async function geocodeEndereco(
+  admin: SupabaseClient,
   partes: { cep?: string; endereco?: string },
-  mapsKey?: string
-): Promise<Coord | null> {
+  loja: string | null = null,
+): Promise<{ coord: Coord | null; indisponivel: boolean }> {
+  // SÓ DO SERVIDOR (10/10): o navegador pede pela rota /api/mapa/geocodificar.
+  const estado = { indisponivel: false }
   if (partes.endereco?.trim()) {
-    const g = await coordPorGoogle(partes.endereco, mapsKey)
-    if (g) return g
+    const g = await coordPorGoogle(admin, partes.endereco, loja, estado)
+    if (g) return { coord: g, indisponivel: false }
   }
   if (partes.cep) {
     const b = await cepPorBrasilApi(partes.cep)
-    if (b.coord) return b.coord
+    if (b.coord) return { coord: b.coord, indisponivel: false }
     if (b.enderecoTexto) {
-      const g = await coordPorGoogle(b.enderecoTexto, mapsKey)
-      if (g) return g
+      const g = await coordPorGoogle(admin, b.enderecoTexto, loja, estado)
+      if (g) return { coord: g, indisponivel: false }
     }
     const cepGoogle = formatarCepGoogle(partes.cep)
     if (cepGoogle) {
-      const g = await coordPorGoogle(cepGoogle, mapsKey)
-      if (g) return g
+      const g = await coordPorGoogle(admin, cepGoogle, loja, estado)
+      if (g) return { coord: g, indisponivel: false }
     }
   }
-  return null
+  return { coord: null, indisponivel: estado.indisponivel }
 }
 
 // ── Decisão de entregabilidade ────────────────────────────────────────────────
@@ -171,6 +168,8 @@ export function decidirFrete(params: {
   distanciaKm: number | null
   /** Default 'bloquear' — preserva a lista fechada para quem não configurou nada. */
   foraDaLista?: FreteForaDaLista
+  /** O Google não respondeu (sem faturamento, sem chave, limite diário): RESERVA em vez de recusar (10/10). */
+  geocodeIndisponivel?: boolean
 }): FreteDecisao {
   const alvo = normalizarBairro(params.bairroCliente)
   const matchBairro = alvo ? params.bairros.find((b) => normalizarBairro(b.bairro) === alvo) : undefined
@@ -200,6 +199,12 @@ export function decidirFrete(params: {
         distanciaKm: dist,
         motivo: `Esse endereço está a ${dist} km — fora da área de entrega (até ${maxKm} km).`,
       }
+    }
+    // Reserva (10/10): sem o Google não dá para medir — não trava o checkout; cobra a taxa fixa da loja ou, sem
+    // ela, a maior faixa de raio (nunca entrega de graça por falha do mapa).
+    if (params.geocodeIndisponivel) {
+      const maior = Math.max(...params.raios.map((r) => r.taxa))
+      return { entregavel: true, taxa: params.taxaPadrao > 0 ? params.taxaPadrao : maior, fonte: 'padrao', distanciaKm: null }
     }
     return {
       entregavel: false,
@@ -237,7 +242,6 @@ export async function resolverFrete(
   admin: SupabaseClient,
   restauranteId: string,
   endereco: EnderecoFrete,
-  mapsKey?: string
 ): Promise<FreteDecisao> {
   const [{ data: loja }, { data: bairrosDb }, { data: raiosDb }] = await Promise.all([
     admin
@@ -262,13 +266,16 @@ export async function resolverFrete(
 
   let distanciaKm: number | null = null
   let lojaSemCoord = false
+  let geocodeIndisponivel = false
   if (raioPodeDecidir && loja) {
     let lojaCoord: Coord | null =
       loja.latitude != null && loja.longitude != null
         ? { lat: Number(loja.latitude), lng: Number(loja.longitude) }
         : null
     if (!lojaCoord) {
-      lojaCoord = await geocodeEndereco({ cep: loja.cep ?? undefined, endereco: loja.endereco ?? undefined }, mapsKey)
+      const g = await geocodeEndereco(admin, { cep: loja.cep ?? undefined, endereco: loja.endereco ?? undefined }, restauranteId)
+      lojaCoord = g.coord
+      if (g.indisponivel) geocodeIndisponivel = true
       if (lojaCoord) {
         await admin.from('restaurantes').update({ latitude: lojaCoord.lat, longitude: lojaCoord.lng }).eq('id', restauranteId)
       }
@@ -278,8 +285,9 @@ export async function resolverFrete(
         .map((s) => (s ?? '').trim())
         .filter(Boolean)
         .join(', ')
-      const clienteCoord = await geocodeEndereco({ cep: endereco.cep, endereco: enderecoCliente || undefined }, mapsKey)
-      if (clienteCoord) distanciaKm = haversineKm(lojaCoord, clienteCoord)
+      const g = await geocodeEndereco(admin, { cep: endereco.cep, endereco: enderecoCliente || undefined }, restauranteId)
+      if (g.coord) distanciaKm = haversineKm(lojaCoord, g.coord)
+      else if (g.indisponivel) geocodeIndisponivel = true
     } else {
       // O problema é o cadastro da LOJA (CEP/endereço não geocodificam) — não
       // adianta geocodificar o cliente, e a mensagem não deve culpar o CEP dele.
@@ -287,7 +295,7 @@ export async function resolverFrete(
     }
   }
 
-  const decisao = decidirFrete({ bairroCliente: endereco.bairro ?? '', bairros, raios, taxaPadrao, distanciaKm, foraDaLista })
+  const decisao = decidirFrete({ bairroCliente: endereco.bairro ?? '', bairros, raios, taxaPadrao, distanciaKm, foraDaLista, geocodeIndisponivel })
   if (!decisao.entregavel && decisao.fonte === 'raio' && decisao.distanciaKm === null && lojaSemCoord) {
     decisao.motivo = 'O cálculo de entrega da loja está indisponível no momento. Fale com a loja para combinar a entrega.'
   }

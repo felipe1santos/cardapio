@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -21,6 +21,7 @@ import {
 } from '@/lib/queries/pedidos'
 import { formatarReal } from '@/lib/moeda'
 import { NovoMotoboy } from '@/components/pedidos/novo-motoboy'
+import { useCoordenadasPedidos } from '@/lib/mapa/cliente'
 
 /**
  * Valor sentinela do "entregador" Nexta na seleção. O Nexta ocupa o mesmo lugar de um
@@ -97,6 +98,8 @@ export interface RotaDataSource {
   fetch: () => Promise<{ rotas: Pedido[]; entregadores: Entregador[] }>
   /** Devolve os pedidos que saíram; o aviso ao cliente já foi feito no servidor. */
   despachar: (ids: string[], entregadorId: string) => Promise<string[]>
+  /** Token da estação (cozinha) para /api/mapa/* — sem sessão do painel. */
+  token?: string
 }
 
 interface RotaPanelProps {
@@ -109,7 +112,12 @@ interface RotaPanelProps {
   dataSource?: RotaDataSource
 }
 
-export function RotaPanel({ supabase, restauranteId, apiKey, onClose, dataSource }: RotaPanelProps) {
+/**
+ * Despacho de rotas. Envolvido em memo (export abaixo): a página do Kanban/cozinha re-renderiza a cada segundo
+ * (relógio dos cards) e isso NÃO pode re-renderizar o painel nem os mapas — foi esse o loop que fez ~20 mil
+ * geocodes em 03–09/10 (docs/REGRAS-DE-CUSTO.md). Quem usa passa onClose e dataSource estáveis.
+ */
+function RotaPanelBase({ supabase, restauranteId, apiKey, onClose, dataSource }: RotaPanelProps) {
   const [todos, setTodos] = useState<Pedido[]>([])
   const [pedidos, setPedidos] = useState<Pedido[]>([])
   const [drivers, setDrivers] = useState<Entregador[]>([])
@@ -309,17 +317,32 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose, dataSource
 
   const filtrosAtivos = filtros.busca.trim() !== '' || filtros.pgto !== 'todos'
 
-  const stops = visiveis.map((p) => ({
-    id: p.id,
-    label: `#${p.numero}`,
-    address: enderecoCompletoPedido(p),
-    color: corPino(p, marcados.has(p.id)),
-    clickable: p.status === 'pronto',
-  }))
+  // Pedidos em rota do entregador aberto em "Localização" (mapa da direita).
+  const locPedidos = useMemo(
+    () => (locDriver ? todos.filter((o) => o.entregadorId === locDriver.id && o.status === 'em_rota') : []),
+    [locDriver, todos]
+  )
+  // Coordenadas pelo servidor (/api/mapa/coordenadas, gravadas no pedido): só os ids que ainda não vieram,
+  // e só quando o conjunto muda. O navegador nunca geocodifica (docs/REGRAS-DE-CUSTO.md).
+  const idsNoMapa = useMemo(() => [...visiveis.map((p) => p.id), ...locPedidos.map((p) => p.id)], [visiveis, locPedidos])
+  const coords = useCoordenadasPedidos(idsNoMapa, dataSource?.token)
 
-  const driverMarkers = drivers
+  const stops = useMemo(() => visiveis.map((p) => {
+    const c = coords.get(p.id) ?? null
+    return {
+      id: p.id,
+      label: `#${p.numero}`,
+      address: enderecoCompletoPedido(p),
+      lat: c?.lat ?? null,
+      lng: c?.lng ?? null,
+      color: corPino(p, marcados.has(p.id)),
+      clickable: p.status === 'pronto',
+    }
+  }), [visiveis, coords, marcados])
+
+  const driverMarkers = useMemo(() => drivers
     .filter((d) => motoboysVisiveis.has(d.id) && d.localizacao)
-    .map((d) => ({ id: d.id, lat: d.localizacao!.lat, lng: d.localizacao!.lng, nome: d.nome }))
+    .map((d) => ({ id: d.id, lat: d.localizacao!.lat, lng: d.localizacao!.lng, nome: d.nome })), [drivers, motoboysVisiveis])
 
   function toggleMotoboyVisivel(id: string) {
     setMotoboysVisiveis((prev) => {
@@ -330,11 +353,14 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose, dataSource
     })
   }
 
-  const locStops = locDriver
-    ? todos
-        .filter((o) => o.entregadorId === locDriver.id && o.status === 'em_rota')
-        .map((o, i) => ({ id: o.id, numero: i + 1, address: enderecoCompletoPedido(o) }))
-    : []
+  const locStops = useMemo(() => locPedidos.map((o, i) => {
+    const c = coords.get(o.id) ?? null
+    return { id: o.id, numero: i + 1, address: enderecoCompletoPedido(o), lat: c?.lat ?? null, lng: c?.lng ?? null }
+  }), [locPedidos, coords])
+  const locOrigem = useMemo(
+    () => (locDriver?.localizacao ? { lat: locDriver.localizacao.lat, lng: locDriver.localizacao.lng } : null),
+    [locDriver?.localizacao?.lat, locDriver?.localizacao?.lng] // eslint-disable-line react-hooks/exhaustive-deps
+  )
 
   function toggleMarcado(id: string) {
     // Pedido já enviado ao Nexta não entra em novo despacho — o banco barraria (índice
@@ -852,7 +878,7 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose, dataSource
             </div>
             <div className="flex-1 p-4.5">
               {locDriver.localizacao ? (
-                <RouteMap apiKey={MAPS_KEY} origin={{ lat: locDriver.localizacao.lat, lng: locDriver.localizacao.lng }} stops={locStops} loja={lojaMapa} className="h-full w-full" />
+                <RouteMap apiKey={MAPS_KEY} origin={locOrigem} stops={locStops} loja={lojaMapa} token={dataSource?.token} className="h-full w-full" />
               ) : (
                 <div className="flex h-full items-center justify-center rounded-menuzia border border-dashed border-border p-8 text-center text-sm text-text-subtle">
                   Localização ainda não disponível. O motoboy precisa abrir o link de acesso e permitir a localização no celular.
@@ -945,3 +971,5 @@ export function RotaPanel({ supabase, restauranteId, apiKey, onClose, dataSource
     </div>
   )
 }
+
+export const RotaPanel = memo(RotaPanelBase)

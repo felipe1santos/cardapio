@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { loadGoogleMaps } from '@/lib/maps/loader'
 import { LIGHT_MAP_STYLE } from '@/lib/maps/style'
+import { geocodificarEndereco } from '@/lib/mapa/cliente'
 
 interface StorePinMapProps {
   apiKey?: string
@@ -79,7 +80,7 @@ export function StorePinMap({ apiKey, address, lat, lng, onChange, className }: 
     map.setZoom(16)
   }, [ready, lat, lng])
 
-  // Geocodifica o endereço (debounced) sempre que o texto mudar de verdade — não
+  // Geocodifica o endereço (1,2 s depois de parar de digitar) sempre que o texto mudar de verdade — não
   // dispara no primeiro render (lastAddressRef já começa igual ao address inicial),
   // então um PIN ajustado manualmente só é sobrescrito se o dono editar o endereço.
   useEffect(() => {
@@ -91,20 +92,19 @@ export function StorePinMap({ apiKey, address, lat, lng, onChange, className }: 
     const versionAtSchedule = dragVersionRef.current
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
-      const geocoder = new google.maps.Geocoder()
-      geocoder.geocode({ address, region: 'BR' }, (results, status) => {
+      // Pelo servidor (guarda de custo + cache, docs/REGRAS-DE-CUSTO.md): o navegador nunca chama o Geocoder.
+      void geocodificarEndereco(address).then((pos) => {
         // Um arraste manual aconteceu desde que este geocode foi agendado — o
         // resultado chegou atrasado e está desatualizado, descarta sem mostrar erro.
         if (dragVersionRef.current !== versionAtSchedule) return
-        if (status !== google.maps.GeocoderStatus.OK || !results?.[0]) {
+        if (!pos) {
           setError('Não foi possível localizar esse endereço no mapa — ajuste o pin manualmente.')
           return
         }
         setError(null)
-        const pos = results[0].geometry.location
-        onChangeRef.current(pos.lat(), pos.lng())
+        onChangeRef.current(pos.lat, pos.lng)
       })
-    }, 800)
+    }, 1200)
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }

@@ -71,6 +71,8 @@ function supabaseFake(opts: {
             return { select: () => ({ single: async () => ({ data: { id: 'ped-1', numero: 42 }, error: null }) }) }
           },
         }
+      case 'geocode_cache':
+        return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }), upsert: async () => ({ error: null }) }
       case 'pedido_itens':
         return { insert: async () => ({ error: null }) }
       default:
@@ -122,14 +124,17 @@ describe('criarPedido — bairro fora da tabela de taxas', () => {
       await expect(criarPedido(client, 'r1', input())).rejects.toThrow(/não entrega nesse bairro/i)
     })
 
-    it("loja com raio: modo 'taxa_padrao' NÃO destrava endereço que não dá pra localizar", async () => {
+    // 10/10 (incidente do Maps): Google indisponível (sem chave de servidor/faturamento) não trava a venda —
+    // reserva pela taxa fixa da loja.
+    it("loja com raio e Google indisponível: reserva pela taxa fixa (não trava o pedido)", async () => {
       const { client, pedidoInsert } = supabaseFake({
         foraDaLista: 'taxa_padrao',
         bairros: [{ bairro: 'Centro', taxa: 5 }],
         raios: [{ ate_km: 5, taxa: 6 }],
       })
-      await expect(criarPedido(client, 'r1', input())).rejects.toThrow(/localizar esse endereço/i)
-      expect(pedidoInsert).not.toHaveBeenCalled()
+      delete process.env.GOOGLE_MAPS_SERVER_KEY
+      await criarPedido(client, 'r1', input())
+      expect(pedidoInsert.mock.calls[0][0].taxa_entrega).toBe(7)
     })
 
     it('retirada não passa pela regra de bairro nem cobra taxa', async () => {
@@ -154,13 +159,15 @@ describe('criarPedido — bairro fora da tabela de taxas', () => {
       expect(row.taxa_entrega).toBe(7)
     })
 
-    it("loja com raio: modo 'taxa_padrao' também não destrava o PDV sem geocode", async () => {
-      const { client } = supabaseFake({
+    it("loja com raio e Google indisponível: o PDV também lança pela taxa fixa", async () => {
+      const { client, pedidoInsert } = supabaseFake({
         foraDaLista: 'taxa_padrao',
         bairros: [{ bairro: 'Centro', taxa: 5 }],
         raios: [{ ate_km: 5, taxa: 6 }],
       })
-      await expect(criarPedido(client, 'r1', input({ origem: 'pdv' }))).rejects.toThrow(/localizar esse endereço/i)
+      delete process.env.GOOGLE_MAPS_SERVER_KEY
+      await criarPedido(client, 'r1', input({ origem: 'pdv' }))
+      expect(pedidoInsert.mock.calls[0][0].taxa_entrega).toBe(7)
     })
   })
 })

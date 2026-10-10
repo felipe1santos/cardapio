@@ -42,6 +42,7 @@ import { AlertaTroco } from '@/components/pedidos/info-pagamento'
 import { rotuloForma } from '@/lib/pdv-pagamento'
 import { PainelPedido } from '@/components/pedidos/painel-pedido'
 import { solicitarReimpressao } from '@/lib/queries/impressao'
+import { useCoordenadasPedidos } from '@/lib/mapa/cliente'
 
 type Tab = 'pedidos' | 'entregadores'
 type Periodo = 'hoje' | 'ontem' | '7dias' | 'personalizado'
@@ -681,11 +682,21 @@ export default function PedidosFinalizadosPage() {
   }
   const locationDriver = drivers.find((d) => d.id === locationDriverId) ?? null
   const profileDriver = drivers.find((d) => d.id === profileDriverId) ?? null
-  const locationDriverStops = locationDriver
-    ? orders
-        .filter((o) => o.entregadorId === locationDriver.id && o.status === 'em_rota')
-        .map((o, i) => ({ id: o.id, numero: i + 1, address: enderecoCompletoPedido(o) }))
-    : []
+  // Mapa da localização: coordenadas pelo servidor (gravadas no pedido), uma vez por pedido; o navegador nunca
+  // geocodifica (docs/REGRAS-DE-CUSTO.md). Tudo memorizado: o mapa não re-renderiza com a página.
+  const locationPedidos = useMemo(
+    () => (locationDriver ? orders.filter((o) => o.entregadorId === locationDriver.id && o.status === 'em_rota') : []),
+    [locationDriver, orders]
+  )
+  const locationCoords = useCoordenadasPedidos(useMemo(() => locationPedidos.map((o) => o.id), [locationPedidos]))
+  const locationDriverStops = useMemo(() => locationPedidos.map((o, i) => {
+    const c = locationCoords.get(o.id) ?? null
+    return { id: o.id, numero: i + 1, address: enderecoCompletoPedido(o), lat: c?.lat ?? null, lng: c?.lng ?? null }
+  }), [locationPedidos, locationCoords])
+  const locationOrigem = useMemo(
+    () => (locationDriver?.localizacao ? { lat: locationDriver.localizacao.lat, lng: locationDriver.localizacao.lng } : null),
+    [locationDriver?.localizacao?.lat, locationDriver?.localizacao?.lng] // eslint-disable-line react-hooks/exhaustive-deps
+  )
 
   const concluidosFiltrados = useMemo(() => {
     const busca = filtroBusca.trim().toLowerCase()
@@ -1526,7 +1537,7 @@ export default function PedidosFinalizadosPage() {
               {locationDriver.localizacao ? (
                 <RouteMap
                   apiKey={MAPS_KEY}
-                  origin={{ lat: locationDriver.localizacao.lat, lng: locationDriver.localizacao.lng }}
+                  origin={locationOrigem}
                   stops={locationDriverStops}
                   loja={lojaMapa}
                   className="h-full w-full"

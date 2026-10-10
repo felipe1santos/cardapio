@@ -145,6 +145,8 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null)
   const [dados, setDados] = useState<DadosDashboard>({ pedidos: [], grupoPorItem: {} })
   const [lojaLocal, setLojaLocal] = useState('')
+  // Onde a loja fica (Ajustes): o mapa abre nela. Sem coordenadas, não geocodifica (docs/REGRAS-DE-CUSTO.md).
+  const [lojaCoord, setLojaCoord] = useState<{ lat: number; lng: number } | null>(null)
   const [lojaSlug, setLojaSlug] = useState('')
   const [restauranteId, setRestauranteId] = useState<string | null>(null)
   // undefined = carregando; null = rastreio ainda não instalado no banco.
@@ -170,7 +172,10 @@ export default function DashboardPage() {
         setDados(dash)
         setRestauranteId(id)
         carregarTemposEntrega(supabase, id).then((t) => active && setTemposEntrega(t))
-        if (loja) { setLojaLocal([loja.cep, loja.endereco].map((s) => s.trim()).filter(Boolean).join(', ')); setLojaSlug(loja.slug) }
+        if (loja) {
+          setLojaLocal([loja.cep, loja.endereco].map((s) => s.trim()).filter(Boolean).join(', ')); setLojaSlug(loja.slug)
+          setLojaCoord(loja.latitude != null && loja.longitude != null ? { lat: Number(loja.latitude), lng: Number(loja.longitude) } : null)
+        }
       } catch {
         setError('Não foi possível carregar o dashboard.')
       } finally {
@@ -292,19 +297,22 @@ export default function DashboardPage() {
       .slice(0, 6)
 
     // Mapa de calor
-    const porEndereco: Record<string, { weight: number; rua: string; bairro: string }> = {}
+    const porEndereco: Record<string, { weight: number; rua: string; bairro: string; pedidoId: string }> = {}
     for (const p of pedidos) {
       const partes = [p.enderecoRua.trim(), p.enderecoNumero.trim(), p.enderecoBairro.trim()].filter(Boolean)
       if (!partes.length) continue
       const chave = partes.join(', ')
       porEndereco[chave] = {
         weight: (porEndereco[chave]?.weight ?? 0) + 1,
+        // Um pedido do endereço: as coordenadas dele (gravadas no pedido, pelo servidor) servem ao endereço.
+        pedidoId: porEndereco[chave]?.pedidoId ?? p.id,
         rua: p.enderecoRua.trim(),
         bairro: p.enderecoBairro.trim(),
       }
     }
     const heatPoints = Object.entries(porEndereco).map(([address, v]) => ({
       address,
+      pedidoId: v.pedidoId,
       weight: v.weight,
       rua: v.rua,
       bairro: v.bairro,
@@ -568,6 +576,7 @@ export default function DashboardPage() {
           filtro={filtroPeriodo}
           mapsKey={MAPS_KEY}
           centro={lojaLocal}
+          lojaCoord={lojaCoord}
         />
       </div>
     </>

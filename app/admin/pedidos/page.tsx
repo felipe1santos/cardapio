@@ -246,6 +246,8 @@ export default function PedidosPage() {
   const avancarRef = useRef<(p: Pedido) => void>(() => {})
   const [focusMode, setFocusMode] = useState(false)
   const [rotaOpen, setRotaOpen] = useState(false)
+  // Estável: o relógio de 1 s re-renderiza esta página; o RotaPanel (memo) e os mapas não podem ir junto.
+  const fecharRota = useCallback(() => setRotaOpen(false), [])
   const mapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
   const [lojaStatus, setLojaStatus] = useState<{ statusLoja: StatusLoja; horarioFuncionamento: HorarioFuncionamento | null } | null>(null)
   // Loja sem entregador fecha a entrega aqui mesmo (Ajustes › Entrega). Começa
@@ -1235,7 +1237,7 @@ export default function PedidosPage() {
 
       {/* Painel de despacho de rotas */}
       {rotaOpen && restauranteId && usaDespachoDeRotas(fluxo) && (
-        <RotaPanel supabase={supabase} restauranteId={restauranteId} apiKey={mapsKey} onClose={() => setRotaOpen(false)} />
+        <RotaPanel supabase={supabase} restauranteId={restauranteId} apiKey={mapsKey} onClose={fecharRota} />
       )}
 
       {cancelando && (

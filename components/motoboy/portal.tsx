@@ -14,6 +14,7 @@ import { linksGoogleMaps, linkWaze, ordenarParadas, type Coord } from '@/lib/mot
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { LeitorQr } from '@/components/motoboy/leitor-qr'
 import { LoginMotoboy } from '@/components/motoboy/login-motoboy'
+import { useCoordenadasPedidos } from '@/lib/mapa/cliente'
 
 /**
  * App do motoboy (0136) — o MESMO para o link/QR antigo (`apiBase=/api/entregador/<token>`) e para o
@@ -164,7 +165,15 @@ export function PortalMotoboy({ apiBase, swUrl, swScope }: { apiBase: string; sw
   const disponiveis = data?.disponiveis ?? []
   const despachoAberto = data?.despachoAberto ?? false
   const fin = data?.financeiro
-  const routeStops = useMemo(() => pedidos.map((p, i) => ({ id: p.id, numero: i + 1, address: enderecoCompleto(p) })), [pedidos])
+  // Mapa: coordenadas gravadas no pedido; as que faltam vêm do servidor (/api/mapa/coordenadas), uma vez.
+  // O navegador nunca geocodifica nem traça rota no Google (docs/REGRAS-DE-CUSTO.md).
+  const tokenMapa = apiBase.startsWith('/api/entregador/') ? decodeURIComponent(apiBase.slice('/api/entregador/'.length).split('/')[0] || '') || null : null
+  const semCoord = useMemo(() => pedidos.filter((p) => !p.coordenadas).map((p) => p.id), [pedidos])
+  const coordsExtra = useCoordenadasPedidos(semCoord, tokenMapa)
+  const routeStops = useMemo(() => pedidos.map((p, i) => {
+    const c = p.coordenadas ?? coordsExtra.get(p.id) ?? null
+    return { id: p.id, numero: i + 1, address: enderecoCompleto(p), lat: c?.lat ?? null, lng: c?.lng ?? null }
+  }), [pedidos, coordsExtra])
   // Item 61: com a localização do celular o Maps sai de onde o motoboy está; sem ela, da loja.
   const origemRota = geo ? null : lojaCoord
   const linksRota = useMemo(() => linksGoogleMaps(origemRota, pedidos.map((p) => ({ id: p.id, endereco: enderecoCompleto(p), coordenadas: p.coordenadas ?? null }))),
@@ -519,7 +528,7 @@ export function PortalMotoboy({ apiBase, swUrl, swScope }: { apiBase: string; sw
         {routeStops.length > 0 && (
           <div className="mb-4 overflow-hidden rounded-menuzia border border-border bg-white">
             <div className="border-b border-border px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Sua rota — paradas na ordem da lista abaixo</div>
-            <RouteMap apiKey={MAPS_KEY} origin={geo} stops={routeStops} loja={data.loja} className="h-[220px] w-full" />
+            <RouteMap apiKey={MAPS_KEY} origin={geo} stops={routeStops} loja={data.loja} token={tokenMapa} className="h-[220px] w-full" />
             {!geo && (
               <button onClick={atualizarLocalizacao} className="flex w-full items-center justify-center gap-1.5 border-t border-border bg-white py-2 text-xs font-semibold text-primary hover:bg-page">
                 Ativar localização para ver a rota a partir de você

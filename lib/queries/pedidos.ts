@@ -16,6 +16,7 @@ import type { RegraPrecoPizza } from '@/lib/pizza-preco'
 import { tamanhoOcultoNaPizza } from '@/lib/pizza-tamanhos'
 import { lerTodas } from './ler-todas'
 import { ehPedidoDeTeste } from '@/lib/dashboard-limpeza'
+import { gravarCoordenadasDoPedido } from '@/lib/mapa/coordenadas-pedidos'
 
 const centavos = (v: number) => Math.round(v * 100) / 100
 
@@ -1479,7 +1480,7 @@ export async function criarPedido(
   // área (bairro fora da lista fechada ou fora do raio) rejeita o pedido.
   let taxaEntrega = 0
   if (input.tipo === 'entrega') {
-    const frete = await resolverFrete(admin, restauranteId, input.endereco, process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY)
+    const frete = await resolverFrete(admin, restauranteId, input.endereco)
     if (!frete.entregavel) throw new Error(frete.motivo || 'A loja não entrega nesse endereço. Entre em contato com a loja.')
     taxaEntrega = frete.taxa
   }
@@ -1825,6 +1826,10 @@ export async function criarPedido(
     })
     if (usoError) console.error(`[criarPedido] falha ao registrar uso do cupom ${cupomAplicado.codigo} no pedido ${pedido.id}:`, usoError)
   }
+
+  // Entrega: geocodifica UMA vez no servidor e grava no pedido (mapa, rota e QR nunca geocodificam de novo — 10/10).
+  // Sem esperar: o checkout não fica mais lento; falha/limite só deixa o pedido sem pino.
+  if (input.tipo === 'entrega') void gravarCoordenadasDoPedido(admin, restauranteId, pedido.id)
 
   return { id: pedido.id, numero: pedido.numero }
 }

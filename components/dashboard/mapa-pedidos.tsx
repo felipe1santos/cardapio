@@ -1,7 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { loadGoogleMaps } from '@/lib/maps/loader'
+import { LIMITE_TOTAL, useCoordenadasPedidos } from '@/lib/mapa/cliente'
 import { CORES_GRAFICO } from '@/components/graficos/grafico'
 import { agruparProximos, areaDoBairro, nucleoDoBairro, pertoDaLoja, type PontoLatLng } from '@/lib/mapa-bairros'
 
@@ -16,9 +17,11 @@ import { agruparProximos, areaDoBairro, nucleoDoBairro, pertoDaLoja, type PontoL
  *   desenhada em volta dos pedidos do bairro (envoltória com folga). Linha fina; preenchimento bem transparente,
  *   mais forte quanto mais o bairro vende.
  * - Mapa em cinzas claros; abre já enquadrando a loja e os pedidos (nunca o Brasil inteiro).
- * - Mesma geocodificação de sempre (Geocoder do Maps JS, com cache por sessão): nenhuma API nova.
+ * - Sem geocodificação no navegador (incidente de custo 09/10, docs/REGRAS-DE-CUSTO.md): os pinos usam as
+ *   coordenadas gravadas nos pedidos (/api/mapa/coordenadas, o servidor geocodifica UMA vez por endereço e grava);
+ *   no máximo os LIMITE_TOTAL endereços que mais pediram. A loja vem das coordenadas de Ajustes.
  */
-export interface PontoMapa { address: string; weight: number; rua?: string; bairro?: string }
+export interface PontoMapa { address: string; weight: number; rua?: string; bairro?: string; /** Um pedido do endereço (coordenadas dele). */ pedidoId?: string }
 export interface BairroMapa { bairro: string; pedidos: number; receita: number }
 
 const ESTILO_CINZA: google.maps.MapTypeStyle[] = [
@@ -93,12 +96,11 @@ function classePinos() {
   return PinosCtor
 }
 
-export function MapaPedidos({ apiKey, centro, pontos, bairros, className = '' }: { apiKey?: string; centro?: string; pontos: PontoMapa[]; bairros: BairroMapa[]; className?: string }) {
+export function MapaPedidos({ apiKey, centro, lojaCoord = null, pontos, bairros, className = '' }: { apiKey?: string; centro?: string; lojaCoord?: { lat: number; lng: number } | null; pontos: PontoMapa[]; bairros: BairroMapa[]; className?: string }) {
   const caixa = useRef<HTMLDivElement>(null)
   const area = useRef<HTMLDivElement>(null)
   const mapa = useRef<google.maps.Map | null>(null)
   const camadas = useRef<{ pinos: google.maps.OverlayView | null; formas: (google.maps.Polygon | google.maps.Marker)[] }>({ pinos: null, formas: [] })
-  const cache = useRef(new Map<string, google.maps.LatLng>())
   const lojaPos = useRef<google.maps.LatLng | null>(null)
   const [pronto, setPronto] = useState(false)
   const [enquadrado, setEnquadrado] = useState(false)
@@ -127,21 +129,23 @@ export function MapaPedidos({ apiKey, centro, pontos, bairros, className = '' }:
     return () => { vivo = false }
   }, [apiKey])
 
-  // 2) centra na loja
+  // 2) centra na loja (coordenadas de Ajustes; sem elas, fica onde está — nunca geocodifica)
+  const lojaLat = lojaCoord?.lat ?? null
+  const lojaLng = lojaCoord?.lng ?? null
   useEffect(() => {
     const m = mapa.current
     if (!pronto || !m) return
-    if (!centro?.trim()) { setCentroOk(true); return }
-    let vivo = true
-    new google.maps.Geocoder().geocode({ address: centro, region: 'BR' }, (res, st) => {
-      if (!vivo) return
-      if (st === google.maps.GeocoderStatus.OK && res?.[0]) { lojaPos.current = res[0].geometry.location; m.setCenter(lojaPos.current); m.setZoom(14) }
-      setCentroOk(true)
-    })
-    return () => { vivo = false }
-  }, [pronto, centro])
+    if (lojaLat !== null && lojaLng !== null) { lojaPos.current = new google.maps.LatLng(lojaLat, lojaLng); m.setCenter(lojaPos.current); m.setZoom(14) }
+    setCentroOk(true)
+  }, [pronto, lojaLat, lojaLng])
 
-  // 3) geocodifica os endereços e desenha pinos + áreas dos bairros
+  // Os endereços que mais pediram (teto LIMITE_TOTAL) e as coordenadas dos pedidos deles, pelo servidor.
+  const principais = useMemo(() => [...pontos].filter((p) => p.pedidoId).sort((a, b) => b.weight - a.weight).slice(0, LIMITE_TOTAL), [pontos])
+  const idsPontos = useMemo(() => principais.map((p) => p.pedidoId!), [principais])
+  const coords = useCoordenadasPedidos(idsPontos)
+  const faltando = idsPontos.some((id) => !coords.has(id))
+
+  // 3) desenha pinos + áreas dos bairros com as coordenadas que já chegaram
   useEffect(() => {
     const m = mapa.current
     if (!pronto || !centroOk || !m) return
@@ -150,11 +154,7 @@ export function MapaPedidos({ apiKey, centro, pontos, bairros, className = '' }:
     for (const f of camadas.current.formas) f.setMap(null)
     camadas.current.formas = []
     setDica(null)
-    const bias = lojaPos.current ? new google.maps.LatLngBounds(
-      { lat: lojaPos.current.lat() - 0.12, lng: lojaPos.current.lng() - 0.12 }, { lat: lojaPos.current.lat() + 0.12, lng: lojaPos.current.lng() + 0.12 }) : null
-    const geocoder = new google.maps.Geocoder()
     const achados: { pos: google.maps.LatLng; p: PontoMapa }[] = []
-    let pendentes = 0
     const terminar = () => {
       if (!vivo) return
       setLocalizando(false)
@@ -213,21 +213,16 @@ export function MapaPedidos({ apiKey, centro, pontos, bairros, className = '' }:
       setDesenho({ pinos: achados.length, areas, fora })
       setEnquadrado(true)
     }
-    if (!pontos.length) { terminar(); return () => { vivo = false } }
-    setLocalizando(true)
-    for (const pt of pontos) {
-      const chave = pt.address.toLowerCase()
-      const c = cache.current.get(chave)
-      if (c) { achados.push({ pos: c, p: pt }); continue }
-      pendentes++
-      geocoder.geocode({ address: pt.address, region: 'BR', ...(bias ? { bounds: bias } : {}) }, (res, st) => {
-        if (st === google.maps.GeocoderStatus.OK && res?.[0]) { cache.current.set(chave, res[0].geometry.location); achados.push({ pos: res[0].geometry.location, p: pt }) }
-        if (--pendentes === 0) terminar()
-      })
+    if (!principais.length) { terminar(); return () => { vivo = false } }
+    setLocalizando(faltando)
+    for (const pt of principais) {
+      const c = coords.get(pt.pedidoId!)
+      if (c) achados.push({ pos: new google.maps.LatLng(c.lat, c.lng), p: pt })
     }
-    if (pendentes === 0) terminar()
+    terminar()
+    if (faltando) setLocalizando(true)
     return () => { vivo = false }
-  }, [pronto, centroOk, pontos, bairros, posicaoNaArea])
+  }, [pronto, centroOk, principais, coords, faltando, bairros, posicaoNaArea])
 
   // Toque fora do mapa fecha a dica.
   useEffect(() => {

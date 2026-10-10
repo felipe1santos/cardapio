@@ -11,7 +11,6 @@ import { NextaError, type NextaConfig, type NextaEntrega, type NextaPedido } fro
 import { buscarNextaConfig, salvarCoordenadasPedido } from '@/lib/queries/nexta'
 import { PEDIDO_SELECT, mapPedido, type Pedido } from '@/lib/queries/pedidos'
 
-const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 
 /**
  * Config da loja pronta para uso, ou erro legível. `exigirAtivo: false` serve ao botão
@@ -84,7 +83,7 @@ export async function montarEntregaDoPedido(admin: SupabaseClient, cfg: NextaCon
       .map((s) => (s ?? '').trim())
       .filter(Boolean)
       .join(', ')
-    const coord = await geocodeEndereco({ cep: pedido.enderecoCep || undefined, endereco: texto || undefined }, MAPS_KEY)
+    const { coord } = await geocodeEndereco(admin, { cep: pedido.enderecoCep || undefined, endereco: texto || undefined }, cfg.restauranteId)
     if (coord) {
       lat = coord.lat
       lng = coord.lng
@@ -125,7 +124,7 @@ export async function resolverCoordenadasColeta(admin: SupabaseClient, cfg: Next
     .map((s) => (s ?? '').trim())
     .filter(Boolean)
     .join(', ')
-  const coord = await geocodeEndereco({ cep: cfg.pickup.cep || undefined, endereco: texto || undefined }, MAPS_KEY)
+  const { coord } = await geocodeEndereco(admin, { cep: cfg.pickup.cep || undefined, endereco: texto || undefined }, cfg.restauranteId)
   if (!coord) {
     console.warn(`[nexta] sem coordenadas para o endereço de coleta da loja ${cfg.restauranteId}.`)
     return cfg

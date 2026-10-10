@@ -62,11 +62,12 @@ function Barra({ rotulo, valor, pct, extra, testid }: { rotulo: ReactNode; valor
   )
 }
 
-export function AnalisesAbas({ dados, filtro, mapsKey, centro }: {
+export function AnalisesAbas({ dados, filtro, mapsKey, centro, lojaCoord }: {
   dados: DadosAnalises
   filtro: ReactNode
   mapsKey?: string
   centro: string
+  lojaCoord?: { lat: number; lng: number } | null
 }) {
   const validas = useMemo(() => ABAS.map(([id]) => id), [])
   const [aba, setAba] = useState<AbaAnalise>('pedidos')
@@ -99,7 +100,7 @@ export function AnalisesAbas({ dados, filtro, mapsKey, centro }: {
       <div className="p-4 sm:p-5" data-testid="dash-analises-painel" data-aba={aba}>
         {aba === 'pedidos' && <AbaPedidos d={dados} />}
         {aba === 'entrega' && <AbaEntrega d={dados} />}
-        {aba === 'bairros' && <AbaBairros d={dados} mapsKey={mapsKey} centro={centro} />}
+        {aba === 'bairros' && <AbaBairros d={dados} mapsKey={mapsKey} centro={centro} lojaCoord={lojaCoord ?? null} />}
         {aba === 'produtos' && <AbaProdutos d={dados} />}
       </div>
     </section>
@@ -162,14 +163,14 @@ const colunasBairro: ColunaTabela<LinhaBairro>[] = [
   { id: 'participacao', titulo: 'Participação', valor: (l) => l.participacao, render: (l) => `${l.participacao.toFixed(1).replace('.', ',')}%`, alinhar: 'direita' },
 ]
 
-function AbaBairros({ d, mapsKey, centro }: { d: DadosAnalises; mapsKey?: string; centro: string }) {
+function AbaBairros({ d, mapsKey, centro, lojaCoord }: { d: DadosAnalises; mapsKey?: string; centro: string; lojaCoord: { lat: number; lng: number } | null }) {
   const maior = Math.max(1, ...d.rankingBairros.map((b) => b.pedidos))
   return (
     <div className="flex flex-col gap-4">
       <Card titulo="Onde estão seus pedidos" subtitulo="Cada pino é um endereço que pediu; a área azul-clara marca os bairros que mais vendem (mais forte = mais vendas).">
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_260px]">
           {/* No celular o mapa encosta nas bordas do card (mais área útil para o dedo). */}
-          <div className="-mx-5 sm:mx-0"><MapaPedidos apiKey={mapsKey} centro={centro} pontos={d.pontos} bairros={d.bairros} className="h-[360px] w-full sm:h-[380px]" /></div>
+          <div className="-mx-5 sm:mx-0"><MapaPedidos apiKey={mapsKey} centro={centro} lojaCoord={lojaCoord} pontos={d.pontos} bairros={d.bairros} className="h-[360px] w-full sm:h-[380px]" /></div>
           <div data-testid="dash54-ranking-bairros">
             <p className="mb-3 text-[13px] font-semibold" style={{ color: FIN_COR.texto2 }}>Bairros que mais pedem</p>
             {d.rankingBairros.length === 0 ? <p className="py-4 text-center text-[13px]" style={{ color: FIN_COR.texto2 }}>Sem pedidos com bairro.</p>

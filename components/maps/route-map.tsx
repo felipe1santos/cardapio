@@ -2,13 +2,17 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { loadGoogleMaps } from '@/lib/maps/loader'
-import { CENTRO_BRASIL, RAIO_VIES, ZOOM_BRASIL, ZOOM_LOJA, type LojaDoMapa } from '@/lib/maps/loja-mapa'
+import { CENTRO_BRASIL, ZOOM_BRASIL, ZOOM_LOJA, type LojaDoMapa } from '@/lib/maps/loja-mapa'
 import { LIGHT_MAP_STYLE } from '@/lib/maps/style'
+import { buscarRota, chaveRotaPedido, podePedirRota, type Coord } from '@/lib/mapa/cliente'
 
 export interface RouteStop {
   id: string
   numero: number
   address: string
+  /** Coordenadas gravadas no pedido (servidor). Sem elas, a parada não aparece no mapa. */
+  lat: number | null
+  lng: number | null
 }
 
 interface RouteMapProps {
@@ -19,6 +23,8 @@ interface RouteMapProps {
   className?: string
   /** Onde a loja fica: o mapa abre nela e volta para ela se a rota não sair (antes: Fortaleza fixo). */
   loja?: LojaDoMapa
+  /** Token da cozinha/motoboy para /api/mapa/rota (sem sessão do painel). */
+  token?: string | null
 }
 
 function motoboyIcon(): google.maps.Icon {
@@ -48,25 +54,28 @@ function stopPinIcon(numero: number): google.maps.Icon {
   }
 }
 
-/** Mapa estilizado Menuzia mostrando a posição do entregador e as próximas paradas, na ordem da rota. */
-export function RouteMap({ apiKey, origin, stops, emptyMessage, className, loja }: RouteMapProps) {
+/** Rotas já pedidas nesta aba (chave → polyline | null): a mesma rota nunca é pedida duas vezes. */
+const rotasPedidas = new Map<string, string | null>()
+
+/**
+ * Mapa estilizado Menuzia: posição do entregador e próximas paradas, na ordem da rota.
+ * Sem chamada paga no navegador (docs/REGRAS-DE-CUSTO.md): paradas pelas coordenadas do servidor e a linha da
+ * rota pela polyline de /api/mapa/rota, pedida só quando as paradas mudam ou o entregador anda ~110 m, e no
+ * máximo 1 vez por minuto para o mesmo conjunto de paradas.
+ */
+export function RouteMap({ apiKey, origin, stops, emptyMessage, className, loja, token }: RouteMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
-  const directionsRendererRef = useRef<google.maps.DirectionsRenderer | null>(null)
+  const linhaRef = useRef<google.maps.Polyline | null>(null)
   const markersRef = useRef<google.maps.Marker[]>([])
   const lastKeyRef = useRef<string>('')
+  const ultimaRotaRef = useRef<{ paradas: string; em: number } | null>(null)
   const [ready, setReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  // Posição da loja: coordenadas de Ajustes ou, sem elas, a cidade geocodificada.
-  const [posLoja, setPosLoja] = useState<google.maps.LatLng | null>(null)
-  // A rota só é traçada depois de saber onde a loja fica (ou de saber que não dá para saber):
-  // senão o endereço era procurado sem o viés e o mapa pulava para a cidade errada.
-  const [lojaPronta, setLojaPronta] = useState(false)
   const carregandoLoja = loja === 'carregando'
   const dadosLoja = loja && loja !== 'carregando' ? loja : null
   const lojaLat = dadosLoja?.lat ?? null
   const lojaLng = dadosLoja?.lng ?? null
-  const lojaCidade = dadosLoja?.cidade ?? null
 
   useEffect(() => {
     if (!apiKey || !containerRef.current) return
@@ -89,125 +98,67 @@ export function RouteMap({ apiKey, origin, stops, emptyMessage, className, loja 
     }
   }, [apiKey])
 
-  useEffect(() => {
-    if (!ready || carregandoLoja) return
-    if (lojaLat !== null && lojaLng !== null) { setPosLoja(new google.maps.LatLng(lojaLat, lojaLng)); setLojaPronta(true); return }
-    if (!lojaCidade) { setLojaPronta(true); return }
-    let vivo = true
-    new google.maps.Geocoder().geocode({ address: `${lojaCidade}, Brasil`, region: 'BR' }, (r, st) => {
-      if (!vivo) return
-      if (st === google.maps.GeocoderStatus.OK && r?.[0]) setPosLoja(r[0].geometry.location)
-      setLojaPronta(true)
-    })
-    return () => { vivo = false }
-  }, [ready, carregandoLoja, lojaLat, lojaLng, lojaCidade])
+  const comCoord = stops.filter((s) => s.lat != null && s.lng != null)
+  const origemArred = origin ? `${origin.lat.toFixed(3)},${origin.lng.toFixed(3)}` : ''
+  const chaveParadas = comCoord.map((s) => `${s.id}:${s.lat!.toFixed(5)},${s.lng!.toFixed(5)}`).join('|')
 
   useEffect(() => {
     const map = mapRef.current
-    if (!ready || !map || !lojaPronta) return
+    if (!ready || !map || carregandoLoja) return
+    const posLoja = lojaLat !== null && lojaLng !== null ? { lat: lojaLat, lng: lojaLng } : null
+    const key = `${posLoja ? `${posLoja.lat},${posLoja.lng}` : ''}#${origemArred}#${chaveParadas}`
+    if (key === lastKeyRef.current) return
+    lastKeyRef.current = key
     // Até a rota chegar (ou se ela não sair), o mapa fica na loja — nunca no centro de reserva.
     const naLoja = () => { if (posLoja) { map.setCenter(posLoja); map.setZoom(ZOOM_LOJA) } }
 
-    const key = JSON.stringify({
-      loja: posLoja ? posLoja.toUrlValue() : null,
-      origin: origin ? [Math.round(origin.lat * 10000), Math.round(origin.lng * 10000)] : null,
-      stops: stops.map((s) => s.address),
-    })
-    if (key === lastKeyRef.current) return
-    lastKeyRef.current = key
-
     markersRef.current.forEach((m) => m.setMap(null))
     markersRef.current = []
-    directionsRendererRef.current?.setMap(null)
-    directionsRendererRef.current = new google.maps.DirectionsRenderer({
-      map,
-      suppressMarkers: true,
-      preserveViewport: true,
-      polylineOptions: {
-        strokeOpacity: 0,
-        icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, scale: 3, strokeColor: '#0688D4' }, offset: '0', repeat: '12px' }],
-      },
-    })
-    const renderer = directionsRendererRef.current
-
-    if (stops.length === 0) {
-      if (origin) {
-        markersRef.current.push(new google.maps.Marker({ map, position: origin, icon: motoboyIcon(), zIndex: 50 }))
-        map.setCenter(origin)
-        map.setZoom(15)
-      } else naLoja()
-      return
-    }
-    if (!origin) naLoja()
-
+    const paradas = stops.filter((s) => s.lat != null && s.lng != null)
     const bounds = new google.maps.LatLngBounds()
-
     if (origin) {
       markersRef.current.push(new google.maps.Marker({ map, position: origin, icon: motoboyIcon(), zIndex: 50 }))
       bounds.extend(origin)
     }
-
-    if (origin || stops.length >= 2) {
-      const directionsService = new google.maps.DirectionsService()
-      const originPoint = origin ?? stops[0].address
-      const destination = stops[stops.length - 1].address
-      const middleStops = origin ? stops.slice(0, -1) : stops.slice(1, -1)
-      const waypoints = middleStops.map((s) => ({ location: s.address, stopover: true }))
-
-      directionsService.route(
-        {
-          origin: originPoint,
-          destination,
-          waypoints,
-          optimizeWaypoints: false,
-          travelMode: google.maps.TravelMode.DRIVING,
-          region: 'BR',
-        },
-        (result, status) => {
-          if (status !== google.maps.DirectionsStatus.OK || !result) {
-            setError('Não foi possível calcular a rota — verifique os endereços.')
-            if (!origin) naLoja()
-            return
-          }
-          setError(null)
-          renderer.setDirections(result)
-          const legs = result.routes[0].legs
-          const stopPositions = origin
-            ? legs.map((leg) => leg.end_location)
-            : [legs[0].start_location, ...legs.map((leg) => leg.end_location)]
-
-          stops.forEach((stop, i) => {
-            const pos = stopPositions[i]
-            if (!pos) return
-            markersRef.current.push(new google.maps.Marker({ map, position: pos, icon: stopPinIcon(stop.numero), zIndex: 40 - i }))
-            bounds.extend(pos)
-          })
-          map.fitBounds(bounds, 48)
-        }
-      )
-    } else {
-      const geocoder = new google.maps.Geocoder()
-      // Endereço puxado para perto da loja (rua homônima em outro estado não ganha).
-      const vies = posLoja
-        ? new google.maps.LatLngBounds(
-            { lat: posLoja.lat() - RAIO_VIES, lng: posLoja.lng() - RAIO_VIES },
-            { lat: posLoja.lat() + RAIO_VIES, lng: posLoja.lng() + RAIO_VIES },
-          )
-        : undefined
-      geocoder.geocode({ address: stops[0].address, region: 'BR', bounds: vies }, (results, status) => {
-        if (status !== google.maps.GeocoderStatus.OK || !results?.[0]) {
-          setError('Não foi possível localizar o endereço da entrega.')
-          naLoja()
-          return
-        }
-        setError(null)
-        const pos = results[0].geometry.location
-        markersRef.current.push(new google.maps.Marker({ map, position: pos, icon: stopPinIcon(stops[0].numero), zIndex: 40 }))
-        map.setCenter(pos)
-        map.setZoom(15)
-      })
+    paradas.forEach((s, i) => {
+      const pos = { lat: s.lat!, lng: s.lng! }
+      markersRef.current.push(new google.maps.Marker({ map, position: pos, icon: stopPinIcon(s.numero), zIndex: 40 - i }))
+      bounds.extend(pos)
+    })
+    if (paradas.length === 0) {
+      linhaRef.current?.setMap(null)
+      if (origin) { map.setCenter(origin); map.setZoom(15) } else naLoja()
+      if (stops.length > 0) setError('Endereço da entrega sem localização no mapa.')
+      return
     }
-  }, [ready, origin, stops, posLoja, lojaPronta])
+    setError(null)
+    if (bounds.getNorthEast().equals(bounds.getSouthWest())) { map.setCenter(bounds.getCenter()); map.setZoom(15) } else map.fitBounds(bounds, 48)
+
+    // Linha da rota: só com origem (ou 2+ paradas), pelo servidor, com cache e limite de frequência.
+    const origemRota: Coord | null = origin ?? (paradas.length >= 2 ? { lat: paradas[0].lat!, lng: paradas[0].lng! } : null)
+    const destinoParadas = (origin ? paradas : paradas.slice(1)).map((s) => ({ lat: s.lat!, lng: s.lng! }))
+    if (!origemRota || destinoParadas.length === 0) { linhaRef.current?.setMap(null); return }
+    const chave = chaveRotaPedido(origemRota, destinoParadas)
+    const desenhar = (poly: string | null) => {
+      linhaRef.current?.setMap(null)
+      if (!poly) { setError('Rota indisponível no momento.'); return }
+      try {
+        const path = google.maps.geometry.encoding.decodePath(poly)
+        linhaRef.current = new google.maps.Polyline({
+          map, path, strokeOpacity: 0,
+          icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, scale: 3, strokeColor: '#0688D4' }, offset: '0', repeat: '12px' }],
+        })
+      } catch { setError('Rota indisponível no momento.') }
+    }
+    if (rotasPedidas.has(chave)) { desenhar(rotasPedidas.get(chave) ?? null); return }
+    if (!podePedirRota(ultimaRotaRef.current, chaveParadas, Date.now())) return
+    ultimaRotaRef.current = { paradas: chaveParadas, em: Date.now() }
+    void buscarRota(origemRota, destinoParadas, token).then((r) => {
+      rotasPedidas.set(chave, r.polyline) // guarda antes de tudo (falha também: não pede de novo nesta aba)
+      if (mapRef.current === map) desenhar(r.polyline)
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, carregandoLoja, lojaLat, lojaLng, origemArred, chaveParadas, token])
 
   if (!apiKey) {
     return (

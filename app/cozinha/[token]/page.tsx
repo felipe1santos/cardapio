@@ -7,7 +7,7 @@ import { LABEL_MODO, type ModoEstacao } from '@/lib/cozinha/modo'
 import type { Pedido, PedidoItem } from '@/lib/queries/pedidos'
 import { InfoPagamento } from '@/components/pedidos/info-pagamento'
 import { rotuloOrigemPedido } from '@/lib/pedido-origem'
-import { RotaPanel } from '@/components/pedidos/rota-panel'
+import { RotaPanel, type RotaDataSource } from '@/components/pedidos/rota-panel'
 import { ComoFazerModal, Desfazer, ItemKds, corDoTempo, filtrar, usePrefsKds, useItensFeitos, useTelaCheiaEAcesa, type FiltroKds } from '@/components/cozinha/kds'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -899,6 +899,26 @@ export default function CozinhaPortalPage() {
   const [confirmarPedido, setConfirmarPedido] = useState<Pedido | null>(null)
   // Mapa de despacho (modo completa)
   const [mapaAberto, setMapaAberto] = useState(false)
+  // Estáveis: o relógio de 1 s re-renderiza esta página; o RotaPanel (memo) e os mapas não podem ir junto
+  // (docs/REGRAS-DE-CUSTO.md). O token vai junto para /api/mapa/* (sem sessão do painel).
+  const fecharMapa = useCallback(() => setMapaAberto(false), [])
+  const dadosRota = useMemo<RotaDataSource>(() => ({
+    token,
+    fetch: async () => {
+      const res = await fetch(`/api/cozinha/${token}/rotas`)
+      if (!res.ok) throw new Error('Falha ao carregar o despacho')
+      return res.json()
+    },
+    despachar: async (ids, entregadorId) => {
+      const res = await fetch(`/api/cozinha/${token}/rotas/despachar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, entregadorId }),
+      })
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? 'Falha ao despachar')
+      return ((await res.json().catch(() => ({}))).feitos ?? ids) as string[]
+    },
+  }), [token])
   const mapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 
   // Single shared clock state — drives all ElapsedTimer instances at 1 Hz
@@ -1205,23 +1225,8 @@ export default function CozinhaPortalPage() {
       {mapaAberto && data.despachoRotas !== false && (
         <RotaPanel
           apiKey={mapsKey}
-          onClose={() => setMapaAberto(false)}
-          dataSource={{
-            fetch: async () => {
-              const res = await fetch(`/api/cozinha/${token}/rotas`)
-              if (!res.ok) throw new Error('Falha ao carregar o despacho')
-              return res.json()
-            },
-            despachar: async (ids, entregadorId) => {
-              const res = await fetch(`/api/cozinha/${token}/rotas/despachar`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ids, entregadorId }),
-              })
-              if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? 'Falha ao despachar')
-              return ((await res.json().catch(() => ({}))).feitos ?? ids) as string[]
-            },
-          }}
+          onClose={fecharMapa}
+          dataSource={dadosRota}
         />
       )}
 
