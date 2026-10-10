@@ -14,15 +14,23 @@ const NOTICE_MESSAGES: Record<string, string> = {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; notice?: string }>
+  searchParams: Promise<{ error?: string; notice?: string; next?: string }>
 }) {
-  const { error, notice } = await searchParams
+  const { error, notice, next } = await searchParams
+  // Vindo do app do motoboy (10/10): depois de entrar, volta para lá (no pedido do QR). O servidor valida o destino.
+  const voltar = typeof next === 'string' && next.startsWith('/motoboy') ? next : null
   const errorMessage = error ? ERROR_MESSAGES[error] ?? error : null
   const noticeMessage = notice ? NOTICE_MESSAGES[notice] ?? null : null
 
   return (
     <AuthShell heading="Login" backgroundImage="/login-bg.webp">
       <form action={signIn}>
+        {voltar && <input type="hidden" name="next" value={voltar} />}
+        {voltar && (
+          <p className="mb-4 rounded-menuzia bg-alert-bg px-3 py-2 text-xs text-alert-text" data-testid="login-motoboy-aviso">
+            Entregador: entre com o login e a senha que a loja te passou.
+          </p>
+        )}
         {noticeMessage && (
           <p className="mb-4 rounded-menuzia bg-price-bg px-3 py-2 text-xs text-price-text">
             {noticeMessage}

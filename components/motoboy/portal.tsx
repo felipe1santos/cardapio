@@ -13,7 +13,6 @@ import { rotuloForma, trocoLevar } from '@/lib/pdv-pagamento'
 import { linksGoogleMaps, linkWaze, ordenarParadas, type Coord } from '@/lib/motoboy/rota-paradas'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { LeitorQr } from '@/components/motoboy/leitor-qr'
-import { LoginMotoboy } from '@/components/motoboy/login-motoboy'
 import { InstalarApp } from '@/components/motoboy/instalar-app'
 import { useCoordenadasPedidos } from '@/lib/mapa/cliente'
 
@@ -265,7 +264,11 @@ export function PortalMotoboy({ apiBase, swUrl, swScope }: { apiBase: string; sw
   function ir(t: Tela) { setTela(t); setMenu(false); setActionError(null); if (t !== 'qr') setLeitura(null); window.scrollTo(0, 0) }
 
   if (loading) return <div className="flex min-h-dvh items-center justify-center bg-page text-sm text-text-subtle">Carregando sua rota…</div>
-  if (error?.login && comLogin) return <LoginMotoboy onEntrou={() => { setLoading(true); void refetch() }} />
+  // Um login só (10/10): sem sessão, o app manda para /login e volta para cá (no pedido do QR) depois de entrar.
+  if (error?.login && comLogin) {
+    if (typeof window !== 'undefined') window.location.replace(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`)
+    return null
+  }
   if (error || !data) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-page p-6">

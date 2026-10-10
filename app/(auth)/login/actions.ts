@@ -24,10 +24,13 @@ const MSG_MUITAS = 'Muitas tentativas. Aguarde alguns minutos e tente de novo.'
 export async function signIn(formData: FormData) {
   const login = String(formData.get('email') ?? '').trim()
   const password = String(formData.get('password') ?? '')
+  // Volta do app do motoboy (10/10): /motoboy sem sessão manda para cá com o pedido do QR; erro mantém o destino.
+  const proximo = destinoDoMotoboy(formData.get('next'))
+  const nx = proximo ? `next=${encodeURIComponent(proximo)}&` : ''
   const chaveIp = `ip:${ipDaRequisicao(await headers())}`
   const chaveLogin = `login:${login.toLowerCase()}`
   if (falhasPorIp.excedeu(chaveIp) || falhasPorLogin.excedeu(chaveLogin)) {
-    redirect(`/login?error=${encodeURIComponent(MSG_MUITAS)}`)
+    redirect(`/login?${nx}error=${encodeURIComponent(MSG_MUITAS)}`)
   }
   const falhou = () => { falhasPorIp.registrar(chaveIp); falhasPorLogin.registrar(chaveLogin) }
 
@@ -38,7 +41,7 @@ export async function signIn(formData: FormData) {
     const resolvido = await buscarEmailPorUsuario(getAdminSupabase(), login)
     if (!resolvido) {
       falhou()
-      redirect(`/login?error=${encodeURIComponent('Usuário ou senha inválidos.')}`)
+      redirect(`/login?${nx}error=${encodeURIComponent('Usuário ou senha inválidos.')}`)
     }
     email = resolvido
   }
@@ -50,7 +53,7 @@ export async function signIn(formData: FormData) {
     falhou()
     // Falha de login vai para a auditoria da loja do usuário (quando o login existe).
     await auditarFalhaDeLogin(email).catch(() => {})
-    redirect(`/login?error=${encodeURIComponent('Usuário ou senha inválidos.')}`)
+    redirect(`/login?${nx}error=${encodeURIComponent('Usuário ou senha inválidos.')}`)
   }
 
   falhasPorLogin.limpar(chaveLogin)
@@ -64,11 +67,11 @@ export async function signIn(formData: FormData) {
   const status = await buscarStatusAcesso(admin, data.user.id)
   if (!status?.restauranteId || !status.autorizado) {
     await supabase.auth.signOut()
-    redirect('/login?error=pendente')
+    redirect(`/login?${nx}error=pendente`)
   }
   if (!acessoValido(status)) {
     await supabase.auth.signOut()
-    redirect(`/login?error=${encodeURIComponent('Seu acesso expirou. Fale com a Menuzia para renovar.')}`)
+    redirect(`/login?${nx}error=${encodeURIComponent('Seu acesso expirou. Fale com a Menuzia para renovar.')}`)
   }
 
   // Funcionário desativado pelo estabelecimento não entra. A RLS e o middleware já o
@@ -80,7 +83,7 @@ export async function signIn(formData: FormData) {
     .maybeSingle()
   if (perfil?.desativado_em) {
     await supabase.auth.signOut()
-    redirect(`/login?error=${encodeURIComponent('Seu acesso foi desativado. Fale com o responsável pela loja.')}`)
+    redirect(`/login?${nx}error=${encodeURIComponent('Seu acesso foi desativado. Fale com o responsável pela loja.')}`)
   }
 
   // Funcionário depende da loja estar válida — e a validade é do DONO. Existência de pelo
@@ -99,13 +102,20 @@ export async function signIn(formData: FormData) {
     )
     if (!lojaValida) {
       await supabase.auth.signOut()
-      redirect(`/login?error=${encodeURIComponent('O acesso desta loja está suspenso. Fale com o responsável.')}`)
+      redirect(`/login?${nx}error=${encodeURIComponent('O acesso desta loja está suspenso. Fale com o responsável.')}`)
     }
   }
 
   await registrarLogin(admin, data.user.id)
   await registrarEntrada(admin, data.user.id).catch((e) => console.error('[login] sessão não registrada:', (e as Error).message))
-  redirect(await telaInicialDo(admin, data.user.id))
+  const destino = await telaInicialDo(admin, data.user.id)
+  redirect(destino === '/motoboy' && proximo ? proximo : destino)
+}
+
+/** Só caminhos do app do motoboy (com o código do QR, se houver) — nunca um endereço de fora. */
+function destinoDoMotoboy(v: FormDataEntryValue | null): string | null {
+  const t = typeof v === 'string' ? v.trim() : ''
+  return /^\/motoboy(\?qr=[A-Za-z0-9_-]{10,200})?$/.test(t) ? t : null
 }
 
 /**
