@@ -38,7 +38,8 @@ export async function GET(_r: Request, { params }: { params: Promise<{ rota?: st
     const q = await quem()
     const loja = 'erro' in q ? 'Menuzia' : q.entregador.restauranteNome
     return NextResponse.json({
-      name: `Motoboy — ${loja}`, short_name: 'Motoboy', description: 'Suas entregas, troco e acerto.',
+      // 10/10: "Menuzia Entregador", abre direto no app do motoboy (tela cheia), com a sessão do celular.
+      name: 'Menuzia Entregador', short_name: 'Entregador', description: `Suas entregas, rota e acerto — ${loja}.`, id: '/motoboy',
       start_url: '/motoboy', scope: '/motoboy', display: 'standalone', orientation: 'portrait',
       background_color: '#111827', theme_color: '#0688D4',
       icons: [

@@ -84,6 +84,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Este login não é de motoboy. Entre pelo painel (app.menuzia.com.br/login) ou peça à loja o seu login de motoboy.' }, { status: 403 })
   }
   falhasPorNome.limpar(chaveNome)
+  // Entrou com login e senha (10/10): o link mágico dele para de valer (token novo, ninguém conhece).
+  await admin.from('entregadores').update({ token: crypto.randomUUID() }).eq('id', ent.id)
   await registrarLogin(admin, usuarioId).catch(() => {})
   registrarAuditoria(admin, {
     restauranteId: (ent as { restaurante_id: string }).restaurante_id, usuarioId, usuarioNome: `Motoboy ${p?.nome ?? nome}`.slice(0, 120),

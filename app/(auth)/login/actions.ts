@@ -153,6 +153,8 @@ async function auditarFalhaDeLogin(email: string) {
 async function telaInicialDo(admin: ReturnType<typeof getAdminSupabase>, userId: string): Promise<string> {
   const { data } = await admin.from('usuarios').select('papel').eq('id', userId).maybeSingle()
   const destino = telaInicialDoPapel((data?.papel as string | undefined) ?? null)
+  // Motoboy entrou com login e senha (10/10): o link mágico dele para de valer.
+  if (destino === '/motoboy') await admin.from('entregadores').update({ token: crypto.randomUUID() }).eq('usuario_id', userId)
   // Papel sem tela nenhuma no painel (ex.: entregador, que entra pelo portal de token).
   return destino === '/login' ? '/admin/dashboard' : destino
 }

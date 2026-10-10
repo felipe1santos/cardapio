@@ -14,6 +14,7 @@ import { linksGoogleMaps, linkWaze, ordenarParadas, type Coord } from '@/lib/mot
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { LeitorQr } from '@/components/motoboy/leitor-qr'
 import { LoginMotoboy } from '@/components/motoboy/login-motoboy'
+import { InstalarApp } from '@/components/motoboy/instalar-app'
 import { useCoordenadasPedidos } from '@/lib/mapa/cliente'
 
 /**
@@ -283,6 +284,14 @@ export function PortalMotoboy({ apiBase, swUrl, swScope }: { apiBase: string; sw
         <div className="mb-3 flex items-start gap-2 rounded-menuzia border border-warn/50 bg-warn-bg px-3.5 py-2.5 text-[13px] font-medium text-[#92400E]" data-testid="motoboy-offline">
           <WifiOff className="mt-0.5 h-4 w-4 flex-shrink-0" />
           <span>{!online ? 'Sem internet.' : 'Enviando…'} {fila.length > 0 && `${fila.length} ação(ões) guardada(s) — enviamos assim que a conexão voltar.`}</span>
+        </div>
+      )}
+      {/* PWA (10/10): instalar o Menuzia Entregador — só no app com login. */}
+      {!tokenMapa && <InstalarApp />}
+      {/* Link mágico (sem senha) sai de cena (10/10): vale até o 1º login com senha e no máximo até 17/10 (lib/motoboy/link-magico.ts). */}
+      {tokenMapa && (
+        <div className="mb-3 rounded-menuzia border border-warn/50 bg-warn-bg px-3.5 py-2.5 text-[13px] font-medium text-[#92400E]" data-testid="motoboy-aviso-link">
+          Peça seu login e senha ao restaurante. Em breve este link deixa de funcionar.
         </div>
       )}
       {data.entregador.status === 'offline' && (

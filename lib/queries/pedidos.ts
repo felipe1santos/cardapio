@@ -17,6 +17,7 @@ import { tamanhoOcultoNaPizza } from '@/lib/pizza-tamanhos'
 import { lerTodas } from './ler-todas'
 import { ehPedidoDeTeste } from '@/lib/dashboard-limpeza'
 import { gravarCoordenadasDoPedido } from '@/lib/mapa/coordenadas-pedidos'
+import { linkMagicoValido } from '@/lib/motoboy/link-magico'
 
 const centavos = (v: number) => Math.round(v * 100) / 100
 
@@ -726,6 +727,8 @@ export interface EntregadorPortal {
 
 /** Localiza o entregador pelo token público (link/QR do portal do motoboy). */
 export async function buscarEntregadorPorToken(admin: SupabaseClient, token: string): Promise<EntregadorPortal | null> {
+  // Links mágicos têm prazo (10/10): depois de LINK_MAGICO_ATE nenhum link entra — só login e senha.
+  if (!linkMagicoValido()) return null
   const { data, error } = await admin
     .from('entregadores')
     .select('id, nome, restaurante_id, usuario_id, restaurantes ( nome )')

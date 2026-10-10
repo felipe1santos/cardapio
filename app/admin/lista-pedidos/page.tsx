@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRealtimeComFallback } from '@/lib/realtime-fallback'
-import QRCode from 'qrcode'
 import { Bike, Clock, Users, ClipboardCheck, Phone, User, MapPin, Plus, Wallet, Zap, RefreshCw, Volume2, VolumeX, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react'
 import { Capacete } from '@/components/icones/capacete'
 import { avisoDePedidosParados, pedidoParado, tempoParado } from '@/lib/pedido-parado'
@@ -35,7 +34,8 @@ import {
 } from '@/lib/queries/pedidos'
 import { cancelarPedidoRequest } from '@/lib/cancelamento'
 import { CaixaTurnoGaveta } from '@/components/logistica/caixa-turno'
-import { AcessoEntregador, DinheiroComMotoboys } from '@/components/logistica/motoboy-financeiro'
+import { DinheiroComMotoboys } from '@/components/logistica/motoboy-financeiro'
+import { AcessoMotoboy } from '@/components/logistica/acesso-motoboy'
 import { buscarFluxoLoja } from '@/lib/queries/ajustes'
 import { formatarReal } from '@/lib/moeda'
 import { AlertaTroco } from '@/components/pedidos/info-pagamento'
@@ -405,8 +405,7 @@ export default function PedidosFinalizadosPage() {
   const [closingOpen, setClosingOpen] = useState(false)
 
   const [linkDriver, setLinkDriver] = useState<Entregador | null>(null)
-  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
-  const [linkCopied, setLinkCopied] = useState(false)
+  const [credencialNova, setCredencialNova] = useState<{ id: string; usuario: string; senha: string } | null>(null)
   const [locationDriverId, setLocationDriverId] = useState<string | null>(null)
   const [profileDriverId, setProfileDriverId] = useState<string | null>(null)
   const [perfilForm, setPerfilForm] = useState({ nome: '', telefone: '', veiculo: '', placa: '', fotoUrl: '' })
@@ -725,31 +724,6 @@ export default function PedidosFinalizadosPage() {
     return drivers.find((d) => d.id === id)?.nome ?? '—'
   }
 
-  function portalUrl(driver: Entregador) {
-    if (typeof window === 'undefined') return ''
-    return `${window.location.origin}/entregador/${driver.token}`
-  }
-
-  useEffect(() => {
-    if (!linkDriver) {
-      setQrDataUrl(null)
-      return
-    }
-    setLinkCopied(false)
-    QRCode.toDataURL(portalUrl(linkDriver), { width: 240, margin: 1 })
-      .then(setQrDataUrl)
-      .catch(() => setQrDataUrl(null))
-  }, [linkDriver])
-
-  async function copiarLink() {
-    if (!linkDriver) return
-    try {
-      await navigator.clipboard.writeText(portalUrl(linkDriver))
-      setLinkCopied(true)
-    } catch {
-      setLinkCopied(false)
-    }
-  }
 
   useEffect(() => {
     if (!profileDriver) return
@@ -840,6 +814,10 @@ export default function PedidosFinalizadosPage() {
       const veiculo = novoDriver.veiculo.trim()
       const placa = novoDriver.placa.trim()
       const criado = await criarEntregador(supabase, restauranteId, nome, telefone, { veiculo, placa })
+      // Equipe = Entregadores (10/10): já cria o login do app (aparece na Equipe como Motoboy); a senha aparece uma vez no Acesso.
+      const rl = await fetch(`/api/admin/entregadores/${criado.id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ acao: 'criar_login' }) }).catch(() => null)
+      const jl = rl?.ok ? ((await rl.json().catch(() => null)) as { usuario?: string; senha?: string } | null) : null
+      setCredencialNova(jl?.usuario && jl.senha ? { id: criado.id, usuario: jl.usuario, senha: jl.senha } : null)
       setAddDriverOpen(false)
       await refetch(restauranteId)
       // Próximo passo natural: mandar o acesso pro motoboy.
@@ -1464,7 +1442,7 @@ export default function PedidosFinalizadosPage() {
       {/* Fechamento de caixa — por turno (0114) */}
       <CaixaTurnoGaveta aberto={closingOpen} onFechar={() => setClosingOpen(false)} />
 
-      {/* Acesso do entregador (link/QR) */}
+      {/* Acesso do entregador (login e senha) */}
       {linkDriver && <div className="fixed inset-0 z-50 bg-[#111827]/45" onClick={() => setLinkDriver(null)} />}
       <aside
         className={[
@@ -1482,34 +1460,16 @@ export default function PedidosFinalizadosPage() {
           </button>
         </div>
         <div className="flex-1 overflow-y-auto p-4.5">
-          <p className="mb-4 text-xs leading-relaxed text-text-subtle">
-            Compartilhe esse QR code ou link com {linkDriver?.nome}. Ao abrir, o painel de entregas dele aparece direto — sem precisar
-            de login ou senha.
-          </p>
-          {qrDataUrl && (
-            <div className="mb-4 flex items-center justify-center rounded-menuzia border border-border p-4">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={qrDataUrl} alt="QR code de acesso do entregador" className="h-[240px] w-[240px]" />
-            </div>
-          )}
+          {/* 10/10: sem QR de acesso nem link mágico — login e senha no app (components/logistica/acesso-motoboy). */}
           {linkDriver && (
-            <div className="mb-3">
-              <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Link de acesso</div>
-              <div className="break-all rounded-menuzia border border-border bg-page px-2.5 py-2 text-[12px] text-text-main">{portalUrl(linkDriver)}</div>
-            </div>
-          )}
-          <Button variant="primary" className="w-full" onClick={copiarLink}>
-            {linkCopied ? 'Link copiado!' : 'Copiar link'}
-          </Button>
-          {linkDriver && (
-            <AcessoEntregador
+            <AcessoMotoboy
               key={linkDriver.id}
               id={linkDriver.id}
               nome={linkDriver.nome}
+              telefone={linkDriver.telefone}
               desativado={linkDriver.desativado}
-              temLogin={linkDriver.temLogin}
+              credencialNova={credencialNova?.id === linkDriver.id ? credencialNova : null}
               onMudou={() => {
-                // Link novo / desativado: o QR mostrado ficou velho — fecha e recarrega.
                 setLinkDriver(null)
                 if (restauranteId) void refetchAgora(restauranteId)
               }}
