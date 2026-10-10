@@ -1992,9 +1992,9 @@ function TabWhatsapp({ tipo, restauranteId }: { tipo: 'mensagens' | 'modelos' | 
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-5 lg:px-6" data-ajustes-rolagem data-testid={`ajustes-${tipo}`}>
         <div className="max-w-[980px]">
-          {/* Mensagens automáticas e push são do módulo Disparos (0176): bloqueado, o cartão do cadeado. */}
-          {disparosBloqueado && (tipo === 'mensagens' || tipo === 'notificacoes') && <JanelaModuloBloqueado inline modulo="disparos" loja={estadoSessao?.lojaNome ?? ''} whatsapp={estadoSessao?.whatsappComercial} />}
-          {tipo === 'mensagens' && disparosLiberado && <MensagensAutomaticas onToast={toasts.mostrar} onAtivoMudou={() => {}} />}
+          {/* Notificações do app (push) são do módulo Disparos (0176); as mensagens de status do pedido são livres. */}
+          {disparosBloqueado && tipo === 'notificacoes' && <JanelaModuloBloqueado inline modulo="disparos" loja={estadoSessao?.lojaNome ?? ''} whatsapp={estadoSessao?.whatsappComercial} />}
+          {tipo === 'mensagens' && <MensagensAutomaticas onToast={toasts.mostrar} onAtivoMudou={() => {}} />}
           {tipo === 'modelos' && (
             // "Usar" leva o modelo para um disparo novo em Campanhas.
             <Modelos api={modelos} onUsar={(m) => { router.push(`/admin/campanhas?modelo=${encodeURIComponent(m.id)}`) }} onToast={toasts.mostrar} />

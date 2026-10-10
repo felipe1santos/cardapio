@@ -25,8 +25,12 @@ const PREFIXOS: Record<Modulo, string[]> = {
   disparos: ['/admin/campanhas', '/api/admin/campanhas'],
 }
 
+/** Livres mesmo dentro de um prefixo pago: as mensagens automáticas de STATUS do pedido (Ajustes) usam a API de Campanhas. */
+const LIVRES = ['/api/admin/campanhas/automaticas']
+
 /** De qual módulo pago é este caminho (null = livre). Pura. */
 export function moduloDoCaminho(pathname: string): Modulo | null {
+  if (LIVRES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return null
   for (const m of MODULOS) if (PREFIXOS[m].some((p) => pathname === p || pathname.startsWith(`${p}/`))) return m
   return null
 }
