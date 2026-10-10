@@ -1,5 +1,7 @@
 'use client'
 
+import { FotosCarrossel } from './fotos-carrossel'
+import { fotosDaVitrine } from '@/lib/fotos-item'
 import { TelaPixOnline, type PixAguardando } from '@/components/vitrine/tela-pix-online'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { UtensilsCrossed, HandPlatter, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, ChevronRight, ChevronLeft, Clock, Gift, Ticket, Percent, Check, RotateCcw, Store, User } from 'lucide-react'
@@ -4634,7 +4636,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   capa da categoria: é a imagem que o cliente acabou de tocar, e
                   trocá-la por outra no mesmo gesto parece que ele foi parar em
                   outro lugar. Nos demais caminhos manda a foto do item. */}
-              {(sheetGaveta?.capaUrl ?? productSheet.imagemUrl)
+              {/* "Novidades em teste" (0178): com mais de 1 foto (e sem a capa da gaveta), carrossel. */}
+              {restaurante.novidades && !sheetGaveta?.capaUrl && fotosDaVitrine(productSheet).length > 1
+                ? <FotosCarrossel urls={fotosDaVitrine(productSheet)} nome={productSheet.nome} />
+                : (sheetGaveta?.capaUrl ?? productSheet.imagemUrl)
                 // O sheet só é montado depois do clique, então não concorre com o
                 // carregamento inicial — aqui a foto é o conteúdo principal.
                 // eslint-disable-next-line @next/next/no-img-element

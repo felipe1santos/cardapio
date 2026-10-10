@@ -72,6 +72,9 @@ import { etiquetasTopoLigadas, motivoTagPersonalizadaInvalida } from '@/lib/etiq
 import { PilhaToasts, useToasts } from '@/components/admin/toasts'
 import { ToggleSwitch } from '@/components/admin/campos-ajustes'
 import { resumoAgenda } from '@/lib/promocao-agenda'
+import { FotosDoItem } from '@/components/admin/cardapio/fotos-item'
+import { juntarFotos, separarFotos } from '@/lib/fotos-item'
+import { useEstadoSessao } from '@/lib/sessao-cliente'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -748,6 +751,8 @@ function MargensProduto({ custo, linhas }: { custo: number | null; linhas: { nom
 
 export default function CardapioPage() {
   const supabase = useMemo(() => getBrowserSupabase(), [])
+  // "Novidades em teste" (0178): fotos do item no formato novo (até 4, reordenar, escolher a principal).
+  const novidades = useEstadoSessao()?.novidades === true
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [loading, setLoading] = useState(true)
@@ -2315,6 +2320,17 @@ export default function CardapioPage() {
                   <div className="flex flex-col gap-5 md:flex-row">
                     {/* Fotos */}
                     <div className="flex-shrink-0 md:w-[232px]" data-testid="produto-fotos">
+                      {novidades ? (
+                        <FotosDoItem
+                          nome={form.nome}
+                          fotos={juntarFotos(form)}
+                          onChange={(l) => setForm((p) => ({ ...p, ...separarFotos(l) }))}
+                          enviar={async (arquivo) => {
+                            const { url, thumbUrl } = await enviarImagemItemComThumb(supabase, restauranteId!, arquivo)
+                            return { url, thumb: thumbUrl }
+                          }}
+                        />
+                      ) : (<>
                       <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImagePick} />
                       <input ref={extraInputRef} type="file" accept="image/*" className="hidden" onChange={adicionarFotoExtra} />
                       <div className="produto-foto group relative mx-auto aspect-square w-[168px] overflow-hidden rounded-[8px] border border-[#e5e7eb] bg-[#f3f4f6] md:w-full">
@@ -2349,6 +2365,7 @@ export default function CardapioPage() {
                         )}
                       </div>
                       <p className="mt-1.5 text-[11.5px] text-[#6b7280]">Foto real do prato vende mais. Até 4 fotos extras.</p>
+                      </>)}
                     </div>
 
                     {/* Campos */}
