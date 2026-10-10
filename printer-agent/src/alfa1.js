@@ -220,18 +220,18 @@ html,body{background:#fff}
 .papel{background:#fff;color:#000;font-family:'Comfortaa',sans-serif;font-size:14px;font-weight:600;line-height:1.45;padding:18px 12px 26px;-webkit-font-smoothing:antialiased}
 .c{text-align:center}
 .loja{font-size:17px;font-weight:700}
-.reg{font-weight:500}
+.reg{font-weight:600}
 .tr{border-top:1px dashed #000;margin:8px 0}
 .sol{border-top:1.5px solid #000;margin:8px 0}
 .tit{text-align:center;font-weight:700;font-size:15px;margin:6px 0 4px}
-.kv b{font-weight:700}.kv span{font-weight:500}
+.kv b{font-weight:700}.kv span{font-weight:600}
 .lin{display:flex;justify-content:space-between;gap:8px;font-variant-numeric:tabular-nums}
 .lin>span:first-child{min-width:0}
 .cabi{display:flex;justify-content:space-between;font-weight:700;letter-spacing:.03em}
 .item{display:flex;justify-content:space-between;gap:8px;font-weight:600}
 .item>span:first-child{min-width:0;overflow-wrap:anywhere}
 .item>span:last-child{flex:none}
-.comp{padding-left:16px;font-weight:500;overflow-wrap:anywhere}
+.comp{padding-left:16px;font-weight:600;overflow-wrap:anywhere}
 .obs{background:#fff;color:#000;border:1.5px solid #000;font-size:14px;font-weight:700;padding:2px 6px;margin:3px 0;border-radius:4px;overflow-wrap:anywhere}
 .faixa{background:#000;color:#fff;text-align:center;font-weight:700;font-size:15px;padding:3px 6px;margin:6px 0 6px;border-radius:3px}
 .topo{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px}
@@ -244,22 +244,22 @@ html,body{background:#fff}
 .grande{font-size:17px}
 .qr{display:block;margin:6px auto 4px}
 .pc-rod .qr{margin:0;flex:none}
-.pq{font-size:12px;font-weight:500}
+.pq{font-size:12px;font-weight:600}
 .aviso{text-align:center;font-weight:700;border:1.5px solid #000;padding:2px 4px;margin:6px 0}
 .kv{overflow-wrap:anywhere}
 .tot>span:last-child,.lin>span:last-child,.lin>b:last-child,.item>span:last-child,.total-g>span:last-child,.badge,.num{white-space:nowrap}
 .tot>span:first-child,.lin>b:first-child,.total-g>span:first-child{min-width:0}
 .pc-tit{text-align:center;font-weight:700;font-size:16px;margin-bottom:10px}
-.pc-loja{font-weight:500;line-height:1.4;overflow-wrap:anywhere}
+.pc-loja{font-weight:600;line-height:1.4;overflow-wrap:anywhere}
 .pc-loja b{font-weight:700}
 .tab{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
 .tab th{font-weight:700;text-align:left;border-bottom:1px solid #000;padding:0 0 2px}
-.tab td{font-weight:500;padding:1px 0;vertical-align:top;overflow-wrap:anywhere}
+.tab td{font-weight:600;padding:1px 0;vertical-align:top;overflow-wrap:anywhere}
 .tab .q{width:30px;text-align:right;padding-right:8px}
 .tab .v{width:76px;text-align:right}
-.tab .sub td{font-size:13px}
+.tab .sub td{font-size:14px}
 .total-g{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-weight:700;font-size:22px;border-top:1px solid #000;border-bottom:1px solid #000;padding:3px 0;margin:6px 0;font-variant-numeric:tabular-nums}
-.res td{font-weight:500}
+.res td{font-weight:600}
 .res .forte td{font-weight:700}
 `
 

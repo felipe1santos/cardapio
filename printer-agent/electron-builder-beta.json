@@ -7,7 +7,7 @@
   "extraMetadata": {
     "name": "menuzia-assistente-beta",
     "productName": "Assistente Menuzia Beta",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "menuziaAmbiente": {
       "variante": "beta",
       "apiBaseUrl": "https://app.menuzia.com.br",

@@ -15,7 +15,14 @@ function qrFalso(n = 29) {
   olho(0, 0); olho(n - 7, 0); olho(0, n - 7)
   return m.map((r) => r.join(''))
 }
-const QR = qrFalso()
+// 10/10: QR REAIS (mesmo código do servidor, lib/impressao/cozinha-beta.ts) quando houver .medidas/qr-reais.json:
+// rota do pedido #277 da Menuzia e Instagram da pré-conta. Sem o arquivo, o padrão fixo de antes.
+let REAIS = null
+try { REAIS = JSON.parse(fs.readFileSync(path.join(__dirname, '../../.medidas/qr-reais.json'), 'utf8')) } catch { /* sem arquivo */ }
+const QR = REAIS ? REAIS.rota.linhas : qrFalso()
+const URL_ROTA = REAIS ? REAIS.rota.url : 'https://app.menuzia.com.br/r/AAAA'
+const QR_INSTA = REAIS ? REAIS.insta.linhas : QR
+const URL_INSTA = REAIS ? REAIS.insta.url : 'https://instagram.com/villaburguer'
 const AGORA = '2026-10-10T00:40:00Z'
 const loja = { nome: 'Villa Burguer' }
 const itens = [
@@ -26,7 +33,7 @@ const itens = [
 ]
 const base = { numero: 10, criadoEm: AGORA, clienteNome: 'Maria Souza', clienteTelefone: '5527992390000', itens, subtotal: 106, formaPagamento: 'dinheiro', trocoPara: 150, pago: false, observacao: '' }
 const casos = {
-  'comanda-entrega': montarComandaAlfa1({ ...base, tipo: 'entrega', canal: 'delivery', taxaEntrega: 3.99, total: 109.99, agendadoPara: '2026-10-10T01:25:00Z', enderecoRua: 'Rua Jaburuna', enderecoNumero: '55', enderecoComplemento: 'Apto 202', enderecoBairro: 'Centro', enderecoReferencia: 'Ao lado da farmácia', enderecoCidade: 'Vila Velha/ES' }, { loja, extras: { qtdPedidosCliente: 3 }, qr: { linhas: QR, url: 'https://app.menuzia.com.br/r/AAAA' } }),
+  'comanda-entrega': montarComandaAlfa1({ ...base, tipo: 'entrega', canal: 'delivery', taxaEntrega: 3.99, total: 109.99, agendadoPara: '2026-10-10T01:25:00Z', enderecoRua: 'Rua Jaburuna', enderecoNumero: '55', enderecoComplemento: 'Apto 202', enderecoBairro: 'Centro', enderecoReferencia: 'Ao lado da farmácia', enderecoCidade: 'Vila Velha/ES' }, { loja, extras: { qtdPedidosCliente: 3 }, qr: { linhas: QR, url: URL_ROTA } }),
   'comanda-retirada': montarComandaAlfa1({ ...base, tipo: 'retirada', canal: 'delivery', taxaEntrega: 0, total: 106 }, { loja, extras: { qtdPedidosCliente: 3 } }),
   'comanda-balcao': montarComandaAlfa1({ ...base, tipo: 'retirada', canal: 'balcao', taxaEntrega: 0, total: 106, senha: 47 }, { loja, extras: { qtdPedidosCliente: 3, atendente: 'Carlos' } }),
   'comanda-entrega-longa': montarComandaAlfa1({
@@ -38,12 +45,12 @@ const casos = {
     ],
     subtotal: 149.9, observacao: 'Interfone quebrado: ligar quando chegar.',
     enderecoRua: 'Avenida Nossa Senhora da Penha, Condomínio Residencial Jardim das Orquídeas Torre Norte', enderecoNumero: '1500', enderecoComplemento: 'Bloco C, apartamento 1203, entrada pela portaria lateral', enderecoBairro: 'Santa Lúcia', enderecoReferencia: 'Em frente ao posto Shell, portão verde', enderecoCidade: 'Vitória/ES',
-  }, { loja: { nome: 'Pizzaria e Hamburgueria Sabor da Ilha Gourmet' }, extras: { qtdPedidosCliente: 27 }, qr: { linhas: QR, url: 'https://app.menuzia.com.br/r/BBBB' } }),
+  }, { loja: { nome: 'Pizzaria e Hamburgueria Sabor da Ilha Gourmet' }, extras: { qtdPedidosCliente: 27 }, qr: { linhas: QR, url: URL_ROTA } }),
   'pre-conta': montarPreContaAlfa1({
     loja_dados: { nome: 'Villa Burguer', cnpj: '12.345.678/0001-90' }, tipo: 'mesa', mesa: '04', comanda_numero: 123, impresso_em: AGORA,
     itens: itens.map((i) => ({ nome: i.nome, quantidade: i.quantidade, preco_unitario: i.precoUnitario, complementos: i.complementos })),
     subtotal: 106, taxa: 10.6, taxa_percentual: 10, desconto: 5, total: 111.6, pago: 50, restante: 61.6, pessoas: 3, atendente: 'Carlos',
-    qr: { linhas: QR, origem: 'instagram', url: 'https://instagram.com/villaburguer' },
+    qr: { linhas: QR_INSTA, origem: 'instagram', url: URL_INSTA },
   }),
 }
 
