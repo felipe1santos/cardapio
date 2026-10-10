@@ -1,0 +1,57 @@
+Pizzaria e Hamburgueria Sabor da Ilha Gourmet
+09/10/2026 - 21:40
+#1234           DELIVERY
+================================================
+Cliente: Maria Souza
+Qtd de pedidos: 27
+Tel: (27) 99239-0000
+Endereço: Avenida Nossa Senhora da Penha,
+Condomínio Residencial Jardim das Orquídeas
+Torre Norte, 1500
+Comp: Bloco C, apartamento 1203, entrada pela
+portaria lateral
+Bairro: Santa Lúcia
+Ref: Em frente ao posto Shell, portão verde
+Cidade: Vitória
+------------------------------------------------
+                Itens do pedido                 
+QTD ITENS                                  TOTAL
+1x Pizza Gigante Meio a Meio Calabresa
+Acebolada com Catupiry / Frango com
+Cheddar Cremoso                         R$ 95,90
+   Borda: Catupiry
+   1x Bacon crocante extra na metade de
+   calabresa
++----------------------------------------------+
+| Obs: Cortar em 12 pedaços, sem cebola na     |
+| parte de frango, mandar sachês de orégano e  |
+| ketchup à parte, por favor caprichar         |
++----------------------------------------------+
+2x Guaraná Antarctica 2 L               R$ 24,00
+1x Açaí 500 ml                          R$ 30,00
+   1x Leite ninho
+   1x Morango
+   1x Paçoca
++----------------------------------------------+
+| Obs. do pedido: Interfone quebrado: ligar    |
+| quando chegar.                               |
++----------------------------------------------+
+------------------------------------------------
+SUBTOTAL                               R$ 149,90
+------------------------------------------------
+              Pagamento na entrega              
+Forma de pgto: Dinheiro
+Valor dos itens                        R$ 149,90
+Taxa de entrega                          R$ 7,50
+================================================
+COBRAR         R$ 157,40
+------------------------------------------------
+RECEBER DO CLIENTE                     R$ 200,00
+TROCO                                   R$ 42,60
+------------------------------------------------
+ROTA DE ENTREGA
+[QR]
+app.menuzia.com.br/r/BBBB
+Aponte a câmera para abrir a rota
+------------------------------------------------
+feito por Menuzia.com.br

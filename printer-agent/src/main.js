@@ -13,6 +13,7 @@ const { FilasPorDispositivo } = require('./fila-dispositivos')
 const { montarCalibracao, montarTesteLargura } = require('./calibracao')
 // Modelo oficial v3 (0.2.0-beta.9): comanda, pré-conta e via da cozinha.
 const { montarComandaV3, montarPreContaV3, textoDoV3 } = require('./v3')
+const { montarComandaAlfa1, montarPreContaAlfa1, textoPlanoAlfa1 } = require('./alfa1')
 const { conviteDosArgumentos, conviteNosDownloads } = require('./convite')
 const { iniciarAtualizacao } = require('./atualizacao')
 
@@ -311,7 +312,7 @@ async function cicloDePolling() {
           const beta = data.cozinhaBeta || {}
           // Item 59 (beta.10): QR por pedido — entrega = QR da rota; retirada/balcão/mesa = cardápio.
           const opcoesV3 = { config: configImpressao, lojaNome, loja: beta.loja, extras: beta.extras?.[pedido.id], qr: (beta.qrPorPedido && beta.qrPorPedido[pedido.id]) || beta.qr }
-          const doc = montarComandaV3(pedido, opcoesV3)
+          const doc = montarComandaAlfa1(pedido, opcoesV3)
           // Pedido aguardando pagamento (Pix online) nunca imprime — nem chega na fila; aqui
           // é a segunda trava. Não avisa "impresso": sai quando o pagamento for confirmado.
           if (!doc) { log(`Pedido #${pedido.numero}: aguardando pagamento, não imprimi.`); continue }
@@ -319,13 +320,13 @@ async function cicloDePolling() {
           const logo = perfilCozinha.imprimirLogo ? await logoParaDesenho(data.loja ? (data.loja.logoUrl ?? null) : undefined) : null
           perfilCozinha.tempos.logoMs = Date.now() - tLogo
           perfilCozinha.tempos._t0 = Date.now()
-          saida = await imprimirDocumentoBeta(impressoraAlvo, { ...doc, texto: textoDoV3(doc) }, paperMm, { ...perfilCozinha, copias, logo })
+          saida = await imprimirDocumentoBeta(impressoraAlvo, { ...doc, texto: textoPlanoAlfa1(doc) }, paperMm, { ...perfilCozinha, copias, logo })
           // Via da cozinha (opção da loja, 0150, desligada por padrão): sem valores, na mesma
           // impressora, logo depois. Falhar aqui não segura a comanda (que já saiu).
           if (configImpressao.viaCozinha === true) {
             try {
-              const via = montarComandaV3(pedido, { ...opcoesV3, via: 'cozinha' })
-              if (via) await imprimirDocumentoBeta(impressoraAlvo, { ...via, texto: textoDoV3(via) }, paperMm, { ...perfilCozinha, tempos: { _t0: Date.now() }, copias: 1, logo })
+              const via = montarComandaAlfa1(pedido, { ...opcoesV3, via: 'cozinha' })
+              if (via) await imprimirDocumentoBeta(impressoraAlvo, { ...via, texto: textoPlanoAlfa1(via) }, paperMm, { ...perfilCozinha, tempos: { _t0: Date.now() }, copias: 1, logo })
             } catch (e) {
               log(`Pedido #${pedido.numero}: a via da cozinha falhou (${descreverErro(e)}).`)
             }
@@ -337,7 +338,7 @@ async function cicloDePolling() {
           if (dEntrega && dEntrega.nomeSistema && pedido.tipo === 'entrega') {
             try {
               const perfilEntrega = { ...PERFIL_LOG, ...perfilEnvio(dEntrega), diagnostico: diagnosticos[dEntrega.nomeSistema] || null, tempos: { _t0: Date.now() }, pausaFaixasMs: config.pausaFaixasMs ?? 0, larguraPontos: dEntrega.larguraPontos ?? null, deslocamentoPontos: dEntrega.deslocamentoPontos ?? 0, tamanhoFonte: dEntrega.tamanhoFonte, imprimirLogo: perfilCozinha.imprimirLogo }
-              await imprimirDocumentoBeta(dEntrega.nomeSistema, { ...doc, texto: textoDoV3(doc) }, Number(dEntrega.larguraMm) <= 58 ? 58 : 80, { ...perfilEntrega, copias: 1, logo })
+              await imprimirDocumentoBeta(dEntrega.nomeSistema, { ...doc, texto: textoPlanoAlfa1(doc) }, Number(dEntrega.larguraMm) <= 58 ? 58 : 80, { ...perfilEntrega, copias: 1, logo })
               informarCaminho(dEntrega.nomeSistema, perfilEntrega.tempos)
             } catch (e) {
               log(`Pedido #${pedido.numero}: a comanda de entrega falhou (${descreverErro(e)}).`)
@@ -559,18 +560,18 @@ const filas = new FilasPorDispositivo(
       saida = await imprimirDocumentoBeta(t.nomeSistema, doc, largura, perfil)
     } else if (cozinhaTeste) {
       // beta.13: as MESMAS opções do papel da comanda real (o servidor manda no teste).
-      const doc = montarComandaV3(t.snapshot.pedido, { config: t.snapshot.config || {}, lojaNome: t.snapshot.loja, loja: t.loja, extras: t.snapshot.extras, qr: t.snapshot.qr || t.qr, teste: true })
+      const doc = montarComandaAlfa1(t.snapshot.pedido, { config: t.snapshot.config || {}, lojaNome: t.snapshot.loja, loja: t.loja, extras: t.snapshot.extras, qr: t.snapshot.qr || t.qr, teste: true })
       const tLogo = Date.now()
       const logo = perfil.imprimirLogo ? await logoParaDesenho(t.logoVersao) : null
       if (perfil.tempos) { perfil.tempos.logoMs = Date.now() - tLogo; perfil.tempos._t0 = Date.now() }
-      saida = await imprimirDocumentoBeta(t.nomeSistema, { ...doc, texto: textoDoV3(doc) }, largura, { ...perfil, logo })
+      saida = await imprimirDocumentoBeta(t.nomeSistema, { ...doc, texto: textoPlanoAlfa1(doc) }, largura, { ...perfil, logo })
     } else if (EH_BETA && (t.tipo === 'pre_conta' || reciboTeste)) {
       // QR do rodapé: o do snapshot ou o que o servidor manda com o trabalho (Instagram/cardápio).
-      const doc = montarPreContaV3({ ...t.snapshot, qr: t.snapshot.qr || t.qr || null, loja_dados: t.loja || null })
+      const doc = montarPreContaAlfa1({ ...t.snapshot, qr: t.snapshot.qr || t.qr || null, loja_dados: t.loja || null })
       const tLogo = Date.now()
       const logo = perfil.imprimirLogo ? await logoParaDesenho(t.logoVersao) : null
       if (perfil.tempos) { perfil.tempos.logoMs = Date.now() - tLogo; perfil.tempos._t0 = Date.now() }
-      saida = await imprimirDocumentoBeta(t.nomeSistema, { ...doc, texto: textoDoV3(doc) }, largura, { ...perfil, logo })
+      saida = await imprimirDocumentoBeta(t.nomeSistema, { ...doc, texto: textoPlanoAlfa1(doc) }, largura, { ...perfil, logo })
     } else {
       saida = perfil
         ? await imprimirTexto(t.nomeSistema, texto, 1, colsPreConta(largura), null, largura, false, perfil)
@@ -798,13 +799,13 @@ app.whenReady().then(() => {
     const doInstalador = doLink ? null : conviteNosDownloads(app.getPath('downloads'))
     if (doLink || doInstalador) setTimeout(() => void parearComConvite(doLink || doInstalador, doLink ? 'link do painel' : 'instalador da loja'), 1500)
   }
-  if (EH_BETA) log(`Assistente Menuzia Beta ${app.getVersion()} — convive com o Assistente de Impressão atual, que continua funcionando.`)
+  if (EH_BETA) log(`Assistente Menuzia Alfa 1 (${app.getVersion()}).`)
   // Atualização automática (beta.11): só no Beta empacotado de produção (ou com o endereço de teste).
   if (EH_BETA && app.isPackaged && (!EH_TESTE_LOCAL || process.env.MENUZIA_ATUALIZACAO_URL)) {
     situacaoAtualizacao = iniciarAtualizacao({
       baseUrl: API_BASE_URL,
       versaoAtual: app.getVersion(),
-      estado: () => ({ imprimindo: imprimindoPedidos, ultimaAtividadeEm }),
+      estado: () => ({ imprimindo: imprimindoPedidos, ultimaAtividadeEm, pendentes: filas.emAndamento.size }),
       log: (m) => logArquivo(m),
     })
   }

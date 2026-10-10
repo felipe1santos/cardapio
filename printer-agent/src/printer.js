@@ -53,6 +53,8 @@ const { escolherEnvioAuto } = require('./envio-auto')
 /** Envio automático: quando o direto falhou em cada impressora (some em 10 min). */
 const falhaDireto = new Map()
 const { larguraEmPontos } = require('./ticket-canvas')
+const { textoAlfa1, larguraDoPapel, colunasDoPapel, caminhoDoEnvio, FAIXA_LINHAS, FAIXA_PAUSA_MS } = require('./alfa1')
+const { desenharAlfa1, pngDosBits } = require('./alfa1-render')
 
 function runPowershell(args, opcoesExec = {}) {
   return new Promise((resolve, reject) => {
@@ -233,7 +235,93 @@ async function desenharTicket(doc, opcoes, prefixo) {
  *         (imagem | texto), redeIp, redePorta.
  * O Assistente atual não usa isto.
  */
+/**
+ * ALFA 1 (1.1.0): layout único (alfa1.js). Imagem = o HTML da referência desenhado em pontos (alfa1-render.js);
+ * Texto = o mesmo layout com os comandos da impressora. Envio DIRETO (fila RAW ou rede) em faixas com pausa;
+ * o Windows só entra de RESERVA quando o direto dá erro (e fica no log) ou quando o suporte força (envio 'driver').
+ */
+async function imprimirAlfa1(nomeImpressora, doc, paperWidthMm, perfil = {}) {
+  const prefixo = perfil.prefixoTmp || 'menuzia-alfa1'
+  const tempos = perfil.tempos || {}
+  if (!perfil.tempos) perfil.tempos = tempos
+  const modo = perfil.modoImpressao === 'texto' ? 'texto' : 'imagem'
+  const largura = larguraDoPapel({ larguraMm: paperWidthMm, larguraPontos: perfil.larguraPontos, pontosImprimiveis: perfil.diagnostico?.pontosImprimiveis })
+  const intensidade = perfil.intensidade === 'escura' || perfil.intensidade === 'mais_escura' ? perfil.intensidade : 'normal'
+  const copias = Number.isInteger(perfil.copias) && perfil.copias > 1 ? Math.min(perfil.copias, 5) : 1
+  let caminho
+  if (perfil.envio === 'auto' || !perfil.envio) {
+    const e = escolherEnvioAuto({ nomeSistema: nomeImpressora, redeIp: perfil.redeIp, diagnostico: perfil.diagnostico, falhouEm: falhaDireto.get(nomeImpressora) })
+    caminho = { via: e.envio, reserva: e.envio !== 'driver' }
+    tempos.obs = `automático: ${e.motivo}`
+  } else {
+    caminho = caminhoDoEnvio({ envio: perfil.envio, redeIp: perfil.redeIp })
+  }
+  // Imagem: desenha uma vez (serve ao direto e à reserva pelo Windows).
+  let img = null
+  if (modo === 'imagem' || caminho.via === 'driver') {
+    img = await desenharAlfa1(doc, { larguraPontos: largura, intensidade })
+    tempos.desenhoMs = Date.now() - (tempos._t0 || Date.now())
+  }
+  const pelaReserva = async (motivo) => {
+    if (!img) img = await desenharAlfa1(doc, { larguraPontos: largura, intensidade })
+    const png = path.join(os.tmpdir(), `${prefixo}-${Date.now()}.png`)
+    fs.writeFileSync(png, pngDosBits(img))
+    try {
+      const titulo = doc.documento === 'pre_conta' ? 'Menuzia - Pre-conta' : 'Menuzia - Comanda'
+      const args = ['-File', PRINT_IMAGEM_SCRIPT, '-PrinterName', nomeImpressora, '-ImagemPng', png, '-Titulo', titulo]
+      if (perfil.logNome) args.push('-LogNome', perfil.logNome)
+      if (copias > 1) args.push('-Copies', String(copias))
+      const tEnvio = Date.now()
+      const saida = await pelaImpressora(nomeImpressora, { acao: 'imagem', impressora: nomeImpressora, arquivo: png, copias, desloc: 0, titulo }, perfil.logNome, args)
+      tempos.envioMs = Date.now() - tEnvio
+      tempos.via = 'driver'
+      if (motivo) tempos.obs = `${tempos.obs ? `${tempos.obs}; ` : ''}reserva Windows: ${motivo}`
+      return `MENUZIA: ALFA 1 pelo Windows${motivo ? ` (reserva: ${motivo})` : ''} ${largura} pontos.\n${saida || ''}`
+    } finally {
+      fs.unlink(png, () => {})
+    }
+  }
+  if (caminho.via === 'driver') return pelaReserva(null)
+
+  let bytes = modo === 'texto'
+    ? textoAlfa1(doc, { colunas: colunasDoPapel(largura), intensidade })
+    : imagemEscpos(img, { intensidade, deslocamento: perfil.deslocamentoPontos, linhasPorFaixa: FAIXA_LINHAS })
+  if (copias > 1) bytes = Buffer.concat(Array(copias).fill(bytes))
+  // Faixas de FAIXA_LINHAS linhas com pausa entre elas: a impressora fraca termina uma antes da outra.
+  const bloco = modo === 'imagem' ? 8 + Math.ceil(largura / 8) * FAIXA_LINHAS : 0
+  const pausaMs = modo === 'imagem' ? Math.max(FAIXA_PAUSA_MS, Math.min(500, Number(perfil.pausaFaixasMs) || 0)) : 0
+  const tEnvio = Date.now()
+  try {
+    if (caminho.via === 'raw_rede') {
+      if (!perfil.redeIp) throw new Error('impressora de rede sem IP')
+      const porta = Number(perfil.redePorta) || 9100
+      await enviarRede(perfil.redeIp, porta, bytes, { bloco, pausaMs })
+      tempos.via = 'raw_rede'
+    } else {
+      const arquivo = path.join(os.tmpdir(), `${prefixo}-raw-${Date.now()}.bin`)
+      fs.writeFileSync(arquivo, bytes)
+      try {
+        const titulo = doc.documento === 'pre_conta' ? 'Menuzia - Pre-conta' : 'Menuzia - Comanda'
+        const args = ['-File', PRINT_RAW_SCRIPT, '-PrinterName', nomeImpressora, '-Arquivo', arquivo, '-Titulo', titulo, '-Bloco', String(bloco), '-PausaMs', String(pausaMs)]
+        if (perfil.logNome) args.push('-LogNome', perfil.logNome)
+        await pelaImpressora(nomeImpressora, { acao: 'raw', impressora: nomeImpressora, arquivo, titulo, bloco, pausaMs }, perfil.logNome, args)
+      } finally {
+        fs.unlink(arquivo, () => {})
+      }
+      tempos.via = 'raw_fila'
+    }
+    tempos.envioMs = Date.now() - tEnvio
+    falhaDireto.delete(nomeImpressora)
+    return `MENUZIA: ALFA 1 direto (${tempos.via}, ${modo}) ${largura} pontos, ${bytes.length} bytes.`
+  } catch (e) {
+    if (!caminho.reserva) throw e
+    falhaDireto.set(nomeImpressora, Date.now())
+    return pelaReserva(`o direto falhou (${String(e?.message || e).slice(0, 120)})`)
+  }
+}
+
 async function imprimirDocumentoBeta(nomeImpressora, doc, paperWidthMm = 80, perfil = {}) {
+  if (doc && doc.modelo === 'alfa1') return imprimirAlfa1(nomeImpressora, doc, paperWidthMm, perfil)
   const prefixo = perfil.prefixoTmp || 'menuzia-beta'
   const opcoes = {
     larguraMm: Number(paperWidthMm) <= 58 ? 58 : 80,
@@ -323,4 +411,4 @@ async function aquecerImpressao(nomesImpressoras = [], logNome) {
 
 function encerrarServidores() { if (pool) pool.fecharTodos() }
 
-module.exports = { listarImpressorasWindows, imprimirTexto, diagnosticarImpressoras, imprimirDocumentoBeta, desenharTicket, desenharBits, aquecerImpressao, encerrarServidores }
+module.exports = { listarImpressorasWindows, imprimirTexto, diagnosticarImpressoras, imprimirDocumentoBeta, imprimirAlfa1, desenharTicket, desenharBits, aquecerImpressao, encerrarServidores }

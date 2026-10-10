@@ -1,0 +1,198 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Impressão Alfa 1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@400;500;600;700&family=Varela+Round&family=Figtree:wght@400;500;600&display=swap">
+<style>
+/* Layout: bancada de conferência — controles à esquerda, a bobina 80 mm em tamanho real à direita */
+:root{
+  --chao:#eef0f3; --painel:#ffffff; --tinta:#1c2b33; --suave:#5b6b75; --linha:#d8dde2; --acento:#0064e0;
+  --papel:#ffffff; --termico:#111111;
+  --ui:'Figtree',system-ui,sans-serif;
+  --fonte:'Comfortaa','Varela Round',system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--chao:#14181c;--painel:#1d2328;--tinta:#e7ecef;--suave:#9aa8b1;--linha:#2f373e;--acento:#4a9bff;color-scheme:dark}}
+:root[data-theme="dark"]{--chao:#14181c;--painel:#1d2328;--tinta:#e7ecef;--suave:#9aa8b1;--linha:#2f373e;--acento:#4a9bff;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--chao);color:var(--tinta);font-family:var(--ui);padding-inline:16px;padding-block:24px 40px}
+.wrap{max-width:980px;margin:0 auto;display:grid;grid-template-columns:300px minmax(0,1fr);gap:28px;align-items:start}
+@media (max-width:760px){.wrap{grid-template-columns:minmax(0,1fr)}}
+h1{font-size:22px;font-weight:600;margin:0 0 4px;text-wrap:balance}
+.sub{color:var(--suave);font-size:14px;line-height:1.5;margin:0 0 20px}
+.bloco{background:var(--painel);border:1px solid var(--linha);border-radius:12px;padding:16px;display:grid;gap:14px}
+.rot{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--suave)}
+.seg{display:flex;background:var(--chao);border-radius:10px;padding:4px;gap:4px}
+.seg button{flex:1;border:0;background:transparent;color:var(--tinta);font:600 14px var(--ui);padding:9px 6px;border-radius:7px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--painel);box-shadow:0 1px 3px rgba(0,0,0,.15);color:var(--acento)}
+.seg button:focus-visible,select:focus-visible{outline:2px solid var(--acento);outline-offset:2px}
+select{width:100%;font:500 14px var(--ui);padding:9px 10px;border-radius:8px;border:1px solid var(--linha);background:var(--painel);color:var(--tinta)}
+select:disabled{opacity:.5}
+.nota{font-size:13px;color:var(--suave);line-height:1.5;margin:0}
+.mesa{display:flex;justify-content:center;overflow-x:auto;padding-block:8px}
+
+/* ===== Bobina térmica 80 mm (≈ 302 px = tamanho real em tela 96 dpi) — corpo 14 px ===== */
+.papel{width:302px;flex:none;background:var(--papel);color:var(--termico);font-family:var(--fonte);font-size:14px;font-weight:600;line-height:1.45;padding:18px 12px 26px;box-shadow:0 10px 30px rgba(0,0,0,.18);
+  -webkit-mask:linear-gradient(#000 0 0) top/100% calc(100% - 8px) no-repeat,radial-gradient(circle 5px at 50% 100%,transparent 98%,#000) bottom/10px 8px repeat-x;
+          mask:linear-gradient(#000 0 0) top/100% calc(100% - 8px) no-repeat,radial-gradient(circle 5px at 50% 100%,transparent 98%,#000) bottom/10px 8px repeat-x}
+.c{text-align:center}
+.loja{font-size:17px;font-weight:700}
+.tipo{font-size:16px;font-weight:700;letter-spacing:.04em}
+.senha{font-size:21px;font-weight:700}
+.reg{font-weight:500}
+.tr{border-top:1px dashed var(--termico);margin:8px 0}
+.sol{border-top:1.5px solid var(--termico);margin:8px 0}
+.tit{text-align:center;font-weight:700;font-size:15px;margin:6px 0 4px}
+.kv b{font-weight:700}.kv span{font-weight:500}
+.lin{display:flex;justify-content:space-between;gap:8px;font-variant-numeric:tabular-nums}
+.lin>span:first-child{min-width:0}
+.cabi{display:flex;justify-content:space-between;font-weight:700;letter-spacing:.03em}
+.item{display:flex;justify-content:space-between;gap:8px;font-weight:600}
+.item>span:last-child{flex:none}
+.comp{padding-left:16px;font-weight:500}
+.obs{background:var(--papel);color:var(--termico);border:1.5px solid var(--termico);font-size:14px;font-weight:700;padding:2px 6px;margin:3px 0;border-radius:4px}
+.faixa{background:var(--termico);color:var(--papel);text-align:center;font-weight:700;font-size:15px;padding:3px 6px;margin:6px 0 6px;border-radius:3px}
+.topo{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px}
+.num{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums}
+.badge{color:var(--termico);font-weight:700;font-size:17px;letter-spacing:.04em}
+.mesa-faixa{display:flex;justify-content:space-between;gap:8px;background:var(--termico);color:var(--papel);font-weight:700;padding:3px 8px;border-radius:3px;font-variant-numeric:tabular-nums}
+.pc-rod{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.pc-rod .txt{min-width:0;display:grid;gap:2px}
+.pc-rod .qr{width:84px;height:84px;margin:0;flex:none}
+.tot{display:flex;justify-content:space-between;font-weight:700;font-size:15.5px}
+.grande{font-size:17px}
+.qr{width:116px;height:116px;margin:6px auto 4px;display:block;image-rendering:pixelated}
+.pq{font-size:12px;font-weight:500}
+
+/* pré-conta em colunas, estilo cupom de conferência */
+.pc-tit{text-align:center;font-weight:700;font-size:16px;margin-bottom:10px}
+.pc-loja{font-weight:500;line-height:1.4}
+.pc-loja b{font-weight:700}
+.tab{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.tab th{font-weight:700;text-align:left;border-bottom:1px solid var(--termico);padding:0 0 2px}
+.tab td{font-weight:500;padding:1px 0;vertical-align:top}
+.tab .q{width:30px;text-align:right;padding-right:8px}
+.tab .v{width:76px;text-align:right}
+.tab .sub td{font-size:13px;padding-left:0}
+.total-g{display:flex;justify-content:space-between;align-items:baseline;font-weight:700;font-size:22px;border-top:1px solid var(--termico);border-bottom:1px solid var(--termico);padding:3px 0;margin:6px 0;font-variant-numeric:tabular-nums}
+.res td{font-weight:500}
+.res .forte td{font-weight:700}
+</style>
+
+<div class="wrap">
+  <section>
+    <h1>Impressão Alfa 1</h1>
+    <p class="sub">Fonte Comfortaa, corpo de 14 px (a observação também). Bobina em tamanho real de 80 mm, com dados de exemplo.</p>
+    <div class="bloco">
+      <div class="rot" id="rDoc">Documento</div>
+      <div class="seg" role="group" aria-labelledby="rDoc">
+        <button id="bComanda" aria-pressed="true" data-doc="comanda">Comanda (cozinha)</button>
+        <button id="bPre" aria-pressed="false" data-doc="pre">Pré-conta</button>
+      </div>
+      <label class="rot" for="selTipo">Tipo de pedido (comanda)</label>
+      <select id="selTipo">
+        <option value="ENTREGA">Entrega</option>
+        <option value="RETIRADA">Retirada</option>
+        <option value="BALCÃO">Balcão</option>
+      </select>
+      <p class="nota">Os QR codes aqui são ilustrativos. Na impressão real, a comanda leva o QR da rota de entrega e a pré-conta o QR do Instagram da loja.</p>
+    </div>
+  </section>
+  <div class="mesa"><div id="papel" class="papel" aria-live="polite"></div></div>
+</div>
+
+<script>
+const est={doc:'comanda',tipo:'ENTREGA'};
+const itens=[
+  {q:1,n:'X-Tudo',v:'30,00',comp:['1x Hambúrguer caseiro'],obs:'Carne artesanal, por favor'},
+  {q:2,n:'X-Egg Bacon',v:'52,00',comp:['1x Bacon extra'],obs:''},
+  {q:1,n:'Batata Frita (G)',v:'18,00',comp:[],obs:'Sem sal'},
+  {q:1,n:'Coca-Cola Lata 350 ml',v:'6,00',comp:[],obs:''}
+];
+const listaItens=()=>`<div class="cabi"><span>QTD  ITENS</span><span>TOTAL</span></div>`+itens.map(i=>
+  `<div class="item"><span>${i.q}x ${i.n}</span><span>R$ ${i.v}</span></div>`+
+  i.comp.map(c=>`<div class="comp">${c}</div>`).join('')+
+  (i.obs?`<div class="obs">Obs: ${i.obs}</div>`:'')).join('');
+
+function qr(rotulo){ // QR ilustrativo desenhado em canvas
+  const n=25,c=document.createElement('canvas');c.width=c.height=n;const x=c.getContext('2d');
+  x.fillStyle='#fff';x.fillRect(0,0,n,n);x.fillStyle='#111';
+  let s=rotulo.length*7919;const r=()=>(s=(s*16807)%2147483647)/2147483647;
+  for(let i=0;i<n;i++)for(let j=0;j<n;j++)if(r()>.52)x.fillRect(i,j,1,1);
+  const olho=(a,b)=>{x.fillStyle='#fff';x.fillRect(a-1,b-1,9,9);x.fillStyle='#111';x.fillRect(a,b,7,7);x.fillStyle='#fff';x.fillRect(a+1,b+1,5,5);x.fillStyle='#111';x.fillRect(a+2,b+2,3,3)};
+  olho(0,0);olho(n-7,0);olho(0,n-7);
+  return `<img class="qr" alt="QR code ilustrativo: ${rotulo}" src="${c.toDataURL()}">`;
+}
+
+function comanda(){
+  const t=est.tipo,ent=t==='ENTREGA';
+  return `<div class="c"><div class="loja">Villa Burguer</div><div class="reg">09/10/2026 - 21:40</div></div>
+  <div class="topo"><span class="num">#010</span><span class="badge">${ent?'DELIVERY':t}</span></div>
+  <div class="sol"></div>
+  ${ent?`<div class="kv"><b>Entrega prevista:</b> <span>09/10/2026 - 22:25</span></div><div class="tr"></div>`:''}
+  <div class="kv"><b>Cliente:</b> <span>Maria Souza</span></div>
+  <div class="kv"><b>Qtd de pedidos:</b> <span>3</span></div>
+  <div class="kv"><b>Tel:</b> <span>(27) 99239-0000</span></div>
+  ${ent?`<div class="kv"><b>Endereço:</b> <span>Rua Jaburuna, 55</span></div>
+  <div class="kv"><b>Comp:</b> <span>Apto 202</span></div>
+  <div class="kv"><b>Bairro:</b> <span>Centro</span></div>
+  <div class="kv"><b>Ref:</b> <span>Ao lado da farmácia</span></div>
+  <div class="kv"><b>Cidade:</b> <span>Vila Velha</span></div>`:''}
+  <div class="tr"></div>
+  <div class="faixa">Itens do pedido</div>
+  ${listaItens()}
+  <div class="tr"></div>
+  <div class="tot"><span>SUBTOTAL</span><span>R$ 106,00</span></div>
+  <div class="tr"></div>
+  <div class="faixa">${ent?'Pagamento na entrega':'Pagamento'}</div>
+  <div class="kv"><b>Forma de pgto:</b> <span>Dinheiro</span></div>
+  <div class="lin"><span>Valor dos itens</span><span>R$ 106,00</span></div>
+  ${ent?`<div class="lin"><span>Taxa de entrega</span><span>R$ 3,99</span></div>`:''}
+  <div class="sol"></div>
+  <div class="tot grande"><span>COBRAR DO CLIENTE</span><span>R$ ${ent?'109,99':'106,00'}</span></div>
+  <div class="tr"></div>
+  <div class="lin"><b>RECEBER DO CLIENTE</b><b>R$ 150,00</b></div>
+  <div class="lin"><b>TROCO</b><b>R$ ${ent?'40,01':'44,00'}</b></div>
+  ${ent?`<div class="tr"></div><div class="c"><div class="tit">ROTA DE ENTREGA</div>${qr('rota')}<div class="pq">Aponte a câmera para abrir a rota</div></div>`:''}
+  <div class="tr"></div><div class="c pq">feito por Menuzia.com.br</div>`;
+}
+
+function preconta(){
+  const linhas=itens.map(i=>`<tr><td class="q">${i.q}</td><td>${i.n}</td><td class="v">${i.v}</td></tr>`+
+    i.comp.map(c=>`<tr class="sub"><td></td><td>+ ${c.replace(/^1x /,'')}</td><td></td></tr>`).join('')).join('');
+  return `<div class="pc-tit">Conferência de Conta</div>
+  <div class="pc-loja"><b>Villa Burguer</b><br>CNPJ 12.345.678/0001-90<br>Não é documento fiscal<br>09/10/2026</div>
+  <div class="tr"></div>
+  <div class="mesa-faixa"><span>Mesa 04 · Conta 0123</span><span>21:40</span></div>
+  <div style="height:6px"></div>
+  <table class="tab">
+    <thead><tr><th class="q">Qt</th><th>Item</th><th class="v">Total</th></tr></thead>
+    <tbody>${linhas}</tbody>
+  </table>
+  <div class="total-g"><span>Total</span><span>106,00</span></div>
+  <table class="tab res">
+    <tr><td>Subtotal</td><td class="v">106,00</td></tr>
+    <tr><td>Serviço (10%)</td><td class="v">10,60</td></tr>
+    <tr><td>Desconto</td><td class="v">- 5,00</td></tr>
+    <tr class="forte"><td>Total da conta</td><td class="v">111,60</td></tr>
+    <tr><td>Já pago</td><td class="v">- 50,00</td></tr>
+  </table>
+  <div class="total-g"><span>A pagar</span><span>R$ 61,60</span></div>
+  <div class="c reg" style="margin-top:8px">3 pessoas · R$ 20,53 por pessoa</div>
+  <div class="c reg">Atendente: Carlos</div>
+  <div class="c reg">Serviço de 10% opcional</div>
+  <div class="tr"></div>
+  <div class="pc-rod"><div class="txt"><b>Siga a gente no Instagram</b><span class="reg">@villaburguer</span></div>${qr('instagram')}</div>
+  <div class="c" style="margin-top:10px">Obrigado pela preferência!</div>
+  <div class="c pq">feito por Menuzia.com.br</div>`;
+}
+
+const p=document.getElementById('papel'),selTipo=document.getElementById('selTipo');
+function desenhar(){p.innerHTML=est.doc==='comanda'?comanda():preconta();selTipo.disabled=est.doc!=='comanda'}
+document.querySelectorAll('.seg button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.seg button').forEach(x=>x.setAttribute('aria-pressed','false'));
+  b.setAttribute('aria-pressed','true');est.doc=b.dataset.doc;desenhar()}));
+selTipo.addEventListener('change',e=>{est.tipo=e.target.value;desenhar()});
+desenhar();
+</script>
+
+</body></html>

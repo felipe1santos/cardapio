@@ -1,0 +1,48 @@
+Villa Burguer
+09/10/2026 - 21:40
+#010            DELIVERY
+================================================
+Entrega prevista: 09/10/2026 - 22:25
+------------------------------------------------
+Cliente: Maria Souza
+Qtd de pedidos: 3
+Tel: (27) 99239-0000
+Endereço: Rua Jaburuna, 55
+Comp: Apto 202
+Bairro: Centro
+Ref: Ao lado da farmácia
+Cidade: Vila Velha
+------------------------------------------------
+                Itens do pedido                 
+QTD ITENS                                  TOTAL
+1x X-Tudo                               R$ 30,00
+   1x Hambúrguer caseiro
++----------------------------------------------+
+| Obs: Carne artesanal, por favor              |
++----------------------------------------------+
+2x X-Egg Bacon                          R$ 52,00
+   1x Bacon extra
+1x Batata Frita (G)                     R$ 18,00
++----------------------------------------------+
+| Obs: Sem sal                                 |
++----------------------------------------------+
+1x Coca-Cola Lata 350 ml                 R$ 6,00
+------------------------------------------------
+SUBTOTAL                               R$ 106,00
+------------------------------------------------
+              Pagamento na entrega              
+Forma de pgto: Dinheiro
+Valor dos itens                        R$ 106,00
+Taxa de entrega                          R$ 3,99
+================================================
+COBRAR         R$ 109,99
+------------------------------------------------
+RECEBER DO CLIENTE                     R$ 150,00
+TROCO                                   R$ 40,01
+------------------------------------------------
+ROTA DE ENTREGA
+[QR]
+app.menuzia.com.br/r/AAAA
+Aponte a câmera para abrir a rota
+------------------------------------------------
+feito por Menuzia.com.br

@@ -37,7 +37,7 @@ function conviteNosDownloads(pasta, agora = Date.now()) {
   let nomes = []
   try { nomes = fs.readdirSync(pasta) } catch { return null }
   for (const nome of nomes) {
-    if (!/^AssistenteMenuziaBeta-Setup-/i.test(nome)) continue
+    if (!/^AssistenteMenuzia(Beta|Alfa1)-Setup-/i.test(nome)) continue
     const c = conviteDoNomeArquivo(nome)
     if (!c) continue
     let em = 0

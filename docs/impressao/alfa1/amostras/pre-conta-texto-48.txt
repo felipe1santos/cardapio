@@ -1,0 +1,36 @@
+Conferência de Conta
+Villa Burguer
+CNPJ 12.345.678/0001-90
+Não é documento fiscal
+09/10/2026
+------------------------------------------------
+Mesa 04 · Conta 0123                       21:40
+ Qt Item                                   Total
+------------------------------------------------
+  1 X-Tudo                                 30,00
+    + Hambúrguer caseiro
+  2 X-Egg Bacon                            52,00
+    + Bacon extra
+  1 Batata Frita (G)                       18,00
+  1 Coca-Cola Lata 350 ml                   6,00
+------------------------------------------------
+Total             106,00
+------------------------------------------------
+Subtotal                                  106,00
+Serviço (10%)                              10,60
+Desconto                                  - 5,00
+Total da conta                            111,60
+Já pago                                  - 50,00
+================================================
+A pagar         R$ 61,60
+================================================
+3 pessoas · R$ 20,53 por pessoa
+Atendente: Carlos
+Serviço de 10% opcional
+------------------------------------------------
+Siga a gente no Instagram
+@villaburguer
+[QR]
+instagram.com/villaburguer
+Obrigado pela preferência!
+feito por Menuzia.com.br

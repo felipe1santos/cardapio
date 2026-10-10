@@ -263,12 +263,12 @@ atualizarCartaoVarias()
 window.agente.ambiente().then((a) => {
   if (a && a.beta) {
     document.getElementById('faixaBeta').style.display = 'block'
-    document.getElementById('titulo').textContent = 'Assistente Menuzia Beta'
-    document.getElementById('subtitulo').textContent = 'Pode fechar esta janela — o Beta continua em segundo plano e abre sozinho ao ligar o PC. O Assistente de Impressão atual segue funcionando normalmente.'
+    document.getElementById('titulo').textContent = 'Assistente Menuzia Alfa 1'
+    document.getElementById('subtitulo').textContent = 'Pode fechar esta janela — o Assistente continua em segundo plano e abre sozinho ao ligar o PC.'
     document.getElementById('cardToken').style.display = 'none'
     document.getElementById('cardImpressora').style.display = 'none'
     document.getElementById('tagVarias').textContent = 'Parear este computador'
-    document.title = 'Assistente Menuzia Beta'
+    document.title = 'Assistente Menuzia Alfa 1'
   }
   if (!a || !a.testeLocal) return
   document.getElementById('faixaTeste').style.display = 'block'

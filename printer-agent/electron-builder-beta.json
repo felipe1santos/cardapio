@@ -7,13 +7,14 @@
   "extraMetadata": {
     "name": "menuzia-assistente-beta",
     "productName": "Assistente Menuzia Beta",
-    "version": "0.2.0-beta.13",
+    "version": "1.1.0",
     "menuziaAmbiente": {
       "variante": "beta",
       "apiBaseUrl": "https://app.menuzia.com.br",
       "pastaDados": "menuzia-assistente-beta",
       "appUserModelId": "com.menuzia.assistente.beta",
-      "nomeInicio": "Assistente Menuzia Beta"
+      "nomeInicio": "Assistente Menuzia Beta",
+      "nomeExibicao": "Assistente Menuzia Alfa 1"
     }
   },
   "protocols": [
@@ -35,9 +36,9 @@
     "deleteAppDataOnUninstall": false,
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
-    "shortcutName": "Assistente Menuzia Beta",
-    "uninstallDisplayName": "Assistente Menuzia Beta ${version}",
-    "artifactName": "AssistenteMenuziaBeta-Setup-${version}.${ext}",
+    "shortcutName": "Assistente Menuzia Alfa 1",
+    "uninstallDisplayName": "Assistente Menuzia Alfa 1 ${version}",
+    "artifactName": "AssistenteMenuziaAlfa1-Setup-${version}.${ext}",
     "include": "build-beta/instalador-beta.nsh"
   },
   "files": [

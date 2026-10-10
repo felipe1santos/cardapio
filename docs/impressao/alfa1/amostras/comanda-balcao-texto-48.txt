@@ -1,0 +1,37 @@
+Villa Burguer
+09/10/2026 - 21:40
+#010              BALCÃO
+================================================
+Cliente: Maria Souza
+Qtd de pedidos: 3
+Tel: (27) 99239-0000
+Senha: 47
+Atendente: Carlos
+------------------------------------------------
+                Itens do pedido                 
+QTD ITENS                                  TOTAL
+1x X-Tudo                               R$ 30,00
+   1x Hambúrguer caseiro
++----------------------------------------------+
+| Obs: Carne artesanal, por favor              |
++----------------------------------------------+
+2x X-Egg Bacon                          R$ 52,00
+   1x Bacon extra
+1x Batata Frita (G)                     R$ 18,00
++----------------------------------------------+
+| Obs: Sem sal                                 |
++----------------------------------------------+
+1x Coca-Cola Lata 350 ml                 R$ 6,00
+------------------------------------------------
+SUBTOTAL                               R$ 106,00
+------------------------------------------------
+                   Pagamento                    
+Forma de pgto: Dinheiro
+Valor dos itens                        R$ 106,00
+================================================
+COBRAR         R$ 106,00
+------------------------------------------------
+RECEBER DO CLIENTE                     R$ 150,00
+TROCO                                   R$ 44,00
+------------------------------------------------
+feito por Menuzia.com.br
