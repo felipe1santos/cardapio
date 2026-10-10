@@ -107,7 +107,8 @@ export default function EquipePage() {
     .filter((l) => (verExcluidos ? l.situacaoVista === 'excluido' : l.situacaoVista !== 'excluido'))
     .filter((l) => !termo || l.nome.toLowerCase().includes(termo) || l.usuario.toLowerCase().includes(termo))
 
-  const administravel = (f: Linha) => f.id !== eu && f.papel !== 'dono' && (papeisOferecidos as string[]).includes(f.papel)
+  // Motoboy (papel entregador, 10/10): quem cria logística também edita, pausa e exclui motoboy.
+  const administravel = (f: Linha) => f.id !== eu && f.papel !== 'dono' && ((papeisOferecidos as string[]).includes(f.papel) || (f.papel === 'entregador' && (papeisOferecidos as string[]).includes('logistica')))
 
   async function mudarSituacao(f: Linha, situacao: Situacao) {
     const r = await fetch(`/api/admin/equipe/${f.id}`, {

@@ -979,7 +979,7 @@ export default function PedidosFinalizadosPage() {
               tom="cinza"
               titulo="Entregadores"
               contador={drivers.length}
-              descricao="Cadastre a equipe, envie o link de acesso e acompanhe quem está na rua."
+              descricao="Cadastre a equipe, envie o login de acesso e acompanhe quem está na rua."
               acoes={
                 <>
                   <Button variant="outline" onClick={openClosing} className="gap-1.5">

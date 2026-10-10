@@ -10,7 +10,7 @@ const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 export function RotaDoQr({ numero, cliente, endereco, parada, loja }: { numero: number; cliente: string; endereco: string; parada: RouteStop; loja: LojaNoMapa }) {
   const origem = loja.lat != null && loja.lng != null ? { lat: loja.lat, lng: loja.lng } : null
   return (
-    <div className="mx-auto max-w-[900px] p-4" data-testid="rota-qr">
+    <div className="mx-auto w-full max-w-[900px] overflow-y-auto p-4" data-testid="rota-qr">
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <h1 className="text-[17px] font-semibold text-text-main">Rota do pedido #{numero}</h1>
         <Link href="/admin/pedidos" className="text-[12.5px] font-semibold text-primary hover:underline">Painel de Pedidos</Link>
