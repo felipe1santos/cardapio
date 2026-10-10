@@ -26,6 +26,8 @@ export interface LojaNoMenu {
 }
 
 export interface SidebarProps {
+  /** "Novidades em teste" (0178): visual novo do menu (texto escuro, cadeado laranja). */
+  novoVisual?: boolean
   items: SidebarItem[]
   activeHref: string
   storeSlug?: string | null
@@ -83,9 +85,12 @@ const ITEM_MENU = [
   'flex min-h-[40px] items-center gap-[10px] rounded-[8px] px-[10px] py-[8px] text-left text-[14px] leading-[20px] transition-colors',
   'focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#0688D4]',
 ].join(' ')
-// Texto e ícone quase pretos (#111827, o escuro do kit) — pedido do dono 10/10: o cinza #4B5563 ficava apagado demais.
-const ITEM_ATIVO = 'bg-[#EEF0F3] font-semibold text-[#111827]'
-const ITEM_INATIVO = 'font-medium text-[#111827] hover:bg-[#F6F7F9] hover:text-[#111827]'
+// Dois visuais: o de sempre (cinza) e o NOVO — texto e ícone quase pretos (#111827, o escuro do kit) e cadeado laranja ao
+// passar o mouse (pedido do dono 10/10), só com "Novidades em teste" (0178).
+const VISUAL = {
+  antigo: { ativo: 'bg-[#EEF0F3] font-semibold text-[#1F2937]', inativo: 'font-medium text-[#4B5563] hover:bg-[#F6F7F9] hover:text-[#1F2937]', icone: 'text-[#4B5563]', iconeAtivo: 'text-[#374151]', cadeado: 'text-[#4B5563]' },
+  novo: { ativo: 'bg-[#EEF0F3] font-semibold text-[#111827]', inativo: 'font-medium text-[#111827] hover:bg-[#F6F7F9] hover:text-[#111827]', icone: 'text-[#111827]', iconeAtivo: 'text-[#111827]', cadeado: 'text-[#111827] transition-colors group-hover:text-[#F97316]' },
+}
 
 export function Sidebar({
   items,
@@ -96,12 +101,16 @@ export function Sidebar({
   onAbrirLoja,
   notificacoes,
   onSignOut,
+  novoVisual = false,
   pendencias = 0,
   mostrarPendencias = true,
   onAbrirPendencias,
   aberta = false,
   onFechar,
 }: SidebarProps) {
+  const v = novoVisual ? VISUAL.novo : VISUAL.antigo
+  const ITEM_ATIVO = v.ativo
+  const ITEM_INATIVO = v.inativo
   // Sino de notificações e alerta de pendências: no card da loja (ou, sem a loja
   // carregada, na faixa do topo).
   const avisos = (
@@ -220,12 +229,12 @@ export function Sidebar({
                 data-modulo={modulo}
               >
                 {iconPath && (
-                  <svg viewBox="0 0 24 24" className="h-[20px] w-[20px] flex-shrink-0 fill-current text-[#111827]" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" className={`h-[20px] w-[20px] flex-shrink-0 fill-current ${v.icone}`} aria-hidden="true">
                     {iconPath.map((d) => (<path key={d} d={d} />))}
                   </svg>
                 )}
                 <span className="truncate">{item.label}</span>
-                <svg viewBox="0 0 24 24" className="ml-auto h-[15px] w-[15px] flex-shrink-0 fill-current text-[#111827] transition-colors group-hover:text-[#F97316]" aria-hidden="true" data-testid="menu-cadeado">
+                <svg viewBox="0 0 24 24" className={`ml-auto h-[15px] w-[15px] flex-shrink-0 fill-current ${v.cadeado}`} aria-hidden="true" data-testid="menu-cadeado">
                   {ICONES.cadeado.map((d) => (<path key={d} d={d} />))}
                 </svg>
               </button>
@@ -239,7 +248,7 @@ export function Sidebar({
               className={[ITEM_MENU, isActive ? ITEM_ATIVO : ITEM_INATIVO].join(' ')}
             >
               {iconPath && (
-                <svg viewBox="0 0 24 24" className={['h-[20px] w-[20px] flex-shrink-0 fill-current', 'text-[#111827]'].join(' ')} aria-hidden="true">
+                <svg viewBox="0 0 24 24" className={['h-[20px] w-[20px] flex-shrink-0 fill-current', isActive ? v.iconeAtivo : v.icone].join(' ')} aria-hidden="true">
                   {iconPath.map((d) => (
                     <path key={d} d={d} />
                   ))}
@@ -269,7 +278,7 @@ export function Sidebar({
           rel="noopener noreferrer"
           className={['min-w-0 flex-1', ITEM_MENU, ITEM_INATIVO].join(' ')}
         >
-          <svg viewBox="0 0 24 24" className="h-[20px] w-[20px] flex-shrink-0 fill-current text-[#111827]" aria-hidden="true">
+          <svg viewBox="0 0 24 24" className={`h-[20px] w-[20px] flex-shrink-0 fill-current ${v.icone}`} aria-hidden="true">
             {ICONES.abrirFora.map((d) => (<path key={d} d={d} />))}
           </svg>
           <span className="truncate">Ver meu cardápio</span>

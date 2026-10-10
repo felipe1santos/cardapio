@@ -19,8 +19,11 @@ import { MensagensAutomaticas } from '@/components/admin/campanhas/mensagens-aut
 import { JanelaModuloBloqueado } from '@/components/admin/janela-modulo-bloqueado'
 import { useEstadoSessao } from '@/lib/sessao-cliente'
 import { RoboAtendimentoAjustes } from '@/components/admin/robo/robo-ajustes'
+import { RoboWhatsappCard, type ConexaoWhatsapp } from '@/components/admin/robo-whatsapp'
+import { Modelos, useModelos } from '@/components/admin/campanhas/modelos'
+import { PushNotificacoes } from '@/components/admin/push-notificacoes'
 import { AgenteIa } from '@/components/admin/agente-ia'
-import { abasDoAjustes, ABAS_MOVIDAS, HREF_IMPRESSAO, type AbaAjustes } from '@/components/admin/ajustes-abas'
+import { abasDoAjustes, abasMovidas, HREF_IMPRESSAO, type AbaAjustes } from '@/components/admin/ajustes-abas'
 import { PilhaToasts, useToasts } from '@/components/admin/toasts'
 import { normalizarHex } from '@/lib/aviso-vitrine'
 import { normalizarInstagram } from '@/lib/instagram'
@@ -62,7 +65,7 @@ import { ConfigConta } from '@/app/admin/mesas/config-conta'
 // Modelos de mensagem e Notificações do app foram para Campanhas).
 type Tab = AbaAjustes
 /** Todos os ids possíveis (para ler o ?aba= ao abrir). */
-const TAB_IDS = abasDoAjustes({ podeAjustes: true, podeImpressao: true, agenteLiberado: true }).map((t) => t.id)
+const TAB_IDS = [...new Set([...abasDoAjustes({ podeAjustes: true, podeImpressao: true, agenteLiberado: true, novidades: true }), ...abasDoAjustes({ podeAjustes: true, podeImpressao: true, agenteLiberado: true, novidades: false })].map((t) => t.id))]
 
 /** Bloco de seção do painel de ajustes — agrupa campos afins sob um título. */
 function Secao({
@@ -1960,17 +1963,41 @@ function TabMesas({ restauranteId, active }: { restauranteId: string; active: bo
 // ─── WhatsApp e notificações (vieram de Campanhas e Integrações, 2026-10-06) ─────
 // Os MESMOS componentes e as mesmas rotas de API de antes (permissões checadas no servidor como hoje).
 
-function TabWhatsapp({ tipo }: { tipo: 'mensagens' | 'robo' | 'agente' }) {
+function TabWhatsapp({ tipo, restauranteId, novidades }: { tipo: 'mensagens' | 'modelos' | 'notificacoes' | 'robo' | 'agente'; restauranteId: string; novidades: boolean }) {
+  const router = useRouter()
   const toasts = useToasts()
   const estadoSessao = useEstadoSessao()
+  const disparosLiberado = !!estadoSessao?.modulos?.disparos
+  const disparosBloqueado = !!estadoSessao && !estadoSessao.modulos?.disparos
   const agenteLiberado = !!estadoSessao?.modulos?.agente_ia
+  const modelos = useModelos(tipo === 'modelos' ? restauranteId : null)
+  // Robô de antes (sem "Novidades em teste"): só o cartão do robô simples, como sempre.
+  const roboAntigo = tipo === 'robo' && !novidades
+  const [conexao, setConexao] = useState<ConexaoWhatsapp>(null)
+  useEffect(() => {
+    if (!roboAntigo) return
+    fetch('/api/admin/whatsapp/status', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d: { configurado: boolean; connected: boolean; state: string | null }) => setConexao({ configurado: d.configurado, conectado: d.connected, estado: d.state }))
+      .catch(() => setConexao('falhou'))
+  }, [roboAntigo])
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-5 lg:px-6" data-ajustes-rolagem data-testid={`ajustes-${tipo}`}>
-        <div className={tipo === 'robo' ? 'max-w-[1240px]' : 'max-w-[980px]'}>
+        <div className={tipo === 'robo' && novidades ? 'max-w-[1240px]' : 'max-w-[980px]'}>
+          {/* Notificações do app (push) são do módulo Disparos (0176); as mensagens de status do pedido são livres. */}
+          {disparosBloqueado && tipo === 'notificacoes' && <JanelaModuloBloqueado inline modulo="disparos" loja={estadoSessao?.lojaNome ?? ''} whatsapp={estadoSessao?.whatsappComercial} />}
           {tipo === 'mensagens' && <MensagensAutomaticas onToast={toasts.mostrar} onAtivoMudou={() => {}} />}
-          {/* Tela única dos dois robôs (simples e autoatendimento), 10/10. */}
-          {tipo === 'robo' && <RoboAtendimentoAjustes avisar={toasts.mostrar} />}
+          {tipo === 'modelos' && (
+            // "Usar" leva o modelo para um disparo novo em Campanhas.
+            <Modelos api={modelos} onUsar={(m) => { router.push(`/admin/campanhas?modelo=${encodeURIComponent(m.id)}`) }} onToast={toasts.mostrar} />
+          )}
+          {tipo === 'notificacoes' && disparosLiberado && <PushNotificacoes />}
+          {roboAntigo && (
+            <RoboWhatsappCard somenteConfig conexao={conexao} onConectar={() => { router.push('/admin/integracoes?abrir=whatsapp') }} avisar={toasts.mostrar} />
+          )}
+          {/* Com "Novidades em teste": tela única dos dois robôs (simples e autoatendimento), 10/10. */}
+          {tipo === 'robo' && novidades && <RoboAtendimentoAjustes avisar={toasts.mostrar} />}
           {/* Agente de IA (módulo pago, 0176): sem o módulo, o "Quero liberar" no lugar. */}
           {tipo === 'agente' && estadoSessao && (agenteLiberado
             ? <AgenteIa />
@@ -1991,25 +2018,31 @@ export default function AjustesPage() {
   const [tab, setTab] = useState<Tab>('loja')
   const estadoSessao = useEstadoSessao()
   // Ajustes é só do dono (ajustes.editar), que também configura a Impressão.
-  const TABS = abasDoAjustes({ podeAjustes: true, podeImpressao: true, agenteLiberado: !!estadoSessao?.modulos?.agente_ia })
+  const novidades = estadoSessao?.novidades === true
+  const TABS = abasDoAjustes({ podeAjustes: true, podeImpressao: true, agenteLiberado: !!estadoSessao?.modulos?.agente_ia, novidades })
 
   useEffect(() => {
     buscarRestauranteIdDoUsuario(supabase).then(setRestauranteId)
   }, [supabase])
 
   // A Impressão tem uma página só (menu lateral). Link antigo (?aba=impressao) vai para ela.
+  // Espera o estado da sessão (a chave "Novidades em teste" decide para onde vão as abas que mudaram de lugar).
+  const sessaoPronta = estadoSessao !== null
   useEffect(() => {
+    if (!sessaoPronta) return
     const aba = new URLSearchParams(window.location.search).get('aba')
-    // Abas que mudaram de lugar: Impressão (página própria em Ajustes), Cozinha (menu), Modelos e Notificações do app (Campanhas).
-    if (aba && ABAS_MOVIDAS[aba]) { router.replace(ABAS_MOVIDAS[aba]); return }
+    const movidas = abasMovidas(novidades)
+    // Abas que mudaram de lugar: Impressão, Cozinha (menu) e, com as novidades, Modelos e Notificações do app (Campanhas).
+    if (aba && movidas[aba]) { router.replace(movidas[aba]); return }
     // "Aparência" virou bloco do Perfil da loja (2026-10-06): o link antigo abre o Perfil já nele.
     if (aba === 'aparencia') window.setTimeout(() => document.querySelector('[data-testid="secao-aparencia"]')?.scrollIntoView({ block: 'start' }), 600)
     if (aba && (TAB_IDS as string[]).includes(aba)) setTab(aba as Tab)
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessaoPronta])
 
   // Troca de seção fica na URL (?aba=…): o voltar do navegador e os links diretos funcionam.
   function irPara(id: Tab) {
-    if (id === 'impressao') { router.push(HREF_IMPRESSAO); return }
+    if (id === 'impressao') { router.push(novidades ? HREF_IMPRESSAO : '/admin/impressao'); return }
     setTab(id)
     const u = new URL(window.location.href)
     if (id === 'loja') u.searchParams.delete('aba'); else u.searchParams.set('aba', id)
@@ -2041,9 +2074,11 @@ export default function AjustesPage() {
               <TabMesas restauranteId={restauranteId} active={tab === 'mesas'} />
               <TabQrCode restauranteId={restauranteId} active={tab === 'qrcode'} />
               <TabConta active={tab === 'conta'} />
-              {tab === 'mensagens' && <TabWhatsapp tipo="mensagens" />}
-              {tab === 'robo' && <TabWhatsapp tipo="robo" />}
-              {tab === 'agente' && <TabWhatsapp tipo="agente" />}
+              {tab === 'mensagens' && <TabWhatsapp tipo="mensagens" restauranteId={restauranteId} novidades={novidades} />}
+              {tab === 'modelos' && <TabWhatsapp tipo="modelos" restauranteId={restauranteId} novidades={novidades} />}
+              {tab === 'notificacoes' && <TabWhatsapp tipo="notificacoes" restauranteId={restauranteId} novidades={novidades} />}
+              {tab === 'robo' && <TabWhatsapp tipo="robo" restauranteId={restauranteId} novidades={novidades} />}
+              {tab === 'agente' && novidades && <TabWhatsapp tipo="agente" restauranteId={restauranteId} novidades={novidades} />}
             </>
           )}
         </div>

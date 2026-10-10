@@ -289,7 +289,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // Regra do menu (papel × flag de mesas × logística) em lib/menu-lateral.ts, testada.
   // Pendências de configuração ficam só no alerta do card da loja (2026-09-30): os
   // marcadores numéricos nos itens do menu saíram.
-  const items = itensDoMenu({ papel, moduloMesas, usaLogistica, financeiro: !!estadoSessao?.financeiroAtivo && acoesFin(papel, acessos).length > 0, modulos: estadoSessao?.modulos ?? null }).filter((item) => caminhoPermitidoCompleto(item.href, papel, acessos)).map((item) => {
+  const items = itensDoMenu({ papel, moduloMesas, usaLogistica, financeiro: !!estadoSessao?.financeiroAtivo && acoesFin(papel, acessos).length > 0, modulos: estadoSessao?.modulos ?? null, novidades: estadoSessao?.novidades === true }).filter((item) => caminhoPermitidoCompleto(item.href, papel, acessos)).map((item) => {
     const base = item
     if (item.href === '/admin/pedidos') return { ...base, badge: badges.novosPedidos }
     // Item 58: "Pedidos" (antes Logística) não tem contador — os prontos aparecem no botão Despachar do Kanban.
@@ -355,6 +355,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <div className="flex min-h-0 flex-1 overflow-hidden">
       {!focusMode && (
         <Sidebar
+          novoVisual={estadoSessao?.novidades === true}
           items={items}
           onModuloBloqueado={(m) => void abrirModuloBloqueado(m)}
           activeHref={pathname}

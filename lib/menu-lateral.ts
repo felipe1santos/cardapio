@@ -15,9 +15,10 @@ import type { Modulo, ModulosDaLoja } from '@/lib/modulos'
  * Campanhas (disparo de mensagem) o usa. É marcação temporária: quando deixar de
  * ser novidade, tira-se a chave daqui.
  *
- * Reorganização 10/10/2026 (ordem do dono): Agente de IA e Impressão saíram do menu principal e viraram
- * itens de Ajustes (Ajustes › Agente de IA, /admin/ajustes/impressao). Quem pode configurar a Impressão mas
- * não os Ajustes (gerente) continua vendo "Ajustes" no menu, que abre direto na Impressão.
+ * Reorganização 10/10/2026 (ordem do dono) — SÓ com "Novidades em teste" (0178, hoje só a Menuzia): Agente de IA e
+ * Impressão saem do menu principal e viram itens de Ajustes (Ajustes › Agente de IA, /admin/ajustes/impressao). Quem
+ * pode configurar a Impressão mas não os Ajustes (gerente) vê "Ajustes" abrindo direto na Impressão. Sem a chave, o
+ * menu é exatamente o de antes.
  */
 export const NAV_ITEMS = [
   { href: '/admin/dashboard', label: 'Dashboard' },
@@ -30,9 +31,11 @@ export const NAV_ITEMS = [
   { href: '/admin/cardapio', label: 'Cardápio' },
   { href: '/admin/clientes', label: 'Clientes' },
   { href: '/admin/campanhas', label: 'Campanhas', novidade: true },
+  { href: '/admin/agente-ia', label: 'Agente de IA' },
   { href: '/admin/fidelidade', label: 'Fidelidade' },
   { href: '/admin/integracoes', label: 'Integrações' },
   { href: '/admin/equipe', label: 'Equipe' },
+  { href: '/admin/impressao', label: 'Impressão' },
   { href: '/admin/ajustes', label: 'Ajustes' },
 ] as const
 
@@ -42,7 +45,10 @@ export const HREF_IMPRESSAO = '/admin/ajustes/impressao'
 export type ItemMenu = Omit<(typeof NAV_ITEMS)[number], 'href'> & { href: string; /** Módulo pago bloqueado na loja (0176): item meio apagado, com cadeado. */ bloqueado?: Modulo }
 
 /** Item do menu → módulo pago que ele abre (0176). */
-const MODULO_DO_ITEM: Record<string, Modulo> = { '/admin/financeiro': 'financeiro', '/admin/campanhas': 'disparos' }
+const MODULO_DO_ITEM: Record<string, Modulo> = { '/admin/financeiro': 'financeiro', '/admin/campanhas': 'disparos', '/admin/agente-ia': 'agente_ia' }
+
+/** Saem do menu principal com "Novidades em teste" (viram itens de Ajustes). */
+const FORA_DO_MENU_NOVO = new Set(['/admin/agente-ia', '/admin/impressao'])
 
 /**
  * Permissão que cada tela exige para aparecer no menu.
@@ -61,9 +67,11 @@ export const PERMISSAO_DO_MENU: Record<string, Permissao> = {
   '/admin/cardapio': 'cardapio.editar',
   '/admin/clientes': 'clientes.ver',
   '/admin/campanhas': 'campanhas.gerenciar',
+  '/admin/agente-ia': 'integracoes.gerenciar',
   '/admin/fidelidade': 'fidelidade.gerenciar',
   '/admin/integracoes': 'integracoes.gerenciar',
   '/admin/equipe': 'equipe.gerenciar',
+  '/admin/impressao': 'impressao.configurar',
   '/admin/ajustes': 'ajustes.editar',
 }
 
@@ -82,16 +90,19 @@ export function itensDoMenu(opcoes: {
    * "Quero liberar". Sem a informação ainda (carregando): tratado como bloqueado (nunca abre o que não pagou).
    */
   modulos?: ModulosDaLoja | null
+  /** "Novidades em teste" (0178): menu reorganizado. Ausente/false = menu de antes. */
+  novidades?: boolean
 }): ItemMenu[] {
   const lista: ItemMenu[] = []
   for (const item of NAV_ITEMS) {
     if (item.href === '/admin/lista-pedidos' && !opcoes.usaLogistica) continue
     if (item.href === '/admin/mesas' && !opcoes.moduloMesas) continue
+    if (opcoes.novidades && FORA_DO_MENU_NOVO.has(item.href)) continue
     if (opcoes.papel !== null) {
       const exigida = PERMISSAO_DO_MENU[item.href]
       if (exigida && !pode(opcoes.papel, exigida)) {
         // Sem os Ajustes, mas com a Impressão (gerente): "Ajustes" abre direto na Impressão — como antes ele tinha o item Impressão.
-        if (item.href === '/admin/ajustes' && pode(opcoes.papel, 'impressao.configurar')) lista.push({ ...item, href: HREF_IMPRESSAO })
+        if (opcoes.novidades && item.href === '/admin/ajustes' && pode(opcoes.papel, 'impressao.configurar')) lista.push({ ...item, href: HREF_IMPRESSAO })
         continue
       }
     }

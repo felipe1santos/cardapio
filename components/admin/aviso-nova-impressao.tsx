@@ -44,7 +44,7 @@ export function AvisoNovaImpressao() {
         <span className="max-sm:hidden">Atualize o Assistente: QR da rota para o entregador e envio automático.</span>
       </p>
       <Link
-        href="/admin/ajustes/impressao"
+        href="/admin/impressao"
         data-testid="aviso-nova-impressao-botao"
         className="inline-flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[8px] bg-white px-3 py-1.5 text-[13px] font-semibold text-[#DC2626] hover:bg-[#FEF2F2] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
       >

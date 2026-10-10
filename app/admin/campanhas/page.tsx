@@ -16,22 +16,29 @@ import { VisaoGeral } from '@/components/admin/campanhas/visao-geral'
 import { Agendamentos, ListaCampanhas, type AcoesCampanha } from '@/components/admin/campanhas/listas'
 import { Modelos, useModelos, type ModeloMensagem } from '@/components/admin/campanhas/modelos'
 import { PushNotificacoes } from '@/components/admin/push-notificacoes'
+import { useEstadoSessao } from '@/lib/sessao-cliente'
 import { BoasPraticas } from '@/components/admin/campanhas/boas-praticas'
 import { Ajuda, Confirmar } from '@/components/admin/campanhas/comum'
 import { Lightbulb, Send } from 'lucide-react'
 
-// Campanhas (10/10/2026, ordem do dono): disparos + "Modelos de mensagem" e "Notificações do app" (push do app do
-// cardápio para os CLIENTES), que voltaram de Ajustes — são das campanhas e ficam sob o mesmo cadeado (módulo
-// Disparos). As mensagens automáticas de STATUS do pedido seguem em Ajustes (livres): ?aba=automaticas vai para lá.
+// Campanhas = disparos. Com "Novidades em teste" (0178, hoje só a Menuzia; ordem do dono 10/10), "Modelos de mensagem"
+// e "Notificações do app" (push do app do cardápio para os CLIENTES) moram aqui, sob o mesmo cadeado (Disparos). Sem a
+// chave, como antes: elas ficam em Ajustes e ?aba=modelos|notificacoes leva para lá. As mensagens automáticas de STATUS
+// do pedido ficam sempre em Ajustes (livres).
 type Aba = 'visao' | 'campanhas' | 'agendamentos' | 'modelos' | 'notificacoes'
-const MOVIDAS: Record<string, string> = { automaticas: 'mensagens' }
-const ABAS: ItemSubmenu<Aba>[] = [
+const ABAS_BASE: ItemSubmenu<Aba>[] = [
   { id: 'visao', label: 'Visão geral', icone: 'dashboard' },
   { id: 'campanhas', label: 'Campanhas', icone: 'campaign' },
   { id: 'agendamentos', label: 'Agendamentos', icone: 'schedule' },
+]
+const ABAS_NOVIDADES: ItemSubmenu<Aba>[] = [
+  ...ABAS_BASE,
   { id: 'modelos', label: 'Modelos de mensagem', icone: 'description' },
   { id: 'notificacoes', label: 'Notificações do app', icone: 'notifications' },
 ]
+function movidas(novidades: boolean): Record<string, string> {
+  return novidades ? { automaticas: 'mensagens' } : { automaticas: 'mensagens', notificacoes: 'notificacoes', modelos: 'modelos' }
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -312,11 +319,18 @@ export default function CampanhasPage() {
   const [previewCampanha, setPreviewCampanha] = useState<Campanha | null>(null)
   const [aba, setAba] = useState<Aba>('visao')
   // Atalho: /admin/campanhas?aba=notificacoes (Fidelidade) abre direto a seção; "metricas" virou a Visão geral.
+  const estadoSessao = useEstadoSessao()
+  const novidades = estadoSessao?.novidades === true
+  const ABAS = novidades ? ABAS_NOVIDADES : ABAS_BASE
+  const sessaoPronta = estadoSessao !== null
   useEffect(() => {
+    if (!sessaoPronta) return
     const q = new URLSearchParams(window.location.search).get('aba')
-    if (q && MOVIDAS[q]) { router.replace(`/admin/ajustes?aba=${MOVIDAS[q]}`); return }
-    if (q && ABAS.some((a) => a.id === q)) setAba(q as Aba)
-  }, [])
+    const m = movidas(novidades)
+    if (q && m[q]) { router.replace(`/admin/ajustes?aba=${m[q]}`); return }
+    if (q && (novidades ? ABAS_NOVIDADES : ABAS_BASE).some((a) => a.id === q)) setAba(q as Aba)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessaoPronta])
   const toasts = useToasts()
   const [boasPraticas, setBoasPraticas] = useState(false)
   const [confirmacao, setConfirmacao] = useState<{ tipo: 'cancelar' | 'excluir'; c: Campanha } | null>(null)
@@ -538,8 +552,8 @@ export default function CampanhasPage() {
           {aba === 'campanhas' && <ListaCampanhas campanhas={campanhas} carregando={loading} acoes={acoes} onNovo={abrirNovo} />}
           {aba === 'agendamentos' && <Agendamentos campanhas={campanhas} carregando={loading} acoes={acoes} onNovo={abrirNovo} />}
           {/* "Usar" abre o disparo com o modelo, aqui mesmo. */}
-          {aba === 'modelos' && <Modelos api={modelos} onUsar={usarModelo} onToast={toasts.mostrar} />}
-          {aba === 'notificacoes' && <PushNotificacoes />}
+          {aba === 'modelos' && novidades && <Modelos api={modelos} onUsar={usarModelo} onToast={toasts.mostrar} />}
+          {aba === 'notificacoes' && novidades && <PushNotificacoes />}
         </div>
       </div>
 

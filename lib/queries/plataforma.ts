@@ -47,6 +47,8 @@ export interface LojaPlataforma {
   pedidos: number
   ticket: number
   betaLiberado: boolean
+  /** "Novidades em teste" (0178). */
+  novidades: boolean
   sublogins: Sublogin[]
 }
 
@@ -100,7 +102,7 @@ function principal(donos: UsuarioRaw[]): UsuarioRaw {
 /** Agrupa contas por loja (função pura — testada em plataforma.test.ts). */
 export function agruparPorLoja(
   usuarios: UsuarioRaw[],
-  restaurantes: { id: string; nome: string; slug: string; impressao_beta_liberado?: boolean | null }[],
+  restaurantes: { id: string; nome: string; slug: string; impressao_beta_liberado?: boolean | null; novidades_teste?: boolean | null }[],
   metricas: Map<string, { faturamento: number; qtdPedidos: number }>,
   agora = Date.now(),
 ): LojaPlataforma[] {
@@ -149,6 +151,7 @@ export function agruparPorLoja(
       pedidos: m?.qtdPedidos ?? 0,
       ticket: m && m.qtdPedidos > 0 ? m.faturamento / m.qtdPedidos : 0,
       betaLiberado: !!r.impressao_beta_liberado,
+      novidades: !!r.novidades_teste,
       sublogins,
     })
   }
@@ -172,6 +175,7 @@ export function agruparPorLoja(
       pedidos: 0,
       ticket: 0,
       betaLiberado: false,
+      novidades: false,
       sublogins: [],
     })
   }
@@ -218,12 +222,12 @@ export async function metricasEntreguesPorLoja(admin: SupabaseClient): Promise<M
 export async function listarLojasPlataforma(admin: SupabaseClient, agora = Date.now()): Promise<{ lojas: LojaPlataforma[]; resumo: ResumoPlataforma }> {
   const [us, rs, metricas] = await Promise.all([
     admin.from('usuarios').select('id, email, usuario, nome, nome_loja, telefone, papel, cargo, autorizado, restaurante_id, ultimo_login_em, criado_em, acesso_expira_em, logins_total, desativado_em, situacao'),
-    admin.from('restaurantes').select('id, nome, slug, impressao_beta_liberado'),
+    admin.from('restaurantes').select('id, nome, slug, impressao_beta_liberado, novidades_teste'),
     metricasEntreguesPorLoja(admin),
   ])
   if (us.error) throw us.error
   if (rs.error) throw rs.error
-  const lojas = agruparPorLoja((us.data ?? []) as UsuarioRaw[], (rs.data ?? []) as { id: string; nome: string; slug: string; impressao_beta_liberado: boolean | null }[], metricas, agora)
+  const lojas = agruparPorLoja((us.data ?? []) as UsuarioRaw[], (rs.data ?? []) as { id: string; nome: string; slug: string; impressao_beta_liberado: boolean | null; novidades_teste: boolean | null }[], metricas, agora)
   return { lojas, resumo: resumir(lojas) }
 }
 

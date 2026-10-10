@@ -94,7 +94,7 @@ export function AcoesTopo() {
       <Dica texto={rotuloBeta ?? ROTULO_IMPRESSORA[impressora]}>
         <button
           type="button"
-          onClick={() => router.push('/admin/ajustes/impressao')}
+          onClick={() => router.push('/admin/impressao')}
           aria-label={rotuloBeta ?? ROTULO_IMPRESSORA[impressora]}
           data-testid="topo-impressora"
           className={`${QUADRADO} hover:bg-[var(--adm-hover)] ${tomImpressora}`}

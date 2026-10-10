@@ -175,6 +175,38 @@ export async function alternarModuloAction(restauranteId: string, modulo: string
   return terminar({ ok: true, mensagem: `${INFO_MODULO[m].nome} ${liberar ? 'liberado' : 'bloqueado'} na loja.` })
 }
 
+/**
+ * "Novidades em teste" (0178): liga/desliga as telas novas numa loja. Não mexe em dado nenhum — só no que a loja vê.
+ */
+export async function alternarNovidadesAction(restauranteId: string, ligar: boolean): Promise<ResultadoAcao> {
+  const quem = await ensureSuperAdmin()
+  if (!UUID.test(restauranteId)) return { ok: false, erro: 'Loja inválida.' }
+  const admin = getAdminSupabase()
+  const { error } = await admin.from('restaurantes').update({ novidades_teste: ligar }).eq('id', restauranteId)
+  if (error) return { ok: false, erro: 'Não foi possível alterar as novidades da loja.' }
+  await registrarAuditoria(admin, {
+    restauranteId, usuarioId: null, usuarioNome: `Plataforma (${quem.email})`,
+    acao: ligar ? 'novidades.ligadas' : 'novidades.desligadas', entidade: 'restaurante', entidadeId: restauranteId, dados: {},
+  })
+  await auditarPlataforma(admin, { ator: quem.email, acao: ligar ? 'plataforma.novidades_ligou' : 'plataforma.novidades_desligou', restauranteId })
+  return terminar({ ok: true, mensagem: ligar ? 'Novidades em teste ligadas na loja.' : 'Novidades em teste desligadas na loja.' })
+}
+
+/** Libera as "Novidades em teste" para TODAS as lojas (confirmação digitada: LIBERAR). */
+export async function liberarNovidadesTodasAction(confirmacao: string): Promise<ResultadoAcao> {
+  const quem = await ensureSuperAdmin()
+  if ((confirmacao ?? '').trim().toUpperCase() !== 'LIBERAR') return { ok: false, erro: 'Digite LIBERAR para confirmar.' }
+  const admin = getAdminSupabase()
+  const { data, error } = await admin.from('restaurantes').update({ novidades_teste: true }).eq('novidades_teste', false).select('id')
+  if (error) return { ok: false, erro: 'Não foi possível liberar para todas as lojas.' }
+  const ids = ((data ?? []) as { id: string }[]).map((r) => r.id)
+  for (const id of ids) {
+    await registrarAuditoria(admin, { restauranteId: id, usuarioId: null, usuarioNome: `Plataforma (${quem.email})`, acao: 'novidades.ligadas', entidade: 'restaurante', entidadeId: id, dados: { todas: true } })
+  }
+  await auditarPlataforma(admin, { ator: quem.email, acao: 'plataforma.novidades_todas', dados: { lojas: ids.length } })
+  return terminar({ ok: true, mensagem: `Novidades liberadas para ${ids.length} loja(s).` })
+}
+
 export async function sairAction() {
   const supabase = await getServerSupabase()
   await supabase.auth.signOut()

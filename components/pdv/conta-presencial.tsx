@@ -1513,7 +1513,7 @@ function PreContaBloco({ comandaId, variante = 'bloco' }: { comandaId: string; v
         <p className="mt-1.5 text-[11px] font-semibold text-danger" data-testid="pre-conta-erro">
           {erro.texto}
           {erro.semCaixa && (
-            <Link href="/admin/ajustes/impressao" className="mt-1.5 inline-flex items-center rounded-menuzia border border-danger/40 bg-white px-2.5 py-1 text-[12px] font-semibold text-danger no-underline hover:bg-danger hover:text-white" data-testid="pre-conta-configurar">
+            <Link href="/admin/impressao" className="mt-1.5 inline-flex items-center rounded-menuzia border border-danger/40 bg-white px-2.5 py-1 text-[12px] font-semibold text-danger no-underline hover:bg-danger hover:text-white" data-testid="pre-conta-configurar">
               Configurar impressão
             </Link>
           )}
