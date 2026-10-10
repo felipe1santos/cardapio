@@ -12,11 +12,13 @@ export async function getServerSupabase() {
         get(name: string) {
           return cookieStore.get(name)?.value
         },
+        // Em Server Component o Next não deixa gravar cookie: a sessão já foi renovada pelo middleware,
+        // então aqui só ignora (padrão do @supabase/ssr). Em Route Handler/Server Action grava normal.
         set(name: string, value: string, options: CookieOptions) {
-          cookieStore.set({ name, value, ...options })
+          try { cookieStore.set({ name, value, ...options }) } catch { /* Server Component */ }
         },
         remove(name: string, options: CookieOptions) {
-          cookieStore.set({ name, value: '', ...options })
+          try { cookieStore.set({ name, value: '', ...options }) } catch { /* Server Component */ }
         },
       },
     }

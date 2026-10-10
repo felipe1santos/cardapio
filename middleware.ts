@@ -48,6 +48,9 @@ export async function middleware(request: NextRequest) {
   let acessos: Acessos | null = null
 
   const { data: auth } = await supabase.auth.getUser()
+  // Super Admin: aqui só renova a sessão (o cookie novo vai na resposta). Quem autoriza é a própria página
+  // (SUPERADMIN_EMAILS); as regras de papel do painel não se aplicam.
+  if (pathname === '/superadmin' || pathname.startsWith('/superadmin/')) return response
   if (auth.user) {
     const { data, error } = await supabase.from('usuarios').select('papel, acessos').eq('id', auth.user.id).maybeSingle()
     if (error) {
@@ -141,7 +144,8 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Só o painel e as APIs administrativas. Vitrine, mesa pública, portais de token,
-  // webhooks e o agente de impressão ficam de fora — eles têm autenticação própria.
-  matcher: ['/admin/:path*', '/api/admin/:path*'],
+  // Só o painel, as APIs administrativas e o Super Admin (este só para renovar a sessão). Vitrine,
+  // mesa pública, portais de token, webhooks e o agente de impressão ficam de fora — eles têm
+  // autenticação própria.
+  matcher: ['/admin/:path*', '/api/admin/:path*', '/superadmin', '/superadmin/:path*'],
 }
