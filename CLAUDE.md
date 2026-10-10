@@ -18,6 +18,29 @@ Em 03–09/10/2026 um loop no mapa do despacho fez ~20 mil chamadas pagas ao Goo
   cotas Geocoding 300/dia, Directions 300/dia, Maps JS 150/dia; orçamento R$ 50/mês; chaves `GOOGLE_MAPS_BROWSER_KEY`
   (Build time) e `GOOGLE_MAPS_SERVER_KEY` (sem Build time) no Coolify; contador em `/superadmin`.
 
+## Diretrizes Karpathy (sempre)
+
+1. **Pensar antes de codar:** dizer as suposições; se houver mais de uma leitura, mostrar; se algo não está claro, parar e perguntar.
+2. **Simplicidade primeiro:** o mínimo de código que resolve; nada especulativo, sem abstração para uso único.
+3. **Mudança cirúrgica:** mexer só no necessário; não "melhorar" código vizinho; limpar só a própria bagunça.
+4. **Execução guiada por meta:** definir o critério de sucesso verificável (teste que reproduz → passa) e repetir até verificar.
+
+## Skills do projeto (`.claude/skills`, origem em `.claude/skills/FONTES.md`)
+
+As regras deste CLAUDE.md (custo, kit visual, lojas reais, segredos no Coolify) vencem qualquer skill.
+
+| Quando | Skill |
+|---|---|
+| Antes de publicar mudanças em login, permissões, dados de cliente, pagamentos e APIs | `semgrep` + `sarif-parsing` (Trail of Bits). Semgrep via Docker, sem instalar nada: `docker run --rm -e SEMGREP_ENABLE_VERSION_CHECK=0 -v "$PWD:/src" semgrep/semgrep:1.140.0 semgrep scan --metrics=off --config p/default /src`. Saída SEMPRE fora do repositório (scratchpad) — o repo é público |
+| Ao criar/alterar componentes React (useEffect, setInterval, polling, listas grandes) | `vercel-react-best-practices` (projeto em React 18: ignorar regras só de React 19) |
+| Em todo bug, antes de corrigir | `systematic-debugging` (causa raiz) |
+| Em toda correção de bug e em regra de dinheiro | `test-driven-development` (teste que falha primeiro; não apagar código existente por causa dela) |
+| Ao refatorar componentes grandes | `composition-patterns` |
+| Ao revisar telas novas (sem mudar o kit de design) | `web-design-guidelines` (regras locais em `guidelines.md`) |
+| Sessão longa ou antes de compactar | `handoff` |
+| Antes de funcionalidades grandes (agente de IA, robô, módulos) | `grill-me` (usa `grilling`) |
+| Sempre | `karpathy-guidelines` (resumo acima) |
+
 ---
 # Menuzia — Plataforma SaaS de Cardápio Digital & Gestão de Delivery
 
