@@ -188,7 +188,7 @@ export async function processarMensagemAuto(
   const e = ent as {
     duplicada: boolean; sem_envio?: boolean; conversa_id: string; mensagem_id?: string; acao: 'nada' | 'decidir'; protecao?: boolean; limite?: boolean
     silenciada?: boolean; reativada?: boolean; auto_estado?: EstadoAuto['autoEstado']; auto_estado_em?: string | null; auto_nao_entendeu?: number
-    auto_saudacao_em?: string | null; nome?: string | null
+    auto_saudacao_em?: string | null; nome?: string | null; auto_audio_em?: string | null; auto_versao?: number
   }
   if (e.duplicada && !(e.sem_envio && e.mensagem_id)) return { respostas: 0, motivo: 'duplicada' }
   if (m.deMim) return { respostas: 0, motivo: 'loja_respondeu' }
@@ -214,9 +214,10 @@ export async function processarMensagemAuto(
     const { error: errDesc } = await admin.rpc('whatsapp_descadastrar', { p_restaurante: restauranteId, p_telefone: telefone, p_sair: descadastro === 'sair', p_origem: 'cliente' })
     if (errDesc) throw errDesc
     if (descadastro === 'sair' && e.acao === 'decidir') {
-      await admin.rpc('whatsapp_auto_aplicar', {
+      await admin.rpc('whatsapp_auto_aplicar_v2', {
         p_restaurante: restauranteId, p_conversa: e.conversa_id, p_mensagem: e.mensagem_id, p_acao: 'parar',
         p_estado: null, p_estado_em: null, p_nao_entendeu: 0, p_saudacao_em: e.auto_saudacao_em ?? null, p_silenciar: 'parar',
+        p_audio_em: e.auto_audio_em ?? null, p_versao: e.auto_versao ?? 0,
       })
     }
     await fila(textoDescadastro(ctx.lojaV1, descadastro === 'sair'), 0, 'descadastro')
@@ -231,16 +232,18 @@ export async function processarMensagemAuto(
     return { respostas, motivo: 'reativada' }
   }
 
-  // Mídia (áudio, foto...): conta como "não entendi" (menu completo com o link).
+  // Mídia (11/10): a decisão trata pelo tipo — foto/vídeo/documento não respondem, áudio avisa 1× a cada 6 h.
   const classificacao = c ?? { intencao: 'outro' as const, assunto: 'outro' as const, porNumero: false, normalizado: '' }
   const estado: EstadoAuto = {
     autoEstado: e.auto_estado ?? null,
     autoEstadoEm: e.auto_estado_em ?? null,
     naoEntendeu: e.auto_nao_entendeu ?? 0,
     saudacaoEm: e.auto_saudacao_em ?? null,
+    audioEm: e.auto_audio_em ?? null,
   }
   const agora = new Date()
-  const d = decidir({ classificacao, texto: m.texto ?? '', estado, agora, assuntosDesligados: loja.assuntosDesligados })
+  const d = decidir({ classificacao, texto: m.texto ?? '', estado, agora, assuntosDesligados: loja.assuntosDesligados, tipo: m.tipo })
+  if (d.acao === 'nada') return { respostas: 0, motivo: m.tipo === 'texto' ? 'nada' : 'midia_sem_resposta' }
 
   let pedido: PedidoAuto | null = null
   let abertos = 0
@@ -257,12 +260,14 @@ export async function processarMensagemAuto(
     novo.autoEstado = r.autoEstado
     novo.autoEstadoEm = r.autoEstado ? agora.toISOString() : null
   }
-  const { error: errAp } = await admin.rpc('whatsapp_auto_aplicar', {
+  const { data: aplicou, error: errAp } = await admin.rpc('whatsapp_auto_aplicar_v2', {
     p_restaurante: restauranteId, p_conversa: e.conversa_id, p_mensagem: e.mensagem_id, p_acao: d.acao,
     p_estado: novo.autoEstado, p_estado_em: novo.autoEstadoEm, p_nao_entendeu: novo.naoEntendeu, p_saudacao_em: novo.saudacaoEm,
-    p_silenciar: d.silenciar ?? null,
+    p_silenciar: d.silenciar ?? null, p_audio_em: novo.audioEm ?? null, p_versao: e.auto_versao ?? 0,
   })
   if (errAp) throw errAp
+  // Outra mensagem da mesma conversa (ex.: foto do mesmo álbum) decidiu antes: esta não responde (nada em dobro).
+  if (aplicou === false) return { respostas: 0, motivo: 'concorrencia' }
   if (d.naoEntendida && c) await registrarNaoEntendida(admin, restauranteId, c.normalizado, m.texto ?? '')
   for (let i = 0; i < r.mensagens.length; i++) await fila(r.mensagens[i], i)
   return { respostas, motivo: d.acao }

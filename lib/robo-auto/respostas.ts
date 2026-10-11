@@ -205,5 +205,7 @@ export function responder(decisao: Decisao, l: DadosLojaAuto, ctx: ContextoRespo
       return { mensagens: [t(decisao.porNaoEntender ? 'atendente_nao_entendeu' : 'atendente')] }
     case 'parar':
       return { mensagens: [t('parar')] }
+    case 'audio':
+      return { mensagens: [t('audio')] }
   }
 }

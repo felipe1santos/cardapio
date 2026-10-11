@@ -83,3 +83,30 @@ describe('decisão do robô de autoatendimento', () => {
     expect(d('6').acao).toBe('endereco')
   })
 })
+
+describe('mídia (diagnóstico 11/10: álbum de fotos virou "não entendi" 2× → atendente e pausou o robô)', () => {
+  const m = (tipo: string, estado: EstadoAuto = ESTADO_VAZIO) =>
+    decidir({ classificacao: classificar(null), texto: '', estado, agora: AGORA, tipo: tipo as never })
+  it('foto, vídeo, documento, figurinha, contato e tipo desconhecido: não responde nem conta como não entendido', () => {
+    for (const t of ['imagem', 'video', 'documento', 'figurinha', 'contato', 'outro']) {
+      const r = m(t)
+      expect(r.acao, t).toBe('nada')
+      expect(r.naoEntendida, t).toBe(false)
+      expect(r.estado.naoEntendeu, t).toBe(0)
+    }
+    // e não zera a contagem de quem já tinha errado uma vez
+    expect(m('imagem', { ...ESTADO_VAZIO, naoEntendeu: 1 }).estado.naoEntendeu).toBe(1)
+  })
+  it('áudio: aviso no máximo 1× a cada 6 h', () => {
+    const a = m('audio')
+    expect(a.acao).toBe('audio')
+    expect(a.estado.audioEm).toBe(AGORA.toISOString())
+    expect(m('audio', { ...ESTADO_VAZIO, audioEm: min(30) }).acao).toBe('nada')
+    expect(m('audio', { ...ESTADO_VAZIO, audioEm: min(7 * 60) }).acao).toBe('audio')
+  })
+  it('localização: pergunta o bairro', () => {
+    const r = m('localizacao')
+    expect(r.acao).toBe('entrega_perguntar_bairro')
+    expect(r.estado.autoEstado).toBe('aguardando_bairro')
+  })
+})

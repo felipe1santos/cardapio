@@ -4,19 +4,22 @@
  * Decisões em docs/robo-whatsapp/autoatendimento-decisoes.md (D6, D7, D11, D12, D13).
  */
 import { bairroDaFrase, type Assunto, type Classificacao, type Intencao } from './classificador'
+import type { TipoMensagem } from '@/lib/mensageria/provedor'
 
 export type AcaoAuto =
   | 'saudacao' | 'menu_curto' | 'cardapio' | 'entrega' | 'entrega_perguntar_bairro' | 'status' | 'status_numero'
-  | 'horario' | 'pagamento' | 'endereco' | 'reclamacao' | 'atendente' | 'parar' | 'nao_entendeu' | 'nada'
+  | 'horario' | 'pagamento' | 'endereco' | 'reclamacao' | 'atendente' | 'parar' | 'nao_entendeu' | 'audio' | 'nada'
 
 export interface EstadoAuto {
   autoEstado: 'aguardando_bairro' | 'aguardando_numero' | null
   autoEstadoEm: string | null
   naoEntendeu: number
   saudacaoEm: string | null
+  /** Último aviso de "não consigo ouvir áudio" (11/10): no máximo 1 a cada 6 h. */
+  audioEm?: string | null
 }
 
-export const ESTADO_VAZIO: EstadoAuto = { autoEstado: null, autoEstadoEm: null, naoEntendeu: 0, saudacaoEm: null }
+export const ESTADO_VAZIO: EstadoAuto = { autoEstado: null, autoEstadoEm: null, naoEntendeu: 0, saudacaoEm: null, audioEm: null }
 
 export const SAUDACAO_JANELA_MS = 6 * 3600_000
 export const ESTADO_VALIDADE_MS = 15 * 60_000
@@ -43,6 +46,8 @@ export interface EntradaDecisao {
   estado: EstadoAuto
   agora: Date
   assuntosDesligados?: Set<Assunto>
+  /** Tipo da mensagem (padrão: texto). */
+  tipo?: TipoMensagem
 }
 
 const ACAO_DO_ASSUNTO: Record<Assunto, AcaoAuto> = {
@@ -61,6 +66,22 @@ export function decidir(e: EntradaDecisao): Decisao {
   if (intencao !== 'ok' && intencao !== 'voltar' && intencao !== 'outro' && desligados.has(intencao) && !SEMPRE_LIGADOS.includes(intencao)) intencao = 'outro'
 
   const agoraIso = agora.toISOString()
+
+  // Mídia (diagnóstico 11/10): um álbum de fotos virava "não entendi" 2× → atendente e pausava o robô. Foto, vídeo,
+  // documento, figurinha, contato e tipo desconhecido (inclusive outro robô mandando mensagem vazia) não respondem e
+  // não contam como "não entendi". Áudio: aviso no máximo 1× a cada 6 h. Localização: pergunta o bairro.
+  if (e.tipo && e.tipo !== 'texto') {
+    if (e.tipo === 'audio') {
+      const recente = e.estado.audioEm && agora.getTime() - Date.parse(e.estado.audioEm) < SAUDACAO_JANELA_MS
+      return recente
+        ? { acao: 'nada', intencao: 'outro', estado: e.estado, naoEntendida: false }
+        : { acao: 'audio', intencao: 'outro', estado: { ...e.estado, audioEm: agoraIso }, naoEntendida: false }
+    }
+    if (e.tipo === 'localizacao') {
+      return { acao: 'entrega_perguntar_bairro', intencao: 'entrega', estado: { ...e.estado, naoEntendeu: 0, autoEstado: 'aguardando_bairro', autoEstadoEm: agoraIso }, naoEntendida: false }
+    }
+    return { acao: 'nada', intencao: 'outro', estado: e.estado, naoEntendida: false }
+  }
   const limpo: EstadoAuto = { ...e.estado, autoEstado: null, autoEstadoEm: null }
   const emEspera = valido(e.estado, agora) ? e.estado.autoEstado : null
   const entendido = (est: EstadoAuto): EstadoAuto => ({ ...est, naoEntendeu: 0 })
