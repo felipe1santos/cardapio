@@ -1,6 +1,7 @@
 'use server'
 
 import { redirect } from 'next/navigation'
+import { MSG_LOGIN_INVALIDO } from '@/lib/auth/mensagens-acesso'
 import { getServerSupabase } from '@/lib/supabase/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { isSuperAdminEmail } from '@/lib/auth/superadmin'
@@ -41,7 +42,7 @@ export async function signIn(formData: FormData) {
     const resolvido = await buscarEmailPorUsuario(getAdminSupabase(), login)
     if (!resolvido) {
       falhou()
-      redirect(`/login?${nx}error=${encodeURIComponent('Usuário ou senha inválidos.')}`)
+      redirect(`/login?${nx}error=${encodeURIComponent(MSG_LOGIN_INVALIDO)}`)
     }
     email = resolvido
   }
@@ -53,7 +54,7 @@ export async function signIn(formData: FormData) {
     falhou()
     // Falha de login vai para a auditoria da loja do usuário (quando o login existe).
     await auditarFalhaDeLogin(email).catch(() => {})
-    redirect(`/login?${nx}error=${encodeURIComponent('Usuário ou senha inválidos.')}`)
+    redirect(`/login?${nx}error=${encodeURIComponent(MSG_LOGIN_INVALIDO)}`)
   }
 
   falhasPorLogin.limpar(chaveLogin)

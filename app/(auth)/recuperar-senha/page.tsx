@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { MSG_RECUPERACAO_ENVIADA } from '@/lib/auth/mensagens-acesso'
 import { AuthShell, authInput, authButton } from '@/components/auth/auth-shell'
 import { solicitarTroca } from './actions'
 
@@ -20,8 +21,7 @@ export default async function RecuperarSenhaPage({
       {sent ? (
         <div className="text-center">
           <p className="mb-4 rounded-menuzia bg-price-bg px-3 py-2 text-xs text-price-text">
-            Se houver uma conta com esse e-mail, enviamos um link para você definir
-            uma nova senha. Verifique sua caixa de entrada (e o spam).
+            {MSG_RECUPERACAO_ENVIADA} Verifique sua caixa de entrada (e o spam).
           </p>
           <Link href="/login" className="text-xs font-semibold text-[#21478C]">
             Voltar para o login
