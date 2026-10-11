@@ -82,7 +82,7 @@ export const PALAVRAS_PADRAO: Record<Assunto, string[]> = {
   ],
   entrega: [
     'taxa', 'taxas', 'frete', 'entrega', 'entregam', 'entregar', 'entregao', 'delivery', 'chegam ate', 'chega ate', 'atendem', 'atende o bairro',
-    'tempo de entrega', 'demora a entrega', 'demora pra entregar', 'taxx',
+    'tempo de entrega', 'demora a entrega', 'demora pra entregar', 'taxx', 'entregando',
   ],
   pagamento_pix: [
     'pix', 'pics', 'chave', 'pagamento', 'pagamentos', 'pagar', 'pago', 'cartao', 'credito', 'debito', 'dinheiro', 'tem troco', 'leva troco', 'levam troco', 'traz troco', 'trazem troco', 'vale refeicao',
@@ -190,7 +190,7 @@ export function classificar(texto: string | null, extras?: PalavrasExtras): Clas
   return r('outro')
 }
 
-const CONECTORES = new Set(['no', 'na', 'nos', 'nas', 'pro', 'pra', 'para', 'em', 'ate', 'o', 'a', 'ao', 'do', 'da', 'de', 'bairro', 'aqui', 'entrega', 'taxa', 'frete'])
+const CONECTORES = new Set(['hoje', 'agora', 'no', 'na', 'nos', 'nas', 'pro', 'pra', 'para', 'em', 'ate', 'o', 'a', 'ao', 'do', 'da', 'de', 'bairro', 'aqui', 'entrega', 'taxa', 'frete'])
 
 /**
  * Bairro escrito junto da pergunta de entrega: "taxa pro ibes", "entregam no centro?", "frete pra praia do canto".
@@ -198,7 +198,7 @@ const CONECTORES = new Set(['no', 'na', 'nos', 'nas', 'pro', 'pra', 'para', 'em'
  */
 export function bairroDaFrase(texto: string): string | null {
   const palavras = normalizarTexto(texto).split(' ').filter(Boolean)
-  const gatilhos = new Set(['taxa', 'taxas', 'frete', 'entrega', 'entregam', 'entregar', 'entregao', 'delivery', 'chegam', 'chega', 'atendem', 'atende', 'taxx'])
+  const gatilhos = new Set(['taxa', 'taxas', 'frete', 'entrega', 'entregam', 'entregar', 'entregao', 'entregando', 'delivery', 'chegam', 'chega', 'atendem', 'atende', 'taxx'])
   let i = -1
   palavras.forEach((p, k) => { if (gatilhos.has(p)) i = k })
   if (i < 0) return null

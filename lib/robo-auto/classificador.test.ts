@@ -21,6 +21,8 @@ const FRASES: [string, Intencao][] = [
   ['vcs entregam no centro?', 'entrega'], ['qnto ta a taxa pro ibes', 'entrega'], ['qual a taxa de entrega?', 'entrega'], ['taxa', 'entrega'],
   ['quanto é o frete?', 'entrega'], ['entrega em vila velha?', 'entrega'], ['voces fazem entrega', 'entrega'], ['tem delivery?', 'entrega'],
   ['quanto fica a entrega pra praia do canto', 'entrega'], ['entregam na glória?', 'entrega'], ['qnt tempo demora a entrega', 'entrega'],
+  // Ponto 400, 11/10: "entregando" ficava perto de "entregador" (status) na passada tolerante
+  ['Está entregando?', 'entrega'], ['vcs tão entregando hoje?', 'entrega'],
   ['tempo de entrega', 'entrega'], ['taxa pro jardim camburi', 'entrega'], ['vcs chegam ate itapua?', 'entrega'], ['faz entrega aqui no bairro?', 'entrega'],
   ['qto é a taxa', 'entrega'], ['taxx de entrega', 'entrega'], ['frete pro centro', 'entrega'], ['entregao no ibes?', 'entrega'], ['atendem o bairro jockey?', 'entrega'],
   // status do pedido
