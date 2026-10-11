@@ -95,7 +95,8 @@ export function montarPedidoPublico(bruto: unknown): ResultadoWhitelist {
     pagamento: texto(corpo.pagamento, 30) as FormaPagamento,
     pixOnline: corpo.pixOnline === true,
     // Origem atribuída (item 55): o canal é recalculado aqui (lib/origem-visita.ts), nunca aceito pronto.
-    ...((): { origemCanal: string; origemDetalhe: Record<string, unknown> } => { const o = origemDoPedido(corpo.origemVisita); return { origemCanal: o.canal, origemDetalhe: o.detalhe } })(),
+    // Primeira origem do aparelho (10/10, "como conheceu") vai junto no detalhe; nunca bloqueia o pedido.
+    ...((): { origemCanal: string; origemDetalhe: Record<string, unknown> } => { const o = origemDoPedido(corpo.origemVisita, corpo.origemPrimeira); return { origemCanal: o.canal, origemDetalhe: { ...o.detalhe } } })(),
     trocoPara: typeof corpo.trocoPara === 'number' ? corpo.trocoPara : null,
     itens: Array.isArray(corpo.itens) ? (corpo.itens as NovoPedidoItemInput[]) : [],
     chaveIdempotencia: chavePedidoPublico(corpo.chavePedido) ?? undefined,

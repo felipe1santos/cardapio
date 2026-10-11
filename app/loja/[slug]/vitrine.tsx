@@ -2624,7 +2624,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         // meta: _fbp/_fbc (sem dado pessoal) para a API de Conversões casar a compra com o anúncio.
         // origemVisita: a ATRIBUÍDA ao pedido (item 55) — o servidor recalcula o canal a partir dela.
         // ("origem" é campo interno da rota: canal PDV/cardápio.)
-        body: JSON.stringify({ ...payload, chavePedido: tentativaPedido.current.chave, meta: { ...idsMetaDoNavegador(), url: window.location.href.slice(0, 500) }, origemVisita: rastreio.current?.origem() ?? null }),
+        body: JSON.stringify({ ...payload, chavePedido: tentativaPedido.current.chave, meta: { ...idsMetaDoNavegador(), url: window.location.href.slice(0, 500) }, origemVisita: rastreio.current?.origem() ?? null, origemPrimeira: rastreio.current?.origemPrimeira() ?? null }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Não foi possível enviar o pedido.')

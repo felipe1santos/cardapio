@@ -29,6 +29,8 @@ export interface OrigemBruta {
   campanha: string | null
   /** Clique de anúncio na URL. */
   clique: 'gclid' | 'fbclid' | null
+  /** utm_content (10/10): distingue links do mesmo canal (ex.: os 3 do Google). */
+  conteudo?: string | null
 }
 
 const limpar = (v: string | null | undefined, n = 60) => {
@@ -47,7 +49,7 @@ export function capturarOrigem(p: { busca: string; referrer: string; hostAtual: 
       if (host && host !== p.hostAtual.replace(/^www\./, '').toLowerCase()) fonte = host.slice(0, 60)
     } catch { /* referrer inválido: sem fonte */ }
   }
-  return { fonte, meio: limpar(q.get('utm_medium'), 40), campanha: limpar(q.get('utm_campaign'), 80), clique }
+  return { fonte, meio: limpar(q.get('utm_medium'), 40), campanha: limpar(q.get('utm_campaign'), 80), clique, conteudo: limpar(q.get('utm_content'), 60) }
 }
 
 export function ehDireta(o: OrigemBruta): boolean {
@@ -102,14 +104,43 @@ export function atribuirOrigem(atual: OrigemBruta, guardada: OrigemAtribuida | n
   return { atribuida: { fonte: null, meio: null, campanha: null, clique: null, canal: 'direto', em: agora }, guardar: null }
 }
 
+/**
+ * PRIMEIRA origem do aparelho nesta loja ("como conheceu", 10/10): a da 1ª abertura — mesmo direta — guardada uma
+ * vez e nunca trocada. Devolve o que guardar (null = já existe).
+ */
+export function primeiraOrigem(atual: OrigemBruta, guardada: OrigemAtribuida | null, agora: number): { primeira: OrigemAtribuida; guardar: OrigemAtribuida | null } {
+  if (guardada) return { primeira: guardada, guardar: null }
+  const p = { ...atual, canal: canalDaOrigem(atual), em: agora }
+  return { primeira: p, guardar: p }
+}
+
+export interface DetalheOrigem {
+  fonte: string | null
+  meio: string | null
+  campanha: string | null
+  clique: string | null
+  conteudo?: string | null
+  /** Primeira origem do aparelho ("como conheceu"); ausente em pedidos de antes de 10/10. */
+  primeira?: { canal: CanalOrigem; fonte: string | null; meio: string | null; campanha: string | null; conteudo: string | null }
+}
+
 /** Valida o que a vitrine manda junto do pedido (só análise — nunca decide dinheiro). */
-export function origemDoPedido(bruto: unknown): { canal: CanalOrigem; detalhe: { fonte: string | null; meio: string | null; campanha: string | null; clique: string | null } } {
-  const o = (bruto ?? {}) as Record<string, unknown>
+export function origemDoPedido(bruto: unknown, brutoPrimeira?: unknown): { canal: CanalOrigem; detalhe: DetalheOrigem } {
   const txt = (v: unknown, n: number) => (typeof v === 'string' ? limpar(v, n) : null)
-  const det = { fonte: txt(o.fonte, 60), meio: txt(o.meio, 40), campanha: txt(o.campanha, 80), clique: o.clique === 'gclid' || o.clique === 'fbclid' ? (o.clique as string) : null }
-  // O canal é recalculado aqui a partir da origem crua (o navegador não escolhe o canal).
-  const canal = canalDaOrigem({ fonte: det.fonte, meio: det.meio, clique: det.clique as OrigemBruta['clique'] })
-  return { canal, detalhe: det }
+  const ler = (b: unknown) => {
+    const o = (b ?? {}) as Record<string, unknown>
+    const det = { fonte: txt(o.fonte, 60), meio: txt(o.meio, 40), campanha: txt(o.campanha, 80), clique: o.clique === 'gclid' || o.clique === 'fbclid' ? (o.clique as string) : null, conteudo: txt(o.conteudo, 60) }
+    // O canal é recalculado aqui a partir da origem crua (o navegador não escolhe o canal).
+    return { canal: canalDaOrigem({ fonte: det.fonte, meio: det.meio, clique: det.clique as OrigemBruta['clique'] }), det }
+  }
+  const ultima = ler(bruto)
+  const detalhe: DetalheOrigem = { fonte: ultima.det.fonte, meio: ultima.det.meio, campanha: ultima.det.campanha, clique: ultima.det.clique }
+  if (ultima.det.conteudo) detalhe.conteudo = ultima.det.conteudo
+  if (brutoPrimeira && typeof brutoPrimeira === 'object') {
+    const p = ler(brutoPrimeira)
+    detalhe.primeira = { canal: p.canal, fonte: p.det.fonte, meio: p.det.meio, campanha: p.det.campanha, conteudo: p.det.conteudo }
+  }
+  return { canal: ultima.canal, detalhe }
 }
 
 /** "Instagram (campanha festa)" — dica do card e do painel do pedido. */

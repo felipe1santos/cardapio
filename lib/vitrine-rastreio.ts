@@ -1,7 +1,7 @@
 'use client'
 
 import { limparRotulo, type EventoCliente, type TipoEvento } from '@/lib/vitrine-eventos'
-import { atribuirOrigem, capturarOrigem, textoDaVisita, type OrigemAtribuida, type OrigemBruta } from '@/lib/origem-visita'
+import { atribuirOrigem, primeiraOrigem, capturarOrigem, textoDaVisita, type OrigemAtribuida, type OrigemBruta } from '@/lib/origem-visita'
 
 /**
  * Rastreador da vitrine: junta os eventos em fila e manda em lote para
@@ -60,10 +60,20 @@ export interface Rastreador {
   encerrar(): void
   /** Origem ATRIBUÍDA ao pedido (item 55): última não-direta do aparelho em 7 dias, senão Direto. */
   origem(): OrigemAtribuida
+  /** PRIMEIRA origem do aparelho nesta loja (10/10, "como conheceu"). */
+  origemPrimeira(): OrigemAtribuida
 }
 
 /** Origem guardada no aparelho, por loja (item 55). */
 const chaveOrigem = (slug: string) => `mz-origem-${slug}`
+/** Primeira origem do aparelho nesta loja (10/10): gravada uma vez, nunca trocada. */
+const chavePrimeira = (slug: string) => `mz-origem1-${slug}`
+function lerPrimeiraGuardada(slug: string): OrigemAtribuida | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(chavePrimeira(slug)) ?? 'null') as OrigemAtribuida | null
+    return v && typeof v.em === 'number' && typeof v.canal === 'string' ? v : null
+  } catch { return null }
+}
 function lerOrigemGuardada(slug: string): OrigemAtribuida | null {
   try {
     const v = JSON.parse(localStorage.getItem(chaveOrigem(slug)) ?? 'null') as OrigemAtribuida | null
@@ -81,6 +91,8 @@ export function criarRastreador(slug: string): Rastreador {
   const { atribuida, guardar } = atribuirOrigem(origemAqui, lerOrigemGuardada(slug), Date.now())
   if (guardar) { try { localStorage.setItem(chaveOrigem(slug), JSON.stringify(guardar)) } catch { /* privado: vale só nesta aba */ } }
   const origemAtribuida = atribuida
+  const { primeira, guardar: guardarPrimeira } = primeiraOrigem(origemAqui, lerPrimeiraGuardada(slug), Date.now())
+  if (guardarPrimeira) { try { localStorage.setItem(chavePrimeira(slug), JSON.stringify(guardarPrimeira)) } catch { /* privado: vale só nesta aba */ } }
   const fila: (EventoCliente & { em: number })[] = []
 
   const montarCorpo = () => {
@@ -137,6 +149,7 @@ export function criarRastreador(slug: string): Rastreador {
   return {
     registrar,
     origem: () => origemAtribuida,
+    origemPrimeira: () => primeira,
     encerrar() {
       window.clearInterval(timer)
       document.removeEventListener('visibilitychange', aoEsconder)

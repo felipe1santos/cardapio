@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { atribuirOrigem, canalDaOrigem, capturarOrigem, descreverOrigem, JANELA_ATRIBUICAO_MS, origemDoPedido, textoDaVisita } from './origem-visita'
+import { atribuirOrigem, canalDaOrigem, capturarOrigem, descreverOrigem, JANELA_ATRIBUICAO_MS, origemDoPedido, textoDaVisita, primeiraOrigem } from './origem-visita'
 
 const cap = (busca: string, referrer = '') => capturarOrigem({ busca, referrer, hostAtual: 'app.menuzia.com.br' })
 
@@ -70,5 +70,33 @@ describe('origem que chega com o pedido', () => {
     expect(descreverOrigem('instagram', { campanha: 'festa' })).toBe('Instagram (campanha festa)')
     expect(descreverOrigem('direto', null)).toBe('Direto')
     expect(descreverOrigem(null)).toBeNull()
+  })
+})
+
+describe('primeira origem e utm_content (Bloco 2, 10/10/2026)', () => {
+  it('captura utm_content (os 3 links do Google se distinguem por ele)', () => {
+    const o = capturarOrigem({ busca: '?utm_source=google&utm_medium=perfil&utm_content=site', referrer: '', hostAtual: 'app.menuzia.com.br' })
+    expect(o.conteudo).toBe('site')
+    expect(canalDaOrigem(o)).toBe('google_busca')
+  })
+  it('primeira origem: guardada só na 1ª abertura (mesmo direta) e nunca mais trocada', () => {
+    const google = capturarOrigem({ busca: '?utm_source=google&utm_medium=perfil&utm_content=cardapio', referrer: '', hostAtual: 'x' })
+    const insta = capturarOrigem({ busca: '?utm_source=instagram&utm_medium=bio', referrer: '', hostAtual: 'x' })
+    const a = primeiraOrigem(google, null, 1000)
+    expect(a.primeira.canal).toBe('google_busca')
+    expect(a.guardar).not.toBeNull()
+    const b = primeiraOrigem(insta, a.guardar, 2000)
+    expect(b.primeira.canal).toBe('google_busca')
+    expect(b.guardar).toBeNull()
+    const direta = primeiraOrigem(capturarOrigem({ busca: '', referrer: '', hostAtual: 'x' }), null, 1)
+    expect(direta.primeira.canal).toBe('direto')
+  })
+  it('servidor: guarda a primeira e o conteúdo no detalhe, recalculando o canal', () => {
+    const d = origemDoPedido({ fonte: 'instagram', meio: 'bio', conteudo: 'link-bio', canal: 'google_anuncio' }, { fonte: 'google', meio: 'perfil', conteudo: 'site', canal: 'qrcode' })
+    expect(d.canal).toBe('instagram')
+    expect(d.detalhe.conteudo).toBe('link-bio')
+    expect(d.detalhe.primeira).toEqual({ canal: 'google_busca', fonte: 'google', meio: 'perfil', campanha: null, conteudo: 'site' })
+    // Vitrine antiga (sem primeira): continua igual ao de antes
+    expect(origemDoPedido({ fonte: 'instagram' }).detalhe.primeira).toBeUndefined()
   })
 })
