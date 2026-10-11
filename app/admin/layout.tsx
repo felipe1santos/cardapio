@@ -375,15 +375,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       )}
       {/* `min-w-0`: sem isso o conteúdo largo (tabela, grade de mesas) empurra o flex
           e reaparece a rolagem horizontal que a gaveta veio resolver. */}
-      <main className="flex min-w-0 flex-1 flex-col overflow-hidden">{children}</main>
+      {/* Contêiner do conteúdo: referência do botão do WhatsApp (canto inferior esquerdo, à direita do menu). */}
+      <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
+        <main className="flex min-w-0 flex-1 flex-col overflow-hidden">{children}</main>
+        {/* Central de atendimento do WhatsApp: só o botão (leve); o painel vem sob demanda. Fora do PDV, Mesas, Comandas
+            e Balcão — lá ele cobria a barra de ações. */}
+        {restauranteId && papel && pode(papel, 'whatsapp.atender') && !focusMode && !/^\/admin\/(pdv|mesas)(\/|$)/.test(pathname) && <LancadorAtendimento restauranteId={restauranteId} />}
+      </div>
       </div>
       {/* "Salvando… / Salvo" no centro da tela para toda gravação feita pelo usuário. */}
       <IndicadorSalvar />
       {/* PIN de outra pessoa quando o servidor pede (estorno, cancelamento depois da cozinha). Depois do indicador: embrulha o fetch dele. */}
       <AprovacaoGlobal />
-      {/* Central de atendimento do WhatsApp: só o botão (leve); o painel vem sob demanda. */}
-      {/* Botão flutuante do atendimento: fora do PDV, Mesas, Comandas e Balcão — lá ele cobria a barra de ações. */}
-      {restauranteId && papel && pode(papel, 'whatsapp.atender') && !focusMode && !/^\/admin\/(pdv|mesas)(\/|$)/.test(pathname) && <LancadorAtendimento restauranteId={restauranteId} lado={/^\/admin\/pedidos(\/|$)/.test(pathname) ? 'esquerda' : 'direita'} />}
       {fichaAberta && loja && (
         <FichaDaLoja
           loja={{ ...loja, slug: storeSlug }}

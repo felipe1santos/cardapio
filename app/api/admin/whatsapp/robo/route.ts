@@ -51,7 +51,7 @@ export async function GET() {
   const suporte = isSuperAdminEmail(sessao.email)
   const [cfg, dados, envios, recebidas] = await Promise.all([
     admin.from('whatsapp_robo_config')
-      .select('robo_ativo, boas_vindas, boas_vindas_horas, retorno_minutos, webhook_segredo, atualizado_em, atualizado_por_nome')
+      .select('robo_ativo, autoatendimento_ativo, boas_vindas, boas_vindas_horas, retorno_minutos, webhook_segredo, atualizado_em, atualizado_por_nome')
       .eq('restaurante_id', loja).maybeSingle(),
     admin.from('restaurantes').select('nome, evolution_instance').eq('id', loja).maybeSingle(),
     admin.from('whatsapp_envios').select('estado').eq('restaurante_id', loja).gte('criado_em', desde),
@@ -66,7 +66,8 @@ export async function GET() {
   }
   const segredo = (cfg.data?.webhook_segredo as string | undefined) ?? ''
   const basico = {
-    roboAtivo: cfg.data?.robo_ativo === true,
+    // Robô único (0182): "robô ligado" é o robô de atendimento.
+    roboAtivo: cfg.data?.autoatendimento_ativo === true,
     liberadoNoServidor: roboLiberadoNoServidor(),
     instancia: (dados.data?.evolution_instance as string | null) ?? null,
     atualizadoEm: (cfg.data?.atualizado_em as string | null) ?? null,

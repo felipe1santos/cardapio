@@ -39,7 +39,14 @@ describe('robô desligado × envios transacionais', () => {
       expect(src, arquivo).not.toMatch(/robo_ativo|whatsapp_robo_config|roboAtivo/)
     }
     // E o único lugar que lê o interruptor é a entrada (resposta a mensagens recebidas).
-    expect(ler('lib/mensageria/entrada.ts')).toMatch(/cfg\.robo_ativo/)
+    expect(ler('lib/mensageria/entrada.ts')).toMatch(/cfg\.autoatendimento_ativo/)
+  })
+
+  it('robô único (0182): o robô antigo (robo_ativo) nunca mais responde — só o robô de atendimento', () => {
+    const src = ler('lib/mensageria/entrada.ts')
+    expect(src).not.toMatch(/cfg\.robo_ativo/)
+    expect(src).not.toMatch(/textoBoasVindas|textoAtendente|textoCardapio|textoHorario|textoTaxa|textoPadrao/)
+    expect(ler('lib/mensageria/atendimento.ts')).not.toMatch(/robo_ativo/)
   })
 
   it('aviso de status do pedido sai pela Evolution sem consultar o robô', async () => {

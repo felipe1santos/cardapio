@@ -28,6 +28,36 @@ export interface ConversaCentral {
   foto: string | null
   /** Quando a foto foi buscada; null = nunca (o navegador pede quando a linha aparece). */
   fotoEm: string | null
+  /** Cliente pediu atendente ao robô (0182): destaque amarelo e topo da lista até a loja marcar "Resolvido". */
+  pedindoAtendenteDesde: string | null
+}
+
+/** Destaque de "pedindo atendente" vale por 12 h (mesma janela da antiga faixa do Kanban). */
+export const PEDINDO_ATENDENTE_JANELA_MS = 12 * 3600_000
+
+/**
+ * O cliente pediu atendente e a loja ainda não marcou "Resolvido" (0182). Devolver ao robô ou encerrar por outro botão
+ * (atendimento robo/encerrada) também tira o destaque.
+ */
+export function estaPedindoAtendente(c: { pediu_atendente_em: string | null; atendimento: string }, agora: Date = new Date()): boolean {
+  if (!c.pediu_atendente_em || (c.atendimento !== 'aguardando' && c.atendimento !== 'humano')) return false
+  return agora.getTime() - Date.parse(c.pediu_atendente_em) < PEDINDO_ATENDENTE_JANELA_MS
+}
+
+/** Selos do botão flutuante: pedindo atendente (amarelo) separado das outras pendências (vermelho). */
+export function contarResumo(
+  linhas: { pediu_atendente_em: string | null; atendimento: string; nao_lidas: number | null }[],
+  agora: Date = new Date(),
+): { pedindoAtendente: number; aguardando: number; naoLidas: number } {
+  let pedindoAtendente = 0
+  let aguardando = 0
+  let naoLidas = 0
+  for (const c of linhas) {
+    if (estaPedindoAtendente(c, agora)) pedindoAtendente++
+    else if (c.atendimento === 'aguardando') aguardando++
+    else if ((c.nao_lidas ?? 0) > 0) naoLidas++
+  }
+  return { pedindoAtendente, aguardando, naoLidas }
 }
 
 export interface MensagemCentral {
@@ -83,10 +113,11 @@ interface LinhaConversa {
   ultima_previa: string | null
   ultima_origem: OrigemMensagem | null
   ultima_atividade_em: string | null
+  pediu_atendente_em: string | null
   whatsapp_conversa_tags?: { tag_id: string }[]
 }
 
-const COLUNAS_CONVERSA = 'id, telefone, nome_contato, atendimento, atendente_nome, nao_lidas, ultima_previa, ultima_origem, ultima_atividade_em'
+const COLUNAS_CONVERSA = 'id, telefone, nome_contato, atendimento, atendente_nome, nao_lidas, ultima_previa, ultima_origem, ultima_atividade_em, pediu_atendente_em'
 
 async function mapearConversas(admin: SupabaseClient, restauranteId: string, linhas: LinhaConversa[]): Promise<ConversaCentral[]> {
   const [nomes, fotos] = await Promise.all([
@@ -107,6 +138,7 @@ async function mapearConversas(admin: SupabaseClient, restauranteId: string, lin
     tags: (l.whatsapp_conversa_tags ?? []).map((t) => t.tag_id),
     foto: fotos.get(l.telefone)?.url ?? null,
     fotoEm: fotos.get(l.telefone)?.buscadaEm ?? null,
+    pedindoAtendenteDesde: estaPedindoAtendente(l) ? l.pediu_atendente_em : null,
   }))
 }
 
@@ -116,28 +148,45 @@ export async function listarConversas(
   o: { filtro: FiltroConversas; tagId?: string | null; busca?: string | null; cursor?: string | null },
 ): Promise<{ conversas: ConversaCentral[]; proximo: string | null }> {
   const tag = o.tagId && /^[0-9a-f-]{36}$/i.test(o.tagId) ? o.tagId : null
-  let q = admin
-    .from('whatsapp_conversas')
-    .select(`${COLUNAS_CONVERSA}, whatsapp_conversa_tags${tag ? '!inner' : ''}(tag_id)`)
-    .eq('restaurante_id', restauranteId)
-    .not('ultima_atividade_em', 'is', null)
-  if (o.filtro === 'aguardando') q = q.eq('atendimento', 'aguardando')
-  else if (o.filtro === 'humano') q = q.eq('atendimento', 'humano')
-  if (tag) q = q.eq('whatsapp_conversa_tags.tag_id', tag)
   const busca = limparBusca(o.busca ?? null)
-  if (busca) {
-    const digitos = busca.replace(/\D/g, '')
-    q = digitos.length >= 3
-      ? q.or(`telefone.ilike.%${digitos}%,nome_contato.ilike.%${busca}%`)
-      : q.ilike('nome_contato', `%${busca}%`)
+  const consulta = () => {
+    let q = admin
+      .from('whatsapp_conversas')
+      .select(`${COLUNAS_CONVERSA}, whatsapp_conversa_tags${tag ? '!inner' : ''}(tag_id)`)
+      .eq('restaurante_id', restauranteId)
+      .not('ultima_atividade_em', 'is', null)
+    if (o.filtro === 'aguardando') q = q.eq('atendimento', 'aguardando')
+    else if (o.filtro === 'humano') q = q.eq('atendimento', 'humano')
+    if (tag) q = q.eq('whatsapp_conversa_tags.tag_id', tag)
+    if (busca) {
+      const digitos = busca.replace(/\D/g, '')
+      q = digitos.length >= 3
+        ? q.or(`telefone.ilike.%${digitos}%,nome_contato.ilike.%${busca}%`)
+        : q.ilike('nome_contato', `%${busca}%`)
+    }
+    return q
   }
   const c = lerCursor(o.cursor ?? null)
+  let q = consulta()
   if (c) q = q.or(`ultima_atividade_em.lt.${c.em},and(ultima_atividade_em.eq.${c.em},id.lt.${c.id})`)
-  const { data, error } = await q.order('ultima_atividade_em', { ascending: false }).order('id', { ascending: false }).limit(POR_PAGINA_CONVERSAS + 1)
+  // 1ª página: quem pediu atendente (0182) vem no topo, mesmo com a última mensagem mais antiga.
+  const [{ data, error }, pedindo] = await Promise.all([
+    q.order('ultima_atividade_em', { ascending: false }).order('id', { ascending: false }).limit(POR_PAGINA_CONVERSAS + 1),
+    c
+      ? Promise.resolve({ data: [] as unknown[], error: null })
+      : consulta()
+          .gte('pediu_atendente_em', new Date(Date.now() - PEDINDO_ATENDENTE_JANELA_MS).toISOString())
+          .in('atendimento', ['aguardando', 'humano'])
+          .order('pediu_atendente_em', { ascending: true })
+          .limit(POR_PAGINA_CONVERSAS),
+  ])
   if (error) throw error
+  if (pedindo.error) throw pedindo.error
   const linhas = (data ?? []) as unknown as LinhaConversa[]
   const mais = linhas.length > POR_PAGINA_CONVERSAS
-  const pagina = linhas.slice(0, POR_PAGINA_CONVERSAS)
+  const topo = (pedindo.data ?? []) as unknown as LinhaConversa[]
+  const noTopo = new Set(topo.map((l) => l.id))
+  const pagina = [...topo, ...linhas.slice(0, POR_PAGINA_CONVERSAS).filter((l) => !noTopo.has(l.id))]
   // Com filtro por tag o join traz só aquela tag: as tags da conversa vêm à parte.
   if (tag && pagina.length) {
     const { data: todas } = await admin.from('whatsapp_conversa_tags').select('conversa_id, tag_id').eq('restaurante_id', restauranteId).in('conversa_id', pagina.map((l) => l.id))
@@ -145,7 +194,8 @@ export async function listarConversas(
     for (const t of (todas ?? []) as { conversa_id: string; tag_id: string }[]) por.set(t.conversa_id, [...(por.get(t.conversa_id) ?? []), { tag_id: t.tag_id }])
     for (const l of pagina) l.whatsapp_conversa_tags = por.get(l.id) ?? []
   }
-  const ultima = pagina[pagina.length - 1]
+  // O cursor segue a ordem por atividade (as do topo podem estar fora dela; a tela não repete conversa).
+  const ultima = linhas.slice(0, POR_PAGINA_CONVERSAS).at(-1)
   return { conversas: await mapearConversas(admin, restauranteId, pagina), proximo: mais && ultima ? `${ultima.ultima_atividade_em}|${ultima.id}` : null }
 }
 
@@ -186,24 +236,18 @@ export async function listarMensagens(admin: SupabaseClient, restauranteId: stri
  * Número do botão flutuante, em CONVERSAS (não em mensagens): as que aguardam atendente +
  * as já em atendimento com mensagem nova do cliente.
  */
-export async function resumoCentral(admin: SupabaseClient, restauranteId: string): Promise<{ aguardando: number; naoLidas: number }> {
-  const { data, error } = await admin.from('whatsapp_conversas').select('atendimento, nao_lidas').eq('restaurante_id', restauranteId).in('atendimento', ['aguardando', 'humano']).limit(1000)
+export async function resumoCentral(admin: SupabaseClient, restauranteId: string): Promise<{ pedindoAtendente: number; aguardando: number; naoLidas: number }> {
+  const { data, error } = await admin.from('whatsapp_conversas').select('atendimento, nao_lidas, pediu_atendente_em').eq('restaurante_id', restauranteId).in('atendimento', ['aguardando', 'humano']).limit(1000)
   if (error) throw error
-  let aguardando = 0
-  let naoLidas = 0
-  for (const c of (data ?? []) as { atendimento: string; nao_lidas: number }[]) {
-    if (c.atendimento === 'aguardando') aguardando++
-    else if ((c.nao_lidas ?? 0) > 0) naoLidas++
-  }
-  return { aguardando, naoLidas }
+  return contarResumo((data ?? []) as { atendimento: string; nao_lidas: number; pediu_atendente_em: string | null }[])
 }
 
 /** O robô desta loja está respondendo? (servidor liberado + interruptor ligado) */
 export async function roboDaLojaAtivo(admin: SupabaseClient, restauranteId: string): Promise<boolean> {
   if (!roboLiberadoNoServidor()) return false
-  const { data } = await admin.from('whatsapp_robo_config').select('robo_ativo, autoatendimento_ativo').eq('restaurante_id', restauranteId).maybeSingle()
-  // Autoatendimento (0177) também é robô respondendo (o painel mostra pausar/devolver).
-  return data?.robo_ativo === true || data?.autoatendimento_ativo === true
+  const { data } = await admin.from('whatsapp_robo_config').select('autoatendimento_ativo').eq('restaurante_id', restauranteId).maybeSingle()
+  // Robô único (0182): só o robô de atendimento responde.
+  return data?.autoatendimento_ativo === true
 }
 
 /** Aba do cliente: últimos pedidos com este número nesta loja. */

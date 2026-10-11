@@ -31,8 +31,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const ctx = await contextoAtendimento()
   if ('erro' in ctx) return ctx.erro
   if (!ehId(id)) return NextResponse.json({ error: 'Conversa inválida.' }, { status: 400 })
-  const corpo = (await request.json().catch(() => null)) as { acao?: unknown } | null
+  const corpo = (await request.json().catch(() => null)) as { acao?: unknown; devolver?: unknown } | null
   const acao = corpo?.acao
+  // "Resolvido" de quem pediu atendente (0182): devolve ao robô ou continua com a loja; tira o destaque.
+  if (acao === 'resolver') {
+    if (typeof corpo?.devolver !== 'boolean') return NextResponse.json({ error: 'Escolha devolver ao robô ou continuar atendendo.' }, { status: 400 })
+    const { error } = await ctx.admin.rpc('whatsapp_atendimento_resolver', {
+      p_restaurante: ctx.loja, p_conversa: id, p_devolver: corpo.devolver, p_ator: ctx.sessao.userId, p_ator_nome: ctx.sessao.nome,
+    })
+    if (error) {
+      if (error.message?.includes('conversa_inexistente')) return NextResponse.json({ error: 'Conversa não encontrada.' }, { status: 404 })
+      return NextResponse.json({ error: 'Não foi possível marcar como resolvido.' }, { status: 500 })
+    }
+    return NextResponse.json({ ok: true }, { headers: semCache })
+  }
   if (acao !== 'assumir' && acao !== 'encerrar' && acao !== 'pausar' && acao !== 'retomar' && acao !== 'lida') {
     return NextResponse.json({ error: 'Ação inválida.' }, { status: 400 })
   }

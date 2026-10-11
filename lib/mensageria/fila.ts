@@ -157,7 +157,8 @@ export async function processarFila(
   // ligado. Desligar o robô com resposta na fila cancela o envio (nada sai depois).
   // Autoatendimento (0177) conta como robô ligado e mostra "digitando..." antes de cada resposta.
   const cfgLista = (cfgs ?? []) as { restaurante_id: string; robo_ativo: boolean; autoatendimento_ativo?: boolean }[]
-  const roboLigado = new Set(cfgLista.filter((c) => c.robo_ativo || c.autoatendimento_ativo).map((c) => c.restaurante_id))
+  // Robô único (0182): o robô antigo (robo_ativo) não conta mais.
+  const roboLigado = new Set(cfgLista.filter((c) => c.autoatendimento_ativo).map((c) => c.restaurante_id))
   const autoLigado = new Set(cfgLista.filter((c) => c.autoatendimento_ativo).map((c) => c.restaurante_id))
   const liberado = roboLiberadoNoServidor()
   const provedor = provedorAtual()

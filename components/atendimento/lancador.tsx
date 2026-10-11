@@ -6,7 +6,10 @@ import { getBrowserSupabase } from '@/lib/supabase/client'
 import type { PropsCentral } from '@/components/atendimento/central'
 
 /**
- * Botão flutuante da central de atendimento do WhatsApp (canto inferior direito; no Kanban, esquerdo).
+ * Botão flutuante da central de atendimento do WhatsApp: canto inferior ESQUERDO da área de conteúdo (à direita do menu
+ * lateral, 11/10 — o layout o põe dentro do contêiner do conteúdo, então acompanha o menu aberto/recolhido/escondido).
+ * Dois selos separados: AMARELO (canto de cima, à direita) = clientes pedindo atendente ao robô; VERMELHO (canto de cima,
+ * à esquerda) = outras conversas esperando ou com mensagem nova.
  *
  * LEVE de propósito: fechado, só existe este botão com o número (conversas aguardando +
  * não lidas). O painel inteiro (central.tsx) é carregado sob demanda, no clique.
@@ -38,11 +41,11 @@ function tocarAviso() {
   }
 }
 
-/** `lado`: no Kanban fica à ESQUERDA, para não brigar com o botão "Despachar" (item 58). */
-export function LancadorAtendimento({ restauranteId, lado = 'direita' }: { restauranteId: string; lado?: 'direita' | 'esquerda' }) {
-  const canto = lado === 'esquerda' ? 'left-4' : 'right-4'
+export function LancadorAtendimento({ restauranteId }: { restauranteId: string }) {
+  // Absoluto no contêiner do conteúdo (app/admin/layout.tsx); acima da barra de gestos do celular.
+  const canto = 'left-4 bottom-[calc(16px+env(safe-area-inset-bottom))]'
   const supabase = useMemo(() => getBrowserSupabase(), [])
-  const [resumo, setResumo] = useState<{ aguardando: number; naoLidas: number } | null>(null)
+  const [resumo, setResumo] = useState<{ pedindoAtendente?: number; aguardando: number; naoLidas: number } | null>(null)
   const [aberto, setAberto] = useState(false)
   // Minimizado: o painel continua montado (conversa aberta e texto digitado ficam) e o botão volta.
   const [minimizado, setMinimizado] = useState(false)
@@ -91,7 +94,9 @@ export function LancadorAtendimento({ restauranteId, lado = 'direita' }: { resta
     }
   }, [supabase, restauranteId, contar, agendar])
 
-  const total = resumo ? resumo.aguardando + resumo.naoLidas : 0
+  const pedindo = resumo?.pedindoAtendente ?? 0
+  const outras = resumo ? resumo.aguardando + resumo.naoLidas : 0
+  const total = pedindo + outras
 
   // Chegou algo novo: animação curta e, se ligado, o som.
   useEffect(() => {
@@ -133,21 +138,26 @@ export function LancadorAtendimento({ restauranteId, lado = 'direita' }: { resta
         <button
           type="button"
           onClick={() => void abrir()}
-          aria-label={total ? `Atendimento WhatsApp: ${resumo.aguardando} aguardando, ${resumo.naoLidas} com mensagem nova` : 'Abrir atendimento WhatsApp'}
-          title="Atendimento WhatsApp"
+          aria-label={total ? `Atendimento WhatsApp: ${pedindo} pedindo atendente, ${outras} com mensagem nova ou aguardando` : 'Abrir atendimento WhatsApp'}
+          title={pedindo ? `${pedindo} ${pedindo === 1 ? 'cliente pedindo' : 'clientes pedindo'} atendente` : 'Atendimento WhatsApp'}
           data-testid="atendimento-lancador"
-          className={['fixed bottom-4', canto, 'z-40 flex h-[54px] w-[54px] items-center justify-center rounded-full bg-[#25D366] text-white shadow-[0_6px_20px_rgba(15,23,42,0.25)] transition-transform hover:scale-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0688D4]', pulso ? 'animate-bounce' : ''].join(' ')}
+          className={['absolute', canto, 'z-40 flex h-[54px] w-[54px] items-center justify-center rounded-full bg-[#25D366] text-white shadow-[0_6px_20px_rgba(15,23,42,0.25)] transition-transform hover:scale-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0688D4]', pulso ? 'animate-bounce' : ''].join(' ')}
         >
           <MessageCircle className="h-[26px] w-[26px]" strokeWidth={2.2} />
-          {total > 0 && (
-            <span className="absolute -right-1 -top-1 flex h-[22px] min-w-[22px] items-center justify-center rounded-full border-2 border-white bg-[#DC2626] px-1 text-[11.5px] font-semibold tabular-nums" data-testid="atendimento-badge">
-              {total > 99 ? '99+' : total}
+          {pedindo > 0 && (
+            <span className="absolute -right-1 -top-1 flex h-[22px] min-w-[22px] items-center justify-center rounded-full border-2 border-white bg-[#FBBF24] px-1 text-[11.5px] font-semibold tabular-nums text-[#1F2937]" data-testid="atendimento-badge-pedindo">
+              {pedindo > 99 ? '99+' : pedindo}
+            </span>
+          )}
+          {outras > 0 && (
+            <span className="absolute -left-1 -top-1 flex h-[22px] min-w-[22px] items-center justify-center rounded-full border-2 border-white bg-[#DC2626] px-1 text-[11.5px] font-semibold tabular-nums" data-testid="atendimento-badge">
+              {outras > 99 ? '99+' : outras}
             </span>
           )}
         </button>
       )}
       {aberto && carregando && !Central && (
-        <div className={`fixed bottom-4 ${canto} z-40 flex h-[54px] items-center gap-2 rounded-full bg-white px-4 text-[13px] text-[#4B5563] shadow-lg`} role="status">Abrindo atendimento…</div>
+        <div className={`absolute ${canto} z-40 flex h-[54px] items-center gap-2 rounded-full bg-white px-4 text-[13px] text-[#4B5563] shadow-lg`} role="status">Abrindo atendimento…</div>
       )}
       {aberto && Central && (
         <Central
@@ -158,7 +168,7 @@ export function LancadorAtendimento({ restauranteId, lado = 'direita' }: { resta
           onMinimizar={() => { setMinimizado(true); void contar() }}
           onFechar={() => { setAberto(false); setMinimizado(false); void contar() }}
           onMudou={agendar}
-          filtroInicial={resumo.aguardando > 0 ? 'aguardando' : 'todas'}
+          filtroInicial={pedindo === 0 && resumo.aguardando > 0 ? 'aguardando' : 'todas'}
         />
       )}
     </>

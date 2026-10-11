@@ -7,11 +7,12 @@
  * ensina as perguntas que o robô não entendeu. Visual do Ajustes (fin-card).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Bot, GraduationCap, Loader2, MessageSquareText, RotateCcw, Send, Tags } from 'lucide-react'
+import { Bot, Check, GraduationCap, Info, Loader2, MessageSquareText, RotateCcw, Save, Send, Tags, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ToggleSwitch } from '@/components/admin/campos-ajustes'
 import { PilhaToasts, useToasts } from '@/components/admin/toasts'
 import { Balao } from '@/components/admin/robo/previa-whatsapp'
+import { Flutuante } from '@/components/ui/flutuante'
 
 type Assunto =
   | 'atendente' | 'reclamacao' | 'parar' | 'status_pedido' | 'entrega' | 'pagamento_pix' | 'horario' | 'endereco_retirada' | 'cardapio' | 'saudacao'
@@ -61,10 +62,7 @@ function palavrasParaApi(p: Record<string, string>): Record<string, string[]> {
 
 const SUGESTOES_SIM = ['oi', 'qnto ta a taxa pro centro', 'meu lanche ja saiu?', 'aceita pix?', 'q horas fecha', 'quero falar com alguem']
 
-export function PainelAutoatendimento({ onAtivoMudou }: { onAtivoMudou?: (ativo: boolean) => void }) {
-  // Ref: o aviso para a tela de cima não entra nas dependências (callback novo a cada render).
-  const avisoAtivo = useRef(onAtivoMudou)
-  avisoAtivo.current = onAtivoMudou
+export function PainelAutoatendimento() {
   const toasts = useToasts()
   const mostrar = toasts.mostrar
   const [cfg, setCfg] = useState<Config | null>(null)
@@ -72,17 +70,16 @@ export function PainelAutoatendimento({ onAtivoMudou }: { onAtivoMudou?: (ativo:
   const [r, setR] = useState<Rascunho | null>(null)
   const [salvando, setSalvando] = useState(false)
   const [ligando, setLigando] = useState(false)
-  const [textoAberto, setTextoAberto] = useState('saudacao')
   const [naoEntendidas, setNaoEntendidas] = useState<NaoEntendida[]>([])
 
-  const carregar = useCallback(async () => {
+  // `manterTextos`: salvar as outras configurações não apaga um texto que está sendo editado (ele tem o próprio Salvar).
+  const carregar = useCallback(async (manterTextos = false) => {
     try {
       const res = await fetch('/api/admin/whatsapp/autoatendimento', { cache: 'no-store' })
       if (!res.ok) throw new Error()
       const c: Config = await res.json()
       setCfg(c)
-      setR(rascunhoDe(c))
-      avisoAtivo.current?.(c.ativo)
+      setR((atual) => (manterTextos && atual ? { ...rascunhoDe(c), textos: atual.textos } : rascunhoDe(c)))
     } catch {
       setErro(true)
     }
@@ -93,7 +90,8 @@ export function PainelAutoatendimento({ onAtivoMudou }: { onAtivoMudou?: (ativo:
   }, [])
   useEffect(() => { void carregar(); void carregarNaoEntendidas() }, [carregar, carregarNaoEntendidas])
 
-  const sujo = useMemo(() => !!cfg && !!r && JSON.stringify(rascunhoDe(cfg)) !== JSON.stringify(r), [cfg, r])
+  // Textos têm o próprio Salvar (por resposta); a barra de baixo é só das outras configurações.
+  const sujo = useMemo(() => !!cfg && !!r && JSON.stringify({ ...rascunhoDe(cfg), textos: null }) !== JSON.stringify({ ...r, textos: null }), [cfg, r])
 
   async function alternar(ativo: boolean) {
     setLigando(true)
@@ -101,27 +99,24 @@ export function PainelAutoatendimento({ onAtivoMudou }: { onAtivoMudou?: (ativo:
     setLigando(false)
     if (!res?.ok) { mostrar('erro', (await res?.json().catch(() => null))?.error ?? 'Não foi possível alterar.'); return }
     setCfg((c) => (c ? { ...c, ativo } : c))
-    avisoAtivo.current?.(ativo)
-    mostrar('ok', ativo ? 'Robô de autoatendimento ligado.' : 'Robô de autoatendimento desligado.')
+    mostrar('ok', ativo ? 'Robô de atendimento ligado.' : 'Robô de atendimento desligado.')
   }
 
   async function salvar() {
     if (!r) return
     setSalvando(true)
-    const corpo = { assuntosDesligados: r.assuntosDesligados, textos: r.textos, palavras: palavrasParaApi(r.palavras), tempoEntrega: r.tempoEntrega, pixChave: r.pixChave, pixTipo: r.pixTipo }
+    const corpo = { assuntosDesligados: r.assuntosDesligados, palavras: palavrasParaApi(r.palavras), tempoEntrega: r.tempoEntrega, pixChave: r.pixChave, pixTipo: r.pixTipo }
     const res = await fetch('/api/admin/whatsapp/autoatendimento', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) }).catch(() => null)
     setSalvando(false)
     if (!res?.ok) { mostrar('erro', (await res?.json().catch(() => null))?.error ?? 'Não foi possível salvar.'); return }
     mostrar('ok', 'Alterações salvas.')
-    await carregar()
+    await carregar(true)
   }
 
   if (erro) return <div className="p-6 text-[14px] text-[#6B7280]">Não foi possível carregar o robô. Recarregue a página.</div>
   if (!cfg || !r) return <div className="flex items-center gap-2 p-6 text-[14px] text-[#6B7280]"><Loader2 className="h-4 w-4 animate-spin" /> Carregando…</div>
 
   const desligados = new Set(r.assuntosDesligados)
-  const modeloAtual = r.textos[textoAberto] ?? cfg.padrao.textos[textoAberto]
-  const personalizado = r.textos[textoAberto] !== undefined && r.textos[textoAberto] !== cfg.padrao.textos[textoAberto]
 
   return (
     <>
@@ -131,9 +126,9 @@ export function PainelAutoatendimento({ onAtivoMudou }: { onAtivoMudou?: (ativo:
             <div className="flex min-w-0 items-center gap-[12px]">
               <span className="flex h-[40px] w-[40px] flex-shrink-0 items-center justify-center rounded-full bg-[#E0F2FE] text-[#0688D4]"><Bot className="h-[20px] w-[20px]" /></span>
               <div className="min-w-0">
-                <h2 className="text-[16px] font-semibold text-[#1C2B33]">Robô de autoatendimento (novo)</h2>
+                <h2 className="text-[16px] font-semibold text-[#1C2B33]">Robô de atendimento</h2>
                 <p className="text-[13px] text-[#6B7280]">
-                  Responde sozinho no WhatsApp da loja por palavras-chave (sem inteligência artificial e sem custo). As mensagens de status do pedido continuam iguais.
+                  Responde sozinho no WhatsApp da loja por palavras-chave (sem inteligência artificial e sem custo). As mensagens de status do pedido continuam iguais, ligado ou desligado.
                 </p>
               </div>
             </div>
@@ -141,7 +136,7 @@ export function PainelAutoatendimento({ onAtivoMudou }: { onAtivoMudou?: (ativo:
               <span className={`rounded-full px-[10px] py-[2px] text-[12px] font-semibold ${cfg.ativo ? 'bg-[#DCFCE7] text-[#16A34A]' : 'bg-[#EDEEF1] text-[#6B7280]'}`} data-testid="robo-estado">
                 {cfg.ativo ? 'Ligado' : 'Desligado'}
               </span>
-              <ToggleSwitch checked={cfg.ativo} onChange={(v) => void alternar(v)} disabled={ligando || (!cfg.ativo && !cfg.liberadoNoServidor)} rotulo="Robô de autoatendimento" />
+              <ToggleSwitch checked={cfg.ativo} onChange={(v) => void alternar(v)} disabled={ligando || (!cfg.ativo && !cfg.liberadoNoServidor)} rotulo="Robô de atendimento" />
             </div>
           </div>
           {!cfg.instancia && (
@@ -175,7 +170,7 @@ export function PainelAutoatendimento({ onAtivoMudou }: { onAtivoMudou?: (ativo:
             </Cartao>
 
             <Cartao className="p-[16px]">
-              <TituloBloco titulo="Assuntos" subtitulo="Desligado, o assunto some do menu e a pergunta vira “não entendi”. Atendente, reclamação e parar ficam sempre ligados." />
+              <TituloBloco titulo="Assuntos" info={<InfoAssuntos />} subtitulo="Desligado, o assunto some do menu e a pergunta vira “não entendi”. Atendente, reclamação e parar ficam sempre ligados." />
               <div className="mt-[10px] divide-y divide-[#E5E7EB]">
                 {cfg.padrao.assuntos.map((a) => (
                   <LinhaAssunto
@@ -192,44 +187,13 @@ export function PainelAutoatendimento({ onAtivoMudou }: { onAtivoMudou?: (ativo:
               </div>
             </Cartao>
 
-            <Cartao className="p-[16px]">
-              <TituloBloco
-                titulo="Textos das respostas"
-                subtitulo="Use *negrito*, _itálico_, ~tachado~, `código`, “> ” para aviso e “- ” para lista. Linha com campo vazio não aparece."
-              />
-              <div className="mt-[12px] grid grid-cols-1 gap-[12px] lg:grid-cols-2">
-                <div className="min-w-0 space-y-[8px]">
-                  <select className={CLASSE_CAMPO} value={textoAberto} onChange={(e) => setTextoAberto(e.target.value)} aria-label="Texto">
-                    {Object.keys(cfg.padrao.textos).map((k) => (
-                      <option key={k} value={k}>{cfg.padrao.rotulos[k]}{r.textos[k] !== undefined && r.textos[k] !== cfg.padrao.textos[k] ? ' (personalizado)' : ''}</option>
-                    ))}
-                  </select>
-                  <textarea
-                    className={`${CLASSE_CAMPO} min-h-[220px] font-mono text-[13px]`}
-                    value={modeloAtual}
-                    maxLength={1500}
-                    onChange={(e) => setR({ ...r, textos: { ...r.textos, [textoAberto]: e.target.value } })}
-                    aria-label="Texto da resposta"
-                  />
-                  <div className="flex flex-wrap items-center gap-[6px]">
-                    {cfg.padrao.campos.map((c) => (
-                      <code key={c} className="rounded-[3px] bg-[#EDEEF1] px-[5px] py-[1px] text-[11.5px] text-[#374151]">{`{${c}}`}</code>
-                    ))}
-                  </div>
-                  <Button
-                    variant="outline"
-                    disabled={!personalizado}
-                    onClick={() => { const t = { ...r.textos }; delete t[textoAberto]; setR({ ...r, textos: t }) }}
-                  >
-                    <RotateCcw className="h-[14px] w-[14px]" /> Restaurar padrão
-                  </Button>
-                </div>
-                <div className="min-w-0 rounded-[3px] bg-[#EDEEF1] p-[12px]">
-                  <p className="mb-[8px] text-[11px] font-semibold uppercase tracking-wide text-[#6B7280]">Prévia (campos com exemplo)</p>
-                  <Balao lado="robo" texto={exemploDoModelo(modeloAtual, cfg.nomeLoja)} />
-                </div>
-              </div>
-            </Cartao>
+            <EditorTextos
+              cfg={cfg}
+              textos={r.textos}
+              onTextos={(textos) => setR({ ...r, textos })}
+              onSalvo={(textos) => setCfg({ ...cfg, textos })}
+              mostrar={mostrar}
+            />
 
             <NaoEntendidasCartao itens={naoEntendidas} assuntos={cfg.padrao.assuntos} onEnsinado={async () => { await carregar(); await carregarNaoEntendidas() }} mostrar={mostrar} />
           </div>
@@ -384,7 +348,7 @@ function NaoEntendidasCartao({ itens, assuntos, onEnsinado, mostrar }: {
   }
   return (
     <Cartao className="p-[16px]" data-testid="robo-nao-entendidas">
-      <TituloBloco titulo="Perguntas que o robô não entendeu" subtitulo="Últimos 30 dias. Escolha o assunto e toque em Ensinar: a frase vira palavra-chave." />
+      <TituloBloco titulo="Perguntas que o robô não entendeu" info={<InfoNaoEntendidas />} subtitulo="Últimos 30 dias. Escolha o assunto e toque em Ensinar: a frase vira palavra-chave." />
       {!itens.length ? (
         <p className="mt-[12px] text-[13px] text-[#6B7280]">Nenhuma pergunta sem resposta por enquanto.</p>
       ) : (
@@ -420,14 +384,260 @@ function Cartao({ children, className = '', ...resto }: React.HTMLAttributes<HTM
   return <section className={`fin-card min-w-0 ${className}`} {...resto}>{children}</section>
 }
 
-function TituloBloco({ titulo, subtitulo, acao }: { titulo: string; subtitulo?: React.ReactNode; acao?: React.ReactNode }) {
+function TituloBloco({ titulo, subtitulo, acao, info }: { titulo: string; subtitulo?: React.ReactNode; acao?: React.ReactNode; info?: React.ReactNode }) {
   return (
     <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
       <div className="min-w-0">
-        <h3 className="text-[16px] font-semibold leading-tight text-[#1C2B33]">{titulo}</h3>
+        <h3 className="flex items-center gap-[6px] text-[16px] font-semibold leading-tight text-[#1C2B33]">
+          {titulo}
+          {info && <BalaoInfo titulo={titulo}>{info}</BalaoInfo>}
+        </h3>
         {subtitulo && <p className="mt-1 text-[13px] leading-[18px] text-[#465A69]">{subtitulo}</p>}
       </div>
       {acao}
     </div>
+  )
+}
+
+/** Ícone "i" com balão de explicação: por cima de tudo (portal, camada máxima), fecha no X, tocando fora ou com Esc. */
+function BalaoInfo({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+  const ancora = useRef<HTMLButtonElement>(null)
+  const [aberto, setAberto] = useState(false)
+  const fechar = useCallback(() => setAberto(false), [])
+  return (
+    <>
+      <button
+        ref={ancora}
+        type="button"
+        onClick={() => setAberto((v) => !v)}
+        aria-expanded={aberto}
+        aria-label={`Como funciona: ${titulo}`}
+        data-testid={`info-${titulo}`}
+        className="inline-flex h-[28px] w-[28px] flex-shrink-0 items-center justify-center rounded-full text-[#0688D4] hover:bg-[#E0F2FE] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#0688D4]"
+      >
+        <Info className="h-[17px] w-[17px]" />
+      </button>
+      <Flutuante ancora={ancora} aberto={aberto} onFechar={fechar} alinhar="inicio" largura={380} alturaMax={460} rotulo={titulo} testid="balao-info">
+        <div className="relative p-[14px] pr-[40px] text-[13px] font-normal leading-[19px] text-[#374151]">
+          <button type="button" onClick={fechar} aria-label="Fechar" className="absolute right-[6px] top-[6px] flex h-[30px] w-[30px] items-center justify-center rounded-full text-[#6B7280] hover:bg-[#EDEEF1]">
+            <X className="h-[16px] w-[16px]" />
+          </button>
+          {children}
+        </div>
+      </Flutuante>
+    </>
+  )
+}
+
+const EXPLICA_ASSUNTO: Record<Assunto, string> = {
+  saudacao: '“oi”, “boa noite”: apresenta a loja, manda o link do cardápio e o menu de opções (no máximo 1 vez a cada 6 h).',
+  cardapio: 'Manda o link do cardápio para ver os preços e pedir.',
+  entrega: 'Pergunta o bairro e responde a taxa e o tempo de entrega (bairros e taxas de Ajustes).',
+  status_pedido: 'Procura o último pedido daquele número e diz em que pé está.',
+  horario: 'Diz se a loja está aberta agora e os horários da semana.',
+  pagamento_pix: 'Formas de pagamento e, se cadastrada, a chave Pix (sozinha numa mensagem, fácil de copiar).',
+  endereco_retirada: 'Endereço da loja e se aceita retirada no balcão.',
+  reclamacao: '“veio errado”, “atrasou”: pede desculpas e chama um atendente. O robô para de responder nessa conversa.',
+  atendente: '“0” ou “falar com alguém”: chama um atendente. O robô para de responder nessa conversa.',
+  parar: '“parar”: o robô não responde mais esse número até o cliente mandar “voltar”.',
+}
+
+function InfoAssuntos() {
+  return (
+    <>
+      <p className="font-semibold text-[#1F2937]">O que é cada assunto</p>
+      <ul className="mt-[6px] space-y-[5px]">
+        {(Object.keys(EXPLICA_ASSUNTO) as Assunto[]).map((a) => (
+          <li key={a}><strong className="font-semibold text-[#1F2937]">{ROTULO_ASSUNTO[a]}:</strong> {EXPLICA_ASSUNTO[a]}</li>
+        ))}
+      </ul>
+      <p className="mt-[10px] font-semibold text-[#1F2937]">Desligar um assunto</p>
+      <p className="mt-[2px]">Ele some do menu e, se o cliente perguntar sobre isso, o robô responde “não entendi” e mostra as outras opções.</p>
+      <p className="mt-[10px] font-semibold text-[#1F2937]">Por que Atendente, Reclamação e Parar ficam sempre ligados?</p>
+      <p className="mt-[2px]">São a saída do cliente: quem quer falar com uma pessoa ou está chateado nunca fica preso no robô, e quem pede para parar é respeitado.</p>
+      <p className="mt-[10px]">Toque em <strong className="font-semibold">palavras</strong> num assunto para acrescentar as palavras que seus clientes usam.</p>
+    </>
+  )
+}
+
+function InfoNaoEntendidas() {
+  return (
+    <>
+      <p className="font-semibold text-[#1F2937]">Como ensinar o robô</p>
+      <ol className="mt-[6px] list-decimal space-y-[4px] pl-[18px]">
+        <li>As mensagens que o robô não entendeu aparecem nesta lista.</li>
+        <li>Escolha o assunto que a mensagem quer dizer.</li>
+        <li>Toque em <strong className="font-semibold">Ensinar</strong>: a frase vira palavra-chave daquele assunto.</li>
+      </ol>
+      <p className="mt-[10px] rounded-[3px] bg-[#EDEEF1] px-[10px] py-[8px]">
+        Exemplo: chegou <strong className="font-semibold">“Mano”</strong>. Escolha <strong className="font-semibold">Atendente</strong> e toque em <strong className="font-semibold">Ensinar</strong>. Da próxima vez que alguém escrever “mano”, o robô chama um atendente.
+      </p>
+      <p className="mt-[10px]">Ensine só o que for claro. Erro de digitação que apareceu 1 vez não precisa.</p>
+    </>
+  )
+}
+
+const EXPLICA_CAMPO: Record<string, string> = {
+  saudacao: 'Bom dia, Boa tarde ou Boa noite, pelo horário', nome_cliente: 'primeiro nome do cliente no WhatsApp', nome_loja: 'nome da loja',
+  link_cardapio: 'link do cardápio', numero_pedido: 'número do pedido', itens: 'itens do pedido, um por linha', total: 'total do pedido',
+  status: 'situação do pedido (ex.: Em preparo)', previsao: 'previsão de entrega do pedido', bairro: 'bairro que o cliente escreveu', taxa: 'taxa de entrega do bairro',
+  tempo: 'tempo de entrega (campo “Tempo de entrega” acima)', horario: 'horários da semana', endereco: 'endereço da loja',
+  menu: 'opções numeradas (só os assuntos ligados)', lista_bairros: 'bairros atendidos com a taxa', formas_pagamento: 'formas de pagamento',
+  aberto_agora: '“Estamos abertos agora” ou quando abre', retirada: 'se aceita retirada no balcão', tipo_chave: 'tipo da chave Pix (CPF, telefone…)',
+}
+
+function InfoCampos({ campos }: { campos: string[] }) {
+  return (
+    <>
+      <p className="font-semibold text-[#1F2937]">Campos automáticos</p>
+      <p className="mt-[2px]">Escreva o campo entre chaves no texto e o robô troca pelo dado certo na hora de responder.</p>
+      <ul className="mt-[6px] space-y-[3px]">
+        {campos.map((c) => (
+          <li key={c}><code className="rounded-[3px] bg-[#EDEEF1] px-[4px] text-[12px] text-[#1F2937]">{`{${c}}`}</code> {EXPLICA_CAMPO[c] ?? ''}</li>
+        ))}
+      </ul>
+      <p className="mt-[10px]">Se o dado estiver vazio (ex.: cliente sem nome), a linha inteira desse campo não aparece. A saudação precisa ter o <code className="rounded-[3px] bg-[#EDEEF1] px-[4px] text-[12px]">{'{link_cardapio}'}</code>.</p>
+    </>
+  )
+}
+
+/**
+ * Textos das respostas (11/10): escolhe a resposta, edita, "Salvar" grava SÓ ela ("Salvo ✓"). Trocar de resposta com
+ * alteração não salva pergunta antes; "Restaurar padrão" pede confirmação e grava. A prévia acompanha a digitação.
+ */
+function EditorTextos({ cfg, textos, onTextos, onSalvo, mostrar }: {
+  cfg: Config
+  textos: Record<string, string>
+  onTextos: (t: Record<string, string>) => void
+  onSalvo: (t: Record<string, string>) => void
+  mostrar: (tipo: 'ok' | 'erro', texto: string) => void
+}) {
+  const [aberto, setAberto] = useState('saudacao')
+  const [pendente, setPendente] = useState<string | null>(null)
+  const [confirmarRestaurar, setConfirmarRestaurar] = useState(false)
+  const [salvando, setSalvando] = useState(false)
+  const [salvo, setSalvo] = useState(false)
+  const padrao = cfg.padrao.textos
+  const valor = textos[aberto] ?? padrao[aberto]
+  const gravado = cfg.textos[aberto] ?? padrao[aberto]
+  const alterado = valor !== gravado
+  const personalizado = cfg.textos[aberto] !== undefined
+
+  useEffect(() => {
+    if (!salvo) return
+    const t = setTimeout(() => setSalvo(false), 4000)
+    return () => clearTimeout(t)
+  }, [salvo])
+
+  async function gravar(novos: Record<string, string>): Promise<boolean> {
+    setSalvando(true)
+    const res = await fetch('/api/admin/whatsapp/autoatendimento', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ textos: novos }) }).catch(() => null)
+    setSalvando(false)
+    if (!res?.ok) { mostrar('erro', (await res?.json().catch(() => null))?.error ?? 'Não foi possível salvar.'); return false }
+    // O servidor guarda só o que difere do padrão.
+    onSalvo(Object.fromEntries(Object.entries(novos).map(([k, v]) => [k, v.trim()]).filter(([k, v]) => v && v !== padrao[k])))
+    return true
+  }
+
+  function descartarAtual(): Record<string, string> {
+    const t = { ...textos }
+    if (cfg.textos[aberto] !== undefined) t[aberto] = cfg.textos[aberto]
+    else delete t[aberto]
+    return t
+  }
+
+  async function salvarAtual(): Promise<boolean> {
+    const ok = await gravar({ ...cfg.textos, [aberto]: valor })
+    if (ok) {
+      // O que ficou gravado (sem espaços nas pontas) passa a ser o texto da tela.
+      const t = { ...textos }
+      if (valor.trim() && valor.trim() !== padrao[aberto]) t[aberto] = valor.trim()
+      else delete t[aberto]
+      onTextos(t)
+      setSalvo(true)
+    }
+    return ok
+  }
+
+  function escolher(chave: string) {
+    if (chave === aberto) return
+    setConfirmarRestaurar(false)
+    if (alterado) { setPendente(chave); return }
+    setSalvo(false)
+    setAberto(chave)
+  }
+
+  async function restaurar() {
+    const novos = { ...cfg.textos }
+    delete novos[aberto]
+    if (await gravar(novos)) {
+      const t = { ...textos }
+      delete t[aberto]
+      onTextos(t)
+      setConfirmarRestaurar(false)
+      setSalvo(true)
+    }
+  }
+
+  return (
+    <Cartao className="p-[16px]" data-testid="robo-textos">
+      <TituloBloco
+        titulo="Textos das respostas"
+        info={<InfoCampos campos={cfg.padrao.campos} />}
+        subtitulo="Escolha a resposta, edite e toque em Salvar. Use *negrito*, _itálico_, ~tachado~, `código`, “> ” para aviso e “- ” para lista."
+      />
+      <div className="mt-[12px] grid grid-cols-1 gap-[12px] lg:grid-cols-2">
+        <div className="min-w-0 space-y-[8px]">
+          <select className={CLASSE_CAMPO} value={pendente ?? aberto} onChange={(e) => escolher(e.target.value)} aria-label="Resposta" data-testid="robo-texto-escolha">
+            {Object.keys(padrao).map((k) => (
+              <option key={k} value={k}>{cfg.padrao.rotulos[k]}{cfg.textos[k] !== undefined ? ' (personalizado)' : ''}</option>
+            ))}
+          </select>
+          {pendente && (
+            <div className="rounded-[3px] border border-[#FCD34D] bg-[#FEF3C7] px-[10px] py-[8px] text-[13px] text-[#92400E]" role="alert" data-testid="robo-texto-nao-salvo">
+              <p><strong className="font-semibold">“{cfg.padrao.rotulos[aberto]}” tem alterações não salvas.</strong> O que fazer antes de trocar?</p>
+              <div className="mt-[8px] flex flex-wrap gap-[8px]">
+                <Button disabled={salvando} onClick={async () => { if (await salvarAtual()) { setAberto(pendente); setPendente(null) } }}>Salvar e trocar</Button>
+                <Button variant="outline" onClick={() => { onTextos(descartarAtual()); setAberto(pendente); setPendente(null); setSalvo(false) }}>Descartar</Button>
+                <Button variant="ghost" onClick={() => setPendente(null)}>Continuar editando</Button>
+              </div>
+            </div>
+          )}
+          <textarea
+            className={`${CLASSE_CAMPO} min-h-[220px] font-mono text-[13px]`}
+            value={valor}
+            maxLength={1500}
+            onChange={(e) => { setSalvo(false); onTextos({ ...textos, [aberto]: e.target.value }) }}
+            aria-label="Texto da resposta"
+            data-testid="robo-texto-campo"
+          />
+          <div className="flex flex-wrap items-center gap-[8px]">
+            <Button onClick={() => void salvarAtual()} disabled={!alterado || salvando} data-testid="robo-texto-salvar">
+              {salvando ? <Loader2 className="h-[14px] w-[14px] animate-spin" /> : <Save className="h-[14px] w-[14px]" />} Salvar
+            </Button>
+            {salvo && !alterado && (
+              <span className="inline-flex items-center gap-[4px] text-[13px] font-semibold text-[#16A34A]" role="status" data-testid="robo-texto-salvo"><Check className="h-[14px] w-[14px]" /> Salvo</span>
+            )}
+            {alterado && <span className="text-[12px] text-[#92400E]">Alteração não salva</span>}
+            <span className="flex-1" />
+            {!confirmarRestaurar ? (
+              <Button variant="outline" disabled={!personalizado || salvando} onClick={() => setConfirmarRestaurar(true)} data-testid="robo-texto-restaurar">
+                <RotateCcw className="h-[14px] w-[14px]" /> Restaurar padrão
+              </Button>
+            ) : (
+              <span className="inline-flex flex-wrap items-center gap-[6px] text-[13px] text-[#1F2937]" data-testid="robo-texto-restaurar-confirmar">
+                Voltar ao texto padrão?
+                <Button variant="outline" disabled={salvando} onClick={() => void restaurar()}>Sim, restaurar</Button>
+                <Button variant="ghost" onClick={() => setConfirmarRestaurar(false)}>Cancelar</Button>
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="min-w-0 rounded-[3px] bg-[#EDEEF1] p-[12px]">
+          <p className="mb-[8px] text-[11px] font-semibold uppercase tracking-wide text-[#6B7280]">Prévia (campos com exemplo)</p>
+          <Balao lado="robo" texto={exemploDoModelo(valor, cfg.nomeLoja)} />
+        </div>
+      </div>
+    </Cartao>
   )
 }

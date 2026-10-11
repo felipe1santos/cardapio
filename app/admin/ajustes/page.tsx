@@ -20,7 +20,6 @@ import { MensagensAutomaticas } from '@/components/admin/campanhas/mensagens-aut
 import { JanelaModuloBloqueado } from '@/components/admin/janela-modulo-bloqueado'
 import { useEstadoSessao } from '@/lib/sessao-cliente'
 import { RoboAtendimentoAjustes } from '@/components/admin/robo/robo-ajustes'
-import { RoboWhatsappCard, type ConexaoWhatsapp } from '@/components/admin/robo-whatsapp'
 import { Modelos, useModelos } from '@/components/admin/campanhas/modelos'
 import { PushNotificacoes } from '@/components/admin/push-notificacoes'
 import { AgenteIa } from '@/components/admin/agente-ia'
@@ -1972,7 +1971,7 @@ function TabMesas({ restauranteId, active }: { restauranteId: string; active: bo
 // ─── WhatsApp e notificações (vieram de Campanhas e Integrações, 2026-10-06) ─────
 // Os MESMOS componentes e as mesmas rotas de API de antes (permissões checadas no servidor como hoje).
 
-function TabWhatsapp({ tipo, restauranteId, novidades }: { tipo: 'mensagens' | 'modelos' | 'notificacoes' | 'robo' | 'agente'; restauranteId: string; novidades: boolean }) {
+function TabWhatsapp({ tipo, restauranteId }: { tipo: 'mensagens' | 'modelos' | 'notificacoes' | 'robo' | 'agente'; restauranteId: string }) {
   const router = useRouter()
   const toasts = useToasts()
   const estadoSessao = useEstadoSessao()
@@ -1980,20 +1979,10 @@ function TabWhatsapp({ tipo, restauranteId, novidades }: { tipo: 'mensagens' | '
   const disparosBloqueado = !!estadoSessao && !estadoSessao.modulos?.disparos
   const agenteLiberado = !!estadoSessao?.modulos?.agente_ia
   const modelos = useModelos(tipo === 'modelos' ? restauranteId : null)
-  // Robô de antes (sem "Novidades em teste"): só o cartão do robô simples, como sempre.
-  const roboAntigo = tipo === 'robo' && !novidades
-  const [conexao, setConexao] = useState<ConexaoWhatsapp>(null)
-  useEffect(() => {
-    if (!roboAntigo) return
-    fetch('/api/admin/whatsapp/status', { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((d: { configurado: boolean; connected: boolean; state: string | null }) => setConexao({ configurado: d.configurado, conectado: d.connected, estado: d.state }))
-      .catch(() => setConexao('falhou'))
-  }, [roboAntigo])
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-5 lg:px-6" data-ajustes-rolagem data-testid={`ajustes-${tipo}`}>
-        <div className={tipo === 'robo' && novidades ? 'max-w-[1240px]' : 'max-w-[980px]'}>
+        <div className={tipo === 'robo' ? 'max-w-[1240px]' : 'max-w-[980px]'}>
           {/* Notificações do app (push) são do módulo Disparos (0176); as mensagens de status do pedido são livres. */}
           {disparosBloqueado && tipo === 'notificacoes' && <JanelaModuloBloqueado inline modulo="disparos" loja={estadoSessao?.lojaNome ?? ''} whatsapp={estadoSessao?.whatsappComercial} />}
           {tipo === 'mensagens' && <MensagensAutomaticas onToast={toasts.mostrar} onAtivoMudou={() => {}} />}
@@ -2002,11 +1991,8 @@ function TabWhatsapp({ tipo, restauranteId, novidades }: { tipo: 'mensagens' | '
             <Modelos api={modelos} onUsar={(m) => { router.push(`/admin/campanhas?modelo=${encodeURIComponent(m.id)}`) }} onToast={toasts.mostrar} />
           )}
           {tipo === 'notificacoes' && disparosLiberado && <PushNotificacoes />}
-          {roboAntigo && (
-            <RoboWhatsappCard somenteConfig conexao={conexao} onConectar={() => { router.push('/admin/integracoes?abrir=whatsapp') }} avisar={toasts.mostrar} />
-          )}
-          {/* Com "Novidades em teste": tela única dos dois robôs (simples e autoatendimento), 10/10. */}
-          {tipo === 'robo' && novidades && <RoboAtendimentoAjustes avisar={toasts.mostrar} />}
+          {/* Robô único (0182): o robô de atendimento, para todas as lojas (menu antigo e novo). */}
+          {tipo === 'robo' && <RoboAtendimentoAjustes />}
           {/* Agente de IA (módulo pago, 0176): sem o módulo, o "Quero liberar" no lugar. */}
           {tipo === 'agente' && estadoSessao && (agenteLiberado
             ? <AgenteIa />
@@ -2083,11 +2069,11 @@ export default function AjustesPage() {
               <TabMesas restauranteId={restauranteId} active={tab === 'mesas'} />
               <TabQrCode restauranteId={restauranteId} active={tab === 'qrcode'} />
               <TabConta active={tab === 'conta'} />
-              {tab === 'mensagens' && <TabWhatsapp tipo="mensagens" restauranteId={restauranteId} novidades={novidades} />}
-              {tab === 'modelos' && <TabWhatsapp tipo="modelos" restauranteId={restauranteId} novidades={novidades} />}
-              {tab === 'notificacoes' && <TabWhatsapp tipo="notificacoes" restauranteId={restauranteId} novidades={novidades} />}
-              {tab === 'robo' && <TabWhatsapp tipo="robo" restauranteId={restauranteId} novidades={novidades} />}
-              {tab === 'agente' && novidades && <TabWhatsapp tipo="agente" restauranteId={restauranteId} novidades={novidades} />}
+              {tab === 'mensagens' && <TabWhatsapp tipo="mensagens" restauranteId={restauranteId} />}
+              {tab === 'modelos' && <TabWhatsapp tipo="modelos" restauranteId={restauranteId} />}
+              {tab === 'notificacoes' && <TabWhatsapp tipo="notificacoes" restauranteId={restauranteId} />}
+              {tab === 'robo' && <TabWhatsapp tipo="robo" restauranteId={restauranteId} />}
+              {tab === 'agente' && novidades && <TabWhatsapp tipo="agente" restauranteId={restauranteId} />}
             </>
           )}
         </div>

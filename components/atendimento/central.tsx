@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
-  ArrowLeft, Bell, BellOff, Bot, Check, CheckCheck, Clock, Hand, ImagePlus, Loader2, Maximize2, Minimize2, Minus, Pause, Play, Plus, Search, Send, Smile,
+  ArrowLeft, Bell, BellOff, Bot, Check, CheckCheck, Clock, Hand, Headset, ImagePlus, Loader2, Maximize2, Minimize2, Minus, Pause, Play, Plus, Search, Send, Smile,
   Tag as TagIcon, User, UserRound, X,
 } from 'lucide-react'
 import { getBrowserSupabase } from '@/lib/supabase/client'
@@ -357,7 +357,14 @@ function ListaConversas({ conversas, tags, carregando, temMais, onMais, selecion
                 type="button"
                 onClick={() => onSelecionar(c.id)}
                 data-testid={`atendimento-conversa-${c.telefone}`}
-                className={['flex h-full w-full items-center gap-2.5 border-b border-[#F3F4F6] px-3 text-left hover:bg-[#F9FAFB]', selecionada === c.id ? 'bg-[#EFF6FF]' : ''].join(' ')}
+                className={[
+                  'flex h-full w-full items-center gap-2.5 border-b border-[#F3F4F6] px-3 text-left',
+                  // Pediu atendente ao robô (0182): amarelo até a loja marcar "Resolvido".
+                  c.pedindoAtendenteDesde
+                    ? ['border-l-4 border-l-[#F59E0B] pl-2', selecionada === c.id ? 'bg-[#FDE68A]' : 'bg-[#FEF3C7] hover:bg-[#FDE68A]'].join(' ')
+                    : ['hover:bg-[#F9FAFB]', selecionada === c.id ? 'bg-[#EFF6FF]' : ''].join(' '),
+                ].join(' ')}
+                data-pedindo-atendente={c.pedindoAtendenteDesde ? 'sim' : undefined}
               >
                 <Avatar nome={c.nome} telefone={c.telefone} foto={fotoDe(c)} tamanho={40} onQuebrou={onFotoQuebrou} />
                 <span className="min-w-0 flex-1">
@@ -366,7 +373,9 @@ function ListaConversas({ conversas, tags, carregando, temMais, onMais, selecion
                     <span className={['flex-shrink-0 text-[11.5px]', c.naoLidas ? 'font-semibold text-[#059669]' : 'text-[#9CA3AF]'].join(' ')}>{horaCurta(c.ultimaAtividadeEm)}</span>
                   </span>
                   <span className="mt-0.5 flex items-center gap-1.5">
-                    {c.atendimento === 'aguardando' && <Clock className="h-3.5 w-3.5 flex-shrink-0 text-[#D97706]" aria-label="Aguardando" />}
+                    {c.pedindoAtendenteDesde
+                      ? <span className="inline-flex flex-shrink-0 items-center gap-1 text-[11.5px] font-semibold text-[#92400E]"><Headset className="h-3.5 w-3.5" aria-hidden />Pediu atendente</span>
+                      : c.atendimento === 'aguardando' && <Clock className="h-3.5 w-3.5 flex-shrink-0 text-[#D97706]" aria-label="Aguardando" />}
                     <span className="min-w-0 flex-1 truncate text-[12.5px] text-[#6B7280]">
                       {c.ultimaOrigem && c.ultimaOrigem !== 'cliente' ? `${c.ultimaOrigem === 'atendente' ? 'Você' : ROTULO_ORIGEM[c.ultimaOrigem] ?? ''}: ` : ''}{c.previa ?? ''}
                     </span>
@@ -429,6 +438,7 @@ function Conversa({ id, tags, onTagsMudaram, onVoltar, onMudou, onAviso, fotoDe,
   const [carregandoAntigas, setCarregandoAntigas] = useState(false)
   const [ocupado, setOcupado] = useState(false)
   const [painelCliente, setPainelCliente] = useState(false)
+  const [escolhaResolver, setEscolhaResolver] = useState(false)
   const rolagem = useRef<HTMLDivElement>(null)
   const noFim = useRef(true)
 
@@ -508,6 +518,18 @@ function Conversa({ id, tags, onTagsMudaram, onVoltar, onMudou, onAviso, fotoDe,
     }
   }
 
+  async function resolver(devolver: boolean) {
+    setOcupado(true)
+    const r = await chamar(`/api/admin/whatsapp/atendimento/conversas/${id}`, { method: 'POST', body: JSON.stringify({ acao: 'resolver', devolver }) })
+    setOcupado(false)
+    setEscolhaResolver(false)
+    onAviso(r.ok ? null : r.erro)
+    if (r.ok) {
+      await carregarDetalhe()
+      onMudou()
+    }
+  }
+
   async function enviar(texto: string, imagem: File | null): Promise<boolean> {
     noFim.current = true
     const corpo: RequestInit = imagem
@@ -542,6 +564,11 @@ function Conversa({ id, tags, onTagsMudaram, onVoltar, onMudou, onAviso, fotoDe,
           {est && <span className={`flex-shrink-0 rounded-full px-2 py-[2px] text-[11.5px] font-semibold ${est.cor}`} data-testid="atendimento-estado">{est.texto}</span>}
           {c && (
             <div className="flex flex-shrink-0 flex-wrap gap-1.5">
+              {c.pedindoAtendenteDesde && (
+                <button type="button" disabled={ocupado} onClick={() => setEscolhaResolver((v) => !v)} aria-expanded={escolhaResolver} data-testid="atendimento-resolvido" className="inline-flex items-center gap-1 rounded-[8px] bg-[#047857] px-2.5 py-1.5 text-[12.5px] font-semibold text-white hover:bg-[#065F46] disabled:opacity-50">
+                  <CheckCheck className="h-3.5 w-3.5" /> Resolvido
+                </button>
+              )}
               {c.atendimento !== 'humano' && (
                 <button type="button" disabled={ocupado} onClick={() => void acao('assumir', 'Atendimento assumido.')} data-testid="atendimento-assumir" className="inline-flex items-center gap-1 rounded-[8px] bg-[#0688D4] px-2.5 py-1.5 text-[12.5px] font-semibold text-white hover:bg-[#0570AE] disabled:opacity-50">
                   <Hand className="h-3.5 w-3.5" /> Assumir atendimento
@@ -565,6 +592,29 @@ function Conversa({ id, tags, onTagsMudaram, onVoltar, onMudou, onAviso, fotoDe,
             </div>
           )}
         </div>
+
+        {/* Pediu atendente ao robô (0182): fica destacado até "Resolvido". */}
+        {c?.pedindoAtendenteDesde && (
+          <div className="flex-shrink-0 border-b border-[#FCD34D] bg-[#FEF3C7] px-3 py-2 text-[12.5px] text-[#92400E]" role="status" data-testid="atendimento-faixa-pedindo">
+            {escolhaResolver ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-semibold text-[#1F2937]">Resolvido. E agora?</span>
+                <button type="button" disabled={ocupado} onClick={() => void resolver(true)} data-testid="resolver-devolver" className="inline-flex items-center gap-1 rounded-[8px] border border-[#D1D5DB] bg-white px-2.5 py-1.5 text-[12.5px] font-semibold text-[#1F2937] hover:border-[#0688D4] hover:text-[#0688D4] disabled:opacity-50">
+                  <Bot className="h-3.5 w-3.5" /> Devolver ao robô
+                </button>
+                <button type="button" disabled={ocupado} onClick={() => void resolver(false)} data-testid="resolver-continuar" className="inline-flex items-center gap-1 rounded-[8px] border border-[#D1D5DB] bg-white px-2.5 py-1.5 text-[12.5px] font-semibold text-[#1F2937] hover:border-[#0688D4] hover:text-[#0688D4] disabled:opacity-50">
+                  <UserRound className="h-3.5 w-3.5" /> Continuar atendendo eu mesmo
+                </button>
+                <button type="button" onClick={() => setEscolhaResolver(false)} className="ml-auto text-[12px] font-semibold text-[#6B7280] hover:text-[#1F2937]">Cancelar</button>
+              </div>
+            ) : (
+              <span className="flex items-center gap-1.5">
+                <Headset className="h-4 w-4 flex-shrink-0" aria-hidden />
+                <span><strong className="font-semibold">Cliente pediu atendente</strong> às {horaCurta(c.pedindoAtendenteDesde)}. Responda por aqui e, no fim, toque em <strong className="font-semibold">Resolvido</strong>.</span>
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Histórico */}
         <div

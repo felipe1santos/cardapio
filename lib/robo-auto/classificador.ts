@@ -85,7 +85,7 @@ export const PALAVRAS_PADRAO: Record<Assunto, string[]> = {
     'tempo de entrega', 'demora a entrega', 'demora pra entregar', 'taxx',
   ],
   pagamento_pix: [
-    'pix', 'pics', 'chave', 'pagamento', 'pagamentos', 'pagar', 'pago', 'cartao', 'credito', 'debito', 'dinheiro', 'troco', 'vale refeicao',
+    'pix', 'pics', 'chave', 'pagamento', 'pagamentos', 'pagar', 'pago', 'cartao', 'credito', 'debito', 'dinheiro', 'tem troco', 'leva troco', 'levam troco', 'traz troco', 'trazem troco', 'vale refeicao',
     'vale alimentacao', 'pagto',
   ],
   horario: [

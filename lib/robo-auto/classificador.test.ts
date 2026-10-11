@@ -38,7 +38,9 @@ const FRASES: [string, Intencao][] = [
   ['aceita pix?', 'pagamento_pix'], ['qual a chave pix', 'pagamento_pix'], ['manda o pix', 'pagamento_pix'], ['aceita cartão?', 'pagamento_pix'],
   ['formas de pagamento', 'pagamento_pix'], ['pode ser no débito?', 'pagamento_pix'], ['aceitam credito', 'pagamento_pix'], ['posso pagar em dinheiro?', 'pagamento_pix'],
   ['tem troco pra 100?', 'pagamento_pix'], ['como faço o pagamento', 'pagamento_pix'], ['pix', 'pagamento_pix'], ['chave', 'pagamento_pix'],
-  ['aceita vale refeição?', 'pagamento_pix'], ['passa cartao?', 'pagamento_pix'], ['qual o pics', 'pagamento_pix'],
+  ['aceita vale refeição?', 'pagamento_pix'], ['passa cartao?', 'pagamento_pix'], ['qual o pics', 'pagamento_pix'], ['vcs levam troco?', 'pagamento_pix'],
+  // pedido escrito por mensagem com "troco para" (Ponto 400, 11/10): é saudação, não pergunta de pagamento
+  ['Boa noite querido um x tudo troco para 50', 'saudacao'],
   // endereço e retirada
   ['qual o endereço?', 'endereco_retirada'], ['onde fica a loja', 'endereco_retirada'], ['onde vcs ficam?', 'endereco_retirada'], ['posso retirar ai?', 'endereco_retirada'],
   ['da pra buscar ai?', 'endereco_retirada'], ['tem retirada?', 'endereco_retirada'], ['vou buscar no balcão', 'endereco_retirada'], ['qual a localização', 'endereco_retirada'],

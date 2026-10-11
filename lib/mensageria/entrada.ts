@@ -13,15 +13,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { provedorAtual } from './provedor'
 import { enfileirar, processarFila } from './fila'
-import {
-  classificarIntencao, extrairBairro, numeroPermitido, pedidoDeDescadastro, roboLiberadoNoServidor, textoAtendente, textoBoasVindas, textoCardapio, textoDescadastro,
-  textoHorario, textoPadrao, textoStatus, textoTaxa, variantesTelefone, type Acao, type DadosLoja, type FreteLoja,
-} from './robo'
+import { classificarIntencao, numeroPermitido, pedidoDeDescadastro, roboLiberadoNoServidor, textoDescadastro, variantesTelefone, type Acao, type DadosLoja } from './robo'
 import { statusDoProvedor } from './campanhas'
 import { ehSaidaNossa } from './historico'
-import { rotuloStatusPedidoCliente } from '@/lib/status-pedido-cliente'
-import { normalizarForaDaLista } from '@/lib/frete'
-import type { HorarioFuncionamento, StatusLoja } from '@/lib/timezone'
 import { COLUNAS_CONFIG_AUTO, processarMensagemAuto, type ConfigAuto } from '@/lib/robo-auto/motor'
 
 export const SEGREDO_VALIDO = /^[0-9a-f]{48}$/
@@ -35,35 +29,6 @@ export interface ResumoEntrada {
 
 function contar(r: ResumoEntrada, motivo: string) {
   r.ignoradas[motivo] = (r.ignoradas[motivo] ?? 0) + 1
-}
-
-async function ultimoPedido(admin: SupabaseClient, restauranteId: string, telefone: string, semEntregador: boolean) {
-  const variantes = variantesTelefone(telefone)
-  if (!variantes.length) return null
-  const { data } = await admin
-    .from('pedidos')
-    .select('numero, status, tipo, criado_em')
-    .eq('restaurante_id', restauranteId)
-    .in('cliente_telefone', variantes)
-    .order('criado_em', { ascending: false })
-    .limit(1)
-  const p = (data ?? [])[0] as { numero: number; status: string; tipo: string; criado_em: string } | undefined
-  if (!p) return null
-  return { numero: p.numero, criadoEm: p.criado_em, rotulo: rotuloStatusPedidoCliente({ status: p.status, saidaSemConfirmacao: semEntregador && p.tipo === 'entrega' }) }
-}
-
-/** Taxas da loja para o robô: só bairros cadastrados; faixas por raio só como aviso. */
-async function freteDaLoja(admin: SupabaseClient, restauranteId: string, loja: { taxa_entrega_padrao: unknown; frete_fora_da_lista: unknown }): Promise<FreteLoja> {
-  const [{ data: bairros }, { count }] = await Promise.all([
-    admin.from('taxas_entrega_bairro').select('bairro, taxa').eq('restaurante_id', restauranteId),
-    admin.from('taxas_entrega_raio').select('id', { count: 'exact', head: true }).eq('restaurante_id', restauranteId),
-  ])
-  return {
-    bairros: ((bairros ?? []) as { bairro: string; taxa: number }[]).map((b) => ({ bairro: String(b.bairro), taxa: Number(b.taxa) })),
-    temRaio: (count ?? 0) > 0,
-    taxaPadrao: Number(loja.taxa_entrega_padrao) || 0,
-    foraDaLista: normalizarForaDaLista(loja.frete_fora_da_lista),
-  }
 }
 
 /**
@@ -135,14 +100,14 @@ async function processarEntradaInterna(admin: SupabaseClient, segredo: string, c
 
   const { data: cfg } = await admin
     .from('whatsapp_robo_config')
-    .select(`robo_ativo, boas_vindas, ${COLUNAS_CONFIG_AUTO}`)
+    .select(`boas_vindas, ${COLUNAS_CONFIG_AUTO}`)
     .eq('webhook_segredo', segredo)
     .maybeSingle()
   if (!cfg) return { ...r, status: 404 }
 
   const { data: lojaRow } = await admin
     .from('restaurantes')
-    .select('id, nome, slug, evolution_instance, entrega_sem_entregador, usa_logistica, status_loja, horario_funcionamento, taxa_entrega_padrao, frete_fora_da_lista')
+    .select('id, nome, slug, evolution_instance, entrega_sem_entregador, usa_logistica')
     .eq('id', cfg.restaurante_id)
     .maybeSingle()
   if (!lojaRow) return { ...r, status: 404 }
@@ -173,10 +138,8 @@ async function processarEntradaInterna(admin: SupabaseClient, segredo: string, c
     contar(r, 'robo_nao_liberado_no_servidor')
     return r
   }
-  // Robô da LOJA desligado (0107): a mensagem é gravada para a central de atendimento e a
-  // conversa entra como atendimento humano — mas o robô não responde.
-  const roboAtivo = cfg.robo_ativo === true
-  // Robô de autoatendimento (0177): interruptor próprio; ligado, ele responde no lugar do v1.
+  // Robô único (0182): só o robô de atendimento (0177) responde. O robô antigo (v1) não responde mais em loja nenhuma;
+  // com o robô desligado a mensagem é gravada para a central e a conversa entra como atendimento humano.
   const auto = cfg.autoatendimento_ativo === true
 
   const loja: DadosLoja = { nome: lojaRow.nome as string, slug: lojaRow.slug as string, boasVindas: (cfg.boas_vindas as string | null) ?? null }
@@ -235,7 +198,7 @@ async function processarEntradaInterna(admin: SupabaseClient, segredo: string, c
       p_instante: m.instante,
       p_intencao: intencao,
       p_nome: m.deMim ? null : m.nome,
-      p_robo_ativo: roboAtivo,
+      p_robo_ativo: false,
     })
     if (error) throw error
     const d = dec as { duplicada: boolean; sem_envio?: boolean; conversa_id: string; mensagem_id?: string; acao: Acao; boas_vindas?: boolean; protecao?: boolean }
@@ -266,35 +229,7 @@ async function processarEntradaInterna(admin: SupabaseClient, segredo: string, c
       contar(r, descadastro === 'sair' ? 'descadastro' : 'recadastro')
       continue
     }
-    if (!roboAtivo) { contar(r, 'robo_desligado'); continue }
-    if (d.acao === 'nada') { contar(r, d.protecao ? 'protecao_loop' : 'silenciada_ou_repetida'); continue }
-
-    const saudar = d.boas_vindas === true
-    // Loja sem motoboy (sem Logística ou "entrega sem entregador") conclui na saída.
-    const semEntregador = lojaRow.entrega_sem_entregador === true || lojaRow.usa_logistica === false
-    let texto: string
-    if (d.acao === 'boas_vindas') texto = textoBoasVindas(loja)
-    else if (d.acao === 'status') texto = textoStatus(loja, await ultimoPedido(admin, restauranteId, m.telefone, semEntregador), saudar)
-    else if (d.acao === 'atendente') texto = textoAtendente(loja)
-    else if (d.acao === 'cardapio') texto = textoCardapio(loja, saudar)
-    else if (d.acao === 'horario') {
-      texto = textoHorario(loja, {
-        statusLoja: ((lojaRow.status_loja as StatusLoja | null) ?? 'automatico'),
-        horarioFuncionamento: (lojaRow.horario_funcionamento as HorarioFuncionamento | null) ?? null,
-      }, saudar)
-    } else if (d.acao === 'taxa') texto = textoTaxa(loja, extrairBairro(m.texto), await freteDaLoja(admin, restauranteId, lojaRow), saudar)
-    else texto = textoPadrao(loja, m.tipo, saudar)
-
-    const envio = await enfileirar(admin, {
-      restauranteId,
-      chave: `resposta:${d.mensagem_id}`,
-      tipo: 'robo',
-      telefone: m.telefone,
-      texto,
-      conversaId: d.conversa_id,
-      origemMensagemId: d.mensagem_id,
-    })
-    if (envio?.novo) r.respostas++
+    contar(r, 'robo_desligado')
   }
 
   if (r.respostas > 0) await processarFila(admin, { restauranteId, limite: 10 })
