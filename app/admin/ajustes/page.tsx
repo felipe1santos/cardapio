@@ -14,7 +14,8 @@ import { TabQrCode } from '@/components/admin/ajustes-qrcode'
 import { SubmenuVertical } from '@/components/admin/submenu-vertical'
 import { IlustracaoLanche } from '@/components/admin/ilustracao-lanche'
 import { getBrowserSupabase } from '@/lib/supabase/client'
-import { Building2, Clock, Image as ImageIcon, MapPin, Megaphone, PanelTop, Palette, Star } from 'lucide-react'
+import { Building2, Clock, Image as ImageIcon, Link2, MapPin, Megaphone, PanelTop, Palette, Star } from 'lucide-react'
+import { LinksParaDivulgar } from '@/components/admin/links-divulgar'
 import { MensagensAutomaticas } from '@/components/admin/campanhas/mensagens-automaticas'
 import { JanelaModuloBloqueado } from '@/components/admin/janela-modulo-bloqueado'
 import { useEstadoSessao } from '@/lib/sessao-cliente'
@@ -214,6 +215,8 @@ function turnosSobrepostos(turnos: TurnoForm[]): boolean {
 }
 
 function TabLoja({ restauranteId, active }: { restauranteId: string; active: boolean }) {
+  // "Novidades em teste" (0178): seção "Links para divulgar".
+  const novidadesLoja = useEstadoSessao()?.novidades === true
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [loaded, setLoaded] = useState(false)
   const [config, setConfig] = useState<ConfigLoja | null>(null)
@@ -1092,6 +1095,12 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
             </div>
           </Field>
         </Secao>
+
+        {novidadesLoja && config?.slug && (
+          <Secao titulo="Links para divulgar" descricao="O link do seu cardápio marcado para cada canal. Use estes links e veja no Dashboard de onde vêm as vendas." icone={<Link2 />} testid="secao-links-divulgar">
+            <LinksParaDivulgar baseCardapio={`${typeof window !== 'undefined' ? window.location.origin : 'https://app.menuzia.com.br'}/loja/${config.slug}`} slug={config.slug} />
+          </Secao>
+        )}
 
         <AgendamentoAjustes restauranteId={restauranteId} />
 

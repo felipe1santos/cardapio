@@ -50,6 +50,7 @@ import { lojaEstaAberta, type HorarioFuncionamento, type StatusLoja } from '@/li
 import { notificarPedido } from '@/lib/notificar'
 import { etiquetasDoPedido, origemVisivelNoCard, rotuloOrigemPedido as origemDoCard } from '@/lib/pedido-origem'
 import { SeloOrigem } from '@/components/icones/origens'
+import { useEstadoSessao } from '@/lib/sessao-cliente'
 import { EtiquetaAtendimento } from '@/components/pedidos/etiquetas-pedido'
 import { Capacete } from '@/components/icones/capacete'
 import { Dica, Flutuante } from '@/components/ui/flutuante'
@@ -212,6 +213,8 @@ function FluxoCard({ order, tone, onClick, onConcluir, rotulo }: { order: Pedido
 
 
 export default function PedidosPage() {
+  // "Novidades em teste" (0178): selo de origem também para Direto / Sem origem.
+  const novidades = useEstadoSessao()?.novidades === true
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [restauranteId, setRestauranteId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -1088,6 +1091,12 @@ export default function PedidosPage() {
                                 Direto, PDV, Mesa e Balcão não mostram nada. É a única mudança no card antigo. */}
                             {(() => {
                               const o = order.origemCanal && order.origemCanal !== 'direto' ? origemVisivelNoCard(order) : null
+                              // "Novidades em teste" (0178): pedido da vitrine direto ou sem origem também ganha o selo.
+                              const daVitrine = !['PDV', 'Salão'].includes(origemDoCard(order).posto ?? '')
+                              if (!o && novidades && daVitrine) {
+                                const d = order.origemCanal === 'direto' ? { icone: 'direto', dica: 'Origem: Direto (digitou o endereço ou link sem etiqueta)' } : { icone: 'sem_origem', dica: 'Sem origem (pedido de antes do rastreio)' }
+                                return <Dica texto={d.dica}><span className="inline-flex" aria-label={d.dica} data-testid="card-origem" data-origem={d.icone}><SeloOrigem canal={d.icone} /></span></Dica>
+                              }
                               return o && !['pdv', 'mesa', 'balcao'].includes(o.icone) ? (
                                 <Dica texto={o.dica}>
                                   <span className="inline-flex" aria-label={o.dica} data-testid="card-origem" data-origem={o.icone}>

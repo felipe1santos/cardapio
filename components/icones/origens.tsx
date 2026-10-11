@@ -84,7 +84,7 @@ export function IconePix({ className = 'h-4 w-4' }: P) {
  */
 const COR_SELO: Record<string, string> = {
   instagram: '#C13584', facebook: '#0B5FCC', meta: '#0064E0', google_anuncio: '#1967D2', google_busca: '#1967D2',
-  whatsapp: '#0E7569', qrcode: '#C2410C', outros: '#4B5563',
+  whatsapp: '#0E7569', qrcode: '#C2410C', outros: '#4B5563', direto: '#4B5563', sem_origem: '#6B7280',
 }
 export function SeloOrigem({ canal }: { canal: string }) {
   const cor = COR_SELO[canal] ?? '#4B5563'
@@ -100,6 +100,9 @@ export function SeloOrigem({ canal }: { canal: string }) {
         return <svg viewBox="0 0 24 24" className="h-[12px] w-[12px]" aria-hidden="true"><path fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" d="M20 12.2h-7.6M19.4 8A8.4 8.4 0 1 0 20.4 13" /></svg>
       case 'whatsapp': return <MessageCircle className="h-[12px] w-[12px] text-white" strokeWidth={2.6} aria-hidden="true" />
       case 'qrcode': return <QrCode className="h-[12px] w-[12px] text-white" strokeWidth={2.6} aria-hidden="true" />
+      // "Novidades em teste" (0178): o card também mostra Direto e Sem origem (pedido antigo).
+      case 'direto': return <Link2 className="h-[12px] w-[12px] text-white" strokeWidth={2.6} aria-hidden="true" />
+      case 'sem_origem': return <span className="text-[11px] font-semibold leading-none text-white" aria-hidden="true">?</span>
       default: return <Globe className="h-[12px] w-[12px] text-white" strokeWidth={2.6} aria-hidden="true" />
     }
   })()

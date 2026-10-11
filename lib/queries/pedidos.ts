@@ -986,6 +986,8 @@ export interface PedidoDashboard {
   teste: boolean
   /** Origem atribuída do pedido da vitrine (item 55, 0149); null = PDV/mesa ou pedido de antes da 0149. */
   origemCanal: string | null
+  /** Primeira origem do aparelho (10/10, origem_detalhe.primeira.canal); null = pedido de antes. */
+  origemPrimeira?: string | null
 }
 
 export type OrigemVenda = 'vitrine' | 'pdv' | 'mesa'
@@ -1006,7 +1008,7 @@ export async function carregarDashboard(supabase: SupabaseClient, restauranteId:
   // perde os de hoje sem aviso.
   const pedidos = await lerTodas<Record<string, unknown>>((de, ate) => supabase
     .from('pedidos')
-    .select('id, total, tipo, status, forma_pagamento, criado_em, cliente_nome, cliente_telefone, observacao, endereco_rua, endereco_numero, endereco_bairro, endereco_cep, canal, origem, origem_canal, pedido_itens ( item_id, nome, quantidade, preco_unitario )')
+    .select('id, total, tipo, status, forma_pagamento, criado_em, cliente_nome, cliente_telefone, observacao, endereco_rua, endereco_numero, endereco_bairro, endereco_cep, canal, origem, origem_canal, origem_primeira:origem_detalhe->primeira->>canal, pedido_itens ( item_id, nome, quantidade, preco_unitario )')
     .eq('restaurante_id', restauranteId)
     // Pix online ainda não pago (0148) não é venda: entra quando a API confirmar.
     .not('status', 'in', '(cancelado,aguardando_pagamento)')
@@ -1039,6 +1041,7 @@ export async function carregarDashboard(supabase: SupabaseClient, restauranteId:
     endereco_bairro: string | null
     endereco_cep: string | null
     origem_canal?: string | null
+    origem_primeira?: string | null
     canal: string | null
     origem: string | null
     pedido_itens: { item_id: string | null; nome: string; quantidade: number; preco_unitario: number }[]
@@ -1057,6 +1060,7 @@ export async function carregarDashboard(supabase: SupabaseClient, restauranteId:
     origemVenda: origemDaVenda(p.canal, p.origem),
     teste: ehPedidoDeTeste({ clienteNome: p.cliente_nome, observacao: p.observacao, bairro: p.endereco_bairro, telefone: p.cliente_telefone }),
     origemCanal: typeof p.origem_canal === 'string' ? p.origem_canal : null,
+    origemPrimeira: typeof p.origem_primeira === 'string' ? p.origem_primeira : null,
     itens: (p.pedido_itens ?? []).map((i) => ({
       itemId: i.item_id,
       nome: i.nome,
