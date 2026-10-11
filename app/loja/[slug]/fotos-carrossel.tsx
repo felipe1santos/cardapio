@@ -22,8 +22,14 @@ export function FotosCarrossel({ urls, nome }: { urls: string[]; nome: string })
   function irPara(i: number) {
     const t = trilho.current
     if (!t) return
+    const inicio = t.scrollLeft
     const alvo = Math.max(0, Math.min(urls.length - 1, i))
-    t.scrollTo({ left: alvo * t.clientWidth, behavior: 'smooth' })
+    const left = alvo * t.clientWidth
+    // Rolagem suave respeitando "reduzir movimento". Se ela não andar (aba sem quadros de animação), completa na hora.
+    const suave = !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    t.scrollTo({ left, behavior: suave ? 'smooth' : 'auto' })
+    if (suave) window.setTimeout(() => { if (Math.abs(t.scrollLeft - left) > 2 && t.scrollLeft === inicio) t.scrollTo({ left }) }, 450)
+    setAtual(alvo)
   }
 
   return (
