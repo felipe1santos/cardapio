@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { limparDadosCartao, mensagemRecusa, resultadoDoStatus, tipoDoCartao } from './cartao-online'
+import { dadosAntifraude, limparDadosCartao, mensagemRecusa, resultadoDoStatus, tipoDoCartao } from './cartao-online'
 import { divergencias } from './pix-online'
 import type { PagamentoMp } from './mercadopago'
 
@@ -54,5 +54,29 @@ describe('conferência do pagamento: cartão aprovado só libera se for cartão,
   })
   it('Pix continua exigindo Pix', () => {
     expect(divergencias(pg({ metodo: 'master', tipo: 'credit_card' }), { ...reg, metodo: 'pix' }, 'U', 50)).toContain('metodo')
+  })
+})
+
+describe('antifraude do MP: a cobrança leva os dados do pedido (nome, telefone, itens, endereço)', () => {
+  const pedido = {
+    numero: 300, tipo: 'entrega', cliente_nome: 'Felipe Perone da Silva', cliente_telefone: '(27) 99253-4407',
+    endereco_rua: 'Rua A', endereco_numero: '10', endereco_cep: '29100-000', endereco_bairro: 'Centro', endereco_cidade: 'Vila Velha',
+  }
+  const itens = [{ item_id: 'i1', nome: 'X-Bacon', quantidade: 2, preco_unitario: 20 }, { item_id: null, nome: 'Coca', quantidade: 1, preco_unitario: 8 }]
+  it('nome separado, telefone com DDD, itens e endereço de entrega', () => {
+    const d = dadosAntifraude(pedido, itens, 'Menuzia Lanches & Cia')
+    expect(d.nome).toEqual({ primeiro: 'Felipe', ultimo: 'Perone da Silva' })
+    expect(d.additional_info.payer).toMatchObject({ first_name: 'Felipe', last_name: 'Perone da Silva', phone: { area_code: '27', number: '992534407' } })
+    expect(d.additional_info.items).toEqual([
+      { id: 'i1', title: 'X-Bacon', quantity: 2, unit_price: 20, category_id: 'food' },
+      { id: 'item-2', title: 'Coca', quantity: 1, unit_price: 8, category_id: 'food' },
+    ])
+    expect(d.additional_info.shipments).toEqual({ receiver_address: { zip_code: '29100000', street_name: 'Rua A', street_number: '10', city_name: 'Vila Velha' } })
+    expect(d.statement_descriptor).toMatch(/^[A-Z0-9 ]{1,13}$/)
+  })
+  it('retirada não manda endereço; nome de uma palavra repete no sobrenome', () => {
+    const d = dadosAntifraude({ ...pedido, tipo: 'retirada', cliente_nome: 'Felipe' }, itens, 'X')
+    expect(d.additional_info.shipments).toBeUndefined()
+    expect(d.nome).toEqual({ primeiro: 'Felipe', ultimo: 'Felipe' })
   })
 })

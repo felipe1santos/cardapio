@@ -41,7 +41,7 @@ export async function cartaoOnlineDaLoja(admin: SupabaseClient, restauranteId: s
   return { ativo: !!publicKey, parcelasMax, publicKey }
 }
 
-export interface DadosCartao { token: string; metodoId: string; emissorId: string | null; parcelas: number; email: string; documento: { tipo: string; numero: string } | null }
+export interface DadosCartao { token: string; metodoId: string; emissorId: string | null; parcelas: number; email: string; documento: { tipo: string; numero: string } | null; dispositivo?: string | null }
 
 const PROIBIDOS = /card_?number|security_?code|cvv|expiration|cardholder_?name|numero_?cartao/i
 
@@ -63,7 +63,38 @@ export function limparDadosCartao(bruto: unknown, parcelasMax: number): { ok: tr
   const docNumero = typeof id.number === 'string' ? id.number.replace(/\D/g, '').slice(0, 20) : ''
   return {
     ok: true,
-    dados: { token, metodoId, emissorId: /^[0-9]{1,12}$/.test(emissor) ? emissor : null, parcelas, email, documento: docTipo && docNumero ? { tipo: docTipo, numero: docNumero } : null },
+    dados: {
+      token, metodoId, emissorId: /^[0-9]{1,12}$/.test(emissor) ? emissor : null, parcelas, email, documento: docTipo && docNumero ? { tipo: docTipo, numero: docNumero } : null,
+      dispositivo: typeof b.device_id === 'string' && /^[A-Za-z0-9_-]{8,200}$/.test(b.device_id) ? b.device_id : null,
+    },
+  }
+}
+
+/**
+ * Dados que o antifraude do Mercado Pago usa (12/10): sem eles a cobrança chega "pobre" e cai em cc_rejected_high_risk.
+ * Nome do comprador, telefone, itens do pedido, endereço de entrega e o nome da loja na fatura. Pura.
+ */
+export function dadosAntifraude(
+  ped: { numero: number; tipo: string; cliente_nome: string | null; cliente_telefone: string | null; endereco_rua?: string | null; endereco_numero?: string | null; endereco_cep?: string | null; endereco_cidade?: string | null },
+  itens: { item_id: string | null; nome: string; quantidade: number; preco_unitario: number }[],
+  lojaNome: string,
+) {
+  const partes = String(ped.cliente_nome ?? '').trim().split(/\s+/).filter(Boolean)
+  const primeiro = (partes[0] ?? 'Cliente').slice(0, 60)
+  const ultimo = (partes.length > 1 ? partes.slice(1).join(' ') : primeiro).slice(0, 60)
+  let tel = String(ped.cliente_telefone ?? '').replace(/\D/g, '')
+  if (tel.length > 11 && tel.startsWith('55')) tel = tel.slice(2)
+  const phone = tel.length >= 10 ? { area_code: tel.slice(0, 2), number: tel.slice(2) } : undefined
+  const cep = String(ped.endereco_cep ?? '').replace(/\D/g, '')
+  const entrega = ped.tipo === 'entrega' && ped.endereco_rua
+  return {
+    nome: { primeiro, ultimo },
+    statement_descriptor: (lojaNome.normalize('NFD').replace(/[^A-Za-z0-9 ]/g, '').trim().toUpperCase().slice(0, 13).trim() || 'MENUZIA'),
+    additional_info: {
+      items: itens.slice(0, 50).map((i, n) => ({ id: i.item_id ?? `item-${n + 1}`, title: i.nome.slice(0, 120), quantity: Number(i.quantidade), unit_price: Number(i.preco_unitario), category_id: 'food' })),
+      payer: { first_name: primeiro, last_name: ultimo, ...(phone ? { phone } : {}) },
+      ...(entrega ? { shipments: { receiver_address: { zip_code: cep, street_name: String(ped.endereco_rua).slice(0, 120), street_number: String(ped.endereco_numero ?? '').slice(0, 20), city_name: String(ped.endereco_cidade ?? '').slice(0, 60) } } } : {}),
+    },
   }
 }
 
@@ -112,10 +143,11 @@ export type RespostaPagamento = { resultado: ResultadoCartao | 'expirado' | 'ja_
 
 /** Uma tentativa de pagamento com o token do Brick. Valor = total do pedido NO BANCO. */
 export async function pagarComCartao(admin: SupabaseClient, p: { restauranteId: string; pedidoId: string; dados: DadosCartao }): Promise<RespostaPagamento> {
-  const [{ data: ped }, { data: reg }, { data: loja }] = await Promise.all([
-    admin.from('pedidos').select('id, numero, total, status').eq('id', p.pedidoId).eq('restaurante_id', p.restauranteId).maybeSingle(),
+  const [{ data: ped }, { data: reg }, { data: loja }, { data: itensPed }] = await Promise.all([
+    admin.from('pedidos').select('id, numero, total, status, tipo, cliente_nome, cliente_telefone, endereco_rua, endereco_numero, endereco_cep, endereco_cidade').eq('id', p.pedidoId).eq('restaurante_id', p.restauranteId).maybeSingle(),
     admin.from('pagamentos_online').select('*').eq('pedido_id', p.pedidoId).eq('restaurante_id', p.restauranteId).in('status', ['pendente', 'verificacao_pendente', 'pago']).order('criado_em', { ascending: false }).limit(1).maybeSingle(),
     admin.from('restaurantes').select('nome').eq('id', p.restauranteId).maybeSingle(),
+    admin.from('pedido_itens').select('item_id, nome, quantidade, preco_unitario').eq('pedido_id', p.pedidoId),
   ])
   if (!ped || !reg || !ehCartao(reg)) return { resultado: 'expirado', mensagem: 'Este pedido não está esperando pagamento com cartão.' }
   if (reg.status === 'pago' || ped.status !== 'aguardando_pagamento') return { resultado: reg.status === 'pago' ? 'ja_pago' : 'expirado', mensagem: reg.status === 'pago' ? null : 'O prazo para pagar este pedido acabou. Faça o pedido de novo.' }
@@ -126,8 +158,11 @@ export async function pagarComCartao(admin: SupabaseClient, p: { restauranteId: 
     valor: Number(ped.total), token: p.dados.token, metodoId: p.dados.metodoId, emissorId: p.dados.emissorId, parcelas: p.dados.parcelas,
     descricao: `Pedido #${ped.numero} - ${String(loja?.nome ?? 'Menuzia').slice(0, 60)}`, referencia: ped.id,
     email: p.dados.email || `pedido-${ped.id.slice(0, 8)}@pagamentos.menuzia.com.br`, documento: p.dados.documento,
-    notificacaoUrl: webhookUrlMp(), idempotencia: `cartao:${reg.id}:${tentativa}`,
+    notificacaoUrl: webhookUrlMp(), idempotencia: `cartao:${reg.id}:${tentativa}`, dispositivo: p.dados.dispositivo ?? null,
   }
+  const af = dadosAntifraude(ped, (itensPed ?? []) as { item_id: string | null; nome: string; quantidade: number; preco_unitario: number }[], String(loja?.nome ?? 'Menuzia'))
+  corpo.nome = af.nome
+  corpo.extras = { additional_info: af.additional_info, statement_descriptor: af.statement_descriptor }
   let pg
   try {
     pg = await comTokenDaLoja(admin, p.restauranteId, (token) => provedorMp().pagarCartao(token, corpo))
@@ -138,7 +173,7 @@ export async function pagarComCartao(admin: SupabaseClient, p: { restauranteId: 
   }
   await admin.from('pagamentos_online').update({
     mp_payment_id: pg.id, status_mp: pg.status, tentativas: tentativa, parcelas: pg.parcelas ?? p.dados.parcelas, cartao_bandeira: (pg.metodo ?? p.dados.metodoId).slice(0, 40),
-    cartao_final: pg.cartaoFinal && /^[0-9]{4}$/.test(pg.cartaoFinal) ? pg.cartaoFinal : null, cartao_tipo: tipoDoCartao(pg.tipo), erro: null, atualizado_em: new Date().toISOString(),
+    cartao_final: pg.cartaoFinal && /^[0-9]{4}$/.test(pg.cartaoFinal) ? pg.cartaoFinal : null, cartao_tipo: tipoDoCartao(pg.tipo), erro: pg.status === 'approved' ? null : (pg.statusDetail ?? null)?.slice(0, 300) ?? null, atualizado_em: new Date().toISOString(),
   }).eq('id', reg.id)
   const resultado = resultadoDoStatus(pg.status)
   if (resultado === 'aprovado') {

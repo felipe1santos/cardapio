@@ -16,7 +16,7 @@ type Resposta = { resultado: 'aprovado' | 'recusado' | 'em_analise' | 'expirado'
 
 interface BrickController { unmount: () => void }
 interface MercadoPagoSdk { bricks: () => { create: (tipo: string, container: string, opcoes: unknown) => Promise<BrickController> } }
-declare global { interface Window { MercadoPago?: new (chave: string, op: { locale: string }) => MercadoPagoSdk } }
+declare global { interface Window { MercadoPago?: new (chave: string, op: { locale: string }) => MercadoPagoSdk; MP_DEVICE_SESSION_ID?: string } }
 
 const SDK = 'https://sdk.mercadopago.com/js/v2'
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -26,6 +26,15 @@ const ESPERAS_ANALISE = [5_000, 5_000, 10_000, 20_000, 20_000, 30_000]
 
 let sdkPromessa: Promise<void> | null = null
 function carregarSdk(): Promise<void> {
+  // Antifraude do MP (12/10): script oficial de segurança gera o MP_DEVICE_SESSION_ID (identificador do aparelho).
+  if (!document.querySelector('script[data-mp-seguranca]')) {
+    const seg = document.createElement('script')
+    seg.src = 'https://www.mercadopago.com/v2/security.js'
+    seg.async = true
+    seg.setAttribute('view', 'checkout')
+    seg.setAttribute('data-mp-seguranca', '1')
+    document.head.appendChild(seg)
+  }
   if (window.MercadoPago) return Promise.resolve()
   sdkPromessa ??= new Promise<void>((ok, falha) => {
     const s = document.createElement('script')
@@ -76,7 +85,7 @@ export function TelaCartaoOnline({ slug, cartao, onPago, onTrocar, onRefazer }: 
               try {
                 const r = await fetch(`/api/loja/${slug}/pedido/${cartao.id}/cartao`, {
                   method: 'POST', headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ acao: 'pagar', token: dados.token, payment_method_id: dados.payment_method_id, issuer_id: dados.issuer_id, installments: dados.installments, payer: dados.payer }),
+                  body: JSON.stringify({ acao: 'pagar', token: dados.token, payment_method_id: dados.payment_method_id, issuer_id: dados.issuer_id, installments: dados.installments, payer: dados.payer, device_id: window.MP_DEVICE_SESSION_ID ?? null }),
                 })
                 const j = (await r.json().catch(() => null)) as Resposta | null
                 if (vivo) tratarRef.current(j ?? { resultado: 'recusado', mensagem: 'Não foi possível concluir. Tente de novo.' })

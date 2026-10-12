@@ -31,6 +31,11 @@ export interface PagamentoMp {
 export interface PagamentoCartao {
   valor: number; token: string; metodoId: string; emissorId: string | null; parcelas: number; descricao: string; referencia: string
   email: string; documento: { tipo: string; numero: string } | null; notificacaoUrl: string | null; idempotencia: string
+  /** Antifraude (12/10): nome do comprador, additional_info (itens, telefone, endereço) e nome na fatura. */
+  nome?: { primeiro: string; ultimo: string }
+  extras?: Record<string, unknown>
+  /** Device ID do navegador (MP_DEVICE_SESSION_ID) → header X-meli-session-id. */
+  dispositivo?: string | null
 }
 export interface ReembolsoMp { id: string; status: string; valor: number }
 
@@ -93,8 +98,9 @@ export function lerPagamento(j: Record<string, unknown>): PagamentoMp {
   }
 }
 
-async function chamar(caminho: string, opcoes: { metodo?: string; token?: string; corpo?: unknown; idempotencia?: string; form?: boolean } = {}): Promise<Record<string, unknown>> {
+async function chamar(caminho: string, opcoes: { metodo?: string; token?: string; corpo?: unknown; idempotencia?: string; form?: boolean; dispositivo?: string | null } = {}): Promise<Record<string, unknown>> {
   const headers: Record<string, string> = { Accept: 'application/json' }
+  if (opcoes.dispositivo) headers['X-meli-session-id'] = opcoes.dispositivo
   if (opcoes.token) headers.Authorization = `Bearer ${opcoes.token}`
   if (opcoes.idempotencia) headers['X-Idempotency-Key'] = opcoes.idempotencia
   if (opcoes.corpo !== undefined) headers['Content-Type'] = 'application/json'
@@ -132,10 +138,11 @@ const provedorReal: ProvedorMp = {
   async consultar(token, id) { return lerPagamento(await chamar(`/v1/payments/${encodeURIComponent(id)}`, { token })) },
   async cancelar(token, id) { await chamar(`/v1/payments/${encodeURIComponent(id)}`, { metodo: 'PUT', token, corpo: { status: 'cancelled' } }) },
   async pagarCartao(token, p) {
-    return lerPagamento(await chamar('/v1/payments', { metodo: 'POST', token, idempotencia: p.idempotencia, corpo: {
+    return lerPagamento(await chamar('/v1/payments', { metodo: 'POST', token, idempotencia: p.idempotencia, dispositivo: p.dispositivo, corpo: {
+      ...(p.extras ?? {}),
       transaction_amount: p.valor, token: p.token, description: p.descricao, installments: p.parcelas, payment_method_id: p.metodoId,
       ...(p.emissorId ? { issuer_id: p.emissorId } : {}), external_reference: p.referencia, binary_mode: false,
-      payer: { email: p.email, ...(p.documento ? { identification: { type: p.documento.tipo, number: p.documento.numero } } : {}) },
+      payer: { email: p.email, ...(p.nome ? { first_name: p.nome.primeiro, last_name: p.nome.ultimo } : {}), ...(p.documento ? { identification: { type: p.documento.tipo, number: p.documento.numero } } : {}) },
       ...(p.notificacaoUrl ? { notification_url: p.notificacaoUrl } : {}),
     } }))
   },
