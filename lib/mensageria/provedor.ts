@@ -53,7 +53,8 @@ export type ResultadoEnvio =
 export interface ProvedorWhatsapp {
   nome: string
   /** `digitandoMs`: mostra "digitando..." antes de enviar (robô de autoatendimento, 0177). */
-  enviarTexto(instancia: string, numero: string, texto: string, opcoes?: { digitandoMs?: number }): Promise<ResultadoEnvio>
+  /** `semPrevia` (12/10): sem a prévia do link (a imagem do cardápio não se repete em menos de 30 min na conversa). */
+  enviarTexto(instancia: string, numero: string, texto: string, opcoes?: { digitandoMs?: number; semPrevia?: boolean }): Promise<ResultadoEnvio>
   enviarImagem(instancia: string, numero: string, url: string, legenda: string): Promise<ResultadoEnvio>
   enviarAudio(instancia: string, numero: string, url: string): Promise<ResultadoEnvio>
   interpretarWebhook(corpo: unknown): EventoWebhook
@@ -232,7 +233,7 @@ async function imagemEvolution(inst: string, waId: string): Promise<{ base64: st
 export const provedorEvolution: ProvedorWhatsapp = {
   nome: 'evolution',
   enviarTexto: (inst, numero, texto, opcoes) =>
-    postarEvolution(`/message/sendText/${encodeURIComponent(inst)}`, { number: numero, text: texto, ...(opcoes?.digitandoMs ? { delay: Math.min(3000, Math.max(0, Math.round(opcoes.digitandoMs))) } : {}) }),
+    postarEvolution(`/message/sendText/${encodeURIComponent(inst)}`, { number: numero, text: texto, ...(opcoes?.digitandoMs ? { delay: Math.min(3000, Math.max(0, Math.round(opcoes.digitandoMs))) } : {}), ...(opcoes?.semPrevia ? { linkPreview: false } : {}) }),
   enviarImagem: (inst, numero, url, legenda) =>
     postarEvolution(`/message/sendMedia/${encodeURIComponent(inst)}`, { number: numero, mediatype: 'image', media: url, caption: legenda }),
   enviarAudio: (inst, numero, url) => postarEvolution(`/message/sendWhatsAppAudio/${encodeURIComponent(inst)}`, { number: numero, audio: url }),

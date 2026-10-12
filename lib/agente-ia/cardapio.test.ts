@@ -55,3 +55,13 @@ describe('sinônimos e categoria (teste do Felipe, 11/10, #287)', () => {
     expect(familiaDaBusca('sushi')).toBeNull()
   })
 })
+
+describe('nada inventado (12/10): item citado em negrito tem que existir no cardápio', () => {
+  it('reprova item que não existe; aceita os do cardápio, complementos e o total', async () => {
+    const { citacoesForaDoCardapio } = await import('./cardapio')
+    const itens = [{ nome: 'Acai grandao', categoria: 'Açaí', grupos: [{ opcoes: [{ nome: 'Banana' }] }] }, { nome: 'Coca lata', categoria: 'Bebidas', grupos: [] }] as never
+    expect(citacoesForaDoCardapio('Temos o *Acai grandao* `R$ 32,00` e a *Coca lata*. *Total:* `R$ 38,00`', itens)).toEqual([])
+    expect(citacoesForaDoCardapio('Quer uma *Pizza de caviar*?', itens)).toEqual(['Pizza de caviar'])
+    expect(citacoesForaDoCardapio('1. 🍌 *Banana*', itens)).toEqual([])
+  })
+})

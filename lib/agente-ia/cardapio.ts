@@ -179,3 +179,23 @@ export function sugerirParecidos(c: CardapioIa, busca: string, limite = 3): Item
 
 /** Só para os testes. */
 export function _zerarCacheCardapio() { cache.clear() }
+
+const BOLD_LIVRE = /^(total:?|subtotal:?|sim|nao|não|online|pronto!?|ok|pedido.*|resumo.*|\d.*)$/i
+const semAcentoMin = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/^\d+x\s+/, '').trim()
+
+/** Nomes em *negrito* na resposta que não existem no cardápio (itens, opções, categorias). Régua do "nada inventado". */
+export function citacoesForaDoCardapio(texto: string, itens: Pick<ItemIa, 'nome' | 'categoria' | 'grupos'>[]): string[] {
+  const conhecidos = new Set<string>()
+  for (const i of itens) {
+    conhecidos.add(semAcentoMin(i.nome)); conhecidos.add(semAcentoMin(i.categoria ?? ''))
+    for (const g of i.grupos ?? []) for (const o of g.opcoes ?? []) conhecidos.add(semAcentoMin(o.nome))
+  }
+  const fora: string[] = []
+  for (const m of (texto ?? '').matchAll(/\*([^*\n]{2,60})\*/g)) {
+    const nome = m[1].trim()
+    if (BOLD_LIVRE.test(nome)) continue
+    const n = semAcentoMin(nome)
+    if (![...conhecidos].some((k) => k && (k === n || k.includes(n) || n.includes(k)))) fora.push(nome)
+  }
+  return fora
+}

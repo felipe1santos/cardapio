@@ -12,7 +12,8 @@ export type AcaoAuto =
   | 'pedir_link' | 'pedir_sem_link'
 
 export interface EstadoAuto {
-  autoEstado: 'aguardando_bairro' | 'aguardando_numero' | 'pedir_link' | null
+  /** 12/10: escolhendo categoria / item da categoria N (cardápio pelo robô, sem IA). */
+  autoEstado: 'aguardando_bairro' | 'aguardando_numero' | 'pedir_link' | 'escolher_categoria' | `escolher_item:${number}` | null
   autoEstadoEm: string | null
   naoEntendeu: number
   saudacaoEm: string | null

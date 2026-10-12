@@ -7,6 +7,7 @@ import { resolverFrete } from '@/lib/frete'
 import { brl, type DadosLojaAuto } from '@/lib/robo-auto/respostas'
 import { pedidoPorNumero, pedidosAbertosDoTelefone } from '@/lib/robo-auto/motor'
 import { buscarNoCardapio, familiaDaBusca, sugerirParecidos, type CardapioIa } from './cardapio'
+import { bumpJaOferecido, sugestoesPecaTambem, textoPecaTambem, vendasPorItem } from './peca-tambem'
 import { ACOES_POS_PEDIDO, alterarPedidoFeito } from './pos-pedido'
 import { calcularPedido, criarPedidoDaConversa, limparCarrinho, type ContextoPedido } from './pedido'
 
@@ -147,7 +148,7 @@ export async function executarFerramenta(ctx: ContextoFerramentas, efeitos: Efei
                 })),
               } : {}),
             })),
-            ...(pizza ? { pizza: { tamanhos: pizza.tamanhos.map((t) => `${t.nome} (até ${t.maxSabores} sabores)`), bordas: pizza.bordas.map((b) => `${b.nome} (+${brl(b.preco)})`), massas: pizza.massas.map((m) => m.nome) } } : {}),
+            ...(pizza ? { pizza: { tamanhos: pizza.tamanhos.map((t) => `${t.nome} (até ${t.maxSabores} sabores)`), bordas: pizza.bordas.map((b) => (b.preco > 0 ? `${b.nome} (+${brl(b.preco)})` : b.nome)), massas: pizza.massas.map((m) => m.nome) } } : {}),
           }),
         }
       }
@@ -181,10 +182,22 @@ export async function executarFerramenta(ctx: ContextoFerramentas, efeitos: Efei
         const resumo = await calcularPedido(ctx, c.carrinho)
         // Mesmo pedido de um resumo JÁ mostrado (o Haiku real remonta no "sim", 12/10): não renova a hora do resumo
         // (senão a confirmação fica "antes" dele e o pedido nunca é criado) nem manda o resumo de novo.
-        const { data: atual } = await ctx.admin.from('whatsapp_conversas').select('ia_carrinho, ia_resumo_em').eq('id', ctx.conversaId).eq('restaurante_id', ctx.restauranteId).maybeSingle()
-        const salvo = atual as { ia_carrinho?: { hash?: string } | null; ia_resumo_em?: string | null } | null
+        const { data: atual } = await ctx.admin.from('whatsapp_conversas').select('ia_carrinho, ia_resumo_em, ia_bump_em, ia_pedido_em').eq('id', ctx.conversaId).eq('restaurante_id', ctx.restauranteId).maybeSingle()
+        const salvo = atual as { ia_carrinho?: { hash?: string } | null; ia_resumo_em?: string | null; ia_bump_em?: string | null; ia_pedido_em?: string | null } | null
         if (salvo?.ia_resumo_em && salvo.ia_carrinho?.hash === resumo.hash) {
           return { conteudo: json({ ok: true, total: brl(resumo.total), aviso: 'Este é o mesmo pedido do resumo que o cliente já recebeu. Se ele confirmou, chame criar_pedido agora; senão, só pergunte se pode confirmar.' }) }
+        }
+        // "Peça também" (12/10): UMA vez por pedido, antes do resumo, até 2 sugestões escolhidas pelo servidor.
+        if (!bumpJaOferecido(salvo, Date.now())) {
+          await ctx.admin.from('whatsapp_conversas').update({ ia_bump_em: new Date().toISOString() }).eq('id', ctx.conversaId).eq('restaurante_id', ctx.restauranteId)
+          const sugestoes = sugestoesPecaTambem(ctx.cardapio.itens, c.carrinho.itens.map((i) => i.itemId), await vendasPorItem(ctx.admin, ctx.restauranteId).catch(() => new Map()))
+          if (sugestoes.length) {
+            efeitos.mensagens = [...(efeitos.mensagens ?? []), textoPecaTambem(sugestoes)]
+            return { conteudo: json({
+              ok: true, peca_tambem: sugestoes.map((s, n) => ({ opcao: n + 1, item_id: s.id, nome: s.nome, preco: brl(s.preco) })),
+              aviso: 'O SISTEMA ofereceu estas sugestões ao cliente ANTES do resumo. Não escreva nada agora; espere a resposta. Aceitou (número ou nome): inclua o item e chame montar_pedido de novo. Recusou: chame montar_pedido de novo com o mesmo pedido.',
+            }) }
+          }
         }
         await ctx.admin.from('whatsapp_conversas')
           .update({ ia_carrinho: { carrinho: c.carrinho, hash: resumo.hash }, ia_resumo_em: new Date().toISOString() })

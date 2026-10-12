@@ -18,8 +18,9 @@ describe('tom das mensagens da IA', () => {
   it('mensagem longa (> 400 caracteres) fora do resumo é proibida', () => {
     expect(problemasDeTom('a'.repeat(401))).toContain('longa')
   })
-  it('lista com marcadores fora do resumo é proibida; mais de 1 emoji também', () => {
-    expect(problemasDeTom('Temos:\n- Calabresa\n- Mussarela')).toContain('lista')
+  it('12/10: lista de OPÇÕES uma por linha é a regra; lista de PERGUNTAS e mais de 1 emoji na mesma linha, não', () => {
+    expect(problemasDeTom('Tem estas pizzas:\n1. 🍕 *Calabresa* `R$ 40,00`\n2. 🍕 *Mussarela* `R$ 38,00`\nQual você prefere? Pode responder o número.')).toEqual([])
+    expect(problemasDeTom('Agora preciso saber:\n1. É entrega ou retirada?\n2. Forma de pagamento?')).toContain('lista')
     expect(problemasDeTom('Oba 😊🍔 vamos lá')).toContain('emojis')
   })
   it('limparTom tira lista numerada também (teste do Felipe: "1. É entrega ou retirada?")', () => {
@@ -27,5 +28,7 @@ describe('tom das mensagens da IA', () => {
   })
   it('limparTom tira linhas que são só cabeçalho e marcadores de lista, mantendo o conteúdo', () => {
     expect(limparTom('*🍕 PIZZAS*\n- Calabresa R$ 40,00\n- Mussarela R$ 38,00\nQual você prefere?')).toBe('Calabresa R$ 40,00\nMussarela R$ 38,00\nQual você prefere?')
+    // Opções numeradas (para escolher) ficam; só lista de perguntas perde o número.
+    expect(limparTom('Qual delas?\n1. Calabresa\n2. Mussarela')).toBe('Qual delas?\n1. Calabresa\n2. Mussarela')
   })
 })

@@ -33,7 +33,7 @@ export const TEXTOS_PADRAO: Record<ChaveTexto, string> = {
   ].join('\n'),
   menu_curto: ['*Como posso ajudar?*', '', '{menu}', '', '*Cardápio:* {link_cardapio}'].join('\n'),
   nao_entendeu: ['*🤔 Não entendi sua mensagem.*', '', 'Digite o número da opção:', '', '{menu}', '', '*Cardápio:* {link_cardapio}'].join('\n'),
-  cardapio: ['*🍽️ CARDÁPIO*', '', 'Veja os preços e faça seu pedido por aqui:', '{link_cardapio}', '', '> É rápido e você acompanha tudo pelo celular.'].join('\n'),
+  cardapio: ['Nosso pedido é feito *online*, no link abaixo 👇', '{link_cardapio}'].join('\n'),
   entrega_pergunta: ['*🛵 TAXA DE ENTREGA*', '', 'Qual é o seu bairro? Me manda só o nome (ex.: _Centro_).'].join('\n'),
   entrega_taxa: [
     '*🛵 ENTREGA — {bairro}*',
@@ -97,7 +97,7 @@ export const TEXTOS_PADRAO: Record<ChaveTexto, string> = {
     '> Assim que possível, alguém responde por aqui.',
   ].join('\n'),
   audio: ['*🎤 Recebi seu áudio!*', '', 'Ainda não consigo ouvir áudios por aqui. Escreva sua dúvida ou digite *0* para falar com um atendente.', '', '*Cardápio:* {link_cardapio}'].join('\n'),
-  pedir_link: 'Pelo link é bem mais rápido e você vê tudo com foto 😉 👉 {link_cardapio}',
+  pedir_link: ['Nosso pedido é feito *online*, no link abaixo 👇', '{link_cardapio}'].join('\n'),
   pedir_sem_link: [
     '*👤 Sem problema!*',
     '',

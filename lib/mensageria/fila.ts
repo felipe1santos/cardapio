@@ -12,6 +12,8 @@
  *
  * Log sem número completo nem conteúdo.
  */
+import { quebrarListasEmLinha } from './formato'
+import { previaDoLink, PREVIA_LINK_MS } from '@/lib/robo-auto/categorias'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { provedorAtual, logFalhaEnvio } from './provedor'
 import { concluirSaida, hashTexto, registrarSaida } from './historico'
@@ -34,7 +36,8 @@ export async function enfileirar(admin: SupabaseClient, e: NovoEnvio): Promise<{
     chave: e.chave.slice(0, 200),
     tipo: e.tipo,
     telefone: e.telefone,
-    texto: e.texto.slice(0, 4000),
+    // Listas sempre uma embaixo da outra (12/10): o que vier em linha (IA, texto antigo) é quebrado aqui.
+    texto: quebrarListasEmLinha(e.texto).slice(0, 4000),
     conversa_id: e.conversaId ?? null,
     origem_mensagem_id: e.origemMensagemId ?? null,
     pedido_id: e.pedidoId ?? null,
@@ -192,7 +195,10 @@ export async function processarFila(
       const anterior = await saidaDaTentativaAnterior(admin, e).catch(() => null)
       const mensagemId = anterior
         ?? (await registrarSaida(admin, { restauranteId: e.restaurante_id, telefone: e.telefone, texto: e.texto, origem: origemDoEnvio(e.tipo) }))?.mensagemId
-      const r = await provedor.enviarTexto(nome, e.telefone, e.texto, (e.tipo === 'robo' || e.tipo === 'ia') && autoLigado.has(e.restaurante_id) ? { digitandoMs: 1200 } : undefined)
+      // Prévia do link (imagem do cardápio) só na 1ª mensagem com link em 30 min da conversa (12/10).
+      const semPrevia = /\/loja\//.test(e.texto) && !previaDoLink(e.texto, await ultimaComLinkEm(admin, e, mensagemId ?? null).catch(() => null), Date.now())
+      const opcoesEnvio = { ...((e.tipo === 'robo' || e.tipo === 'ia') && autoLigado.has(e.restaurante_id) ? { digitandoMs: 1200 } : {}), ...(semPrevia ? { semPrevia: true } : {}) }
+      const r = await provedor.enviarTexto(nome, e.telefone, e.texto, Object.keys(opcoesEnvio).length ? opcoesEnvio : undefined)
       await concluirSaida(admin, mensagemId, r.ok, r.ok ? r.idExterno : null, r.ok ? null : r.erro)
       if (r.ok) {
         resultado = 'enviado'
@@ -215,4 +221,15 @@ export async function processarFila(
 export async function estadoDoEnvio(admin: SupabaseClient, id: string): Promise<string | null> {
   const { data } = await admin.from('whatsapp_envios').select('estado').eq('id', id).maybeSingle()
   return (data?.estado as string | undefined) ?? null
+}
+
+/** Quando saiu a última mensagem da loja com o link do cardápio nesta conversa (antes desta), nos últimos 30 min. */
+async function ultimaComLinkEm(admin: SupabaseClient, e: { conversa_id?: string | null; texto: string }, estaMensagemId: string | null): Promise<string | null> {
+  if (!e.conversa_id) return null
+  // A própria mensagem já foi registrada no histórico antes do envio: fica de fora.
+  let q = admin.from('whatsapp_mensagens').select('criado_em').eq('conversa_id', e.conversa_id).eq('direcao', 'loja')
+  if (estaMensagemId) q = q.neq('id', estaMensagemId)
+  const { data } = await q
+    .ilike('texto', '%/loja/%').gte('criado_em', new Date(Date.now() - PREVIA_LINK_MS).toISOString()).order('criado_em', { ascending: false }).limit(1)
+  return (data?.[0]?.criado_em as string | undefined) ?? null
 }

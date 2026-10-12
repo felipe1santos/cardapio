@@ -3,7 +3,8 @@ import { telefoneWhatsapp } from '@/lib/telefone-br'
 import { buscarPedidoParaNotificacao, type Pedido, type StatusPedido } from '@/lib/queries/pedidos'
 import { concluirSaida, registrarSaida } from '@/lib/mensageria/historico'
 import { textoAgendado } from '@/lib/agendamento'
-import { decidirMensagem, etapaDoStatus, normalizarConfig, renderizar, textoPadraoDaEtapa, tipoAutomatico, type ConfigMensagens } from '@/lib/mensagens-automaticas'
+import { brl as brlTexto, linhaComplemento, linhaItem, quebrarListasEmLinha } from '@/lib/mensageria/formato'
+import { comTotalNoRecebido, decidirMensagem, etapaDoStatus, normalizarConfig, renderizar, textoPadraoDaEtapa, tipoAutomatico, type ConfigMensagens } from '@/lib/mensagens-automaticas'
 
 const FORMA_PAGAMENTO_LABEL: Record<Pedido['formaPagamento'], string> = {
   pix: 'Pix',
@@ -28,29 +29,26 @@ export function formatarTelefoneWhatsapp(telefone: string): string | null {
 /** Resumo completo do pedido — enviado quando o pedido é ACEITO (recebido → preparando). */
 export function montarResumoPedido(pedido: Pedido, restauranteNome: string): string {
   const linhas: string[] = []
-  linhas.push(`✅ *Pedido #${pedido.numero} aceito!*`)
+  // Padrão de 12/10: negrito só no nº, nos itens e no total; valores com fundo cinza; um complemento por linha, com emoji
+  // da tabela fixa (lib/mensageria/formato.ts); complemento grátis sem preço.
+  linhas.push(`✅ *Pedido \`#${pedido.numero}\` aceito!*`)
   if (restauranteNome) linhas.push(`_${restauranteNome} já está preparando seu pedido_`)
-  linhas.push('')
-  linhas.push('```')
-  linhas.push(`PEDIDO #${pedido.numero}`)
-  linhas.push('```')
   linhas.push('')
   linhas.push('*Itens:*')
   for (const item of pedido.itens) {
-    const variacao = [item.tamanhoNome, item.saborNome].filter(Boolean).join(' - ')
-    linhas.push(`*${item.quantidade}x ${item.nome}${variacao ? ` (${variacao})` : ''} — ${brl(item.precoUnitario)}*`)
-    if (item.bordaNome) linhas.push(`   + Borda: ${item.bordaNome}`)
-    if (item.massaNome) linhas.push(`   + Massa: ${item.massaNome}`)
-    for (const c of item.complementos) linhas.push(`   + ${c.nome} (+${brl(c.preco)})`)
+    linhas.push(linhaItem(item.quantidade, item.nome, item.precoUnitario * item.quantidade))
+    if (item.tamanhoNome) linhas.push(`   Tamanho: ${item.tamanhoNome}`)
+    if (item.saborNome) linhas.push(`   Sabor: ${item.saborNome}`)
+    if (item.bordaNome) linhas.push(`   Borda: ${item.bordaNome}`)
+    if (item.massaNome) linhas.push(`   Massa: ${item.massaNome}`)
+    for (const c of item.complementos) linhas.push(`   ${linhaComplemento(c.nome, Number(c.preco))}`)
     if (item.observacao.trim()) linhas.push(`   _obs: ${item.observacao.trim()}_`)
   }
   linhas.push('')
-  linhas.push(`*Subtotal: ${brl(pedido.subtotal)}*`)
-  if (pedido.desconto > 0) linhas.push(`*Desconto: -${brl(pedido.desconto)}*`)
-  if (pedido.tipo === 'entrega') linhas.push(`*Taxa de entrega: ${brl(pedido.taxaEntrega)}*`)
-  linhas.push('```')
-  linhas.push(`TOTAL: ${brl(pedido.total)}`)
-  linhas.push('```')
+  linhas.push(`Subtotal: \`${brlTexto(pedido.subtotal)}\``)
+  if (pedido.desconto > 0) linhas.push(`Desconto: \`-${brlTexto(pedido.desconto)}\``)
+  if (pedido.tipo === 'entrega') linhas.push(`Taxa de entrega: \`${brlTexto(pedido.taxaEntrega)}\``)
+  linhas.push(`*Total:* \`${brlTexto(pedido.total)}\``)
   linhas.push('')
 
   // Cartão escolhido no PDV traz o detalhe (0135); o pedido ainda não pago diz onde paga.
@@ -152,7 +150,9 @@ async function enviarTextoComId(numero: string, texto: string, instance: string)
 }
 
 /** Envia uma mensagem de texto via Evolution API, usando a instância (WhatsApp) do restaurante. Retorna se o envio foi bem-sucedido. */
-export async function enviarWhatsapp(numero: string, texto: string, instance: string, registro?: RegistroHistorico): Promise<boolean> {
+export async function enviarWhatsapp(numero: string, textoOriginal: string, instance: string, registro?: RegistroHistorico): Promise<boolean> {
+  // Listas sempre uma embaixo da outra (12/10), também nos avisos automáticos.
+  const texto = quebrarListasEmLinha(textoOriginal)
   let saida: { mensagemId: string } | null = null
   const admin = registro?.admin ?? null
   if (registro && admin) {
@@ -235,8 +235,9 @@ export async function textoDaNotificacao(admin: SupabaseClient, restauranteId: s
     loja: restauranteNome,
     tipo: pedido.tipo === 'retirada' ? 'retirada' : 'entrega',
     horario: pedido.agendadoPara ? textoAgendado(pedido.agendadoPara) : '',
+    total: brlTexto(pedido.total),
   }
-  if (d.texto) return renderizar(d.texto, vars)
+  if (d.texto) return etapa === 'recebido' ? comTotalNoRecebido(renderizar(d.texto, vars), vars.total) : renderizar(d.texto, vars)
   // Sem texto próprio: o modelo formatado (padrão de todas as lojas desde 12/10).
   const padrao = textoPadraoDaEtapa(etapa, vars)
   if (padrao) return padrao

@@ -20,3 +20,27 @@ describe('WhatsApp: linha de pagamento (0135)', () => {
     expect(montarResumoPedido({ ...base, formaPagamento: 'pix', pago: true, trocoPara: null } as Pedido, 'Loja')).toContain('*Pagamento:* Pix')
   })
 })
+
+describe('"Pedido aceito" no padrão novo (12/10)', () => {
+  const comItens = { ...base, numero: 306, subtotal: 55, total: 58, itens: [
+    { nome: 'Acai grandao', quantidade: 1, precoUnitario: 32, tamanhoNome: '', saborNome: '', bordaNome: '', massaNome: '', observacao: '',
+      complementos: [{ nome: 'banana', preco: 0 }, { nome: 'leite em po', preco: 0 }, { nome: 'Morango extra', preco: 2 }] },
+    { nome: 'ffd', quantidade: 1, precoUnitario: 23, tamanhoNome: '', saborNome: '', bordaNome: '', massaNome: '', observacao: '', complementos: [] },
+  ] } as unknown as Pedido
+  const t = montarResumoPedido(comItens, 'Angus Burguer')
+  it('nº do pedido com fundo cinza e em negrito; item com emoji, negrito e preço em cinza', () => {
+    expect(t).toContain('✅ *Pedido `#306` aceito!*')
+    expect(t).toContain('🍇 *1x Acai grandao* `R$ 32,00`')
+    expect(t).toContain('*1x ffd* `R$ 23,00`')
+  })
+  it('complementos um por linha, com emoji; grátis sem "(+R$ 0,00)"', () => {
+    expect(t).toContain('   🍌 Banana\n   🥛 Leite em po\n   🍓 Morango extra `+R$ 2,00`')
+    expect(t).not.toMatch(/R\$\s0,00/)
+  })
+  it('valores em cinza; negrito só no total', () => {
+    expect(t).toContain('Subtotal: `R$ 55,00`')
+    expect(t).toContain('Taxa de entrega: `R$ 3,00`')
+    expect(t).toContain('*Total:* `R$ 58,00`')
+    expect(t).not.toContain('*Subtotal')
+  })
+})

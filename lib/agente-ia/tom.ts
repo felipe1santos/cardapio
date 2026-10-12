@@ -18,8 +18,10 @@ export function problemasDeTom(texto: string, opcoes: { entrada?: boolean } = {}
   const linhas = texto.split('\n')
   if (texto.length > MAX_CARACTERES_IA) p.push('longa')
   if (linhas.some((l) => CABECALHO.test(l))) p.push('cabecalho')
-  if (linhas.filter((l) => /^\s*([-•*]|\d+[.)])\s+\S/.test(l)).length >= 2) p.push('lista')
-  if ((texto.match(EMOJI) ?? []).length > 1) p.push('emojis')
+  // 12/10: lista de OPÇÕES (uma por linha, numerada para escolher) é a regra; lista de PERGUNTAS continua proibida.
+  if (linhas.filter((l) => /^\s*([-•*]|\d+[.)])\s+.*\?\s*$/.test(l)).length >= 2) p.push('lista')
+  // No máximo 1 emoji por LINHA (antes: por mensagem; as listas levam o emoji de cada item).
+  if (linhas.some((l) => (l.match(EMOJI) ?? []).length > 1)) p.push('emojis')
   if (opcoes.entrada && EXEMPLO_PEDIDO.test(texto)) p.push('exemplo_de_pedido')
   return p
 }
@@ -29,7 +31,8 @@ export function limparTom(texto: string): string {
   return texto
     .split('\n')
     .filter((l) => !CABECALHO.test(l))
-    .map((l) => l.replace(/^\s*([-•]|\d+[.)])\s+/, ''))
+    // Tira "- " e "• "; o número fica nas opções (para o cliente responder o número) e sai só de pergunta numerada.
+    .map((l) => l.replace(/^\s*[-•]\s+/, '').replace(/^\s*\d+[.)]\s+(?=.*\?\s*$)/, ''))
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim()

@@ -46,7 +46,7 @@ export const PADRAO: Record<Exclude<Etapa, 'aceito'>, string> = {
  * texto próprio da loja nunca é trocado.
  */
 export const PADRAO_FORMATADO: Record<Exclude<Etapa, 'aceito'>, string> = {
-  recebido: ['*📥 PEDIDO RECEBIDO!*', '', 'Olá, _{nome}_! Recebemos seu pedido `#{numero}` na *{loja}*.', '', '> Aguarde a confirmação da loja 🙌'].join('\n'),
+  recebido: ['*📥 PEDIDO RECEBIDO!*', '', 'Olá, _{nome}_! Recebemos seu pedido `#{numero}` na *{loja}*.', 'Total: `{total}`', '', '> Aguarde a confirmação da loja 🙌'].join('\n'),
   agendado: ['*🗓️ PEDIDO AGENDADO!*', '', 'Olá, _{nome}_! Seu pedido `#{numero}` ({tipo}) ficou para *{horario}*.', '', '> A loja começa a preparar perto do horário.'].join('\n'),
   pronto_retirada: ['*✅ PEDIDO PRONTO!*', '', 'Olá, _{nome}_! Seu pedido `#{numero}` está *pronto para retirada*.', '', '> É só passar no balcão da *{loja}*.'].join('\n'),
   pronto_entrega: ['*✅ PEDIDO PRONTO!*', '', 'Olá, _{nome}_! Seu pedido `#{numero}` está *pronto* e logo sai para entrega.'].join('\n'),
@@ -56,7 +56,9 @@ export const PADRAO_FORMATADO: Record<Exclude<Etapa, 'aceito'>, string> = {
 
 /** Modelo formatado: sem nome do cliente, some o ", _{nome}_" junto (nada de "Olá, __!"). */
 export function renderizarFormatado(texto: string, vars: Record<string, string>): string {
-  const t = vars.nome?.trim() ? texto : texto.replace(/,?\s*_\{nome\}_/g, '')
+  const semNome = vars.nome?.trim() ? texto : texto.replace(/,?\s*_\{nome\}_/g, '')
+  // Sem total (prévia sem pedido): some a linha do total.
+  const t = vars.total?.trim() ? semNome : semNome.replace(/\nTotal: `\{total\}`/g, '')
   return renderizar(t, vars)
 }
 
@@ -75,7 +77,16 @@ export const VARIAVEIS:{ chave: string; rotulo: string; exemplo: string }[] = [
   { chave: 'loja', rotulo: 'Nome da loja', exemplo: 'Sua loja' },
   { chave: 'tipo', rotulo: 'entrega ou retirada', exemplo: 'entrega' },
   { chave: 'horario', rotulo: 'Horário agendado (só no agendado)', exemplo: 'hoje às 19:30' },
+  { chave: 'total', rotulo: 'Total do pedido', exemplo: 'R$ 58,00' },
 ]
+
+/**
+ * "Pedido recebido" sempre com o total (12/10): é a ÚNICA confirmação quando o pedido sai pela conversa (a IA não manda mais
+ * a sua). Texto próprio da loja sem o total: ele vai no fim, em cinza.
+ */
+export function comTotalNoRecebido(texto: string, total: string): string {
+  return texto.includes(total) ? texto : `${texto.trimEnd()}\n\nTotal: \`${total}\``
+}
 
 const CHAVES = new Set(VARIAVEIS.map((v) => v.chave))
 const MAX_TEXTO = 1000
@@ -117,7 +128,7 @@ export function problemaNoTexto(texto: string): string | null {
 }
 
 export function renderizar(texto: string, vars: Record<string, string>): string {
-  return texto.replace(/\{(nome|numero|loja|tipo|horario)\}/g, (_, k: string) => vars[k] ?? '')
+  return texto.replace(/\{(nome|numero|loja|tipo|horario|total)\}/g, (_, k: string) => vars[k] ?? '')
 }
 
 /** Etapa da mensagem para a transição de status. Null = nenhuma mensagem nessa transição. */

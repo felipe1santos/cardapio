@@ -9,6 +9,7 @@
  *    Kanban, impressão, avisos), origem "whatsapp_ia". Mesma conversa + mesmo conteúdo em 10 min = não cria de novo.
  */
 import { createHash } from 'node:crypto'
+import { linhaComplemento, linhaItem } from '@/lib/mensageria/formato'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { canalDoPedido, criarPedido, precificarLinhas, type FormaPagamento, type NovoPedidoItemInput } from '@/lib/queries/pedidos'
 import { resolverFrete } from '@/lib/frete'
@@ -140,24 +141,19 @@ export async function calcularPedido(ctx: ContextoPedido, c: Carrinho): Promise<
   }
   const total = cent(subtotal + taxa)
   const pixOnline = c.pagamento === 'pix' && ctx.pixOnlineAtivo
-  const det = (x: (typeof linhas)[number]) => [x.tamanho_nome, x.sabor_nome, x.borda_nome, x.massa_nome, ...x.complementos.map((o) => o.nome), x.observacao ? `Obs.: ${x.observacao}` : '']
-    .filter(Boolean).join(' · ')
-  const linhasTexto = linhas.map((x) => {
-    const d = det(x)
-    return `- ${x.quantidade}x ${x.nome} — \`${brl(x.preco_unitario * x.quantidade)}\`${d ? `\n  _${d}_` : ''}`
-  })
+  const linhasTexto = linhas.map(linhasDoItemResumo)
   const pagamento = c.pagamento === 'dinheiro' && c.trocoPara ? `Dinheiro (troco para ${brl(c.trocoPara)})` : pixOnline ? 'Pix (envio o código depois de confirmar)' : ROTULO_PAGAMENTO[c.pagamento]
   const onde = c.tipo === 'entrega' && c.endereco
     ? `📍 Entrega: ${c.endereco.rua}, ${c.endereco.numero}${c.endereco.complemento ? ` (${c.endereco.complemento})` : ''} — ${c.endereco.bairro}`
     : '🏪 Retirada no balcão'
   const texto = [
-    '*🧾 RESUMO DO PEDIDO*',
+    '🧾 Resumo do pedido',
     '',
     ...linhasTexto,
     '',
     `Subtotal: \`${brl(subtotal)}\``,
     ...(c.tipo === 'entrega' ? [`Entrega: \`${taxa > 0 ? brl(taxa) : 'Grátis'}\``] : []),
-    `*Total: \`${brl(total)}\`*`,
+    `*Total:* \`${brl(total)}\``,
     '',
     onde,
     `💳 Pagamento: ${pagamento}`,
@@ -169,6 +165,22 @@ export async function calcularPedido(ctx: ContextoPedido, c: Carrinho): Promise<
 }
 
 /** Telefone do pedido como a vitrine grava: DDD + número (sem o 55). */
+/**
+ * Linhas de um item no resumo (12/10): emoji + nome em negrito + preço em cinza; depois tamanho, sabor, borda, massa e
+ * complementos UM POR LINHA (com emoji; grátis sem preço) e a observação. Pura.
+ */
+export function linhasDoItemResumo(x: { quantidade: number; nome: string; preco_unitario: number; tamanho_nome?: string | null; sabor_nome?: string | null; borda_nome?: string | null; massa_nome?: string | null; complementos: { nome: string; preco: number }[]; observacao?: string | null }): string {
+  const sub = [
+    x.tamanho_nome ? `Tamanho: ${x.tamanho_nome}` : '',
+    x.sabor_nome ? `Sabor: ${x.sabor_nome}` : '',
+    x.borda_nome ? `Borda: ${x.borda_nome}` : '',
+    x.massa_nome ? `Massa: ${x.massa_nome}` : '',
+    ...x.complementos.map((o) => linhaComplemento(o.nome, Number(o.preco))),
+    x.observacao ? `_Obs.: ${x.observacao}_` : '',
+  ].filter(Boolean).map((l) => `   ${l}`)
+  return [linhaItem(x.quantidade, x.nome, x.preco_unitario * x.quantidade), ...sub].join('\n')
+}
+
 export function telefoneDoPedido(telefoneWhatsapp: string): string {
   const d = telefoneWhatsapp.replace(/\D/g, '')
   return d.startsWith('55') && (d.length === 12 || d.length === 13) ? d.slice(2) : d

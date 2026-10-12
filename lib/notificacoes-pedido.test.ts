@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { AJUDA_ESTADO, ROTULO_ESTADO, estadoDaPermissao, jaAvisado, textoDaNotificacao } from './notificacoes-pedido'
+import { comTotalNoRecebido, textoPadraoDaEtapa } from './mensagens-automaticas'
 
 describe('estadoDaPermissao', () => {
   it('sem a API do navegador, o item aparece indisponível', () => {
@@ -90,5 +91,15 @@ describe('textoDaNotificacao', () => {
     const { titulo, corpo } = textoDaNotificacao({ numero: 10, canal: 'delivery' })
     const junto = `${titulo} ${corpo}`
     expect(junto).not.toMatch(/R\$|\d{4,}|rua|telefone/i)
+  })
+})
+
+describe('"Pedido recebido" leva o total (12/10, fim da mensagem dobrada da IA)', () => {
+  it('modelo padrão tem o total em cinza', () => {
+    expect(textoPadraoDaEtapa('recebido', { nome: 'Ana', numero: '306', loja: 'X', tipo: 'entrega', horario: '', total: 'R$ 58,00' })).toContain('Total: `R$ 58,00`')
+  })
+  it('texto próprio da loja sem {total}: o total vai no fim; com {total}: não repete', () => {
+    expect(comTotalNoRecebido('Recebemos seu pedido #306', 'R$ 58,00')).toBe('Recebemos seu pedido #306\n\nTotal: `R$ 58,00`')
+    expect(comTotalNoRecebido('Pedido #306 · total R$ 58,00', 'R$ 58,00')).toBe('Pedido #306 · total R$ 58,00')
   })
 })

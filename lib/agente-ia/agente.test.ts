@@ -128,3 +128,17 @@ describe('prompt: regras fixas e histórico', () => {
     expect(JSON.stringify(m)).not.toMatch(/"m0"|"menu"/)
   })
 })
+
+describe('resumo da IA no padrão novo (12/10)', () => {
+  it('item com emoji/negrito/preço em cinza; complementos um por linha; grátis sem preço', async () => {
+    const { linhasDoItemResumo } = await import('./pedido')
+    const t = linhasDoItemResumo({ quantidade: 1, nome: 'Acai grandao', preco_unitario: 32, complementos: [{ nome: 'banana', preco: 0 }, { nome: 'leite ninho', preco: 0 }, { nome: 'Nutella', preco: 4 }], observacao: 'sem gelo' })
+    expect(t).toBe('🍇 *1x Acai grandao* `R$ 32,00`\n   🍌 Banana\n   🥛 Leite ninho\n   🍫 Nutella `+R$ 4,00`\n   _Obs.: sem gelo_')
+    expect(t).not.toMatch(/·|R\$ 0,00/)
+  })
+  it('"anotado" só quando o automático não sai, com nº e total em cinza', async () => {
+    const { textoPedidoAnotado } = await import('./atender')
+    expect(textoPedidoAnotado(306, 58)).toContain('*✅ Pedido `#306` anotado!*')
+    expect(textoPedidoAnotado(306, 58)).toContain('*Total:* `R$ 58,00`')
+  })
+})

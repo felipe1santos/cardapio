@@ -182,13 +182,15 @@ export function mensagensDaResposta(efeitos: EfeitosFerramentas, textoIa: string
 
 /** Confirmação do pedido criado + Pix (online: copia e cola; senão, a chave cadastrada no robô). Dispara os avisos. */
 async function mensagensDoPedidoCriado(admin: SupabaseClient, e: EntradaAtender, p: NonNullable<EfeitosFerramentas['pedido']>): Promise<string[]> {
-  const msgs = [`*✅ Pedido #${p.numero} anotado!*\n\nTotal: \`${brl(p.total)}\`\n\n> Você recebe por aqui as atualizações do pedido. Obrigado! 😊`]
+  // Uma mensagem só no fim (12/10, teste #306): o "Pedido recebido" automático (com o total) é a confirmação. A IA só
+  // manda o que ele não tem: o Pix (código ou chave).
+  const msgs: string[] = []
   if (p.pixOnline) {
     try {
       const pix = await criarCobrancaPix(admin, { restauranteId: e.restauranteId, pedidoId: p.id })
       if (pix.qrCode) {
         const ate = new Date(pix.expiraEm).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })
-        msgs[0] = `*✅ Pedido #${p.numero} anotado!*\n\nTotal: \`${brl(p.total)}\`\n\n> O pedido vai para a cozinha assim que o Pix for pago (vale até ${ate}). Copie o código abaixo 👇`
+        msgs.push(`*✅ Pedido \`#${p.numero}\` anotado!*\n\n*Total:* \`${brl(p.total)}\`\n\n> O pedido vai para a cozinha assim que o Pix for pago (vale até ${ate}). Copie o código abaixo 👇`)
         msgs.push(pix.qrCode)
       }
     } catch (err) {
@@ -200,12 +202,14 @@ async function mensagensDoPedidoCriado(admin: SupabaseClient, e: EntradaAtender,
   const { data: pedido } = await admin.from('pedidos').select('forma_pagamento, tipo').eq('id', p.id).maybeSingle()
   const ped = (pedido ?? {}) as { forma_pagamento?: string; tipo?: string }
   if (ped.forma_pagamento === 'pix' && e.loja.pixChave) {
-    msgs[0] += `\n\nChave Pix (${TIPOS_CHAVE[e.loja.pixTipo ?? ''] ?? 'Pix'}) na próxima mensagem 👇`
+    msgs.push(`Para pagar, a chave Pix (${TIPOS_CHAVE[e.loja.pixTipo ?? ''] ?? 'Pix'}) vai na próxima mensagem 👇`)
     msgs.push(e.loja.pixChave)
   }
   if (!p.repetido) {
-    notificarPedido(admin, p.id, 'recebido').catch((err) => console.error('[agente-ia] aviso de pedido recebido', (err as Error).message))
     avisarPainelPedidoNovo(admin, e.restauranteId, { id: p.id, numero: p.numero, canal: ped.tipo ?? null }).catch(() => null)
+    const aviso = await notificarPedido(admin, p.id, 'recebido').catch((err) => { console.error('[agente-ia] aviso de pedido recebido', (err as Error).message); return 'falhou' as const })
+    // O automático não saiu (loja desligou o aviso, falhou…): a IA confirma, para o cliente nunca ficar sem resposta.
+    if (aviso !== 'enviada') msgs.unshift(textoPedidoAnotado(p.numero, p.total))
   }
   return msgs
 }
@@ -251,3 +255,8 @@ export function textoLimiteIa(loja: DadosLojaAuto): string {
 }
 
 export const TEXTO_AUDIO_IA = 'Ainda não consigo ouvir áudio, pode me escrever? 🙏'
+
+/** Confirmação da IA quando o aviso automático "Pedido recebido" não sai (padrão de 12/10). */
+export function textoPedidoAnotado(numero: number, total: number): string {
+  return `*✅ Pedido \`#${numero}\` anotado!*\n\n*Total:* \`${brl(total)}\`\n\n> Você recebe por aqui as atualizações do pedido. Obrigado! 😊`
+}

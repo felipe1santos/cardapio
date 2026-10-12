@@ -18,6 +18,7 @@ import { responder, type DadosLojaAuto, type PedidoAuto } from './respostas'
 import type { ChaveTexto } from './textos'
 import { itemCitado, modoIaAtivo, nomesDoCardapio, rotaDaMensagem } from '@/lib/agente-ia/gatilho'
 import { carregarCardapioIa } from '@/lib/agente-ia/cardapio'
+import { categoriasDoCardapio, escolherOpcao, pedeOpcoes, respondeuSimAoPedido, textoCategorias, textoItensDaCategoria } from './categorias'
 import {
   agenteLigadoNaLoja, atenderComIa, estadoIaDaConversa, historicoDaConversa, iaEsgotadaNaConversa, registrarFalhaIa, registrarRespostaIa,
   textoLimiteIa, ultimaDoClienteAntes, TEXTO_AUDIO_IA, type ConfigIa,
@@ -270,11 +271,37 @@ export async function processarMensagemAuto(
     return data !== false
   }
 
+  const cfgIa = cfg as ConfigAuto & ConfigIa
+  const iaLigada = ['texto', 'imagem', 'audio'].includes(m.tipo) && (await agenteLigadoNaLoja(admin, restauranteId, cfgIa))
+  const estadoValido = !!estado.autoEstadoEm && agora.getTime() - Date.parse(estado.autoEstadoEm) < ESTADO_VALIDADE_MS
+  const escolhendoItem = estadoValido && !!estado.autoEstado?.startsWith('escolher_item:')
+
+  // ── Cardápio pelo robô, SEM IA (12/10): "o que tem?" → categorias numeradas → itens da categoria. Escolheu o item: a IA
+  // monta o pedido (abaixo); sem IA, o pedido é pelo link. Tudo do cardápio da loja, só itens disponíveis.
+  if (m.tipo === 'texto') {
+    const texto = m.texto ?? ''
+    const escolhendoCategoria = estadoValido && estado.autoEstado === 'escolher_categoria'
+    if (pedeOpcoes(texto) || escolhendoCategoria) {
+      const cats = categoriasDoCardapio((await carregarCardapioIa(admin, restauranteId, agora)).itens)
+      const i = escolhendoCategoria && !pedeOpcoes(texto) ? escolherOpcao(texto, cats.map((x) => x.nome)) : null
+      if (cats.length && i !== null) {
+        if (!(await aplicar('itens_categoria', { ...estado, autoEstado: `escolher_item:${i}`, autoEstadoEm: agora.toISOString(), naoEntendeu: 0 }, null))) return { respostas: 0, motivo: 'concorrencia' }
+        await fila(textoItensDaCategoria(cats[i], loja.link, iaLigada), 0)
+        return { respostas, motivo: 'itens_categoria' }
+      }
+      if (cats.length && pedeOpcoes(texto)) {
+        if (!(await aplicar('categorias', { ...estado, autoEstado: 'escolher_categoria', autoEstadoEm: agora.toISOString(), naoEntendeu: 0 }, null))) return { respostas: 0, motivo: 'concorrencia' }
+        await fila(textoCategorias(cats), 0)
+        return { respostas, motivo: 'categorias' }
+      }
+    }
+  }
+
   // ── Agente de IA (0183): o robô vem primeiro; a IA entra quando ele não entende, quando o cliente quer pedir pela
   // conversa, com foto, ou com a conversa em "modo IA". Falhou → o robô padrão responde (nunca sem resposta).
   let iaFalhou = false
-  const cfgIa = cfg as ConfigAuto & ConfigIa
-  if (['texto', 'imagem', 'audio'].includes(m.tipo) && (await agenteLigadoNaLoja(admin, restauranteId, cfgIa))) {
+  let classif = classificacao
+  if (iaLigada) {
     const [hist, estIa, cardapio] = await Promise.all([
       historicoDaConversa(admin, restauranteId, e.conversa_id),
       estadoIaDaConversa(admin, e.conversa_id),
@@ -282,7 +309,11 @@ export async function processarMensagemAuto(
     ])
     const antes = ultimaDoClienteAntes(hist, e.mensagem_id ?? '')
     const emModoIa = modoIaAtivo(estIa, antes, agora)
-    const rota = iaEsgotadaNaConversa(estIa, antes, agora)
+    // "sim" ao "Quer fazer um pedido?" (12/10): o robô manda o link (1ª vez), não a IA.
+    const ultimaDaLoja = [...hist].reverse().find((h) => h.direcao === 'loja')?.texto ?? null
+    const simAoPedido = m.tipo === 'texto' && respondeuSimAoPedido(m.texto ?? '', ultimaDaLoja) && estado.autoEstado !== 'pedir_link'
+    if (simAoPedido) classif = { ...classificacao, intencao: 'pedir', assunto: 'outro' }
+    const rota = simAoPedido ? 'robo' : escolhendoItem ? 'ia' : iaEsgotadaNaConversa(estIa, antes, agora)
       ? 'robo'
       : rotaDaMensagem({
           intencao: classificacao.intencao, tipo: m.tipo, emModoIa, itemCitado: m.tipo === 'texto' && itemCitado(m.texto ?? '', nomesDoCardapio(cardapio.itens)),
@@ -316,7 +347,7 @@ export async function processarMensagemAuto(
     }
   }
 
-  const decidido = decidir({ classificacao, texto: m.texto ?? '', estado, agora, assuntosDesligados: loja.assuntosDesligados, tipo: m.tipo })
+  const decidido = decidir({ classificacao: classif, texto: m.texto ?? '', estado, agora, assuntosDesligados: loja.assuntosDesligados, tipo: m.tipo })
   // IA falhou numa mensagem que o robô sozinho não responderia ("sim", foto): o cliente recebe o "não entendi" com o
   // link e a oferta de atendente — nunca fica sem resposta.
   const d = iaFalhou && decidido.acao === 'nada'
