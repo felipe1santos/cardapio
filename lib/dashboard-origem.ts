@@ -9,7 +9,7 @@ import { canalDaOrigem, CANAIS, ROTULO_CANAL, type CanalOrigem } from '@/lib/ori
  */
 export const COR_CANAL: Record<CanalOrigem, string> = {
   direto: '#7FA6C7', instagram: '#F25268', facebook: '#1877F2', meta: '#8C72CB', google_anuncio: '#F7B928',
-  google_busca: '#32CDCD', whatsapp: '#3BA55C', qrcode: '#FF8A3D', outros: '#BABDC2', whatsapp_ia: '#A855F7',
+  google_busca: '#32CDCD', whatsapp: '#3BA55C', qrcode: '#FF8A3D', outros: '#BABDC2', whatsapp_ia: '#A855F7', push: '#C026D3',
 }
 
 export interface LinhaOrigem {
