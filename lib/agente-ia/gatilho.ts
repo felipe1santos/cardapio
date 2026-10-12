@@ -36,7 +36,9 @@ export function rotaDaMensagem(p: { intencao: Intencao; tipo: TipoMensagem; emMo
   if (p.tipo === 'imagem') return 'ia'
   if (p.tipo !== 'texto') return 'robo'
   if (p.intencao === 'pedir' || p.intencao === 'outro') return 'ia'
-  if (p.itemCitado && (p.intencao === 'cardapio' || p.intencao === 'saudacao' || p.intencao === 'ok')) return 'ia'
+  // Item do cardápio citado + entrega/pagamento = pedido numa frase só ("1 x-tudo, entrega na rua X, cartão"; teste real
+  // 12/10). Status, horário e endereço da loja continuam com o robô.
+  if (p.itemCitado && ['cardapio', 'saudacao', 'ok', 'entrega', 'pagamento_pix'].includes(p.intencao)) return 'ia'
   return 'robo'
 }
 

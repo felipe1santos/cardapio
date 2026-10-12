@@ -29,6 +29,13 @@ describe('quando a IA entra (robô sempre primeiro)', () => {
     expect(rota('quanto custa o x-tudo?')).toBe('ia')
     expect(rota('oi, tem batata frita?')).toBe('ia')
   })
+  it('pedido inteiro numa frase (item + entrega/pagamento) → IA; sem item, taxa e Pix ficam com o robô (teste real 12/10)', () => {
+    expect(rota('quero mais um pedido: 1 batata frita, entrega na Rua Teste 123, Centro, pago no cartão')).toBe('ia')
+    expect(rota('x tudo, vou pagar no pix')).toBe('ia')
+    expect(rota('qual a taxa pro centro')).toBe('robo')
+    expect(rota('aceita pix?')).toBe('robo')
+    expect(rota('o x tudo já saiu pra entrega?')).toBe('robo')
+  })
   it('foto → IA; áudio fora do modo IA → robô; vídeo → robô', () => {
     expect(rota('', false, 'imagem')).toBe('ia')
     expect(rota('', false, 'audio')).toBe('robo')
