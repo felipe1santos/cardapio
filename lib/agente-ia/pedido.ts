@@ -83,7 +83,8 @@ export function hashCarrinho(c: Carrinho): string {
 /** Confirmação clara do cliente ("sim", "pode mandar", "confirmo", "fechado"...). Puro. Qualquer "não" anula. */
 export function confirmouPedido(texto: string): boolean {
   const n = normalizarTexto(texto)
-  if (!n || /\b(nao|n|espera|pera|calma|mudar|trocar|tira|cancela|errado|errada)\b/.test(n)) return false
+  // "sim, mas troca pra dinheiro" não confirma (12/10): mudança junto com o sim refaz o resumo.
+  if (!n || /\b(nao|n|espera|pera|calma|mudar|muda|trocar|troca|tira|tirar|cancela|errado|errada|mas|porem|so que)\b/.test(n)) return false
   return /^(sim|s|ss|isso|isso mesmo|pode|pode sim|pode mandar|manda|pode fechar|fecha|fechado|fechou|confirmo|confirmado|confirma|confirmar|ok|okay|beleza|certo|ta certo|esta certo|perfeito|correto|positivo|claro|bora|vai|pode ser|tudo certo)( .*)?$/.test(n)
 }
 

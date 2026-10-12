@@ -15,6 +15,7 @@ import { carregarCardapioIa, resumoDoCardapio } from './cardapio'
 import { blocosDoSistema, mensagensDoHistorico, MAX_HISTORICO, type MensagemHistorico } from './prompt'
 import { conversarComIa } from './agente'
 import { executarFerramenta, FERRAMENTAS, type EfeitosFerramentas } from './ferramentas'
+import { confirmouPedido, criarPedidoDaConversa } from './pedido'
 import { MAX_RESPOSTAS_IA, MODO_IA_SEM_MENSAGEM_MS, pedidoFinalizado } from './gatilho'
 import { limparTom } from './tom'
 
@@ -108,6 +109,14 @@ export type ResultadoAtender =
   | { ok: true; mensagens: string[]; efeitos: EfeitosFerramentas; custoMicroUsd: number; chamadas: number; ferramentas: string[] }
   | { ok: false; motivo: string; custoMicroUsd: number }
 
+/**
+ * "sim" claro DEPOIS do resumo, com carrinho guardado: o servidor cria o pedido sem chamar a IA (teste real 12/10: o
+ * Haiku respondeu "Pedido confirmado" sem chamar criar_pedido — o cliente achou que pediu e nada foi criado). Puro.
+ */
+export function confirmacaoDireta(p: { texto: string; em: string; resumoEm: string | null; temCarrinho: boolean }): boolean {
+  return p.temCarrinho && !!p.resumoEm && Date.parse(p.em) > Date.parse(p.resumoEm) && confirmouPedido(p.texto)
+}
+
 export async function atenderComIa(admin: SupabaseClient, e: EntradaAtender): Promise<ResultadoAtender> {
   const agora = e.agora ?? new Date()
   const [cardapio, pix, imagem] = await Promise.all([
@@ -125,6 +134,19 @@ export async function atenderComIa(admin: SupabaseClient, e: EntradaAtender): Pr
   )
   const mensagemAtual = e.historico.find((m) => m.id === e.mensagemId)
   const efeitos: EfeitosFerramentas = {}
+  if (e.tipo === 'texto') {
+    const { data: conv } = await admin.from('whatsapp_conversas').select('ia_carrinho, ia_resumo_em').eq('id', e.conversaId).eq('restaurante_id', e.restauranteId).maybeSingle()
+    const c = conv as { ia_carrinho?: { carrinho?: unknown } | null; ia_resumo_em?: string | null } | null
+    const em = mensagemAtual?.criadoEm ?? agora.toISOString()
+    if (confirmacaoDireta({ texto: e.texto, em, resumoEm: c?.ia_resumo_em ?? null, temCarrinho: !!c?.ia_carrinho?.carrinho })) {
+      const r = await criarPedidoDaConversa({ admin, restauranteId: e.restauranteId, telefone: e.telefone, conversaId: e.conversaId, nomeWhatsapp: e.nomeWhatsapp, pixOnlineAtivo: pix.ativo === true }, { texto: e.texto, em }, agora)
+      if (r.ok) {
+        efeitos.pedido = { id: r.id, numero: r.numero, total: r.total, pixOnline: r.pixOnline, repetido: r.repetido }
+        return { ok: true, mensagens: await mensagensDoPedidoCriado(admin, e, efeitos.pedido), efeitos, custoMicroUsd: 0, chamadas: 0, ferramentas: ['criar_pedido (servidor)'] }
+      }
+      // Não deu (loja fechou, item acabou...): a IA explica ao cliente com o histórico.
+    }
+  }
   const ctx = {
     admin, restauranteId: e.restauranteId, telefone: e.telefone, conversaId: e.conversaId, nomeWhatsapp: e.nomeWhatsapp,
     pixOnlineAtivo: pix.ativo === true, cardapio, loja: e.loja, semEntregador: e.semEntregador,

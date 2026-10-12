@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mensagensDaResposta } from './atender'
+import { confirmacaoDireta, mensagensDaResposta } from './atender'
 
 describe('um resumo só por confirmação (#287)', () => {
   it('servidor mandou o resumo: o "Seu pedido está montado… Posso confirmar?" da IA não vai junto', () => {
@@ -12,5 +12,19 @@ describe('um resumo só por confirmação (#287)', () => {
   it('sem nada do servidor: o texto da IA (sem cabeçalho)', () => {
     expect(mensagensDaResposta({}, 'Show! Vai querer mais alguma coisa?')).toEqual(['Show! Vai querer mais alguma coisa?'])
     expect(mensagensDaResposta({}, '  ')).toEqual([])
+  })
+})
+
+describe('"sim" depois do resumo cria o pedido no servidor, sem depender da IA (teste real 12/10)', () => {
+  const resumoEm = '2026-10-12T04:21:36.629Z'
+  it('confirmação clara, posterior ao resumo, com carrinho → cria direto', () => {
+    expect(confirmacaoDireta({ texto: 'Sim', em: '2026-10-12T04:22:00.848Z', resumoEm, temCarrinho: true })).toBe(true)
+    expect(confirmacaoDireta({ texto: 'pode mandar', em: '2026-10-12T04:22:00.848Z', resumoEm, temCarrinho: true })).toBe(true)
+  })
+  it('sem resumo, sem carrinho, antes do resumo ou não é confirmação → vai para a IA', () => {
+    expect(confirmacaoDireta({ texto: 'Sim', em: '2026-10-12T04:22:00Z', resumoEm: null, temCarrinho: true })).toBe(false)
+    expect(confirmacaoDireta({ texto: 'Sim', em: '2026-10-12T04:22:00Z', resumoEm, temCarrinho: false })).toBe(false)
+    expect(confirmacaoDireta({ texto: 'Sim', em: '2026-10-12T04:20:00Z', resumoEm, temCarrinho: true })).toBe(false)
+    expect(confirmacaoDireta({ texto: 'sim, mas troca pra dinheiro', em: '2026-10-12T04:22:00Z', resumoEm, temCarrinho: true })).toBe(false)
   })
 })
