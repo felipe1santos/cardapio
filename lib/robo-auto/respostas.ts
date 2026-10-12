@@ -34,6 +34,8 @@ export interface DadosLojaAuto {
   pixChave: string | null
   pixTipo: string | null
   pixOnline: boolean
+  /** Cidade da loja (taxa pelo raio quando o cliente só diz o bairro). */
+  cidade?: string | null
   textos?: Partial<Record<ChaveTexto, string>> | null
   assuntosDesligados?: Set<Assunto>
 }
@@ -44,6 +46,8 @@ export interface ContextoResposta {
   /** Pedido encontrado (status) ou null; `abertos` = quantos pedidos em aberto o telefone tem. */
   pedido?: PedidoAuto | null
   abertos?: number
+  /** Taxa calculada no servidor com a MESMA regra do checkout (bairro × raio, o menor) — vence a da lista (12/10). */
+  taxaCheckout?: { taxa: number; entregavel: boolean; motivo?: string } | null
 }
 
 export interface Resposta {
@@ -76,12 +80,17 @@ const OPCOES_MENU: [number, Assunto, string][] = [
   [6, 'endereco_retirada', 'Endereço e retirada'],
 ]
 
+/** Tira a linha "0 Falar com atendente" de qualquer texto (inclusive os salvos pela loja antes de 12/10). */
+export function semLinhaDoZero(texto: string): string {
+  return texto.split('\n').filter((linha) => !/^\s*[-•]?\s*\*?0\*?\s*[-–]?\s*Falar com (um )?atendente\s*$/i.test(linha)).join('\n').replace(/\n{3,}/g, '\n\n').trim()
+}
+
 export function menu(l: DadosLojaAuto, curto = false): string {
   const desl = l.assuntosDesligados ?? new Set<Assunto>()
   const linhas = OPCOES_MENU
     .filter(([n, a]) => !desl.has(a) && (!curto || [1, 2, 3].includes(n)))
     .map(([n, a, r]) => `- *${n}* ${a === 'pagamento_pix' && !temPix(l) ? 'Formas de pagamento' : r}`)
-  linhas.push('- *0* Falar com atendente')
+  // 12/10: sem "0 Falar com atendente" no menu — atendente só a pedido ou após 2 "não entendi" seguidos.
   return linhas.join('\n')
 }
 
@@ -148,7 +157,7 @@ export function responder(decisao: Decisao, l: DadosLojaAuto, ctx: ContextoRespo
     link_cardapio: l.link,
     tempo: l.tempoEntrega,
   }
-  const t = (chave: ChaveTexto, extra: Valores = {}) => renderizar(textoDe(chave, l.textos), { ...base, ...extra })
+  const t = (chave: ChaveTexto, extra: Valores = {}) => semLinhaDoZero(renderizar(textoDe(chave, l.textos), { ...base, ...extra }))
 
   switch (decisao.acao) {
     case 'nada':
@@ -167,6 +176,10 @@ export function responder(decisao: Decisao, l: DadosLojaAuto, ctx: ContextoRespo
     case 'entrega': {
       if (!l.aceitaEntrega) return { mensagens: [t('entrega_sem_entrega', { retirada: retirada(l) })], autoEstado: null }
       const achado = acharBairro(decisao.bairro ?? '', l.bairros)
+      const ck = ctx.taxaCheckout
+      if (ck?.entregavel) {
+        return { mensagens: [t('entrega_taxa', { bairro: achado?.bairro ?? decisao.bairro ?? '', taxa: ck.taxa > 0 ? brl(ck.taxa) : 'Grátis' })], autoEstado: null }
+      }
       if (achado) {
         return { mensagens: [t('entrega_taxa', { bairro: achado.bairro, taxa: achado.taxa > 0 ? brl(achado.taxa) : 'Grátis' })], autoEstado: null }
       }

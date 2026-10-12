@@ -114,7 +114,7 @@ describe('intenção de pedir pela conversa', () => {
   ]
   it.each(PEDIR)('"%s" → pedir', (f) => expect(classificar(f).intencao).toBe('pedir'))
 
-  const SEM_LINK = ['não consigo pedir pelo site', 'o link não abre', 'nao sei mexer no cardápio', 'prefiro pedir por aqui', 'n consigo abrir o link', 'o site nao funciona']
+  const SEM_LINK = ['não consigo pedir pelo site', 'o link não abre', 'nao sei mexer no cardápio', 'prefiro pedir por aqui', 'n consigo abrir o link', 'o site nao funciona', 'quero por aqui mesmo', 'pode ser por aqui mesmo', 'prefiro aqui']
   it.each(SEM_LINK)('"%s" → pedir sem conseguir usar o link', (f) => {
     const c = classificar(f)
     expect(c.intencao).toBe('pedir')

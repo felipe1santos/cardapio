@@ -97,14 +97,7 @@ export const TEXTOS_PADRAO: Record<ChaveTexto, string> = {
     '> Assim que possível, alguém responde por aqui.',
   ].join('\n'),
   audio: ['*🎤 Recebi seu áudio!*', '', 'Ainda não consigo ouvir áudios por aqui. Escreva sua dúvida ou digite *0* para falar com um atendente.', '', '*Cardápio:* {link_cardapio}'].join('\n'),
-  pedir_link: [
-    '*🛵 Bora pedir!*',
-    '',
-    'Pelo link é rapidinho e você vê tudo com fotos e preços:',
-    '{link_cardapio}',
-    '',
-    '> Se não conseguir usar o link, me avisa que eu chamo um atendente.',
-  ].join('\n'),
+  pedir_link: 'Pelo link é bem mais rápido e você vê tudo com foto 😉 👉 {link_cardapio}',
   pedir_sem_link: [
     '*👤 Sem problema!*',
     '',
@@ -122,7 +115,7 @@ export const ROTULO_TEXTO: Record<ChaveTexto, string> = {
   entrega_sem_entrega: 'Entrega — loja sem entrega', status: 'Status do pedido', status_pedir_numero: 'Status — pede o número',
   status_nao_achou: 'Status — pedido não encontrado', horario: 'Horário', pagamento: 'Pagamento e Pix', endereco: 'Endereço e retirada',
   reclamacao: 'Reclamação', atendente: 'Atendente', atendente_nao_entendeu: 'Atendente (não entendeu 2 vezes)', parar: 'Parar', audio: 'Áudio recebido',
-  pedir_link: 'Quer pedir pela conversa — link', pedir_sem_link: 'Quer pedir pela conversa — oferece atendente',
+  pedir_link: 'Quer pedir pela conversa — insiste no link (1ª vez)', pedir_sem_link: 'Quer pedir pela conversa — oferece atendente (sem IA)',
 }
 
 export type Valores = Partial<Record<Campo, string | null | undefined>>

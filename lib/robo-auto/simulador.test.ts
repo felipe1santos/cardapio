@@ -87,7 +87,8 @@ describe('conversas completas no simulador', () => {
   it('não entendeu 2 vezes seguidas → atendente', () => {
     const c = novaConversa()
     const a = passo(c, 'asdfg', F, em(0))
-    expect(a.respostas[0]).toContain('*0* Falar com atendente')
+    // 12/10: o "0 Falar com atendente" saiu de todos os menus (atendente só a pedido ou após 2 "não entendi").
+    expect(a.respostas[0]).not.toContain('Falar com atendente')
     expect(a.respostas[0]).toContain(LOJA.link)
     expect(passo(c, 'qwert', F, em(1)).acao).toBe('atendente')
   })

@@ -21,7 +21,13 @@ const SO_DO_ROBO: Intencao[] = ['atendente', 'reclamacao', 'parar', 'voltar']
 
 const ATENDENTE_EXPLICITO = /(^0$)|\b(atendente|humano|pessoa|alguem|gerente|dono|responsavel|falar com|me atende|me liga)\b/
 
-export function rotaDaMensagem(p: { intencao: Intencao; tipo: TipoMensagem; emModoIa: boolean; itemCitado: boolean; normalizado?: string }): RotaMensagem {
+export function rotaDaMensagem(p: {
+  intencao: Intencao; tipo: TipoMensagem; emModoIa: boolean; itemCitado: boolean; normalizado?: string
+  /** Cliente disse que não consegue/não quer usar o link ou que quer "por aqui mesmo". */
+  pedidoSemLink?: boolean
+  /** O robô já mandou o link para quem queria pedir (estado pedir_link, 15 min). */
+  jaMandouLink?: boolean
+}): RotaMensagem {
   if (p.emModoIa && p.tipo === 'texto') {
     if (p.intencao === 'parar' || p.intencao === 'voltar') return 'robo'
     if (p.intencao === 'atendente' && ATENDENTE_EXPLICITO.test(p.normalizado ?? '')) return 'robo'
@@ -35,7 +41,9 @@ export function rotaDaMensagem(p: { intencao: Intencao; tipo: TipoMensagem; emMo
   }
   if (p.tipo === 'imagem') return 'ia'
   if (p.tipo !== 'texto') return 'robo'
-  if (p.intencao === 'pedir' || p.intencao === 'outro') return 'ia'
+  // 12/10: quer pedir SEM citar item → 1ª vez o robô insiste no link (sem custo); insistiu ou não consegue usar o link → IA.
+  if (p.intencao === 'pedir') return p.itemCitado || p.pedidoSemLink || p.jaMandouLink ? 'ia' : 'robo'
+  if (p.intencao === 'outro') return 'ia'
   // Item do cardápio citado + entrega/pagamento = pedido numa frase só ("1 x-tudo, entrega na rua X, cartão"; teste real
   // 12/10). Status, horário e endereço da loja continuam com o robô.
   if (p.itemCitado && ['cardapio', 'saudacao', 'ok', 'entrega', 'pagamento_pix'].includes(p.intencao)) return 'ia'

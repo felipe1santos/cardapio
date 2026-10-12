@@ -5,9 +5,9 @@ import { itemCitado, modoIaAtivo, nomesDoCardapio, rotaDaMensagem, MAX_RESPOSTAS
 const NOMES = nomesDoCardapio([
   { id: '1', nome: 'X-Tudo' }, { id: '2', nome: 'Coca-Cola 2L' }, { id: '3', nome: 'Batata Frita' }, { id: '4', nome: 'Pão' }, { id: '5', nome: 'Hambúrguer Artesanal' },
 ])
-const rota = (texto: string, emModoIa = false, tipo: 'texto' | 'imagem' | 'audio' | 'video' = 'texto') => {
+const rota = (texto: string, emModoIa = false, tipo: 'texto' | 'imagem' | 'audio' | 'video' = 'texto', jaMandouLink = false) => {
   const c = classificar(texto)
-  return rotaDaMensagem({ intencao: c.intencao, tipo, emModoIa, itemCitado: itemCitado(texto, NOMES), normalizado: c.normalizado })
+  return rotaDaMensagem({ intencao: c.intencao, tipo, emModoIa, itemCitado: itemCitado(texto, NOMES), normalizado: c.normalizado, pedidoSemLink: c.pedidoSemLink, jaMandouLink })
 }
 
 describe('quando a IA entra (robô sempre primeiro)', () => {
@@ -19,8 +19,13 @@ describe('quando a IA entra (robô sempre primeiro)', () => {
   it('robô não entendeu → IA (no lugar do "não entendi")', () => {
     expect(rota('vcs fazem sem cebola roxa?')).toBe('ia')
   })
-  it('quer pedir pela conversa (com ou sem item) → IA', () => {
-    for (const t of ['quero fazer um pedido', 'quero um x tudo e uma coca cola 2l', 'me vê 2 batata frita', 'o link não abre', 'anota meu pedido']) expect(rota(t), t).toBe('ia')
+  it('quer pedir SEM citar item: 1ª vez o ROBÔ insiste no link (sem IA, sem custo); insistiu → IA (12/10)', () => {
+    for (const t of ['quero fazer um pedido', 'gostaria de fazer um pedido', 'anota meu pedido']) expect(rota(t), t).toBe('robo')
+    expect(rota('quero fazer um pedido', false, 'texto', true)).toBe('ia')
+    for (const t of ['quero por aqui mesmo', 'o link não abre', 'prefiro pedir por aqui']) expect(rota(t), t).toBe('ia')
+  })
+  it('citou item do cardápio: a IA entra direto (sem insistir no link)', () => {
+    for (const t of ['quero um x tudo e uma coca cola 2l', 'me vê 2 batata frita']) expect(rota(t), t).toBe('ia')
   })
   it('nome de item do cardápio (tolerante) → IA; item curto demais (Pão) não conta', () => {
     expect(itemCitado('tem x tudo hj?', NOMES)).toBe(true)

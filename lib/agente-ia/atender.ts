@@ -16,6 +16,7 @@ import { blocosDoSistema, mensagensDoHistorico, MAX_HISTORICO, type MensagemHist
 import { conversarComIa } from './agente'
 import { executarFerramenta, FERRAMENTAS, type EfeitosFerramentas } from './ferramentas'
 import { MAX_RESPOSTAS_IA, MODO_IA_SEM_MENSAGEM_MS } from './gatilho'
+import { limparTom } from './tom'
 
 export interface ConfigIa { ia_ativo?: boolean | null; ia_teto_usd_dia?: number | string | null }
 export const COLUNAS_CONFIG_IA = 'ia_ativo, ia_teto_usd_dia'
@@ -138,7 +139,9 @@ export async function atenderComIa(admin: SupabaseClient, e: EntradaAtender): Pr
   if (efeitos.pedido) {
     mensagens = await mensagensDoPedidoCriado(admin, e, efeitos.pedido)
   } else {
-    mensagens = [...(efeitos.resumo ? [efeitos.resumo] : []), ...(r.texto ? [r.texto] : [])]
+    // Tom (12/10): o texto da IA sai sem cabeçalho nem marcador de lista; o resumo (do servidor) fica como está.
+    const texto = limparTom(r.texto)
+    mensagens = [...(efeitos.resumo ? [efeitos.resumo] : []), ...(texto ? [texto] : [])]
   }
   if (!mensagens.length) return { ok: false, motivo: 'resposta_vazia', custoMicroUsd: r.custoMicroUsd }
   return { ok: true, mensagens, efeitos, custoMicroUsd: r.custoMicroUsd, chamadas: r.chamadas, ferramentas: r.ferramentas }

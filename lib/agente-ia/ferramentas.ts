@@ -6,7 +6,7 @@ import type { FerramentaClaude } from '@/lib/custo/anthropic'
 import { resolverFrete } from '@/lib/frete'
 import { brl, type DadosLojaAuto } from '@/lib/robo-auto/respostas'
 import { pedidoPorNumero, pedidosAbertosDoTelefone } from '@/lib/robo-auto/motor'
-import { buscarNoCardapio, type CardapioIa } from './cardapio'
+import { buscarNoCardapio, sugerirParecidos, type CardapioIa } from './cardapio'
 import { calcularPedido, criarPedidoDaConversa, limparCarrinho, type ContextoPedido } from './pedido'
 
 export const MAX_FERRAMENTAS_POR_RESPOSTA = 4
@@ -99,7 +99,16 @@ export async function executarFerramenta(ctx: ContextoFerramentas, efeitos: Efei
     switch (nome) {
       case 'consultar_cardapio': {
         const achados = buscarNoCardapio(ctx.cardapio, String(input.busca ?? ''))
-        if (!achados.length) return { conteudo: json({ itens: [], aviso: 'Nada encontrado com esse nome. Não invente: ofereça o link do cardápio.' }) }
+        if (!achados.length) {
+          const parecidos = sugerirParecidos(ctx.cardapio, String(input.busca ?? ''))
+          return {
+            conteudo: json({
+              itens: [],
+              aviso: 'Esse item NÃO existe no cardápio. Diga com naturalidade que não tem, sugira estes parecidos (com o preço) e pergunte se quer algum; ou ofereça mandar o link do cardápio com as fotos.',
+              parecidos: parecidos.map((i) => ({ item_id: i.id, nome: i.nome, preco: brl(i.preco), categoria: i.categoria })),
+            }),
+          }
+        }
         const pizza = achados.some((i) => i.tipo === 'pizza') ? ctx.cardapio.pizza : undefined
         return {
           conteudo: json({

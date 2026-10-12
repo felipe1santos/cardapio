@@ -99,6 +99,15 @@ describe('prompt: regras fixas e histórico', () => {
     expect(REGRAS_AGENTE).toMatch(/Nunca invente item, preço/)
     expect(REGRAS_AGENTE).toMatch(/atendente virtual/)
   })
+  it('tom humano (12/10): curto, uma pergunta, sem exemplos de pedido na entrada, sem títulos/listas, parecidos e poucas opções', () => {
+    expect(REGRAS_AGENTE).toMatch(/1 a 3 linhas/)
+    expect(REGRAS_AGENTE).toMatch(/UMA pergunta por vez/)
+    expect(REGRAS_AGENTE).toMatch(/sem dar exemplos de pedido/)
+    expect(REGRAS_AGENTE).toMatch(/No máximo 1 emoji/)
+    expect(REGRAS_AGENTE).toMatch(/Nada de títulos/)
+    expect(REGRAS_AGENTE).toMatch(/até 3 parecidos/)
+    expect(REGRAS_AGENTE).toMatch(/até 4/)
+  })
   it('cache marca o fim da parte fixa; hora e loja aberta ficam fora do cache', () => {
     const b = blocosDoSistema({ nome: 'L', link: 'u', endereco: null, gradeHorario: null, aceitaEntrega: true, aceitaRetirada: false, tempoEntrega: null, formasPagamento: 'Pix', resumoCardapio: '- X' }, { agora: 'domingo 20:00', aberta: true, proximaAbertura: null, nomeWhatsapp: 'Ana' })
     expect(b[1].cache_control).toEqual({ type: 'ephemeral' })

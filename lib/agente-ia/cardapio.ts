@@ -133,5 +133,29 @@ export function buscarNoCardapio(c: CardapioIa, busca: string, limite = 6): Item
   return pontos.filter((x) => x.p > 0).sort((a, b) => b.p - a.p).slice(0, limite).map((x) => x.i)
 }
 
+const FAMILIAS: [RegExp, RegExp][] = [
+  [/\b(x|xis|burg|burger|hamburg|hamburguer|lanche|sanduiche|smash|bacon|salada|egg|cheddar)/, /lanche|burg|hamb|sanduich|smash/],
+  [/\b(pizza|calabresa|mussarela|marguerita|portuguesa|frango com)/, /pizza/],
+  [/\b(coca|guarana|refri|refrigerante|suco|agua|cerveja|bebida|lata|fanta|sprite)/, /bebida|refri|suco|drink/],
+  [/\b(acai|sorvete|doce|sobremesa|milk|shake|brownie)/, /acai|sobremesa|doce|sorvete/],
+  [/\b(batata|porcao|frita|nugget|onion|isca)/, /porc|batata|acompanh|petisc/],
+]
+
+/**
+ * Item pedido não existe (ex.: "x-tudo"): até 3 itens DISPONÍVEIS da mesma família (lanche, pizza, bebida, doce, porção),
+ * pela categoria ou pelo nome; sem família reconhecida, os primeiros disponíveis. A IA sugere estes com o preço.
+ */
+export function sugerirParecidos(c: CardapioIa, busca: string, limite = 3): ItemIa[] {
+  const alvo = normalizarTexto(busca.replace(/[-/]/g, ' '))
+  const disp = c.itens.filter((i) => i.situacao === 'disponivel')
+  const familia = FAMILIAS.find(([pedido]) => pedido.test(alvo))
+  if (familia) {
+    const [, categoria] = familia
+    const daFamilia = disp.filter((i) => categoria.test(normalizarTexto(i.categoria)) || categoria.test(normalizarTexto(i.nome)) || familia[0].test(normalizarTexto(i.nome)))
+    if (daFamilia.length) return daFamilia.slice(0, limite)
+  }
+  return disp.slice(0, limite)
+}
+
 /** Só para os testes. */
 export function _zerarCacheCardapio() { cache.clear() }

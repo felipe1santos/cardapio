@@ -182,7 +182,8 @@ export interface Classificacao {
 const PEDIR_SEM_LINK = [
   'nao consigo pedir', 'nao consigo abrir', 'nao consigo usar', 'nao consigo mexer', 'nao consigo pelo site', 'nao consigo pelo link', 'nao consigo entrar',
   'link nao abre', 'link nao funciona', 'link nao carrega', 'site nao abre', 'site nao funciona', 'site nao carrega', 'nao abre o link', 'nao abre o site',
-  'nao sei mexer', 'nao sei usar', 'prefiro pedir por aqui', 'prefiro pedir aqui', 'prefiro por aqui',
+  'nao sei mexer', 'nao sei usar', 'prefiro pedir por aqui', 'prefiro pedir aqui', 'prefiro por aqui', 'prefiro aqui', 'por aqui mesmo', 'aqui mesmo',
+  'quero por aqui', 'pode ser por aqui', 'pelo whats mesmo', 'pelo zap mesmo',
 ].map((e) => e.split(' '))
 /** Contêm "meu pedido" (palavra de status): por isso são conferidas antes do status. */
 const PEDIR_ANTES_DO_STATUS = ['anota meu pedido', 'anota o meu pedido', 'tira meu pedido', 'tira o meu pedido', 'faz meu pedido', 'faz o meu pedido', 'fazer meu pedido', 'fecha meu pedido'].map((e) => e.split(' '))

@@ -8,12 +8,12 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { enfileirar } from '@/lib/mensageria/fila'
 import { pedidoDeDescadastro, textoDescadastro, variantesTelefone, linkDoRobo, type DadosLoja } from '@/lib/mensageria/robo'
 import type { MensagemRecebida } from '@/lib/mensageria/provedor'
-import { normalizarForaDaLista } from '@/lib/frete'
+import { normalizarForaDaLista, resolverFrete } from '@/lib/frete'
 import { composeEndereco } from '@/lib/endereco'
 import { rotuloStatusPedidoCliente } from '@/lib/status-pedido-cliente'
 import { lojaEstaAberta, textoProximaAbertura, turnosDoDia, type HorarioFuncionamento, type StatusLoja } from '@/lib/timezone'
 import { classificar, ASSUNTOS, type Assunto, type PalavrasExtras } from './classificador'
-import { decidir, type EstadoAuto } from './decisao'
+import { decidir, ESTADO_VALIDADE_MS, type EstadoAuto } from './decisao'
 import { responder, type DadosLojaAuto, type PedidoAuto } from './respostas'
 import type { ChaveTexto } from './textos'
 import { itemCitado, modoIaAtivo, nomesDoCardapio, rotaDaMensagem } from '@/lib/agente-ia/gatilho'
@@ -101,6 +101,7 @@ export async function carregarLojaAuto(admin: SupabaseClient, restauranteId: str
     pixChave: cfg.pix_chave?.trim() || null,
     pixTipo: cfg.pix_chave_tipo ?? null,
     pixOnline: l.pix_online_ativo === true,
+    cidade: String(l.endereco_cidade ?? '') || null,
     textos: (cfg.auto_textos ?? null) as Partial<Record<ChaveTexto, string>> | null,
     assuntosDesligados: assuntosDesligados(cfg),
   }
@@ -277,7 +278,12 @@ export async function processarMensagemAuto(
     const emModoIa = modoIaAtivo(estIa, antes, agora)
     const rota = iaEsgotadaNaConversa(estIa, antes, agora)
       ? 'robo'
-      : rotaDaMensagem({ intencao: classificacao.intencao, tipo: m.tipo, emModoIa, itemCitado: m.tipo === 'texto' && itemCitado(m.texto ?? '', nomesDoCardapio(cardapio.itens)), normalizado: classificacao.normalizado })
+      : rotaDaMensagem({
+          intencao: classificacao.intencao, tipo: m.tipo, emModoIa, itemCitado: m.tipo === 'texto' && itemCitado(m.texto ?? '', nomesDoCardapio(cardapio.itens)),
+          normalizado: classificacao.normalizado, pedidoSemLink: classificacao.pedidoSemLink,
+          // O robô já insistiu no link (12/10): se o cliente pedir de novo, quem responde é a IA.
+          jaMandouLink: estado.autoEstado === 'pedir_link' && !!estado.autoEstadoEm && agora.getTime() - Date.parse(estado.autoEstadoEm) < ESTADO_VALIDADE_MS,
+        })
     if (rota === 'audio_ia') {
       if (!(await aplicar('audio', { ...estado, audioEm: agora.toISOString() }, null))) return { respostas: 0, motivo: 'concorrencia' }
       await fila(TEXTO_AUDIO_IA, 0)
@@ -321,7 +327,13 @@ export async function processarMensagemAuto(
   } else if (d.acao === 'status_numero' && d.numeroPedido) {
     pedido = await pedidoPorNumero(admin, restauranteId, telefone, d.numeroPedido, ctx.semEntregador)
   }
-  const r = responder(d, loja, { agora, nomeCliente: e.nome, pedido, abertos })
+  // Taxa pela MESMA regra do checkout (12/10): com faixa de raio, o menor entre bairro e raio (Jaburuna: R$ 3,00 pelo raio,
+  // não R$ 5,89 da lista). Geocodificação só pela guarda, com cache por endereço.
+  let taxaCheckout: { taxa: number; entregavel: boolean; motivo?: string } | null = null
+  if (d.acao === 'entrega' && d.bairro && loja.temRaio && loja.aceitaEntrega) {
+    taxaCheckout = await resolverFrete(admin, restauranteId, { bairro: d.bairro, cidade: loja.cidade ?? undefined }).catch(() => null)
+  }
+  const r = responder(d, loja, { agora, nomeCliente: e.nome, pedido, abertos, taxaCheckout })
   const novo = { ...d.estado }
   if (r.autoEstado !== undefined) {
     novo.autoEstado = r.autoEstado
