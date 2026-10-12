@@ -11,13 +11,13 @@
  *    veio do anúncio ontem e voltou digitando o endereço hoje conta como anúncio).
  */
 /** 'whatsapp_ia' (0183): pedido tirado pelo Agente de IA na conversa — gravado só pelo servidor, nunca vem do navegador. */
-export type CanalOrigem = 'direto' | 'instagram' | 'facebook' | 'meta' | 'google_anuncio' | 'google_busca' | 'whatsapp' | 'qrcode' | 'outros' | 'whatsapp_ia'
+export type CanalOrigem = 'direto' | 'instagram' | 'facebook' | 'meta' | 'google_anuncio' | 'google_busca' | 'whatsapp' | 'qrcode' | 'outros' | 'whatsapp_ia' | 'push'
 
-export const CANAIS: readonly CanalOrigem[] = ['direto', 'instagram', 'facebook', 'meta', 'google_anuncio', 'google_busca', 'whatsapp', 'whatsapp_ia', 'qrcode', 'outros']
+export const CANAIS: readonly CanalOrigem[] = ['direto', 'instagram', 'facebook', 'meta', 'google_anuncio', 'google_busca', 'whatsapp', 'whatsapp_ia', 'push', 'qrcode', 'outros']
 
 export const ROTULO_CANAL: Record<CanalOrigem, string> = {
   direto: 'Direto', instagram: 'Instagram', facebook: 'Facebook', meta: 'Anúncio Meta', google_anuncio: 'Anúncio Google',
-  google_busca: 'Google Busca', whatsapp: 'WhatsApp', qrcode: 'QR Code', outros: 'Outros', whatsapp_ia: 'WhatsApp IA',
+  google_busca: 'Google Busca', whatsapp: 'WhatsApp', qrcode: 'QR Code', outros: 'Outros', whatsapp_ia: 'WhatsApp IA', push: 'Notificação do app',
 }
 
 /** Janela da atribuição: a última origem não-direta vale por 7 dias. */
@@ -82,6 +82,8 @@ export function canalDaOrigem(o: Pick<OrigemBruta, 'fonte' | 'meio' | 'clique'>)
   }
   if (tem(f, 'whatsapp', 'wa', 'wa.me', 'l.wl.co', 'api.whatsapp.com', 'web.whatsapp.com', 'chat.whatsapp.com', 'whatsapp.com', 'campanha', 'menuzia-campanha')) return 'whatsapp'
   if (tem(f, 'qr', 'qrcode', 'qr-code', 'qr_code')) return 'qrcode'
+  // Link da notificação do app (push de campanha, 12/10).
+  if (f === 'push') return 'push'
   if (o.clique === 'gclid') return 'google_anuncio'
   if (o.clique === 'fbclid') return 'meta'
   return 'outros'

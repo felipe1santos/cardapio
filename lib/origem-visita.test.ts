@@ -134,3 +134,11 @@ describe('anúncios (12/10): Anúncio Meta e Anúncio Google separados do orgân
     expect(ROTULO_CANAL.google_anuncio).toBe('Anúncio Google')
   })
 })
+
+describe('origem "Notificação do app" (12/10)', () => {
+  it('link do push (utm_source=push) vira canal push, com nome próprio', () => {
+    expect(canalDaOrigem(capturarOrigem({ busca: '?utm_source=push&utm_medium=campanha&push=abc', referrer: '', hostAtual: 'app.menuzia.com.br' }))).toBe('push')
+    expect(ROTULO_CANAL.push).toBe('Notificação do app')
+    expect(origemDoPedido({ fonte: 'push', meio: 'campanha' }).canal).toBe('push')
+  })
+})
