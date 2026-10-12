@@ -18,7 +18,7 @@ import { responder, type DadosLojaAuto, type PedidoAuto } from './respostas'
 import type { ChaveTexto } from './textos'
 import { itemCitado, modoIaAtivo, nomesDoCardapio, rotaDaMensagem } from '@/lib/agente-ia/gatilho'
 import { carregarCardapioIa } from '@/lib/agente-ia/cardapio'
-import { categoriasDoCardapio, escolherOpcao, pedeOpcoes, respondeuSimAoPedido, textoCategorias, textoItensDaCategoria } from './categorias'
+import { categoriasDoCardapio, escolherOpcao, linkJaEnviado, pedeOpcoes, respondeuSimAoPedido, textoCategorias, textoItensDaCategoria } from './categorias'
 import {
   agenteLigadoNaLoja, atenderComIa, estadoIaDaConversa, historicoDaConversa, iaEsgotadaNaConversa, registrarFalhaIa, registrarRespostaIa,
   textoLimiteIa, ultimaDoClienteAntes, TEXTO_AUDIO_IA, type ConfigIa,
@@ -319,7 +319,8 @@ export async function processarMensagemAuto(
           intencao: classificacao.intencao, tipo: m.tipo, emModoIa, itemCitado: m.tipo === 'texto' && itemCitado(m.texto ?? '', nomesDoCardapio(cardapio.itens)),
           normalizado: classificacao.normalizado, pedidoSemLink: classificacao.pedidoSemLink,
           // O robô já insistiu no link (12/10): se o cliente pedir de novo, quem responde é a IA.
-          jaMandouLink: estado.autoEstado === 'pedir_link' && !!estado.autoEstadoEm && agora.getTime() - Date.parse(estado.autoEstadoEm) < ESTADO_VALIDADE_MS,
+          jaMandouLink: (estado.autoEstado === 'pedir_link' && !!estado.autoEstadoEm && agora.getTime() - Date.parse(estado.autoEstadoEm) < ESTADO_VALIDADE_MS)
+            || linkJaEnviado(hist, agora.getTime()),
         })
     if (rota === 'audio_ia') {
       if (!(await aplicar('audio', { ...estado, audioEm: agora.toISOString() }, null))) return { respostas: 0, motivo: 'concorrencia' }

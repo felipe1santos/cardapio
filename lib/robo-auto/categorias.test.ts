@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { categoriasDoCardapio, escolherOpcao, pedeOpcoes, previaDoLink, respondeuSimAoPedido, textoCategorias, textoItensDaCategoria } from './categorias'
+import { categoriasDoCardapio, escolherOpcao, linkJaEnviado, pedeOpcoes, previaDoLink, respondeuSimAoPedido, textoCategorias, textoItensDaCategoria } from './categorias'
 import type { ItemIa } from '@/lib/agente-ia/cardapio'
 
 const item = (id: string, nome: string, categoria: string, preco: number, situacao = 'disponivel'): ItemIa =>
@@ -53,6 +53,19 @@ describe('"sim" ao "Quer fazer um pedido?" → link do cardápio (robô, sem IA)
     expect(respondeuSimAoPedido('Sim, quero pedir', 'Quer fazer o seu pedido?')).toBe(true)
     expect(respondeuSimAoPedido('sim', 'Está tudo certo? Responda *sim* para confirmar o pedido.')).toBe(false)
     expect(respondeuSimAoPedido('quero um x-bacon', 'Quer fazer um pedido?')).toBe(false)
+  })
+})
+
+describe('"quero pedir por aqui" logo depois do link → IA (teste real 12/10)', () => {
+  const agora = Date.parse('2026-10-12T21:00:00Z')
+  const loja = (texto: string, criadoEm: string) => ({ direcao: 'loja' as const, texto, criadoEm })
+  it('a última mensagem da loja foi o link do cardápio há menos de 15 min: já mandou o link', () => {
+    expect(linkJaEnviado([loja('Nosso pedido é feito *online* 👇\nhttps://app.menuzia.com.br/loja/x', '2026-10-12T20:58:00Z')], agora)).toBe(true)
+  })
+  it('link antigo, ou a última da loja foi outra coisa: não', () => {
+    expect(linkJaEnviado([loja('https://app.menuzia.com.br/loja/x', '2026-10-12T20:30:00Z')], agora)).toBe(false)
+    expect(linkJaEnviado([loja('https://app.menuzia.com.br/loja/x', '2026-10-12T20:58:00Z'), loja('A taxa é R$ 3,00', '2026-10-12T20:59:00Z')], agora)).toBe(false)
+    expect(linkJaEnviado([], agora)).toBe(false)
   })
 })
 

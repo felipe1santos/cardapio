@@ -67,6 +67,12 @@ export function respondeuSimAoPedido(texto: string, ultimaDaLoja: string | null)
   return /^(sim|s|isso|quero|claro|bora|pode ser|quero sim|sim quero|sim quero pedir|quero pedir|sim por favor)( (por favor|pedir|fazer))*$/.test(t)
 }
 
+/** A última mensagem da loja foi o link do cardápio, há menos de 15 min: o cliente que insiste em pedir vai para a IA. */
+export function linkJaEnviado(hist: { direcao: string; texto: string | null; criadoEm: string }[], agora: number): boolean {
+  const ultima = [...hist].reverse().find((h) => h.direcao === 'loja')
+  return !!ultima && /\/loja\//.test(ultima.texto ?? '') && agora - Date.parse(ultima.criadoEm) < 15 * 60_000
+}
+
 /** Mostra a prévia do link (a imagem do cardápio) só na 1ª mensagem com link em 30 min da conversa. */
 export function previaDoLink(texto: string, ultimaComLinkEm: string | null, agora: number): boolean {
   if (!/https?:\/\/\S+\/loja\//.test(texto)) return true
