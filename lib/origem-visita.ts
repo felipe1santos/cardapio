@@ -10,13 +10,14 @@
  *    navegador). Sem nenhuma nesse prazo: Direto. Uma visita direta NÃO apaga a origem anterior (quem
  *    veio do anúncio ontem e voltou digitando o endereço hoje conta como anúncio).
  */
-export type CanalOrigem = 'direto' | 'instagram' | 'facebook' | 'meta' | 'google_anuncio' | 'google_busca' | 'whatsapp' | 'qrcode' | 'outros'
+/** 'whatsapp_ia' (0183): pedido tirado pelo Agente de IA na conversa — gravado só pelo servidor, nunca vem do navegador. */
+export type CanalOrigem = 'direto' | 'instagram' | 'facebook' | 'meta' | 'google_anuncio' | 'google_busca' | 'whatsapp' | 'qrcode' | 'outros' | 'whatsapp_ia'
 
-export const CANAIS: readonly CanalOrigem[] = ['direto', 'instagram', 'facebook', 'meta', 'google_anuncio', 'google_busca', 'whatsapp', 'qrcode', 'outros']
+export const CANAIS: readonly CanalOrigem[] = ['direto', 'instagram', 'facebook', 'meta', 'google_anuncio', 'google_busca', 'whatsapp', 'whatsapp_ia', 'qrcode', 'outros']
 
 export const ROTULO_CANAL: Record<CanalOrigem, string> = {
   direto: 'Direto', instagram: 'Instagram', facebook: 'Facebook', meta: 'Meta (anúncio)', google_anuncio: 'Google Anúncio',
-  google_busca: 'Google Busca', whatsapp: 'WhatsApp', qrcode: 'QR Code', outros: 'Outros',
+  google_busca: 'Google Busca', whatsapp: 'WhatsApp', qrcode: 'QR Code', outros: 'Outros', whatsapp_ia: 'WhatsApp IA',
 }
 
 /** Janela da atribuição: a última origem não-direta vale por 7 dias. */

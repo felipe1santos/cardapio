@@ -9,7 +9,7 @@ import { formatarNumeroWhatsapp } from '@/lib/evolution'
 import { fotosGuardadas, type FotoGuardada } from './fotos'
 
 export type EstadoAtendimento = 'robo' | 'aguardando' | 'humano' | 'encerrada'
-export type OrigemMensagem = 'cliente' | 'atendente' | 'robo' | 'automatico' | 'disparo' | 'loja'
+export type OrigemMensagem = 'cliente' | 'atendente' | 'robo' | 'automatico' | 'disparo' | 'loja' | 'ia'
 export type FiltroConversas = 'aguardando' | 'humano' | 'todas'
 
 export interface ConversaCentral {
@@ -30,6 +30,8 @@ export interface ConversaCentral {
   fotoEm: string | null
   /** Cliente pediu atendente ao robô (0182): destaque amarelo e topo da lista até a loja marcar "Resolvido". */
   pedindoAtendenteDesde: string | null
+  /** Último pedido criado pelo Agente de IA nesta conversa (link na central). */
+  iaPedidoId: string | null
 }
 
 /** Destaque de "pedindo atendente" vale por 12 h (mesma janela da antiga faixa do Kanban). */
@@ -114,10 +116,11 @@ interface LinhaConversa {
   ultima_origem: OrigemMensagem | null
   ultima_atividade_em: string | null
   pediu_atendente_em: string | null
+  ia_pedido_id: string | null
   whatsapp_conversa_tags?: { tag_id: string }[]
 }
 
-const COLUNAS_CONVERSA = 'id, telefone, nome_contato, atendimento, atendente_nome, nao_lidas, ultima_previa, ultima_origem, ultima_atividade_em, pediu_atendente_em'
+const COLUNAS_CONVERSA = 'id, telefone, nome_contato, atendimento, atendente_nome, nao_lidas, ultima_previa, ultima_origem, ultima_atividade_em, pediu_atendente_em, ia_pedido_id'
 
 async function mapearConversas(admin: SupabaseClient, restauranteId: string, linhas: LinhaConversa[]): Promise<ConversaCentral[]> {
   const [nomes, fotos] = await Promise.all([
@@ -139,6 +142,7 @@ async function mapearConversas(admin: SupabaseClient, restauranteId: string, lin
     foto: fotos.get(l.telefone)?.url ?? null,
     fotoEm: fotos.get(l.telefone)?.buscadaEm ?? null,
     pedindoAtendenteDesde: estaPedindoAtendente(l) ? l.pediu_atendente_em : null,
+    iaPedidoId: l.ia_pedido_id ?? null,
   }))
 }
 

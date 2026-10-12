@@ -20,7 +20,7 @@ import { roboLiberadoNoServidor } from './robo'
 export interface NovoEnvio {
   restauranteId: string
   chave: string
-  tipo: 'robo' | 'aviso_pedido' | 'descadastro'
+  tipo: 'robo' | 'aviso_pedido' | 'descadastro' | 'ia'
   telefone: string
   texto: string
   conversaId?: string | null
@@ -107,7 +107,7 @@ async function saidaDaTentativaAnterior(admin: SupabaseClient, e: EnvioReivindic
     .select('id')
     .eq('restaurante_id', e.restaurante_id)
     .eq('texto_hash', h)
-    .eq('origem', e.tipo === 'robo' ? 'robo' : 'automatico')
+    .eq('origem', origemDoEnvio(e.tipo))
     .eq('status_envio', 'falhou')
     .gte('criado_em', e.criado_em)
   if (e.conversa_id) q = q.eq('conversa_id', e.conversa_id)
@@ -121,11 +121,16 @@ async function saidaDaTentativaAnterior(admin: SupabaseClient, e: EnvioReivindic
  * atendimento. Só conta silêncio POSTERIOR à resposta: a própria mensagem de "vou
  * chamar um atendente" nasce junto com o silêncio e tem que sair.
  */
+/** Origem no histórico da central: robô, Agente de IA (etiqueta "IA") ou aviso automático. */
+function origemDoEnvio(tipo: string): 'robo' | 'ia' | 'automatico' {
+  return tipo === 'robo' ? 'robo' : tipo === 'ia' ? 'ia' : 'automatico'
+}
+
 export function respostaDoRoboVencida(
   envio: Pick<EnvioReivindicado, 'tipo' | 'criado_em'>,
   conversa: { estado: string | null; silenciada_em: string | null } | undefined,
 ): boolean {
-  if (envio.tipo !== 'robo' || !conversa || conversa.estado !== 'silenciada' || !conversa.silenciada_em || !envio.criado_em) return false
+  if ((envio.tipo !== 'robo' && envio.tipo !== 'ia') || !conversa || conversa.estado !== 'silenciada' || !conversa.silenciada_em || !envio.criado_em) return false
   return Date.parse(conversa.silenciada_em) > Date.parse(envio.criado_em)
 }
 
@@ -143,7 +148,7 @@ export async function processarFila(
   if (!envios.length) return { enviados: 0, falhas: 0, reivindicados: [] }
 
   const lojas = [...new Set(envios.map((e) => e.restaurante_id))]
-  const conversaIds = [...new Set(envios.filter((e) => e.tipo === 'robo' && e.conversa_id).map((e) => e.conversa_id as string))]
+  const conversaIds = [...new Set(envios.filter((e) => (e.tipo === 'robo' || e.tipo === 'ia') && e.conversa_id).map((e) => e.conversa_id as string))]
   const [{ data: inst }, { data: cfgs }, { data: convs }] = await Promise.all([
     admin.from('restaurantes').select('id, evolution_instance').in('id', lojas),
     admin.from('whatsapp_robo_config').select('restaurante_id, robo_ativo, autoatendimento_ativo').in('restaurante_id', lojas),
@@ -173,7 +178,7 @@ export async function processarFila(
     let resultado: 'enviado' | 'transitorio' | 'definitivo' | 'incerto'
     let idExterno: string | null = null
     let erro: string | null = null
-    if (e.tipo === 'robo' && (!liberado || !roboLigado.has(e.restaurante_id))) {
+    if ((e.tipo === 'robo' || e.tipo === 'ia') && (!liberado || !roboLigado.has(e.restaurante_id))) {
       resultado = 'definitivo'
       erro = liberado ? 'robô desligado na loja' : 'robô não liberado no servidor'
     } else if (respostaDoRoboVencida(e, e.conversa_id ? conversa.get(e.conversa_id) : undefined)) {
@@ -186,8 +191,8 @@ export async function processarFila(
       // Histórico da central de atendimento: resposta do robô (ou aviso da fila).
       const anterior = await saidaDaTentativaAnterior(admin, e).catch(() => null)
       const mensagemId = anterior
-        ?? (await registrarSaida(admin, { restauranteId: e.restaurante_id, telefone: e.telefone, texto: e.texto, origem: e.tipo === 'robo' ? 'robo' : 'automatico' }))?.mensagemId
-      const r = await provedor.enviarTexto(nome, e.telefone, e.texto, e.tipo === 'robo' && autoLigado.has(e.restaurante_id) ? { digitandoMs: 1200 } : undefined)
+        ?? (await registrarSaida(admin, { restauranteId: e.restaurante_id, telefone: e.telefone, texto: e.texto, origem: origemDoEnvio(e.tipo) }))?.mensagemId
+      const r = await provedor.enviarTexto(nome, e.telefone, e.texto, (e.tipo === 'robo' || e.tipo === 'ia') && autoLigado.has(e.restaurante_id) ? { digitandoMs: 1200 } : undefined)
       await concluirSaida(admin, mensagemId, r.ok, r.ok ? r.idExterno : null, r.ok ? null : r.erro)
       if (r.ok) {
         resultado = 'enviado'

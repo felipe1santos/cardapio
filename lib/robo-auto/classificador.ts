@@ -17,7 +17,8 @@ export type Assunto =
   | 'saudacao' | 'cardapio' | 'entrega' | 'status_pedido' | 'horario' | 'pagamento_pix'
   | 'endereco_retirada' | 'reclamacao' | 'atendente' | 'parar'
 
-export type Intencao = Assunto | 'ok' | 'voltar' | 'outro'
+/** 'pedir' (11/10): vontade de pedir PELA CONVERSA — com o Agente de IA ligado, a IA anota; sem ele, o robô manda o link. */
+export type Intencao = Assunto | 'pedir' | 'ok' | 'voltar' | 'outro'
 
 export const ASSUNTOS: Assunto[] = [
   'atendente', 'reclamacao', 'parar', 'status_pedido', 'entrega', 'pagamento_pix', 'horario', 'endereco_retirada', 'cardapio', 'saudacao',
@@ -166,6 +167,45 @@ export interface Classificacao {
   porNumero: boolean
   /** Texto normalizado (vai para "Perguntas que o robô não entendeu"). */
   normalizado: string
+  /** 'pedir' de quem diz que não consegue usar o link/site: sem IA, o robô oferece o atendente. */
+  pedidoSemLink?: boolean
+}
+
+/**
+ * Gatilho "quero pedir por aqui" (11/10/2026, Agente de IA). Sem custo: só palavras.
+ *  - SEM_LINK: não consegue/não quer usar o link ("o link não abre", "prefiro pedir por aqui").
+ *  - FORTE: vontade explícita ("quero fazer um pedido", "anota meu pedido", "dá pra pedir por aqui?").
+ *  - FRACO: "quero / queria / vou querer / me vê / manda / gostaria de" SÓ quando seguido de quantidade ou artigo
+ *    ("quero UM x-tudo", "me vê 2 coca") e a coisa pedida não é assunto do robô ("manda o cardápio", "quero o link").
+ * Atendente, reclamação, parar e status vêm antes; entrega, Pix, horário e endereço vêm antes do FRACO.
+ */
+const PEDIR_SEM_LINK = [
+  'nao consigo pedir', 'nao consigo abrir', 'nao consigo usar', 'nao consigo mexer', 'nao consigo pelo site', 'nao consigo pelo link', 'nao consigo entrar',
+  'link nao abre', 'link nao funciona', 'link nao carrega', 'site nao abre', 'site nao funciona', 'site nao carrega', 'nao abre o link', 'nao abre o site',
+  'nao sei mexer', 'nao sei usar', 'prefiro pedir por aqui', 'prefiro pedir aqui', 'prefiro por aqui',
+].map((e) => e.split(' '))
+/** Contêm "meu pedido" (palavra de status): por isso são conferidas antes do status. */
+const PEDIR_ANTES_DO_STATUS = ['anota meu pedido', 'anota o meu pedido', 'tira meu pedido', 'tira o meu pedido', 'faz meu pedido', 'faz o meu pedido', 'fazer meu pedido', 'fecha meu pedido'].map((e) => e.split(' '))
+const PEDIR_FORTE = [
+  'fazer um pedido', 'fazer pedido', 'fazer o pedido', 'quero pedir', 'queria pedir', 'vou pedir', 'posso pedir', 'consigo pedir', 'da pra pedir', 'tem como pedir',
+  'pedir por aqui', 'pedir aqui', 'pedir pelo whats', 'pedir pelo whatsapp', 'pedir pelo zap', 'pedir no whats', 'pedido por aqui', 'anota ai', 'anota pra mim',
+  'faz o pedido', 'faz um pedido', 'me ajuda a pedir', 'me ajuda pedir', 'quero encomendar', 'queria encomendar', '1 por aqui', 'fechar o pedido', 'fechar pedido',
+].map((e) => e.split(' '))
+const PEDIR_FRACO = ['quero', 'queria', 'vou querer', 'me ve', 'me manda', 'manda', 'gostaria de', 'gostaria', 'traz', 'me traz'].map((e) => e.split(' '))
+const DEPOIS_DO_FRACO = new Set(['um', 'uma', 'uns', 'umas', 'dois', 'duas', 'tres', 'quatro', 'cinco', 'seis', 'meia', 'mais', 'o', 'a', 'os', 'as', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10'])
+const COISAS_DO_ROBO = new Set(['cardapio', 'menu', 'link', 'site', 'pix', 'chave', 'endereco', 'localizacao', 'horario', 'taxa', 'numero', 'telefone', 'contato', 'status', 'nome', 'senha', 'codigo'])
+
+function pedidoFraco(palavras: string[]): boolean {
+  for (const e of PEDIR_FRACO) {
+    for (let i = 0; i + e.length < palavras.length; i++) {
+      if (!e.every((w, k) => palavras[i + k] === w)) continue
+      const seguinte = palavras[i + e.length]
+      if (!DEPOIS_DO_FRACO.has(seguinte)) continue
+      const coisa = palavras.slice(i + e.length, i + e.length + 3)
+      if (!coisa.some((w) => COISAS_DO_ROBO.has(w))) return true
+    }
+  }
+  return false
 }
 
 export function classificar(texto: string | null, extras?: PalavrasExtras): Classificacao {
@@ -182,8 +222,15 @@ export function classificar(texto: string | null, extras?: PalavrasExtras): Clas
   const palavras = normalizado.split(' ')
   if (palavras.every((p) => PALAVRAS_OK.has(p))) return r('ok')
 
+  const pedir = (semLink: boolean): Classificacao => ({ ...r('pedir'), pedidoSemLink: semLink })
   for (const tolerante of [false, true]) {
     for (const assunto of ASSUNTOS) {
+      if (assunto === 'status_pedido' && PEDIR_ANTES_DO_STATUS.some((e) => contem(palavras, e, tolerante))) return pedir(false)
+      if (assunto === 'entrega') {
+        if (PEDIR_SEM_LINK.some((e) => contem(palavras, e, tolerante))) return pedir(true)
+        if (PEDIR_FORTE.some((e) => contem(palavras, e, tolerante))) return pedir(false)
+      }
+      if (assunto === 'cardapio' && !tolerante && pedidoFraco(palavras)) return pedir(false)
       if (listaDo(assunto, extras).some((e) => contem(palavras, e, tolerante))) return r(assunto)
     }
   }

@@ -61,6 +61,8 @@ export interface ProvedorWhatsapp {
   conexao(instancia: string): Promise<EstadoConexaoProvedor>
   /** Link da foto de perfil do contato (null = sem foto ou escondida). ok=false: não deu para saber. */
   fotoDePerfil(instancia: string, numero: string): Promise<{ ok: true; url: string | null } | { ok: false }>
+  /** Foto que o CLIENTE mandou (Agente de IA lê a imagem). null = indisponível. */
+  baixarImagem(instancia: string, waId: string): Promise<{ base64: string; mimetype: string } | null>
 }
 
 export type EstadoConexaoProvedor = 'aberto' | 'fechado' | 'desconhecido'
@@ -206,6 +208,27 @@ async function fotoEvolution(inst: string, numero: string): Promise<{ ok: true; 
   }
 }
 
+/** Foto do cliente pela Evolution (chat/getBase64FromMediaMessage), prazo de 8 s. */
+async function imagemEvolution(inst: string, waId: string): Promise<{ base64: string; mimetype: string } | null> {
+  const url = process.env.EVOLUTION_API_URL
+  const chave = process.env.EVOLUTION_API_KEY
+  if (!url || !chave) return null
+  try {
+    const res = await fetch(`${url.replace(/\/$/, '')}/chat/getBase64FromMediaMessage/${encodeURIComponent(inst)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: chave },
+      body: JSON.stringify({ message: { key: { id: waId } }, convertToMp4: false }),
+      signal: AbortSignal.timeout(8_000),
+    })
+    if (!res.ok) return null
+    const j = (await res.json().catch(() => null)) as { base64?: string; mimetype?: string } | null
+    if (!j?.base64) return null
+    return { base64: j.base64, mimetype: j.mimetype && /^image\/(jpeg|png|webp|gif)$/.test(j.mimetype) ? j.mimetype : 'image/jpeg' }
+  } catch {
+    return null
+  }
+}
+
 export const provedorEvolution: ProvedorWhatsapp = {
   nome: 'evolution',
   enviarTexto: (inst, numero, texto, opcoes) =>
@@ -233,6 +256,7 @@ export const provedorEvolution: ProvedorWhatsapp = {
     }
   },
   fotoDePerfil: fotoEvolution,
+  baixarImagem: imagemEvolution,
 }
 
 // ─── Simulado (testes) ─────────────────────────────────────────────────────────
@@ -297,6 +321,8 @@ export function provedorSimulado(arquivo: string): ProvedorWhatsapp {
       fsDoServidor().appendFileSync(`${arquivo}.fotos.jsonl`, JSON.stringify({ instancia, numero, em: new Date().toISOString() }) + '\n')
       return { ok: true, url: Number(numero.slice(-1)) % 2 ? `https://pps.whatsapp.net/simulado/${numero}.jpg` : null }
     },
+    // Imagem de teste: PNG de 1×1 (o e2e confere que a IA recebeu uma imagem).
+    baixarImagem: async () => ({ base64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', mimetype: 'image/png' }),
   }
 }
 

@@ -9,9 +9,10 @@ import type { TipoMensagem } from '@/lib/mensageria/provedor'
 export type AcaoAuto =
   | 'saudacao' | 'menu_curto' | 'cardapio' | 'entrega' | 'entrega_perguntar_bairro' | 'status' | 'status_numero'
   | 'horario' | 'pagamento' | 'endereco' | 'reclamacao' | 'atendente' | 'parar' | 'nao_entendeu' | 'audio' | 'nada'
+  | 'pedir_link' | 'pedir_sem_link'
 
 export interface EstadoAuto {
-  autoEstado: 'aguardando_bairro' | 'aguardando_numero' | null
+  autoEstado: 'aguardando_bairro' | 'aguardando_numero' | 'pedir_link' | null
   autoEstadoEm: string | null
   naoEntendeu: number
   saudacaoEm: string | null
@@ -63,7 +64,7 @@ export function decidir(e: EntradaDecisao): Decisao {
   const { classificacao, texto, agora } = e
   const desligados = e.assuntosDesligados ?? new Set<Assunto>()
   let intencao = classificacao.intencao
-  if (intencao !== 'ok' && intencao !== 'voltar' && intencao !== 'outro' && desligados.has(intencao) && !SEMPRE_LIGADOS.includes(intencao)) intencao = 'outro'
+  if (intencao !== 'ok' && intencao !== 'voltar' && intencao !== 'outro' && intencao !== 'pedir' && desligados.has(intencao) && !SEMPRE_LIGADOS.includes(intencao)) intencao = 'outro'
 
   const agoraIso = agora.toISOString()
 
@@ -98,6 +99,13 @@ export function decidir(e: EntradaDecisao): Decisao {
   if (emEspera === 'aguardando_bairro' && (intencao === 'outro' || intencao === 'entrega' || intencao === 'saudacao')) {
     const bairro = bairroDaFrase(texto) ?? (intencao === 'outro' ? classificacao.normalizado : null)
     if (bairro) return { acao: 'entrega', intencao: 'entrega', bairro, estado: entendido({ ...e.estado, autoEstadoEm: agoraIso }), naoEntendida: false }
+  }
+
+  // Quer pedir pela conversa e o Agente de IA não atendeu (desligado, sem módulo ou indisponível): link gentil;
+  // se insistir em 15 min ou disser que não consegue usar o link, oferece o atendente (11/10).
+  if (intencao === 'pedir') {
+    if (classificacao.pedidoSemLink || emEspera === 'pedir_link') return { acao: 'pedir_sem_link', intencao, estado: entendido(limpo), naoEntendida: false }
+    return { acao: 'pedir_link', intencao, estado: { ...entendido(limpo), autoEstado: 'pedir_link', autoEstadoEm: agoraIso }, naoEntendida: false }
   }
 
   if (intencao === 'outro') {

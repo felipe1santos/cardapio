@@ -180,7 +180,7 @@ async function processarEntradaInterna(admin: SupabaseClient, segredo: string, c
 
     if (auto) {
       const semEntregadorAuto = lojaRow.entrega_sem_entregador === true || lojaRow.usa_logistica === false
-      const ra = await processarMensagemAuto(admin, m, { restauranteId, cfg: cfg as unknown as ConfigAuto, lojaV1: loja, semEntregador: semEntregadorAuto })
+      const ra = await processarMensagemAuto(admin, m, { restauranteId, cfg: cfg as unknown as ConfigAuto, lojaV1: loja, semEntregador: semEntregadorAuto, instancia: (lojaRow.evolution_instance as string | null) ?? null })
       if (ra.motivo === 'duplicada') contar(r, 'duplicada')
       else { r.processadas++; contar(r, `auto_${ra.motivo}`) }
       r.respostas += ra.respostas

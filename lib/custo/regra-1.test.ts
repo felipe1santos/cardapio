@@ -8,7 +8,7 @@ import { verificarRegra1 } from '../../scripts/custo/regra-1.mjs'
 describe('regra nº 1 no código de verdade', () => {
   it('nenhuma API paga fora de lib/custo|lib/geocode e nenhuma chave de servidor pública', () => {
     expect(verificarRegra1(process.cwd())).toEqual([])
-  })
+  }, 60_000) // varre o repositório inteiro: com a suíte toda rodando, passa de 5 s
 })
 
 describe('regra nº 1 pega quem quebra', () => {
@@ -18,6 +18,7 @@ describe('regra nº 1 pega quem quebra', () => {
   arq('components/mapa.tsx', "const g = new google.maps.Geocoder()\n")
   arq('app/api/x/route.ts', "await fetch(`https://maps.googleapis.com/maps/api/geocode/json?key=${k}`)\n")
   arq('lib/ia/bot.ts', "import OpenAI from 'openai'\nawait fetch('https://api.openai.com/v1/chat/completions')\n")
+  arq('lib/ia/claude.ts', "await fetch('https://api.anthropic.com/v1/messages')\nimport Anthropic from '@anthropic-ai/sdk'\n")
   arq('lib/x.ts', "const k = process.env.NEXT_PUBLIC_GOOGLE_MAPS_SERVER_KEY\n")
   arq('lib/geocode/ok.ts', "await fetch(`https://maps.googleapis.com/maps/api/geocode/json`)\n") // pasta liberada
   arq('lib/comentario.ts', '// aqui não usamos google.maps.Geocoder nem DirectionsService\n')
@@ -27,6 +28,9 @@ describe('regra nº 1 pega quem quebra', () => {
     expect(erros.some((e) => e.startsWith('components/mapa.tsx'))).toBe(true)
     expect(erros.some((e) => e.startsWith('app/api/x/route.ts'))).toBe(true)
     expect(erros.filter((e) => e.startsWith('lib/ia/bot.ts')).length).toBeGreaterThanOrEqual(2)
+  })
+  it('Claude (Anthropic) chamado direto, fora de lib/custo (só chamarIa pode)', () => {
+    expect(erros.filter((e) => e.startsWith('lib/ia/claude.ts')).length).toBeGreaterThanOrEqual(2)
   })
   it('chave de servidor em NEXT_PUBLIC (nome e next.config)', () => {
     expect(erros.some((e) => e.includes('NEXT_PUBLIC_GOOGLE_MAPS_SERVER_KEY'))).toBe(true)

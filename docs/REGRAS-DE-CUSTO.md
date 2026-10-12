@@ -99,19 +99,30 @@ o limite (verde ≤ 50%, amarela ≤ 80%, vermelha acima), chamadas bloqueadas p
 gráfico de 7 dias por API. Lê `api_uso_dia`; os mapas carregados são avisados pelo navegador em `/api/mapa/carregou`
 (uma vez por carregamento do script, só conta). Código: `lib/custo/uso.ts`, `components/superadmin/uso-apis.tsx`.
 
-## IA de atendimento (ChatGPT) — contador preparado (10/10/2026)
+## IA de atendimento (Claude) — Agente de IA no WhatsApp (11/10/2026)
 
-A IA ainda não existe no sistema; o contador e o teto já estão prontos para quando ela entrar.
+O módulo pago "Agente de IA" usa o **Claude (Anthropic)**, em modo híbrido com o robô padrão (decisões D25–D37 em
+`docs/robo-whatsapp/autoatendimento-decisoes.md`). A OpenAI foi aposentada; o contador e os tetos continuam.
 
-- **Toda chamada à OpenAI passa por `chamarIa()` (`lib/custo/ia.ts`)**, nunca direto. Ela:
-  1. confere o **teto em dinheiro** do dia: `LIMITE_IA_USD_DIA` (US$ 5 no sistema todo) e `LIMITE_IA_USD_DIA_LOJA`
-     (US$ 1 por loja). Passou → não chama, alerta em `api_alertas` e a conversa vai para a reserva (atendente humano);
+- **A única requisição à IA está em `lib/custo/anthropic.ts`, sempre dentro de `chamarIa()` (`lib/custo/ia.ts`).** A Regra nº 1
+  (`scripts/custo/regra-1.mjs`) barra `api.anthropic.com` e o SDK fora de `lib/custo/`, e `lib/custo/anthropic.test.ts` confere que
+  a requisição só existe dentro do `chamarIa`. `chamarIa()`:
+  1. confere o **teto em dinheiro** do dia: `LIMITE_IA_USD_DIA` (US$ 5 no sistema todo) e o teto da loja
+     (`whatsapp_robo_config.ia_teto_usd_dia`, editável no Super Admin; vazio = `LIMITE_IA_USD_DIA_LOJA`, US$ 0,50). Passou → não
+     chama, alerta em `api_alertas`, aviso no WhatsApp do suporte 1× por dia por loja, e o robô padrão responde até 00:00;
   2. passa pela guarda comum (api `ia`): trava de loop (mesma conversa > 20/min) e `LIMITE_IA_CHAMADAS_DIA` (2000);
-  3. grava os **tokens reais** (`usage` da resposta) e o custo em `ia_uso_dia` (0174), por loja, por modelo e no total.
-- **Preço:** tabela `PRECOS_IA` (US$ por 1M tokens) — conferir em openai.com/api/pricing antes de ligar; `IA_PRECOS`
-  (JSON no Coolify) sobrepõe. Modelo desconhecido é cobrado como o mais caro: o contador nunca subestima.
-- **Super Admin:** bloco "IA de atendimento (ChatGPT)" (gasto de hoje × teto, respostas, tokens, mês em US$ e R$ pela
-  `COTACAO_DOLAR`, por modelo, 7 dias) e coluna "IA (ChatGPT)" por loja (hoje e mês). Selo "Ainda não ligada" enquanto
-  não houver `OPENAI_API_KEY` no Coolify.
-- **Ao ligar:** chave da OpenAI própria do Menuzia (projeto próprio na OpenAI, com limite mensal lá também), só no
-  Coolify sem Build time; estimar custo por conversa e por loja no commit.
+  3. grava os **tokens reais** (`usage`, inclusive cache) e o custo em `ia_uso_dia` (0174), por loja, por modelo e no total.
+- **Modelo e limites por resposta:** `claude-haiku-5-5` (`MODELO_IA`), esforço baixo e sem raciocínio, até 400 tokens de resposta,
+  até 4 ferramentas, histórico de 12 mensagens, prazo de 15 s, nenhuma nova tentativa. Cache de 5 min na parte fixa (regras +
+  dados da loja + resumo do cardápio).
+- **Preço** (`PRECOS_IA`, conferido em platform.claude.com em 11/10): Haiku 5.5 US$ 0,10 entrada · 0,50 saída · 0,125 escrita de
+  cache · 0,01 leitura de cache, por 1 milhão de tokens; prompt acima de 100 mil tokens paga 5× (o contador já cobra assim).
+  `IA_PRECOS` (JSON no Coolify, `[entrada, saída, escrita, leitura]`) sobrepõe. Modelo desconhecido é cobrado como o mais caro.
+- **Super Admin:** bloco "IA de atendimento (Claude)" e coluna "IA (Claude)" por loja (hoje × teto, mês em US$ e R$, teto editável).
+  Selo "Ainda não ligada" enquanto não houver `ANTHROPIC_API_KEY`.
+- **Chave:** `ANTHROPIC_API_KEY` só no Coolify, sem Build time. Nunca no código, log, chat ou `NEXT_PUBLIC`.
+- **Estimativa (11/10, medida no e2e com a API simulada e o tamanho real dos pedidos; ~3,5 caracteres por token):** cada chamada
+  ≈ 2 mil tokens de entrada (quase todos lidos do cache) + ~25 de saída ≈ US$ 0,00006. Um pedido completo pela conversa
+  (6 chamadas: consultar, responder, montar, responder, criar) ≈ US$ 0,0004; uma dúvida ≈ US$ 0,0001. Loja grande (cardápio de
+  200 itens, ~4 mil tokens fixos) fica em torno de US$ 0,001 por pedido. Com o teto de US$ 0,50/dia, cabem centenas de
+  conversas por loja; o teto do sistema (US$ 5/dia ≈ R$ 27) é o pior caso.

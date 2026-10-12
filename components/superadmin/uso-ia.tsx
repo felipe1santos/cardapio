@@ -1,8 +1,12 @@
+'use client'
+
+import { useState, useTransition } from 'react'
 import { corDoUso, type CorUso } from '@/lib/custo/uso'
+import { definirTetoIaAction } from '@/app/superadmin/actions'
 import type { SomaIa, UsoIa } from '@/lib/custo/ia'
 
 /**
- * Contador da IA de atendimento (ChatGPT) no Super Admin (10/10/2026 — docs/REGRAS-DE-CUSTO.md): gasto de hoje
+ * Contador da IA de atendimento (Claude) no Super Admin (10/10/2026 — docs/REGRAS-DE-CUSTO.md): gasto de hoje
  * contra o teto diário, mês corrente, tokens, por modelo e 7 dias; por loja: IaDaLoja. Lê ia_uso_dia (0174).
  */
 const COR: Record<CorUso, string> = { verde: '#10B981', amarela: '#F59E0B', vermelha: '#EF4444' }
@@ -66,7 +70,7 @@ export function UsoIaResumo({ ia }: { ia: UsoIa }) {
     <section className="mb-4 rounded-[6px] border border-border bg-white p-4" data-testid="uso-ia">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 text-[15px] font-semibold text-text-main">
-          IA de atendimento (ChatGPT)
+          IA de atendimento (Claude)
           <span className={`rounded-[3px] px-1.5 py-0.5 text-[10.5px] font-semibold uppercase ${ia.ligada ? 'bg-[#DCFCE7] text-[#16A34A]' : 'bg-[#FEF3C7] text-[#92400E]'}`} data-testid="ia-status">
             {ia.ligada ? 'Ligada' : 'Ainda não ligada'}
           </span>
@@ -108,16 +112,45 @@ export function UsoIaResumo({ ia }: { ia: UsoIa }) {
   )
 }
 
-/** IA de uma loja: gasto de hoje contra o teto da loja e total do mês. */
-export function IaDaLoja({ uso, limites }: { uso: UsoIa['porLoja'][string] | undefined; limites: UsoIa['limites'] }) {
+/** IA de uma loja: gasto de hoje contra o teto da loja (editável), mês em reais e respostas. */
+export function IaDaLoja({ uso, limites, restauranteId, teto }: { uso: UsoIa['porLoja'][string] | undefined; limites: UsoIa['limites']; restauranteId: string; teto?: number }) {
   const hoje = uso?.hoje.custoMicroUsd ?? 0
   const mes = uso?.mes ?? { chamadas: 0, custoMicroUsd: 0, tokensEntrada: 0, tokensSaida: 0 }
-  const { cor } = corDoUso(hoje, limites.usdDiaLoja * 1e6)
+  const tetoEfetivo = teto ?? limites.usdDiaLoja
+  const { cor } = corDoUso(hoje, tetoEfetivo * 1e6)
   return (
-    <div className="flex w-[150px] flex-col gap-0.5 text-[11.5px]" data-testid="ia-loja" data-cor={cor}>
-      <span className="tabular-nums text-text-main"><span className="font-semibold uppercase text-text-subtle">Hoje </span>{usd(hoje)}</span>
-      <span className="tabular-nums text-text-main"><span className="font-semibold uppercase text-text-subtle">Mês </span>{brl(mes.custoMicroUsd, limites.cotacao)}</span>
+    <div className="flex w-[170px] flex-col gap-0.5 text-[11.5px]" data-testid="ia-loja" data-cor={cor}>
+      <span className="tabular-nums text-text-main"><span className="font-semibold uppercase text-text-subtle">Hoje </span>{usd(hoje)} / {usd(tetoEfetivo * 1e6)}</span>
+      <span className="tabular-nums text-text-main"><span className="font-semibold uppercase text-text-subtle">Mês </span>{usd(mes.custoMicroUsd)} · {brl(mes.custoMicroUsd, limites.cotacao)}</span>
       <span className="tabular-nums text-text-subtle">{num(mes.chamadas)} respostas</span>
+      <TetoIaLoja restauranteId={restauranteId} teto={teto} padrao={limites.usdDiaLoja} />
     </div>
+  )
+}
+
+/** Teto diário da IA desta loja (US$). Vazio = padrão. Server action confere o superadmin. */
+function TetoIaLoja({ restauranteId, teto, padrao }: { restauranteId: string; teto?: number; padrao: number }) {
+  const [valor, setValor] = useState(teto === undefined ? '' : String(teto))
+  const [msg, setMsg] = useState<string | null>(null)
+  const [pendente, iniciar] = useTransition()
+  const salvar = () => iniciar(async () => {
+    const r = await definirTetoIaAction(restauranteId, valor)
+    setMsg(r.ok ? 'Salvo' : r.erro)
+  })
+  return (
+    <form className="mt-1 flex items-center gap-1" onSubmit={(e) => { e.preventDefault(); salvar() }} data-testid="ia-teto-loja">
+      <label className="sr-only" htmlFor={`teto-${restauranteId}`}>Teto diário da IA em dólares</label>
+      <span className="text-text-subtle">Teto US$</span>
+      <input
+        id={`teto-${restauranteId}`}
+        inputMode="decimal"
+        value={valor}
+        placeholder={padrao.toFixed(2)}
+        onChange={(e) => { setValor(e.target.value); setMsg(null) }}
+        className="h-[26px] w-[56px] rounded-[3px] border border-border px-1.5 text-[12px] tabular-nums"
+      />
+      <button type="submit" disabled={pendente} className="h-[26px] rounded-[3px] border border-border px-1.5 text-[11px] font-semibold uppercase text-text-main hover:border-primary disabled:opacity-50">OK</button>
+      {msg && <span className={msg === 'Salvo' ? 'text-[#16A34A]' : 'text-[#B91C1C]'} role="status">{msg}</span>}
+    </form>
   )
 }

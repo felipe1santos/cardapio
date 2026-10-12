@@ -133,7 +133,7 @@ export function origemVisivelNoCard(pedido: PedidoParaRotulo & { origemCanal?: s
 /** Nomes curtos do card (o modelo do item 56 mostra "Google", "Meta", "WhatsApp"). */
 const ROTULOS_CANAL_CARD: Record<string, string> = {
   instagram: 'Instagram', facebook: 'Facebook', meta: 'Meta', google_anuncio: 'Google', google_busca: 'Google',
-  whatsapp: 'WhatsApp', qrcode: 'QR Code', outros: 'Outros',
+  whatsapp: 'WhatsApp', qrcode: 'QR Code', outros: 'Outros', whatsapp_ia: 'WhatsApp IA',
 }
 
 /** Atendimento do card: ENTREGA / RETIRADA / MESA, e BALCÃO para a retirada lançada no balcão (item 56). */

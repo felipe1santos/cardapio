@@ -240,7 +240,7 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis, usoI
         {/* APIs pagas (guarda de custo, 10/10): uso de hoje, bloqueios, loops e 7 dias. */}
         {usoApis && <UsoApisResumo uso={usoApis} />}
 
-        {/* IA de atendimento (ChatGPT): gasto do sistema e por loja, preparado antes da IA existir. */}
+        {/* IA de atendimento (Claude): gasto do sistema e por loja; teto por loja editável. */}
         {usoIa && <UsoIaResumo ia={usoIa} />}
 
         {/* Barra da lista: busca, filtros e "+ Cadastrar cliente". */}
@@ -292,7 +292,7 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis, usoI
                   <Th coluna="criadoEm">Cadastro</Th>
                   <Th coluna="ultimoLoginEm">Último acesso</Th>
                   <th className="px-3 py-2.5 text-left uppercase">APIs hoje</th>
-                  <th className="px-3 py-2.5 text-left uppercase">IA (ChatGPT)</th>
+                  <th className="px-3 py-2.5 text-left uppercase">IA (Claude)</th>
                   <th className="px-3 py-2.5 text-left uppercase">Módulos</th>
                   <th className="px-3 py-2.5 text-left uppercase">Impressão Alfa 1</th>
                   <th className="px-3 py-2.5 text-left uppercase">Novidades em teste</th>
@@ -319,7 +319,7 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis, usoI
                     <td className="whitespace-nowrap px-3 py-2.5 text-[12px] text-text-subtle">{dataCurta(l.criadoEm)}</td>
                     <td className="whitespace-nowrap px-3 py-2.5 text-[12px]">{dataHora(l.ultimoLoginEm)}{l.loginsTotal > 0 && <span className="ml-1 text-[11px] text-text-subtle">({num(l.loginsTotal)}×)</span>}</td>
                     <td className="px-3 py-2.5">{l.restauranteId && usoApis ? <BarraUsoLoja uso={usoApis.porLoja[l.restauranteId]} limites={usoApis.limites} /> : '—'}</td>
-                    <td className="px-3 py-2.5">{l.restauranteId && usoIa ? <IaDaLoja uso={usoIa.porLoja[l.restauranteId]} limites={usoIa.limites} /> : '—'}</td>
+                    <td className="px-3 py-2.5">{l.restauranteId && usoIa ? <IaDaLoja uso={usoIa.porLoja[l.restauranteId]} limites={usoIa.limites} restauranteId={l.restauranteId} teto={usoIa.tetosLoja[l.restauranteId]} /> : '—'}</td>
                     <td className="px-3 py-2.5">{l.restauranteId && modulos?.[l.restauranteId] ? <ModulosLoja restauranteId={l.restauranteId} loja={l.loja || ''} inicial={modulos[l.restauranteId]} /> : '—'}</td>
                     <td className="px-3 py-2.5">{l.restauranteId ? (l.betaLiberado ? <span className="rounded-[4px] bg-[#0369A1] px-2 py-[3px] text-[11px] font-semibold text-white">Piloto</span> : <span className="text-[12px] text-text-subtle">Não</span>) : '—'}</td>
                     <td className="px-3 py-2.5" data-testid="coluna-novidades">{l.restauranteId ? (l.novidades ? <span className="rounded-[4px] bg-[#DCFCE7] px-2 py-[3px] text-[11px] font-semibold text-[#15803D]">Ligadas</span> : <span className="text-[12px] text-text-subtle">Não</span>) : '—'}</td>
@@ -351,7 +351,7 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis, usoI
                 <div><p className="text-[11px] text-text-subtle">Sublogins</p><BotaoSublogins l={l} /></div>
               </div>
               {l.restauranteId && usoApis && <div className="mt-2.5 border-t border-border pt-2.5"><p className="mb-1 text-[11px] text-text-subtle">APIs pagas hoje</p><BarraUsoLoja uso={usoApis.porLoja[l.restauranteId]} limites={usoApis.limites} /></div>}
-              {l.restauranteId && usoIa && <div className="mt-2.5 border-t border-border pt-2.5"><p className="mb-1 text-[11px] text-text-subtle">IA (ChatGPT)</p><IaDaLoja uso={usoIa.porLoja[l.restauranteId]} limites={usoIa.limites} /></div>}
+              {l.restauranteId && usoIa && <div className="mt-2.5 border-t border-border pt-2.5"><p className="mb-1 text-[11px] text-text-subtle">IA (Claude)</p><IaDaLoja uso={usoIa.porLoja[l.restauranteId]} limites={usoIa.limites} restauranteId={l.restauranteId} teto={usoIa.tetosLoja[l.restauranteId]} /></div>}
               {l.restauranteId && modulos?.[l.restauranteId] && <div className="mt-2.5 border-t border-border pt-2.5"><p className="mb-1 text-[11px] text-text-subtle">Módulos</p><ModulosLoja restauranteId={l.restauranteId} loja={l.loja || ''} inicial={modulos[l.restauranteId]} /></div>}
             </div>
           ))}

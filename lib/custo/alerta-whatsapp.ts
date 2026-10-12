@@ -10,11 +10,11 @@ import { SUPORTE_MENUZIA } from '@/lib/suporte'
 const enviados = new Map<string, number>()
 const JANELA_MS = 60 * 60_000
 
-export async function avisarSuporte(admin: SupabaseClient, assunto: string, texto: string): Promise<void> {
+export async function avisarSuporte(admin: SupabaseClient, assunto: string, texto: string, janelaMs = JANELA_MS): Promise<void> {
   if (process.env.VITEST || process.env.NODE_ENV === 'test') return
   const agora = Date.now()
   const antes = enviados.get(assunto)
-  if (antes && agora - antes < JANELA_MS) return
+  if (antes && agora - antes < janelaMs) return
   enviados.set(assunto, agora)
   try {
     const { data } = await admin.from('restaurantes').select('evolution_instance').eq('slug', 'menuzia').maybeSingle()

@@ -13,10 +13,10 @@ const FRASES: [string, Intencao][] = [
   ['tudo bem?', 'saudacao'], ['oie', 'saudacao'], ['hello', 'saudacao'], ['Oi, boa tarde!', 'saudacao'], ['bao noite', 'saudacao'],
   // cardápio
   ['cardapio', 'cardapio'], ['manda o cardápio', 'cardapio'], ['qual o cardapio', 'cardapio'], ['cardapo', 'cardapio'], ['cardapiu', 'cardapio'],
-  ['me passa o menu', 'cardapio'], ['quero fazer um pedido', 'cardapio'], ['quero pedir', 'cardapio'], ['como faço pra pedir?', 'cardapio'],
+  ['me passa o menu', 'cardapio'], ['como faço pra pedir?', 'cardapio'],
   ['tem link?', 'cardapio'], ['manda o link', 'cardapio'], ['quais os sabores de pizza?', 'cardapio'], ['quanto custa o x-tudo?', 'cardapio'],
-  ['qual o preço do combo', 'cardapio'], ['tem promoção hoje?', 'cardapio'], ['quero um lanche', 'cardapio'], ['vcs tem açaí?', 'cardapio'],
-  ['o que vcs tem ai', 'cardapio'], ['quero encomendar', 'cardapio'], ['valores dos lanches', 'cardapio'],
+  ['qual o preço do combo', 'cardapio'], ['tem promoção hoje?', 'cardapio'], ['vcs tem açaí?', 'cardapio'],
+  ['o que vcs tem ai', 'cardapio'], ['valores dos lanches', 'cardapio'], ['me manda o cardápio', 'cardapio'], ['quero o link', 'cardapio'],
   // entrega
   ['vcs entregam no centro?', 'entrega'], ['qnto ta a taxa pro ibes', 'entrega'], ['qual a taxa de entrega?', 'entrega'], ['taxa', 'entrega'],
   ['quanto é o frete?', 'entrega'], ['entrega em vila velha?', 'entrega'], ['voces fazem entrega', 'entrega'], ['tem delivery?', 'entrega'],
@@ -101,5 +101,36 @@ describe('classificador do robô de autoatendimento', () => {
     expect(classificar('oi, aceita pix? que horas fecha?').assunto).toBe('pagamento_pix')
     expect(classificar('ola, que horas abre e qual o endereço').assunto).toBe('horario')
     expect(classificar('oi manda o cardapio').assunto).toBe('cardapio')
+  })
+})
+
+/** Gatilho "quero pedir por aqui" (11/10, Agente de IA): vontade de pedir pela conversa, mesmo sem citar item. */
+describe('intenção de pedir pela conversa', () => {
+  const PEDIR = [
+    'quero fazer um pedido', 'quero pedir', 'dá pra pedir por aqui?', 'da pra pedir por aqui', 'posso pedir pelo whats?', 'consigo pedir por aqui?',
+    'anota meu pedido', 'tira meu pedido', 'faz o pedido pra mim', 'me ajuda a pedir', 'quero encomendar', 'qero fazer um pedido',
+    'vou querer um x tudo', 'queria uma pizza grande', 'me vê 2 coca', 'me ve dois hamburguer', 'quero um lanche', 'manda 1 batata', 'gostaria de um açaí',
+    '1 por aqui', 'boa noite, quero pedir', 'oi queria fazer um pedido',
+  ]
+  it.each(PEDIR)('"%s" → pedir', (f) => expect(classificar(f).intencao).toBe('pedir'))
+
+  const SEM_LINK = ['não consigo pedir pelo site', 'o link não abre', 'nao sei mexer no cardápio', 'prefiro pedir por aqui', 'n consigo abrir o link', 'o site nao funciona']
+  it.each(SEM_LINK)('"%s" → pedir sem conseguir usar o link', (f) => {
+    const c = classificar(f)
+    expect(c.intencao).toBe('pedir')
+    expect(c.pedidoSemLink).toBe(true)
+  })
+
+  const NAO = [
+    ['qual o horário', 'horario'], ['tem taxa?', 'entrega'], ['quero saber a taxa pro centro', 'entrega'], ['queria saber que horas fecha', 'horario'],
+    ['quero falar com atendente', 'atendente'], ['quero cancelar meu pedido', 'atendente'], ['manda o cardápio', 'cardapio'], ['manda o link', 'cardapio'],
+    ['me manda a chave pix', 'pagamento_pix'], ['meu pedido já saiu?', 'status_pedido'], ['quero o endereço', 'endereco_retirada'],
+    ['aceita cartão?', 'pagamento_pix'], ['oi', 'saudacao'], ['quanto custa o x-tudo?', 'cardapio'], ['como faço pra pedir?', 'cardapio'],
+  ] as const
+  it.each(NAO)('"%s" não é pedido (→ %s)', (f, esperado) => expect(classificar(f).intencao).toBe(esperado))
+
+  it('"pedir" não tira a prioridade de atendente, reclamação e status', () => {
+    expect(classificar('quero pedir mas o ultimo veio errado').intencao).toBe('reclamacao')
+    expect(classificar('quero fazer um pedido, cadê o outro?').intencao).toBe('status_pedido')
   })
 })

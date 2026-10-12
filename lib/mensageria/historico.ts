@@ -13,7 +13,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { variantesTelefone } from './robo'
 
-export type OrigemSaida = 'atendente' | 'robo' | 'automatico' | 'disparo'
+export type OrigemSaida = 'atendente' | 'robo' | 'automatico' | 'disparo' | 'ia'
 
 /** SHA-256 do texto (Web Crypto: vale no servidor e não quebra o bundle do navegador). */
 export async function hashTexto(texto: string | null | undefined): Promise<string | null> {
@@ -99,7 +99,7 @@ export async function ehSaidaNossa(admin: SupabaseClient, restauranteId: string,
     .select('id')
     .in('conversa_id', ids)
     .eq('texto_hash', h)
-    .in('origem', ['atendente', 'robo', 'automatico', 'disparo'])
+    .in('origem', ['atendente', 'robo', 'automatico', 'disparo', 'ia'])
     .gte('criado_em', new Date(Date.now() - 2 * 60_000).toISOString())
     .limit(1)
   return (data ?? []).length > 0

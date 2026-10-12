@@ -1216,6 +1216,11 @@ export interface OpcoesCriarPedido {
    * regra só —, mas pedido e itens nascem juntos numa transação, só em comanda aberta.
    */
   gravar?: (totais: { subtotal: number; total: number; clienteNome: string }, linhas: LinhaPedidoGravada[]) => Promise<{ id: string; numero: number }>
+  /**
+   * O telefone já foi confirmado pelo servidor (Agente de IA: o número é o do próprio WhatsApp da conversa). Só caminho de
+   * servidor passa isto; a rota pública não tem como.
+   */
+  telefoneConfirmado?: boolean
 }
 
 /**
@@ -1749,7 +1754,7 @@ export async function criarPedido(
   // Balcão e mesa não pedem telefone: não há o que confirmar, e marcar "não verificado"
   // acendia o alerta vermelho do Kanban em toda venda do PDV.
   const telefoneVerificado =
-    input.origem === 'pdv' && !soDigitos(input.cliente.telefone)
+    opcoes.telefoneConfirmado || (input.origem === 'pdv' && !soDigitos(input.cliente.telefone))
       ? true
       : await telefoneClienteVerificado(admin, restauranteId, input.cliente.telefone, input.origem === 'pdv' ? undefined : input.clienteToken ?? null)
 

@@ -192,6 +192,28 @@ export async function alternarNovidadesAction(restauranteId: string, ligar: bool
   return terminar({ ok: true, mensagem: ligar ? 'Novidades em teste ligadas na loja.' : 'Novidades em teste desligadas na loja.' })
 }
 
+/**
+ * Teto diário do Agente de IA (Claude) desta loja, em US$ (0183). Vazio = padrão (LIMITE_IA_USD_DIA_LOJA, US$ 0,50).
+ * Bateu o teto, a IA para na loja até 00:00 e o robô padrão responde.
+ */
+export async function definirTetoIaAction(restauranteId: string, tetoUsd: string): Promise<ResultadoAcao> {
+  const quem = await ensureSuperAdmin()
+  if (!UUID.test(restauranteId)) return { ok: false, erro: 'Loja inválida.' }
+  const bruto = (tetoUsd ?? '').trim().replace(',', '.')
+  const teto = bruto === '' ? null : Number(bruto)
+  if (teto !== null && (!Number.isFinite(teto) || teto < 0 || teto > 50)) return { ok: false, erro: 'Teto entre US$ 0 e US$ 50 (vazio = padrão).' }
+  const valor = teto === null ? null : Math.round(teto * 100) / 100
+  const admin = getAdminSupabase()
+  const { error } = await admin.from('whatsapp_robo_config').upsert({ restaurante_id: restauranteId, ia_teto_usd_dia: valor }, { onConflict: 'restaurante_id' })
+  if (error) return { ok: false, erro: 'Não foi possível salvar o teto.' }
+  await registrarAuditoria(admin, {
+    restauranteId, usuarioId: null, usuarioNome: `Plataforma (${quem.email})`,
+    acao: 'agente_ia.teto_alterado', entidade: 'restaurante', entidadeId: restauranteId, dados: { teto_usd_dia: valor },
+  })
+  await auditarPlataforma(admin, { ator: quem.email, acao: 'plataforma.ia_teto', restauranteId, dados: { teto_usd_dia: valor } })
+  return terminar({ ok: true, mensagem: valor === null ? 'Teto da IA voltou ao padrão.' : `Teto da IA: US$ ${valor.toFixed(2)} por dia.` })
+}
+
 /** Libera as "Novidades em teste" para TODAS as lojas (confirmação digitada: LIBERAR). */
 export async function liberarNovidadesTodasAction(confirmacao: string): Promise<ResultadoAcao> {
   const quem = await ensureSuperAdmin()

@@ -50,7 +50,7 @@ export interface Resposta {
   /** Mensagens na ordem (a chave Pix sai sozinha na 2ª). */
   mensagens: string[]
   /** Estado que a resposta pede (ex.: bairro achado limpa a espera; status pede o número). */
-  autoEstado?: 'aguardando_bairro' | 'aguardando_numero' | null
+  autoEstado?: 'aguardando_bairro' | 'aguardando_numero' | 'pedir_link' | null
 }
 
 export const brl = (v: number) => `R$ ${v.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')}`
@@ -207,5 +207,9 @@ export function responder(decisao: Decisao, l: DadosLojaAuto, ctx: ContextoRespo
       return { mensagens: [t('parar')] }
     case 'audio':
       return { mensagens: [t('audio')] }
+    case 'pedir_link':
+      return { mensagens: [t('pedir_link')], autoEstado: 'pedir_link' }
+    case 'pedir_sem_link':
+      return { mensagens: [t('pedir_sem_link')], autoEstado: null }
   }
 }

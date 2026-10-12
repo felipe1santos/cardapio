@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowLeft, Bell, BellOff, Bot, Check, CheckCheck, Clock, Hand, Headset, ImagePlus, Loader2, Maximize2, Minimize2, Minus, Pause, Play, Plus, Search, Send, Smile,
-  Tag as TagIcon, User, UserRound, X,
+  Sparkles, Tag as TagIcon, User, UserRound, X,
 } from 'lucide-react'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { iniciais } from '@/lib/mensageria/iniciais'
@@ -45,7 +45,7 @@ const ROTULO_ESTADO: Record<EstadoAtendimento, { texto: string; cor: string }> =
   humano: { texto: 'Em atendimento', cor: 'bg-[#DBEAFE] text-[#1D4ED8]' },
   encerrada: { texto: 'Encerrada', cor: 'bg-[#F3F4F6] text-[#6B7280]' },
 }
-const ROTULO_ORIGEM: Record<string, string> = { robo: 'Robô', automatico: 'Automático', disparo: 'Disparo', loja: 'Pelo celular da loja' }
+const ROTULO_ORIGEM: Record<string, string> = { robo: 'Robô', ia: 'IA', automatico: 'Automático', disparo: 'Disparo', loja: 'Pelo celular da loja' }
 const STATUS_PEDIDO: Record<string, string> = {
   recebido: 'Recebido', preparando: 'Preparando', pronto: 'Pronto', em_rota: 'Saiu para entrega', entregue: 'Entregue', cancelado: 'Cancelado',
 }
@@ -616,6 +616,17 @@ function Conversa({ id, tags, onTagsMudaram, onVoltar, onMudou, onAviso, fotoDe,
           </div>
         )}
 
+        {/* Pedido criado pelo Agente de IA nesta conversa (0183): atalho para o pedido. */}
+        {c?.iaPedidoId && (
+          <div className="flex flex-shrink-0 items-center gap-1.5 border-b border-[#E9D5FF] bg-[#FAF5FF] px-3 py-1.5 text-[12.5px] text-[#6B21A8]" data-testid="atendimento-pedido-ia">
+            <Sparkles className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />
+            <span>A IA criou um pedido nesta conversa.</span>
+            <a href={`/admin/pedidos?pedido=${c.iaPedidoId}`} className="ml-auto font-semibold underline underline-offset-2 hover:text-[#581C87]">
+              {(() => { const p = detalhe?.pedidos.find((x) => x.id === c.iaPedidoId); return p ? `Abrir pedido #${p.numero}` : 'Abrir pedido' })()}
+            </a>
+          </div>
+        )}
+
         {/* Histórico */}
         <div
           ref={rolagem}
@@ -647,13 +658,13 @@ function Balao({ m }: { m: MensagemCentral }) {
   const minha = m.direcao === 'loja'
   const rotulo = m.origem === 'atendente' ? m.autorNome ?? 'Atendente' : ROTULO_ORIGEM[m.origem]
   const hora = new Date(m.criadoEm).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })
-  const auto = m.origem === 'robo' || m.origem === 'automatico' || m.origem === 'disparo'
+  const auto = m.origem === 'robo' || m.origem === 'ia' || m.origem === 'automatico' || m.origem === 'disparo'
   return (
     <div className={['flex', minha ? 'justify-end' : 'justify-start'].join(' ')} data-testid="atendimento-balao" data-origem={m.origem}>
       <div className={['max-w-[78%] rounded-[10px] px-2.5 py-1.5 text-[13.5px] leading-[19px] shadow-[0_1px_1px_rgba(0,0,0,0.08)]', minha ? (auto ? 'bg-[#F0FBEA] text-[#111827]' : 'bg-[#D9FDD3] text-[#111827]') : 'bg-white text-[#111827]'].join(' ')}>
         {minha && rotulo && (
           <p className={['mb-0.5 flex items-center gap-1 text-[11px] font-semibold', auto ? 'text-[#6B7280]' : 'text-[#047857]'].join(' ')}>
-            {m.origem === 'robo' ? <Bot className="h-3 w-3" /> : m.origem === 'atendente' ? <User className="h-3 w-3" /> : null}{rotulo}
+            {m.origem === 'robo' ? <Bot className="h-3 w-3" /> : m.origem === 'ia' ? <Sparkles className="h-3 w-3 text-[#7E22CE]" /> : m.origem === 'atendente' ? <User className="h-3 w-3" /> : null}{rotulo}
           </p>
         )}
         {m.tipo === 'imagem' && (m.midiaUrl || m.temMidia) && <Imagem mensagemId={m.id} url={m.midiaUrl} />}

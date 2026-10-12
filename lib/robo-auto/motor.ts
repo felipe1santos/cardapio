@@ -16,6 +16,12 @@ import { classificar, ASSUNTOS, type Assunto, type PalavrasExtras } from './clas
 import { decidir, type EstadoAuto } from './decisao'
 import { responder, type DadosLojaAuto, type PedidoAuto } from './respostas'
 import type { ChaveTexto } from './textos'
+import { itemCitado, modoIaAtivo, nomesDoCardapio, rotaDaMensagem } from '@/lib/agente-ia/gatilho'
+import { carregarCardapioIa } from '@/lib/agente-ia/cardapio'
+import {
+  agenteLigadoNaLoja, atenderComIa, estadoIaDaConversa, historicoDaConversa, iaEsgotadaNaConversa, registrarFalhaIa, registrarRespostaIa,
+  textoLimiteIa, ultimaDoClienteAntes, TEXTO_AUDIO_IA, type ConfigIa,
+} from '@/lib/agente-ia/atender'
 
 export interface ConfigAuto {
   restaurante_id: string
@@ -26,10 +32,13 @@ export interface ConfigAuto {
   auto_tempo_entrega: string | null
   pix_chave: string | null
   pix_chave_tipo: string | null
+  /** Agente de IA (0183): interruptor e teto próprio por loja. */
+  ia_ativo?: boolean | null
+  ia_teto_usd_dia?: number | string | null
 }
 
 export const COLUNAS_CONFIG_AUTO =
-  'restaurante_id, autoatendimento_ativo, auto_assuntos_desligados, auto_textos, auto_palavras, auto_tempo_entrega, pix_chave, pix_chave_tipo'
+  'restaurante_id, autoatendimento_ativo, auto_assuntos_desligados, auto_textos, auto_palavras, auto_tempo_entrega, pix_chave, pix_chave_tipo, ia_ativo, ia_teto_usd_dia'
 
 const DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 const STATUS_ABERTOS = ['recebido', 'preparando', 'pronto', 'em_rota', 'aguardando_pagamento']
@@ -166,7 +175,7 @@ export interface ResultadoAuto {
 export async function processarMensagemAuto(
   admin: SupabaseClient,
   m: MensagemRecebida,
-  ctx: { restauranteId: string; cfg: ConfigAuto; lojaV1: DadosLoja; semEntregador: boolean },
+  ctx: { restauranteId: string; cfg: ConfigAuto; lojaV1: DadosLoja; semEntregador: boolean; instancia?: string | null },
 ): Promise<ResultadoAuto> {
   const { restauranteId, cfg } = ctx
   const telefone = m.telefone ?? '' // o webhook só chama com número (filtra sem_numero antes)
@@ -194,10 +203,10 @@ export async function processarMensagemAuto(
   if (m.deMim) return { respostas: 0, motivo: 'loja_respondeu' }
 
   let respostas = 0
-  const fila = async (texto: string, ordem: number, tipo: 'robo' | 'descadastro' = 'robo') => {
+  const fila = async (texto: string, ordem: number, tipo: 'robo' | 'descadastro' | 'ia' = 'robo') => {
     const envio = await enfileirar(admin, {
       restauranteId,
-      chave: `${tipo === 'robo' ? 'resposta' : 'descadastro'}:${e.mensagem_id}${ordem > 0 ? `:${ordem}` : ''}`,
+      chave: `${tipo === 'descadastro' ? 'descadastro' : 'resposta'}:${e.mensagem_id}${ordem > 0 ? `:${ordem}` : ''}`,
       tipo,
       telefone,
       texto,
@@ -242,7 +251,65 @@ export async function processarMensagemAuto(
     audioEm: e.auto_audio_em ?? null,
   }
   const agora = new Date()
-  const d = decidir({ classificacao, texto: m.texto ?? '', estado, agora, assuntosDesligados: loja.assuntosDesligados, tipo: m.tipo })
+  let versao = e.auto_versao ?? 0
+  const aplicar = async (acao: string, est: EstadoAuto, silenciar: 'atendente' | 'parar' | null) => {
+    const { data, error: erro } = await admin.rpc('whatsapp_auto_aplicar_v2', {
+      p_restaurante: restauranteId, p_conversa: e.conversa_id, p_mensagem: e.mensagem_id, p_acao: acao,
+      p_estado: est.autoEstado, p_estado_em: est.autoEstadoEm, p_nao_entendeu: est.naoEntendeu, p_saudacao_em: est.saudacaoEm,
+      p_silenciar: silenciar, p_audio_em: est.audioEm ?? null, p_versao: versao,
+    })
+    if (erro) throw erro
+    if (data !== false) versao++
+    return data !== false
+  }
+
+  // ── Agente de IA (0183): o robô vem primeiro; a IA entra quando ele não entende, quando o cliente quer pedir pela
+  // conversa, com foto, ou com a conversa em "modo IA". Falhou → o robô padrão responde (nunca sem resposta).
+  let iaFalhou = false
+  const cfgIa = cfg as ConfigAuto & ConfigIa
+  if (['texto', 'imagem', 'audio'].includes(m.tipo) && (await agenteLigadoNaLoja(admin, restauranteId, cfgIa))) {
+    const [hist, estIa, cardapio] = await Promise.all([
+      historicoDaConversa(admin, restauranteId, e.conversa_id),
+      estadoIaDaConversa(admin, e.conversa_id),
+      carregarCardapioIa(admin, restauranteId, agora),
+    ])
+    const antes = ultimaDoClienteAntes(hist, e.mensagem_id ?? '')
+    const emModoIa = modoIaAtivo(estIa, antes, agora)
+    const rota = iaEsgotadaNaConversa(estIa, antes, agora)
+      ? 'robo'
+      : rotaDaMensagem({ intencao: classificacao.intencao, tipo: m.tipo, emModoIa, itemCitado: m.tipo === 'texto' && itemCitado(m.texto ?? '', nomesDoCardapio(cardapio.itens)), normalizado: classificacao.normalizado })
+    if (rota === 'audio_ia') {
+      if (!(await aplicar('audio', { ...estado, audioEm: agora.toISOString() }, null))) return { respostas: 0, motivo: 'concorrencia' }
+      await fila(TEXTO_AUDIO_IA, 0)
+      return { respostas, motivo: 'audio_ia' }
+    }
+    if (rota === 'ia') {
+      if (!(await aplicar('ia', { ...estado, autoEstado: null, autoEstadoEm: null, naoEntendeu: 0 }, null))) return { respostas: 0, motivo: 'concorrencia' }
+      // Reentrega do webhook enquanto a IA pensava: a resposta já está na fila, não gasta de novo.
+      const { data: ja } = await admin.from('whatsapp_envios').select('id').eq('restaurante_id', restauranteId).eq('chave', `resposta:${e.mensagem_id}`).limit(1)
+      if ((ja ?? []).length) return { respostas: 0, motivo: 'duplicada' }
+      const estadoSessao = emModoIa ? estIa : { iaDesde: null, iaRespostas: 0 }
+      const r = await atenderComIa(admin, {
+        restauranteId, conversaId: e.conversa_id, mensagemId: e.mensagem_id ?? '', telefone, nomeWhatsapp: e.nome ?? m.nome ?? null, tipo: m.tipo,
+        waId: m.waId, texto: m.texto ?? '', instancia: ctx.instancia ?? null, cfg: cfgIa, loja, semEntregador: ctx.semEntregador, historico: hist, agora,
+      })
+      if (r.ok) {
+        const { saiuPorLimite } = await registrarRespostaIa(admin, { restauranteId, conversaId: e.conversa_id, estado: estadoSessao, efeitos: r.efeitos, custoMicroUsd: r.custoMicroUsd, ferramentas: r.ferramentas, agora })
+        for (let i = 0; i < r.mensagens.length; i++) await fila(r.mensagens[i], i, 'ia')
+        if (saiuPorLimite) await fila(textoLimiteIa(loja), r.mensagens.length)
+        return { respostas, motivo: r.efeitos.pedido ? 'ia_pedido' : 'ia' }
+      }
+      iaFalhou = true
+      await registrarFalhaIa(admin, { restauranteId, conversaId: e.conversa_id, motivo: r.motivo, custoMicroUsd: r.custoMicroUsd })
+    }
+  }
+
+  const decidido = decidir({ classificacao, texto: m.texto ?? '', estado, agora, assuntosDesligados: loja.assuntosDesligados, tipo: m.tipo })
+  // IA falhou numa mensagem que o robô sozinho não responderia ("sim", foto): o cliente recebe o "não entendi" com o
+  // link e a oferta de atendente — nunca fica sem resposta.
+  const d = iaFalhou && decidido.acao === 'nada'
+    ? decidir({ classificacao: { intencao: 'outro', assunto: 'outro', porNumero: false, normalizado: classificacao.normalizado }, texto: m.texto ?? '', estado, agora, assuntosDesligados: loja.assuntosDesligados, tipo: 'texto' })
+    : decidido
   if (d.acao === 'nada') return { respostas: 0, motivo: m.tipo === 'texto' ? 'nada' : 'midia_sem_resposta' }
 
   let pedido: PedidoAuto | null = null
@@ -260,14 +327,8 @@ export async function processarMensagemAuto(
     novo.autoEstado = r.autoEstado
     novo.autoEstadoEm = r.autoEstado ? agora.toISOString() : null
   }
-  const { data: aplicou, error: errAp } = await admin.rpc('whatsapp_auto_aplicar_v2', {
-    p_restaurante: restauranteId, p_conversa: e.conversa_id, p_mensagem: e.mensagem_id, p_acao: d.acao,
-    p_estado: novo.autoEstado, p_estado_em: novo.autoEstadoEm, p_nao_entendeu: novo.naoEntendeu, p_saudacao_em: novo.saudacaoEm,
-    p_silenciar: d.silenciar ?? null, p_audio_em: novo.audioEm ?? null, p_versao: e.auto_versao ?? 0,
-  })
-  if (errAp) throw errAp
   // Outra mensagem da mesma conversa (ex.: foto do mesmo álbum) decidiu antes: esta não responde (nada em dobro).
-  if (aplicou === false) return { respostas: 0, motivo: 'concorrencia' }
+  if (!(await aplicar(d.acao, novo, d.silenciar ?? null))) return { respostas: 0, motivo: 'concorrencia' }
   if (d.naoEntendida && c) await registrarNaoEntendida(admin, restauranteId, c.normalizado, m.texto ?? '')
   for (let i = 0; i < r.mensagens.length; i++) await fila(r.mensagens[i], i)
   return { respostas, motivo: d.acao }
