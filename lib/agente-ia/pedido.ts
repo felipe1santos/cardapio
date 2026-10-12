@@ -200,9 +200,13 @@ export async function criarPedidoDaConversa(ctx: ContextoPedido, confirmacao: { 
     .eq('restaurante_id', restauranteId)
     .like('chave_idempotencia', `${prefixo}%`)
     .gte('criado_em', new Date(agora.getTime() - JANELA_DUPLICADO_MS).toISOString())
-    .limit(1)
-  const ja = ((recentes ?? []) as { id: string; numero: number; total: number; status: string }[])[0]
+    .limit(5)
+  // Cancelado não é duplicado (teste real 12/10: o mesmo carrinho depois de um pedido cancelado devolvia o cancelado #290).
+  const doMesmo = (recentes ?? []) as { id: string; numero: number; total: number; status: string }[]
+  const ja = doMesmo.find((x) => x.status !== 'cancelado')
   if (ja) return { ok: true, id: ja.id, numero: ja.numero, total: Number(ja.total), repetido: true, pixOnline: ja.status === 'aguardando_pagamento' }
+  // A chave é única no banco: com um cancelado na mesma janela, a chave nova leva o instante.
+  const sufixo = doMesmo.length ? `${Math.floor(agora.getTime() / JANELA_DUPLICADO_MS)}:${agora.getTime()}` : `${Math.floor(agora.getTime() / JANELA_DUPLICADO_MS)}`
 
   let resumo: ResumoPedido
   try {
@@ -223,14 +227,14 @@ export async function criarPedidoDaConversa(ctx: ContextoPedido, confirmacao: { 
       origem: 'cardapio',
       origemCanal: 'whatsapp_ia',
       origemDetalhe: { meio: 'agente_ia', conversa: conversaId },
-      chaveIdempotencia: `${prefixo}${Math.floor(agora.getTime() / JANELA_DUPLICADO_MS)}`,
+      chaveIdempotencia: `${prefixo}${sufixo}`,
       itens: linhasDoCarrinho(carrinho),
     }, { telefoneConfirmado: true })
     return { ok: true, id: p.id, numero: p.numero, total: resumo.total, repetido: false, pixOnline: resumo.pixOnline }
   } catch (e) {
     // Mesma chave ao mesmo tempo (duas mensagens juntas): devolve o que a primeira criou.
     if ((e as { code?: string })?.code === '23505') {
-      const { data } = await admin.from('pedidos').select('id, numero, total').eq('restaurante_id', restauranteId).like('chave_idempotencia', `${prefixo}%`).limit(1).maybeSingle()
+      const { data } = await admin.from('pedidos').select('id, numero, total').eq('restaurante_id', restauranteId).like('chave_idempotencia', `${prefixo}%`).neq('status', 'cancelado').limit(1).maybeSingle()
       if (data) return { ok: true, id: data.id as string, numero: data.numero as number, total: Number(data.total), repetido: true, pixOnline: resumo.pixOnline }
     }
     return { ok: false, erro: (e as Error).message || 'Não foi possível criar o pedido.' }

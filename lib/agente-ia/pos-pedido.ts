@@ -133,11 +133,11 @@ export async function alterarPedidoFeito(ctx: ContextoAlteracao, input: Record<s
     case 'cancelar_pix_pendente': {
       const c = await cancelarCobrancaPendente(ctx.admin, ctx.restauranteId, p.id)
       if (c === 'paga' || c === 'erro') return atendente(`Cancelamento do pedido #${p.numero}${c === 'paga' ? ' (Pix já pago)' : ''}`)
-      const { data: mudou } = await ctx.admin.from('pedidos').update({
+      const { data: mudou, error: erroUpd } = await ctx.admin.from('pedidos').update({
         status: 'cancelado', cancelado_motivo: 'cliente_desistiu', cancelado_observacao: 'Cliente cancelou pelo WhatsApp (Pix não pago)', cancelado_por: 'Agente de IA',
         cancelado_em: new Date().toISOString(), reimprimir: false,
       }).eq('id', p.id).eq('status', 'aguardando_pagamento').select('id').maybeSingle()
-      if (!mudou) return atendente(`Cancelamento do pedido #${p.numero}`)
+      if (!mudou) { if (erroUpd) console.error('[agente-ia] alterar pedido:', erroUpd.message?.slice(0, 160)); return atendente(`Cancelamento do pedido #${p.numero}`) }
       await reverterBeneficiosPedidoCancelado(ctx.admin, ctx.restauranteId, p.id).catch(() => null)
       await auditar(ctx, p, 'pedido.cancelado_ia', { motivo: 'pix_nao_pago' })
       return pronto([`Pronto, cancelei o pedido #${p.numero} e esse Pix não vale mais. Se quiser pedir de novo, é só falar 😊`])
@@ -146,10 +146,10 @@ export async function alterarPedidoFeito(ctx: ContextoAlteracao, input: Record<s
       const c = await cancelarCobrancaPendente(ctx.admin, ctx.restauranteId, p.id)
       if (c === 'paga') return atendente(`Alteração do pedido #${p.numero} (Pix já pago)`)
       if (c === 'erro') return atendente(`Alteração do pedido #${p.numero}`)
-      const { data: mudou } = await ctx.admin.from('pedidos').update({
+      const { data: mudou, error: erroUpd } = await ctx.admin.from('pedidos').update({
         status: 'recebido', pagamento_online: false, pago: false, forma_pagamento: pagamento, cartao_tipo: null, troco_para: troco,
       }).eq('id', p.id).eq('status', 'aguardando_pagamento').select('id').maybeSingle()
-      if (!mudou) return atendente(`Alteração do pedido #${p.numero}`)
+      if (!mudou) { if (erroUpd) console.error('[agente-ia] alterar pedido:', erroUpd.message?.slice(0, 160)); return atendente(`Alteração do pedido #${p.numero}`) }
       // Agora entra na cozinha: os mesmos avisos de quando o Pix é confirmado.
       notificarPedido(ctx.admin, p.id, 'recebido').catch(() => null)
       if (!p.agendado_para) avisarPainelPedidoNovo(ctx.admin, ctx.restauranteId, { id: p.id, numero: p.numero, canal: p.tipo }).catch(() => null)
@@ -157,10 +157,10 @@ export async function alterarPedidoFeito(ctx: ContextoAlteracao, input: Record<s
       return pronto([`Pronto! Troquei para *${rotulo(pagamento!, troco)}* e o pedido #${p.numero} já foi pra cozinha 👍`])
     }
     case 'trocar_simples': {
-      const { data: mudou } = await ctx.admin.from('pedidos').update({
+      const { data: mudou, error: erroUpd } = await ctx.admin.from('pedidos').update({
         forma_pagamento: pagamento, cartao_tipo: null, troco_para: troco, pago: pagamento === 'pix', ...(plano.reimprimir ? { reimprimir: true } : {}),
       }).eq('id', p.id).eq('status', 'recebido').eq('pagamento_online', false).select('id').maybeSingle()
-      if (!mudou) return atendente(`Alteração do pedido #${p.numero}`)
+      if (!mudou) { if (erroUpd) console.error('[agente-ia] alterar pedido:', erroUpd.message?.slice(0, 160)); return atendente(`Alteração do pedido #${p.numero}`) }
       await auditar(ctx, p, 'pedido.pagamento_alterado', { de: p.forma_pagamento, para: rotulo(pagamento!, troco), reimprimir: plano.reimprimir })
       const msgs = [`Pronto! O pedido #${p.numero} agora é no *${rotulo(pagamento!, troco)}* 👍`]
       if (pagamento === 'pix' && ctx.loja.pixChave) {
@@ -170,9 +170,9 @@ export async function alterarPedidoFeito(ctx: ContextoAlteracao, input: Record<s
       return pronto(msgs)
     }
     case 'para_pix_online': {
-      const { data: mudou } = await ctx.admin.from('pedidos').update({ status: 'aguardando_pagamento', pagamento_online: true, pago: false, forma_pagamento: 'pix', cartao_tipo: null, troco_para: null })
+      const { data: mudou, error: erroUpd } = await ctx.admin.from('pedidos').update({ status: 'aguardando_pagamento', pagamento_online: true, pago: false, forma_pagamento: 'pix', cartao_tipo: null, troco_para: null })
         .eq('id', p.id).eq('status', 'recebido').eq('impresso', false).select('id').maybeSingle()
-      if (!mudou) return atendente(`Alteração do pedido #${p.numero}`)
+      if (!mudou) { if (erroUpd) console.error('[agente-ia] alterar pedido:', erroUpd.message?.slice(0, 160)); return atendente(`Alteração do pedido #${p.numero}`) }
       try {
         const pix = await criarCobrancaPix(ctx.admin, { restauranteId: ctx.restauranteId, pedidoId: p.id })
         if (!pix.qrCode) throw new Error('sem_qr')
