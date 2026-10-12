@@ -38,7 +38,7 @@ As regras deste CLAUDE.md (custo, kit visual, lojas reais, segredos no Coolify) 
 
 | Quando | Skill |
 |---|---|
-| Antes de publicar mudanças em login, permissões, dados de cliente, pagamentos e APIs | `semgrep` + `sarif-parsing` (Trail of Bits). Semgrep via Docker, sem instalar nada: `docker run --rm -e SEMGREP_ENABLE_VERSION_CHECK=0 -v "$PWD:/src" semgrep/semgrep:1.140.0 semgrep scan --metrics=off --config p/default /src`. Saída SEMPRE fora do repositório (scratchpad) — o repo é público |
+| Antes de publicar mudanças em login, permissões, dados de cliente, pagamentos e APIs | `semgrep` + `sarif-parsing` (Trail of Bits). Semgrep via Docker, sem instalar nada: `docker run --rm -e SEMGREP_ENABLE_VERSION_CHECK=0 -v "$PWD:/src:ro" -v "<scratchpad>:/out" semgrep/semgrep:1.140.0 semgrep scan --metrics=off --config p/default --no-git-ignore --exclude node_modules --exclude .next --exclude .medidas --json -o /out/semgrep.json /src`. **`--no-git-ignore` é obrigatório nesta worktree** (sem ele o Semgrep não acha o .git, varre 0 arquivos e diz "0 achados"); confira `paths.scanned` no JSON. Saída SEMPRE fora do repositório (scratchpad) — o repo é público |
 | Ao criar/alterar componentes React (useEffect, setInterval, polling, listas grandes) | `vercel-react-best-practices` (projeto em React 18: ignorar regras só de React 19) |
 | Em todo bug, antes de corrigir | `systematic-debugging` (causa raiz) |
 | Em toda correção de bug e em regra de dinheiro | `test-driven-development` (teste que falha primeiro; não apagar código existente por causa dela) |
