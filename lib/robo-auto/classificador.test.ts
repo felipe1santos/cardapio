@@ -129,6 +129,11 @@ describe('intenção de pedir pela conversa', () => {
   ] as const
   it.each(NAO)('"%s" não é pedido (→ %s)', (f, esperado) => expect(classificar(f).intencao).toBe(esperado))
 
+  it('teste do Felipe 12/10: saudação + pedido com erro de digitação é pedido (o "oi" não vence)', () => {
+    for (const t of ['Oii quero fazer um peiddo', 'Oi quero fazer um peidid', 'boa noite, gostaria de fazer uma encomenda']) expect(classificar(t).intencao, t).toBe('pedir')
+    for (const t of ['oi', 'oii tudo bem?', 'bao noite', 'Oi, boa tarde!']) expect(classificar(t).intencao, t).toBe('saudacao')
+  })
+
   it('"pedir" não tira a prioridade de atendente, reclamação e status', () => {
     expect(classificar('quero pedir mas o ultimo veio errado').intencao).toBe('reclamacao')
     expect(classificar('quero fazer um pedido, cadê o outro?').intencao).toBe('status_pedido')

@@ -62,6 +62,10 @@ describe('modo IA: até quando vale', () => {
     expect(modoIaAtivo({ iaDesde: ha(5), iaRespostas: 2 }, null, agora)).toBe(true)
     expect(modoIaAtivo({ iaDesde: ha(50), iaRespostas: 2 }, ha(10), agora)).toBe(true)
   })
+  it('logo depois do pedido criado pela IA (15 min) a conversa continua com a IA ("é cartão, tô sem pix")', () => {
+    expect(modoIaAtivo({ iaDesde: null, iaRespostas: 0, iaPedidoEm: ha(3) }, ha(3), agora)).toBe(true)
+    expect(modoIaAtivo({ iaDesde: null, iaRespostas: 0, iaPedidoEm: ha(16) }, ha(3), agora)).toBe(false)
+  })
   it('30 min sem mensagem do cliente, nunca entrou ou 25 respostas: não vale', () => {
     expect(modoIaAtivo({ iaDesde: ha(50), iaRespostas: 2 }, ha(31), agora)).toBe(false)
     expect(modoIaAtivo({ iaDesde: null, iaRespostas: 0 }, ha(1), agora)).toBe(false)

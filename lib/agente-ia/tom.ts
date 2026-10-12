@@ -29,7 +29,7 @@ export function limparTom(texto: string): string {
   return texto
     .split('\n')
     .filter((l) => !CABECALHO.test(l))
-    .map((l) => l.replace(/^\s*[-•]\s+/, ''))
+    .map((l) => l.replace(/^\s*([-•]|\d+[.)])\s+/, ''))
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim()

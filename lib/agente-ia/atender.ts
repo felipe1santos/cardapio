@@ -27,7 +27,7 @@ export async function agenteLigadoNaLoja(admin: SupabaseClient, restauranteId: s
   return moduloLiberado(admin, restauranteId, 'agente_ia').catch(() => false)
 }
 
-export interface EstadoConversaIa { iaDesde: string | null; iaRespostas: number }
+export interface EstadoConversaIa { iaDesde: string | null; iaRespostas: number; iaPedidoEm?: string | null }
 export interface LinhaHistorico extends MensagemHistorico { id: string; criadoEm: string }
 
 /** Últimas mensagens da conversa (mais antiga primeiro), a atual incluída. */
@@ -45,9 +45,9 @@ export async function historicoDaConversa(admin: SupabaseClient, restauranteId: 
 }
 
 export async function estadoIaDaConversa(admin: SupabaseClient, conversaId: string): Promise<EstadoConversaIa> {
-  const { data } = await admin.from('whatsapp_conversas').select('ia_desde, ia_respostas').eq('id', conversaId).maybeSingle()
-  const d = (data ?? {}) as { ia_desde?: string | null; ia_respostas?: number | null }
-  return { iaDesde: d.ia_desde ?? null, iaRespostas: Number(d.ia_respostas) || 0 }
+  const { data } = await admin.from('whatsapp_conversas').select('ia_desde, ia_respostas, ia_pedido_em').eq('id', conversaId).maybeSingle()
+  const d = (data ?? {}) as { ia_desde?: string | null; ia_respostas?: number | null; ia_pedido_em?: string | null }
+  return { iaDesde: d.ia_desde ?? null, iaRespostas: Number(d.ia_respostas) || 0, iaPedidoEm: d.ia_pedido_em ?? null }
 }
 
 /** Mensagem do cliente anterior à atual (para os 30 min do modo IA). */

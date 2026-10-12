@@ -191,6 +191,8 @@ const PEDIR_FORTE = [
   'fazer um pedido', 'fazer pedido', 'fazer o pedido', 'quero pedir', 'queria pedir', 'vou pedir', 'posso pedir', 'consigo pedir', 'da pra pedir', 'tem como pedir',
   'pedir por aqui', 'pedir aqui', 'pedir pelo whats', 'pedir pelo whatsapp', 'pedir pelo zap', 'pedir no whats', 'pedido por aqui', 'anota ai', 'anota pra mim',
   'faz o pedido', 'faz um pedido', 'me ajuda a pedir', 'me ajuda pedir', 'quero encomendar', 'queria encomendar', '1 por aqui', 'fechar o pedido', 'fechar pedido',
+  // "quero fazer um peiddo" (erro de digitação, teste do Felipe 12/10): "fazer um/uma" já diz que é pedido.
+  'quero fazer um', 'quero fazer uma', 'queria fazer um', 'queria fazer uma', 'gostaria de fazer um', 'gostaria de fazer uma', 'vou fazer um pedido',
 ].map((e) => e.split(' '))
 const PEDIR_FRACO = ['quero', 'queria', 'vou querer', 'me ve', 'me manda', 'manda', 'gostaria de', 'gostaria', 'traz', 'me traz'].map((e) => e.split(' '))
 const DEPOIS_DO_FRACO = new Set(['um', 'uma', 'uns', 'umas', 'dois', 'duas', 'tres', 'quatro', 'cinco', 'seis', 'meia', 'mais', 'o', 'a', 'os', 'as', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10'])

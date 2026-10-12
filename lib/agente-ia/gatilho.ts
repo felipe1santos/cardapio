@@ -51,7 +51,11 @@ export function rotaDaMensagem(p: {
 }
 
 /** A conversa continua em modo IA? (entrou, não passou de 30 min sem o cliente falar e não estourou 25 respostas) */
-export function modoIaAtivo(c: { iaDesde: string | null; iaRespostas: number }, ultimaDoClienteAntes: string | null, agora: Date): boolean {
+/** Logo depois do pedido criado pela IA, mudança de última hora ("é cartão, tô sem pix") ainda é com ela (teste 12/10). */
+export const POS_PEDIDO_MS = 15 * 60_000
+
+export function modoIaAtivo(c: { iaDesde: string | null; iaRespostas: number; iaPedidoEm?: string | null }, ultimaDoClienteAntes: string | null, agora: Date): boolean {
+  if (c.iaPedidoEm && agora.getTime() - Date.parse(c.iaPedidoEm) < POS_PEDIDO_MS) return true
   if (!c.iaDesde || c.iaRespostas >= MAX_RESPOSTAS_IA) return false
   const ref = ultimaDoClienteAntes && Date.parse(ultimaDoClienteAntes) > Date.parse(c.iaDesde) ? ultimaDoClienteAntes : c.iaDesde
   return agora.getTime() - Date.parse(ref) < MODO_IA_SEM_MENSAGEM_MS

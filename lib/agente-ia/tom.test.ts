@@ -22,6 +22,9 @@ describe('tom das mensagens da IA', () => {
     expect(problemasDeTom('Temos:\n- Calabresa\n- Mussarela')).toContain('lista')
     expect(problemasDeTom('Oba 😊🍔 vamos lá')).toContain('emojis')
   })
+  it('limparTom tira lista numerada também (teste do Felipe: "1. É entrega ou retirada?")', () => {
+    expect(limparTom('Agora preciso saber:\n1. É entrega ou retirada?\n2. Forma de pagamento?')).toBe('Agora preciso saber:\nÉ entrega ou retirada?\nForma de pagamento?')
+  })
   it('limparTom tira linhas que são só cabeçalho e marcadores de lista, mantendo o conteúdo', () => {
     expect(limparTom('*🍕 PIZZAS*\n- Calabresa R$ 40,00\n- Mussarela R$ 38,00\nQual você prefere?')).toBe('Calabresa R$ 40,00\nMussarela R$ 38,00\nQual você prefere?')
   })
