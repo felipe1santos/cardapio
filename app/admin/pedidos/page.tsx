@@ -72,6 +72,7 @@ import { formatarReal } from '@/lib/moeda'
 import { CartaoNumero } from '@/components/admin/cartao-numero'
 import { ICONES } from '@/lib/icones-painel'
 import { pedidoLiberado, textoAgendado } from '@/lib/agendamento'
+import { avisoSemMotoboy } from '@/lib/motoboy/aviso'
 
 function inicioDoDiaISO() {
   const d = new Date()
@@ -259,6 +260,7 @@ export default function PedidosPage() {
   // Item 61: "Despacho automático" (no lugar do "Despacho aberto"). Liga/desliga pelo servidor (auditado).
   const [despachoAuto, setDespachoAuto] = useState(false)
   const [semMotoboy, setSemMotoboy] = useState(0)
+  const [motoboysCadastrados, setMotoboysCadastrados] = useState(0)
   const [confirmaSemEntregador, setConfirmaSemEntregador] = useState(false)
   // Menus do topo (Mais e status da loja): portal por cima de tudo; Esc e clique fora fecham.
   const botaoStatus = useRef<HTMLButtonElement>(null)
@@ -375,6 +377,7 @@ export default function PedidosPage() {
       if (!r.ok) throw new Error()
       const j = await r.json().catch(() => ({}))
       setSemMotoboy(v ? Number(j.semMotoboy ?? 0) : 0)
+      setMotoboysCadastrados(Number(j.cadastrados ?? 0))
     } catch { setDespachoAuto(!v); setError('Não foi possível salvar o despacho automático.') }
   }
 
@@ -385,7 +388,7 @@ export default function PedidosPage() {
     if (!despachoAuto || !prontosSemMotoboy) { setSemMotoboy(0); return }
     let vivo = true
     const rodar = () => fetch('/api/admin/despacho/automatico', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ acao: 'rodar' }) })
-      .then((r) => (r.ok ? r.json() : null)).then((j) => { if (vivo && j) setSemMotoboy(Number(j.semMotoboy ?? 0)) }).catch(() => {})
+      .then((r) => (r.ok ? r.json() : null)).then((j) => { if (vivo && j) { setSemMotoboy(Number(j.semMotoboy ?? 0)); setMotoboysCadastrados(Number(j.cadastrados ?? 0)) } }).catch(() => {})
     void rodar()
     const t = setInterval(rodar, 30_000)
     return () => { vivo = false; clearInterval(t) }
@@ -1224,7 +1227,7 @@ export default function PedidosPage() {
           <Route className="h-5 w-5" aria-hidden /> Despachar
           <span className="grid h-[24px] min-w-[24px] place-items-center rounded-full bg-white px-1.5 text-[12.5px] font-semibold text-[#075EA8]" data-testid="kanban-despachar-contador">{prontosEntrega}</span>
           {despachoAuto && semMotoboy > 0 && prontosEntrega > 0 && (
-            <span className="rounded-[6px] bg-[#FEF3C7] px-2 py-0.5 text-[12px] font-semibold text-[#92400E]" data-testid="kanban-sem-motoboy">Sem motoboy disponível</span>
+            <span className="rounded-[6px] bg-[#FEF3C7] px-2 py-0.5 text-[12px] font-semibold text-[#92400E]" data-testid="kanban-sem-motoboy" title="Ninguém está com o app do motoboy aberto agora. Toque em Despachar e escolha um motoboy: ele recebe quando abrir o app.">{avisoSemMotoboy(motoboysCadastrados)}</span>
           )}
         </button>
       )}

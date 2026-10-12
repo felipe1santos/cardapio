@@ -220,6 +220,7 @@ export const ROTULO_EVENTO: Record<string, string> = {
   'agente_ia.desligado': 'Desligou o Agente de IA',
   'agente_ia.teto_alterado': 'Plataforma alterou o teto diário do Agente de IA',
   'plataforma.ia_teto': 'Plataforma alterou o teto diário do Agente de IA da loja',
+  'plataforma.cotacao_dolar': 'Plataforma alterou a cotação do dólar do Gasto por loja',
   'plataforma.beta_retirou': 'Plataforma retirou a loja do piloto do Assistente Beta',
   'modulo.liberado': 'Plataforma liberou um módulo pago na loja',
   'modulo.bloqueado': 'Plataforma bloqueou um módulo pago na loja',

@@ -4,6 +4,7 @@ vi.mock('@/lib/pedido-eventos', () => ({ aplicarEfeitosStatusPedidoComTrava: vi.
 vi.mock('@/lib/auditoria', () => ({ registrarAuditoria: vi.fn() }))
 vi.mock('@/lib/fidelidade', () => ({ processarFidelidadePedidoEntregue: vi.fn() }))
 import { escolherMotoboy, type CandidatoMotoboy } from './despacho-automatico'
+import { avisoSemMotoboy } from './aviso'
 
 const agora = new Date('2026-10-08T12:00:00Z').getTime()
 const m = (x: Partial<CandidatoMotoboy>): CandidatoMotoboy => ({ id: 'x', nome: 'X', emRota: 0, ultimoAcessoEm: new Date(agora - 30_000).toISOString(), status: 'online', desativado: false, ultimaSaidaEm: null, ...x })
@@ -23,5 +24,13 @@ describe('despacho automático: quem leva o pedido', () => {
   it('só disponível: logado (sinal < 2 min), não pausado, não desativado', () => {
     expect(escolherMotoboy([m({ id: 'a', status: 'offline' }), m({ id: 'b', desativado: true }), m({ id: 'c', ultimoAcessoEm: new Date(agora - 5 * 60_000).toISOString() }), m({ id: 'd', ultimoAcessoEm: null })], agora)).toBeNull()
     expect(escolherMotoboy([m({ id: 'a', status: 'offline' }), m({ id: 'e', status: 'ocupado', emRota: 3 })], agora)?.id).toBe('e')
+  })
+})
+
+describe('aviso do botão Despachar (12/10: "Sem motoboy disponível" com 4 cadastrados confundia)', () => {
+  it('diz que ninguém está com o app aberto e quantos estão cadastrados', () => {
+    expect(avisoSemMotoboy(4)).toBe('Nenhum motoboy online agora (4 cadastrados)')
+    expect(avisoSemMotoboy(1)).toBe('Nenhum motoboy online agora (1 cadastrado)')
+    expect(avisoSemMotoboy(0)).toBe('Nenhum motoboy cadastrado')
   })
 })

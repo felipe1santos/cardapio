@@ -68,7 +68,12 @@ async function candidatos(admin: SupabaseClient, restauranteId: string): Promise
   }))
 }
 
-export interface ResultadoDespacho { ligado: boolean; despachados: { pedidoId: string; numero: number; entregador: string }[]; semMotoboy: number }
+export interface ResultadoDespacho {
+  ligado: boolean; despachados: { pedidoId: string; numero: number; entregador: string }[]; semMotoboy: number
+  /** Motoboys cadastrados e não desativados (para o aviso dizer "4 cadastrados", 12/10). */
+  cadastrados?: number
+}
+
 
 /** Despacha os pedidos de entrega prontos da loja (se a chave estiver ligada). Seguro para rodar em paralelo. */
 export async function despacharAutomaticamente(admin: SupabaseClient, restauranteId: string): Promise<ResultadoDespacho> {
@@ -83,7 +88,7 @@ export async function despacharAutomaticamente(admin: SupabaseClient, restaurant
   for (let i = 0; i < lista.length; i++) {
     const p = lista[i]
     const m = escolherMotoboy(cands)
-    if (!m) { r.semMotoboy = lista.length - i; break }
+    if (!m) { r.semMotoboy = lista.length - i; r.cadastrados = cands.filter((c) => !c.desativado).length; break }
     let ok: string[] = []
     try { ok = await atribuirEntregadorEmLoteSeguro(admin, restauranteId, [p.id], m.id) } catch { ok = [] }
     if (!ok.length) continue // outro despacho levou antes

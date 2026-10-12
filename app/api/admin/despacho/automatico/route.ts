@@ -45,5 +45,5 @@ export async function POST(request: Request) {
     }).catch(() => {})
   }
   const r = corpo.ligado ? await despacharAutomaticamente(admin, sessao.restauranteId) : null
-  return NextResponse.json({ ok: true, ligado: corpo.ligado, ...(r ? { despachados: r.despachados, semMotoboy: r.semMotoboy } : {}) })
+  return NextResponse.json({ ok: true, ligado: corpo.ligado, ...(r ? { despachados: r.despachados, semMotoboy: r.semMotoboy, cadastrados: r.cadastrados ?? 0 } : {}) })
 }

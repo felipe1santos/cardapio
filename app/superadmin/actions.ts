@@ -216,6 +216,20 @@ export async function definirTetoIaAction(restauranteId: string, tetoUsd: string
   return terminar({ ok: true, mensagem: valor === null ? 'Teto da IA voltou ao padrão.' : `Teto da IA: US$ ${valor.toFixed(2)} por dia.` })
 }
 
+/** Cotação do dólar da tela "Gasto por loja" (0187, plataforma_config). Só para exibir em reais. */
+export async function definirCotacaoAction(cotacao: string): Promise<ResultadoAcao> {
+  const quem = await ensureSuperAdmin()
+  const v = Number((cotacao ?? '').trim().replace(',', '.'))
+  if (!Number.isFinite(v) || v < 1 || v > 20) return { ok: false, erro: 'Cotação entre R$ 1 e R$ 20.' }
+  const valor = Math.round(v * 100) / 100
+  const admin = getAdminSupabase()
+  const { error } = await admin.from('plataforma_config').upsert({ chave: 'cotacao_dolar', valor, atualizado_em: new Date().toISOString(), atualizado_por: quem.email }, { onConflict: 'chave' })
+  if (error) return { ok: false, erro: 'Não foi possível salvar a cotação.' }
+  await auditarPlataforma(admin, { ator: quem.email, acao: 'plataforma.cotacao_dolar', dados: { cotacao: valor } })
+  revalidatePath('/superadmin/gasto')
+  return { ok: true, mensagem: `Cotação: R$ ${valor.toFixed(2)}.` }
+}
+
 /** Libera as "Novidades em teste" para TODAS as lojas (confirmação digitada: LIBERAR). */
 export async function liberarNovidadesTodasAction(confirmacao: string): Promise<ResultadoAcao> {
   const quem = await ensureSuperAdmin()

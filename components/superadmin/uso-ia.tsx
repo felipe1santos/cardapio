@@ -129,7 +129,7 @@ export function IaDaLoja({ uso, limites, restauranteId, teto }: { uso: UsoIa['po
 }
 
 /** Teto diário da IA desta loja (US$). Vazio = padrão. Server action confere o superadmin. */
-function TetoIaLoja({ restauranteId, teto, padrao }: { restauranteId: string; teto?: number; padrao: number }) {
+export function TetoIaLoja({ restauranteId, teto, padrao }: { restauranteId: string; teto?: number; padrao: number }) {
   const [valor, setValor] = useState(teto === undefined ? '' : String(teto))
   const [msg, setMsg] = useState<string | null>(null)
   const [pendente, iniciar] = useTransition()
