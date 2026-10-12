@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { itensDoMenu, NAV_ITEMS } from './menu-lateral'
+import { caminhoPermitidoCompleto } from './acessos'
 
 const temMesas = (papel: string | null, moduloMesas: boolean) =>
   itensDoMenu({ papel, moduloMesas, usaLogistica: true }).some((i) => i.href === '/admin/mesas')
@@ -134,4 +135,13 @@ describe('KDS (prévia, 12/10)', () => {
     expect(tem(true)).toBe(true)
     expect(tem(false)).toBe(false)
   })
+})
+
+describe('menu por usuário (12/10, perfis com KDS)', () => {
+  const menu = (papel: string, areas: string[]) => itensDoMenu({ papel, moduloMesas: true, usaLogistica: true, novidades: true, financeiro: true, modulos: { financeiro: true, agente_ia: true, disparos: true } })
+    .filter((i) => caminhoPermitidoCompleto(i.href, papel, { areas: areas as never, sensiveis: [] }))
+    .map((i) => i.href)
+  it('Cozinha vê só o KDS', () => expect(menu('atendente', ['kds'])).toEqual(['/admin/kds']))
+  it('Garçom vê só Mesas e Comandas', () => expect(menu('garcom', ['mesas'])).toEqual(['/admin/mesas']))
+  it('Caixa vê Painel de Pedidos, PDV e Mesas', () => expect(menu('atendente', ['pedidos', 'pdv', 'mesas']).sort()).toEqual(['/admin/mesas', '/admin/pdv', '/admin/pedidos']))
 })
