@@ -148,6 +148,13 @@ export async function executarFerramenta(ctx: ContextoFerramentas, efeitos: Efei
         const c = limparCarrinho(input, ctx.nomeWhatsapp)
         if (!c.ok) return { conteudo: c.erro, erro: true }
         const resumo = await calcularPedido(ctx, c.carrinho)
+        // Mesmo pedido de um resumo JÁ mostrado (o Haiku real remonta no "sim", 12/10): não renova a hora do resumo
+        // (senão a confirmação fica "antes" dele e o pedido nunca é criado) nem manda o resumo de novo.
+        const { data: atual } = await ctx.admin.from('whatsapp_conversas').select('ia_carrinho, ia_resumo_em').eq('id', ctx.conversaId).eq('restaurante_id', ctx.restauranteId).maybeSingle()
+        const salvo = atual as { ia_carrinho?: { hash?: string } | null; ia_resumo_em?: string | null } | null
+        if (salvo?.ia_resumo_em && salvo.ia_carrinho?.hash === resumo.hash) {
+          return { conteudo: json({ ok: true, total: brl(resumo.total), aviso: 'Este é o mesmo pedido do resumo que o cliente já recebeu. Se ele confirmou, chame criar_pedido agora; senão, só pergunte se pode confirmar.' }) }
+        }
         await ctx.admin.from('whatsapp_conversas')
           .update({ ia_carrinho: { carrinho: c.carrinho, hash: resumo.hash }, ia_resumo_em: new Date().toISOString() })
           .eq('id', ctx.conversaId).eq('restaurante_id', ctx.restauranteId)
