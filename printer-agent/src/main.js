@@ -133,7 +133,7 @@ let geracaoLaco = 0
 // Alarme de pedido novo (1.2.0): volume da tela (10–100%), padrão 100%.
 const volumeAlarme = () => { const v = Number(carregarConfig().alarmeVolume); return Number.isFinite(v) && v >= 0.1 && v <= 1 ? v : 1 }
 let alarme = null
-const alarmeAgente = () => (alarme ??= criarAlarme({ volume: volumeAlarme }))
+const alarmeAgente = () => (alarme ??= criarAlarme({ volume: volumeAlarme, registrar: (m) => { log(m); logArquivo(m) } }))
 let cicloRodando = false // trava de reentrância: impede dois ciclos imprimirem o mesmo pedido
 // Atualização automática (beta.11): só instala com o Assistente parado. Marca a última impressão
 // (pedido ou trabalho recebido) e se há algo sendo impresso agora.

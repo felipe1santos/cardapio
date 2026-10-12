@@ -125,8 +125,9 @@ export function normalizarNomeItem(s: string): string {
 
 /** Busca da ferramenta: nome e descrição, sem acento, tolerante; os mais parecidos primeiro. Nada pelo nome → a categoria da família ("refri" → Bebidas). */
 export function buscarNoCardapio(c: CardapioIa, busca: string, limite = 6): ItemIa[] {
-  const termos = normalizarNomeItem(busca).split(' ').filter((t) => t.length >= 2)
-  if (!termos.length) return []
+  // Número conta ("Item 1" × "Item 2", "Coca 2"); letra solta não.
+  const termos = normalizarNomeItem(busca).split(' ').filter((t) => t.length >= 2 || /^\d+$/.test(t))
+  if (!termos.some((t) => t.length >= 2)) return []
   const pontos = c.itens.map((i) => {
     const nome = normalizarNomeItem(i.nome)
     const desc = normalizarTexto(i.descricao)

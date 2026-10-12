@@ -18,7 +18,7 @@ function decidirAlarme(estado, alarme, agora) {
   return { tocar: alarme.aguardando > 0, sabido: Math.min(999, alarme.aguardando), okEm: agora, avisados: numeros, novos }
 }
 
-function criarAlarme({ volume }) {
+function criarAlarme({ volume, registrar = () => {} }) {
   const { BrowserWindow, Notification } = require('electron')
   let janela = null
   let tocando = false
@@ -38,8 +38,8 @@ function criarAlarme({ volume }) {
     if (w.webContents.isLoading()) await new Promise((ok) => w.webContents.once('did-finish-load', ok))
     return w.webContents.executeJavaScript(js).catch(() => false)
   }
-  function tocar() { if (tocando) return; tocando = true; void executar(`tocar(${volume()})`) }
-  function parar() { if (!tocando) return; tocando = false; void executar('parar()') }
+  function tocar() { if (tocando) return; tocando = true; registrar(`Alarme tocando: pedido esperando aceite (${estado.sabido})`); void executar(`tocar(${volume()})`) }
+  function parar() { if (!tocando) return; tocando = false; registrar('Alarme parado'); void executar('parar()') }
 
   // Rede caiu com o som tocando: no máximo 60 s (depois o painel toca, porque este computador some do ar).
   const vigia = setInterval(() => { if (tocando && Date.now() - estado.okEm > SEM_RESPOSTA_MS) parar() }, 5_000)

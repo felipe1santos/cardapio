@@ -28,6 +28,14 @@ describe('item que não existe: sugerir parecidos do cardápio (12/10)', () => {
   })
 })
 
+describe('número no nome (teste real 12/10: "Item 1" não achava)', () => {
+  it('"Item 1" vem primeiro, à frente de Item 2 e Item 3', () => {
+    const n: CardapioIa = { ...C, itens: [item('Item 3', 'Gourmet', 22), item('Item 2', 'Gourmet', 22), item('Item 1', 'Gourmet', 22)] }
+    expect(buscarNoCardapio(n, 'Item 1')[0].nome).toBe('Item 1')
+    expect(buscarNoCardapio(n, '1 item 1 sem adicional')[0].nome).toBe('Item 1')
+  })
+})
+
 describe('sinônimos e categoria (teste do Felipe, 11/10, #287)', () => {
   it('"um refri" acha a categoria Bebidas (refri/refrigerante/coca/guaraná/lata/2L)', () => {
     for (const b of ['refri', 'um refri', 'refrigerante', 'guarana', 'uma lata', 'refri 2l']) {
