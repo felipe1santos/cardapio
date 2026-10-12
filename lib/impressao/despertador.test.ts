@@ -44,6 +44,13 @@ describe('espera longa do Assistente (despertador)', () => {
     expect(Date.now() - t).toBeLessThan(2500)
   })
 
+  it('alarme: a contagem JÁ mudou antes de esperar (aceitaram enquanto imprimia) → devolve na hora (teste real #292: 21 s)', async () => {
+    const t = Date.now()
+    const r = await esperarComBusca('loja-8', 20, undefined, async () => [], async () => true, async () => true)
+    expect(r).toEqual([])
+    expect(Date.now() - t).toBeLessThan(500)
+  })
+
   it('pedido antes dos itens: depois do aviso confere de novo logo em seguida', async () => {
     let chamadas = 0
     setTimeout(() => _avisarParaTeste('loja-4'), 50)

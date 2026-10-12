@@ -117,6 +117,8 @@ export async function esperarComBusca<T>(
   const fim = Date.now() + Math.max(0, Math.min(segundos, 20)) * 1000
   const buscarSeVale = async () => ((await aindaVale()) ? buscar() : null)
   let lista = await buscar()
+  // Aceitaram enquanto o Assistente imprimia: a contagem já chega diferente (teste real #292, o som parou 21 s depois).
+  if (!lista.length && devolverJa && (await devolverJa())) return lista
   while (lista.length === 0 && Date.now() < fim && !sinal?.aborted) {
     const r = await esperarNovidade(restauranteId, fim - Date.now(), sinal)
     if (sinal?.aborted) break
