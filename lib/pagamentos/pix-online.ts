@@ -143,14 +143,20 @@ export type ResultadoConferencia =
   | 'confirmado' | 'ja_confirmado' | 'a_devolver' | 'pendente' | 'expirado' | 'recusado' | 'divergente' | 'devolvido' | 'desconhecido' | 'sem_conta' | 'erro_api'
 
 /** Confere TUDO que o MP devolveu contra o registro e o pedido. Puro (testado). */
-export function divergencias(pg: PagamentoMp, reg: { pedido_id: string; valor: number; mp_user_id: string | null }, contaUserId: string | null, totalPedido: number): string[] {
+/** Cartão online (12/10): a mesma conferência vale para Pix e cartão; muda só o tipo esperado. */
+export const ehCartao = (reg: { metodo?: string | null }) => reg.metodo === 'cartao'
+const FORMA = (reg: { metodo?: string | null }) => (ehCartao(reg) ? 'cartao_online' : 'pix_online')
+const CHAVE = (reg: { metodo?: string | null }) => (ehCartao(reg) ? 'cartaoonline' : 'pixonline')
+const NOME = (reg: { metodo?: string | null }) => (ehCartao(reg) ? 'Cartão online' : 'Pix online')
+
+export function divergencias(pg: PagamentoMp, reg: { pedido_id: string; valor: number; mp_user_id: string | null; metodo?: string | null }, contaUserId: string | null, totalPedido: number): string[] {
   const d: string[] = []
   if (pg.externalReference !== reg.pedido_id) d.push('referencia')
   if (centavos(pg.valor) !== centavos(Number(reg.valor)) || centavos(pg.valor) !== centavos(totalPedido)) d.push('valor')
   if (pg.moeda && pg.moeda !== 'BRL') d.push('moeda')
   const coletorEsperado = contaUserId ?? reg.mp_user_id
   if (!pg.coletorId || !coletorEsperado || pg.coletorId !== coletorEsperado) d.push('coletor')
-  if (pg.metodo && pg.metodo !== 'pix') d.push('metodo')
+  if (ehCartao(reg) ? !['credit_card', 'debit_card'].includes(pg.tipo ?? '') : pg.metodo && pg.metodo !== 'pix') d.push('metodo')
   return d
 }
 
@@ -182,7 +188,7 @@ export async function conferirPagamento(admin: SupabaseClient, mpPaymentId: stri
     if (div.length) {
       await admin.from('pagamentos_online').update({ status: 'erro', erro: `não confere: ${div.join(', ')}` }).eq('id', reg.id).in('status', ['pendente', 'verificacao_pendente'])
       await criarAlerta(admin, { restauranteId: reg.restaurante_id, tipo: 'pix_online_divergente', gravidade: 'grave',
-        mensagem: `Pix online do pedido #${ped.numero} NÃO confere (${div.join(', ')}). O pedido não foi liberado.`, dados: { pagamento: reg.id, mp: mpPaymentId, divergencias: div }, dedupeMin: 60, dedupeChave: mpPaymentId })
+        mensagem: `${NOME(reg)} do pedido #${ped.numero} NÃO confere (${div.join(', ')}). O pedido não foi liberado.`, dados: { pagamento: reg.id, mp: mpPaymentId, divergencias: div }, dedupeMin: 60, dedupeChave: mpPaymentId })
       await registrarAuditoria(admin, { restauranteId: reg.restaurante_id, usuarioNome: USUARIO_MP.nome, acao: 'pix_online.divergente', entidade: 'pagamento_online', entidadeId: reg.id, dados: { divergencias: div, origem } })
       return 'divergente'
     }
@@ -194,6 +200,9 @@ export async function conferirPagamento(admin: SupabaseClient, mpPaymentId: stri
     if (reg.status !== 'devolvido') await admin.from('pagamentos_online').update({ status: 'devolvido', devolvido_em: reg.devolvido_em ?? new Date().toISOString() }).eq('id', reg.id)
     return 'devolvido'
   }
+  // Cartão recusado (ou cancelado pelo MP numa análise): o pedido CONTINUA esperando — o cliente tenta outro cartão ou
+  // troca a forma de pagamento. Só o prazo expira o pedido (verificarPendentes).
+  if (ehCartao(reg) && ['cancelled', 'rejected'].includes(pg.status)) return 'recusado'
   if (['cancelled', 'rejected', 'expired'].includes(pg.status)) {
     // Cobrança que NÓS cancelamos (cliente trocou para cartão/dinheiro pelo WhatsApp, 12/10): o aviso do MP chega antes
     // de o pedido ir para a cozinha — não é Pix expirado, quem cancelou termina a troca (teste real #289).
@@ -217,9 +226,9 @@ async function lancarRecebimento(admin: SupabaseClient, reg: Reg, pg: PagamentoM
   if (!loja?.financeiro_ativo) return
   const bruto = centavos(pg.valor)
   const taxa = centavos(pg.taxa || 0)
-  const comum = { carteira: 'online' as const, forma: 'pix_online', pedidoId: reg.pedido_id, pagamentoId: reg.id, dados: { mp_payment_id: pg.id } }
+  const comum = { carteira: 'online' as const, forma: FORMA(reg), pedidoId: reg.pedido_id, pagamentoId: reg.id, dados: { mp_payment_id: pg.id } }
   const r = await lancar(admin, {
-    restauranteId: reg.restaurante_id, turnoId: await turnoAberto(admin, reg.restaurante_id), chave: `pixonline:${pg.id}`, origem: 'online',
+    restauranteId: reg.restaurante_id, turnoId: await turnoAberto(admin, reg.restaurante_id), chave: `${CHAVE(reg)}:${pg.id}`, origem: 'online',
     usuario: { id: null, nome: USUARIO_MP.nome }, motivo: motivo ?? null,
     linhas: [
       { tipo: 'recebimento' as const, valorCentavos: bruto, ...comum },
@@ -236,7 +245,7 @@ async function confirmarPago(admin: SupabaseClient, reg: Reg, pg: PagamentoMp, p
   await admin.from('pagamentos_online').update({ status: 'pago', pago_em: pg.aprovadoEm ?? new Date().toISOString(), taxa: pg.taxa, liquido: pg.liquido, erro: null }).eq('id', reg.id)
   if (!mudou) return 'ja_confirmado'
   await lancarRecebimento(admin, reg, pg)
-  await registrarAuditoria(admin, { restauranteId: reg.restaurante_id, usuarioNome: USUARIO_MP.nome, acao: 'pix_online.pago', entidade: 'pedido', entidadeId: ped.id, dados: { mp_payment_id: pg.id, valor: pg.valor, taxa: pg.taxa, origem } })
+  await registrarAuditoria(admin, { restauranteId: reg.restaurante_id, usuarioNome: USUARIO_MP.nome, acao: ehCartao(reg) ? 'cartao_online.pago' : 'pix_online.pago', entidade: 'pedido', entidadeId: ped.id, dados: { mp_payment_id: pg.id, valor: pg.valor, taxa: pg.taxa, origem, ...(ehCartao(reg) ? { parcelas: pg.parcelas ?? null } : {}) } })
   // Agora sim: o que antes saía na criação do pedido.
   notificarPedido(admin, ped.id, 'recebido').catch(() => null)
   if (!ped.agendado_para) avisarPainelPedidoNovo(admin, reg.restaurante_id, { id: ped.id, numero: ped.numero, canal: ped.tipo }).catch(() => null)
@@ -247,9 +256,9 @@ async function confirmarPago(admin: SupabaseClient, reg: Reg, pg: PagamentoMp, p
 
 async function pagoDepoisDeCancelado(admin: SupabaseClient, reg: Reg, pg: PagamentoMp, ped: Reg, origem: string): Promise<ResultadoConferencia> {
   await admin.from('pagamentos_online').update({ status: 'a_devolver', pago_em: pg.aprovadoEm ?? new Date().toISOString(), taxa: pg.taxa, liquido: pg.liquido }).eq('id', reg.id)
-  await lancarRecebimento(admin, reg, pg, `Pix pago depois de ${ped.status === 'cancelado' ? 'cancelado' : 'expirado'} — a devolver`)
+  await lancarRecebimento(admin, reg, pg, `${NOME(reg)} pago depois de ${ped.status === 'cancelado' ? 'cancelado' : 'expirado'} — a devolver`)
   await criarAlerta(admin, { restauranteId: reg.restaurante_id, tipo: 'pix_online_a_devolver', gravidade: 'grave',
-    mensagem: `Pix de R$ ${Number(pg.valor).toFixed(2).replace('.', ',')} do pedido #${ped.numero} caiu DEPOIS de cancelado. Devolva em Integrações › Mercado Pago.`,
+    mensagem: `${NOME(reg)} de R$ ${Number(pg.valor).toFixed(2).replace('.', ',')} do pedido #${ped.numero} foi pago DEPOIS de cancelado. Devolva em Integrações › Mercado Pago.`,
     dados: { pagamento: reg.id, mp_payment_id: pg.id, pedido: ped.id }, dedupeMin: 24 * 60, dedupeChave: pg.id })
   await registrarAuditoria(admin, { restauranteId: reg.restaurante_id, usuarioNome: USUARIO_MP.nome, acao: 'pix_online.pago_apos_cancelado', entidade: 'pedido', entidadeId: ped.id, dados: { mp_payment_id: pg.id, valor: pg.valor, origem } })
   return 'a_devolver'
@@ -258,14 +267,15 @@ async function pagoDepoisDeCancelado(admin: SupabaseClient, reg: Reg, pg: Pagame
 /** Cancela o pedido que não foi pago no prazo: MP cancelado, benefícios devolvidos, cliente avisado. */
 async function expirarPedido(admin: SupabaseClient, reg: Reg, ped: Reg) {
   const { data: mudou } = await admin.from('pedidos').update({
-    status: 'cancelado', cancelado_motivo: 'pix_expirado', cancelado_observacao: 'Pix online não pago no prazo', cancelado_por: 'sistema',
+    status: 'cancelado', cancelado_motivo: ehCartao(reg) ? 'pagamento_expirado' : 'pix_expirado',
+    cancelado_observacao: ehCartao(reg) ? 'Cartão online não pago no prazo' : 'Pix online não pago no prazo', cancelado_por: 'sistema',
     cancelado_em: new Date().toISOString(), reimprimir: false,
   }).eq('id', ped.id).eq('status', 'aguardando_pagamento').select('id').maybeSingle()
   await admin.from('pagamentos_online').update({ status: 'expirado' }).eq('id', reg.id).in('status', ['pendente', 'verificacao_pendente'])
   if (!mudou) return
   await reverterBeneficiosPedidoCancelado(admin, reg.restaurante_id, ped.id)
   // Pedido feito pela IA no WhatsApp (12/10): a IA pergunta se gera outro Pix ou paga na entrega, no lugar do aviso de cancelado.
-  const pelaIa = await avisarPixExpiradoIa(admin, reg.restaurante_id, ped.id).catch(() => false)
+  const pelaIa = !ehCartao(reg) && (await avisarPixExpiradoIa(admin, reg.restaurante_id, ped.id).catch(() => false))
   if (!pelaIa) notificarPedido(admin, ped.id, 'cancelado').catch(() => null)
   await registrarAuditoria(admin, { restauranteId: reg.restaurante_id, usuarioNome: 'Sistema', acao: 'pix_online.expirado', entidade: 'pedido', entidadeId: ped.id, dados: { pagamento: reg.id } })
 }
@@ -308,10 +318,18 @@ export async function cancelarCobrancaPendente(admin: SupabaseClient, restaurant
 export async function verificarPendentes(admin: SupabaseClient, opcoes: { limite?: number } = {}) {
   const resumo = { consultadas: 0, confirmadas: 0, expiradas: 0, a_devolver: 0, erros: 0, renovadas: 0 }
   const agora = Date.now()
-  const { data: pend } = await admin.from('pagamentos_online').select('id, mp_payment_id, restaurante_id, pedido_id, expira_em, status')
+  const { data: pend } = await admin.from('pagamentos_online').select('id, mp_payment_id, restaurante_id, pedido_id, expira_em, status, metodo')
     .in('status', ['pendente', 'verificacao_pendente']).order('criado_em').limit(opcoes.limite ?? 200)
   for (const reg of pend ?? []) {
-    if (!reg.mp_payment_id) continue
+    // Cartão online sem nenhuma tentativa (cliente fechou a tela): só o prazo vale.
+    if (!reg.mp_payment_id) {
+      if (new Date(reg.expira_em).getTime() + 60_000 < agora) {
+        const { data: ped } = await admin.from('pedidos').select('id, status').eq('id', reg.pedido_id).single()
+        if (ped?.status === 'aguardando_pagamento') { await expirarPedido(admin, reg, ped); resumo.expiradas++ }
+        else await admin.from('pagamentos_online').update({ status: 'expirado' }).eq('id', reg.id).in('status', ['pendente', 'verificacao_pendente'])
+      }
+      continue
+    }
     resumo.consultadas++
     const r = await conferirPagamento(admin, reg.mp_payment_id, 'verificacao')
     if (r === 'confirmado') resumo.confirmadas++
@@ -350,7 +368,7 @@ export async function devolverPix(admin: SupabaseClient, p: {
   if (!motivo || motivo.length < 3) return { ok: false, erro: 'Escreva o motivo da devolução.', status: 400 }
   const { data: reg } = await admin.from('pagamentos_online').select('*').eq('id', p.pagamentoId).eq('restaurante_id', p.restauranteId).maybeSingle()
   if (!reg) return { ok: false, erro: 'Pagamento não encontrado.', status: 404 }
-  if (!['pago', 'a_devolver'].includes(reg.status)) return { ok: false, erro: 'Só dá para devolver um Pix pago.', status: 409 }
+  if (!['pago', 'a_devolver'].includes(reg.status)) return { ok: false, erro: `Só dá para devolver um ${ehCartao(reg) ? 'cartão' : 'Pix'} pago.`, status: 409 }
   const apr = await conferirAprovacao(admin, { restauranteId: p.restauranteId, solicitante: p.solicitante, aprovacao: p.aprovacao, acao: 'pix_online_devolver', valorCentavos: centavos(Number(reg.valor)), motivo, contexto: { pagamento: reg.id, pedido: reg.pedido_id } })
   if (!apr.ok) return { ok: false, erro: apr.erro, status: apr.status }
   let reembolso
@@ -365,14 +383,29 @@ export async function devolverPix(admin: SupabaseClient, p: {
   }).eq('id', reg.id)
   const { data: loja } = await admin.from('restaurantes').select('financeiro_ativo').eq('id', p.restauranteId).maybeSingle()
   if (loja?.financeiro_ativo) {
-    const { data: original } = await admin.from('fin_lancamentos').select('id').eq('restaurante_id', p.restauranteId).eq('chave_idempotencia', `pixonline:${reg.mp_payment_id}`).eq('linha', 1).maybeSingle()
+    const { data: original } = await admin.from('fin_lancamentos').select('id').eq('restaurante_id', p.restauranteId).eq('chave_idempotencia', `${CHAVE(reg)}:${reg.mp_payment_id}`).eq('linha', 1).maybeSingle()
     await lancar(admin, {
-      restauranteId: p.restauranteId, turnoId: await turnoAberto(admin, p.restauranteId), chave: `pixonline-devolucao:${reg.mp_payment_id}`, origem: 'online',
+      restauranteId: p.restauranteId, turnoId: await turnoAberto(admin, p.restauranteId), chave: `${CHAVE(reg)}-devolucao:${reg.mp_payment_id}`, origem: 'online',
       usuario: { id: p.solicitante.id, nome: p.solicitante.nome }, motivo, aprovacao: { id: apr.id, nome: apr.aprovadorNome },
-      linhas: [{ carteira: 'online', tipo: 'estorno', valorCentavos: -centavos(Number(reg.valor)), forma: 'pix_online', pedidoId: reg.pedido_id, pagamentoId: reg.id, referenciaId: original?.id ?? null, dados: { mp_payment_id: reg.mp_payment_id, devolucao_id: reembolso.id } }],
+      linhas: [{ carteira: 'online', tipo: 'estorno', valorCentavos: -centavos(Number(reg.valor)), forma: FORMA(reg), pedidoId: reg.pedido_id, pagamentoId: reg.id, referenciaId: original?.id ?? null, dados: { mp_payment_id: reg.mp_payment_id, devolucao_id: reembolso.id } }],
     })
   }
-  await registrarAuditoria(admin, { restauranteId: p.restauranteId, usuarioId: p.solicitante.id, usuarioNome: p.solicitante.nome, acao: 'pix_online.devolvido', entidade: 'pagamento_online', entidadeId: reg.id,
+  await registrarAuditoria(admin, { restauranteId: p.restauranteId, usuarioId: p.solicitante.id, usuarioNome: p.solicitante.nome, acao: ehCartao(reg) ? 'cartao_online.devolvido' : 'pix_online.devolvido', entidade: 'pagamento_online', entidadeId: reg.id,
     dados: { valor: reg.valor, motivo, aprovado_por: apr.aprovadorNome, devolucao_id: reembolso.id, pedido: reg.pedido_id } })
   return { ok: true, devolucaoId: reembolso.id }
+}
+
+/**
+ * Pedido cancelado no painel DEPOIS de pago online (Pix ou cartão, 12/10): o dinheiro está na conta da loja. Marca "a devolver"
+ * e alerta — a devolução é sempre de uma pessoa, com PIN de gerente (devolverPix). Nunca estorna sozinho.
+ */
+export async function aDevolverAoCancelar(admin: SupabaseClient, restauranteId: string, pedido: { id: string; numero: number | null }): Promise<number> {
+  const { data } = await admin.from('pagamentos_online').update({ status: 'a_devolver' })
+    .eq('restaurante_id', restauranteId).eq('pedido_id', pedido.id).eq('status', 'pago').select('id, valor, metodo')
+  for (const reg of data ?? []) {
+    await criarAlerta(admin, { restauranteId, tipo: 'pix_online_a_devolver', gravidade: 'grave',
+      mensagem: `${NOME(reg)} de R$ ${Number(reg.valor).toFixed(2).replace('.', ',')} do pedido #${pedido.numero ?? ''} foi pago e o pedido foi CANCELADO. Devolva em Integrações › Mercado Pago.`,
+      dados: { pagamento: reg.id, pedido: pedido.id }, dedupeMin: 24 * 60, dedupeChave: `cancelado:${reg.id}` })
+  }
+  return data?.length ?? 0
 }

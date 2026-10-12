@@ -1113,6 +1113,8 @@ export interface NovoPedidoInput {
    * conferir no servidor que a loja oferece (lib/pagamentos/pix-online.ts › pixOnlineDaLoja).
    */
   pixOnline?: boolean
+  /** Cartão online (12/10, Mercado Pago): mesmo fluxo do Pix online — nasce aguardando pagamento. Só a rota da vitrine liga. */
+  cartaoOnline?: boolean
   trocoPara: number | null
   /** Apenas informativo — a taxa real é recalculada no servidor (resolverFrete). */
   taxaEntrega?: number
@@ -1744,6 +1746,8 @@ export async function criarPedido(
   // Pix online: a rota da vitrine já conferiu que a loja oferece AGORA (flag + conta do Mercado Pago)
   // antes de chamar — este arquivo também roda no navegador e não fala com o MP.
   const pixOnline = input.pixOnline === true && input.pagamento === 'pix' && input.origem !== 'pdv'
+  const cartaoOnline = input.cartaoOnline === true && input.pagamento === 'cartao' && input.origem !== 'pdv'
+  const pagoOnline = pixOnline || cartaoOnline
 
   if (opcoes.gravar) {
     return opcoes.gravar({ subtotal, total, clienteNome: input.cliente.nome }, linhas)
@@ -1764,8 +1768,8 @@ export async function criarPedido(
       restaurante_id: restauranteId,
       tipo: input.tipo,
       // Pix online nasce esperando o pagamento (0147/0148): só vira "recebido" quando a API confirmar.
-      status: pixOnline ? 'aguardando_pagamento' : 'recebido',
-      pagamento_online: pixOnline,
+      status: pagoOnline ? 'aguardando_pagamento' : 'recebido',
+      pagamento_online: pagoOnline,
       origem_canal: input.origem === 'pdv' ? null : (input.origemCanal ?? null),
       origem_detalhe: input.origem === 'pdv' ? null : (input.origemDetalhe ?? null),
       cliente_nome: input.cliente.nome,

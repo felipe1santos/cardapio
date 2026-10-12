@@ -216,7 +216,7 @@ export function PainelPedido({
               <div className="flex items-start justify-between gap-3" data-testid="detalhes-pagamento">
                 <span className="text-text-subtle">Pagamento</span>
                 <span className="text-right">
-                  <span className="inline-flex items-center gap-1.5 font-semibold"><Icone className="h-4 w-4" aria-hidden /> {rotuloForma(p.formaPagamento, p.cartaoTipo)}</span>
+                  <span className="inline-flex items-center gap-1.5 font-semibold"><Icone className="h-4 w-4" aria-hidden /> {rotuloForma(p.formaPagamento, p.cartaoTipo, p.pagamentoOnline)}</span>
                   <br />{p.pago ? <span className="font-semibold text-price-text">Pago</span> : <span className="font-semibold text-[#92400E]">{statusAReceber(p.tipo)}</span>}
                   {p.formaPagamento === 'dinheiro' && p.trocoPara ? (
                     <><br /><span className="font-semibold text-[#92400E]" data-testid="painel-troco">Troco p/ {brl(p.trocoPara)}{levar > 0 ? ` · levar ${brl(levar)}` : ''}</span></>

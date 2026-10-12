@@ -3,6 +3,7 @@
 import { FotosCarrossel } from './fotos-carrossel'
 import { fotosDaVitrine } from '@/lib/fotos-item'
 import { TelaPixOnline, type PixAguardando } from '@/components/vitrine/tela-pix-online'
+import { TelaCartaoOnline, type CartaoAguardando } from '@/components/vitrine/tela-cartao-online'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { UtensilsCrossed, HandPlatter, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, ChevronRight, ChevronLeft, Clock, Gift, Ticket, Percent, Check, RotateCcw, Store, User } from 'lucide-react'
 import { BarraTotal, DiamanteRoxo, LinhaValor, OpcaoRadio, SeloRoxo, StepperRedondo, TituloSecao, VERDE_DESCONTO } from '@/components/vitrine/sacola-ifood'
@@ -2218,6 +2219,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   // Pix online (0148): a loja oferece agora? (o servidor decide; loja sem a flag: false e nada muda)
   const [pixOnline, setPixOnline] = useState(false)
   const [pixAguardando, setPixAguardando] = useState<(PixAguardando & { concluir: () => void }) | null>(null)
+  // Cartão online (12/10, Mercado Pago): mesma ideia — o servidor diz se a loja oferece agora.
+  const [cartaoOnline, setCartaoOnline] = useState(false)
+  const [cartaoAguardando, setCartaoAguardando] = useState<(CartaoAguardando & { concluir: () => void }) | null>(null)
   const [changeFor, setChangeFor] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
@@ -2534,11 +2538,19 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       .then((r) => (r.ok ? r.json() : null))
       .then((j: { ativo?: boolean } | null) => { if (vivo) setPixOnline(Boolean(j?.ativo)) })
       .catch(() => { if (vivo) setPixOnline(false) })
+    fetch(`/api/loja/${slug}/cartao-online`, { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { ativo?: boolean } | null) => { if (vivo) setCartaoOnline(Boolean(j?.ativo)) })
+      .catch(() => { if (vivo) setCartaoOnline(false) })
     return () => { vivo = false }
   }, [checkoutOpen, slug])
 
+  // A loja deixou de oferecer o cartão online com ele escolhido: volta para o Pix (o padrão).
+  useEffect(() => { if (!cartaoOnline && payMethod === 'Cartão online') setPayMethod('Pix') }, [cartaoOnline, payMethod])
+
   const PAY_MAP: Record<string, 'pix' | 'cartao' | 'dinheiro'> = {
     Pix: 'pix',
+    'Cartão online': 'cartao',
     'Cartão na entrega': 'cartao',
     Dinheiro: 'dinheiro',
   }
@@ -2594,6 +2606,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         pagamento: PAY_MAP[payMethod] ?? 'pix',
         // Pix online: o pedido espera o pagamento pelo QR; o servidor confere se a loja oferece.
         pixOnline: pixOnline && payMethod === 'Pix' ? true : undefined,
+        // Cartão online: o pedido espera o pagamento na tela do cartão (Mercado Pago).
+        cartaoOnline: cartaoOnline && payMethod === 'Cartão online' ? true : undefined,
         trocoPara: payMethod === 'Dinheiro' ? parseMoney(changeFor) : null,
         taxaEntrega: fee,
         itens: cart.map((l) => ({
@@ -2631,6 +2645,11 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       tentativaPedido.current = null
       if (data?.aguardandoPagamento && data?.pix && typeof data.id === 'string') {
         setPixAguardando({ id: data.id, numero: Number(data.numero) || 0, valor: Number(data.pix.valor), qrCode: data.pix.qrCode ?? null, qrCodeBase64: data.pix.qrCodeBase64 ?? null, expiraEm: String(data.pix.expiraEm), concluir: () => concluirPedido(data, payload) })
+        setCheckoutOpen(false)
+        return
+      }
+      if (data?.aguardandoPagamento && data?.cartao?.publicKey && typeof data.id === 'string') {
+        setCartaoAguardando({ id: data.id, numero: Number(data.numero) || 0, valor: Number(data.cartao.valor), publicKey: String(data.cartao.publicKey), parcelasMax: Number(data.cartao.parcelasMax) || 1, expiraEm: String(data.cartao.expiraEm), concluir: () => concluirPedido(data, payload) })
         setCheckoutOpen(false)
         return
       }
@@ -4588,6 +4607,15 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
           onFechar={() => setPixAguardando(null)}
         />
       )}
+      {cartaoAguardando && (
+        <TelaCartaoOnline
+          slug={slug}
+          cartao={cartaoAguardando}
+          onPago={() => { const c = cartaoAguardando; setCartaoAguardando(null); c.concluir() }}
+          onTrocar={() => { setCartaoAguardando(null); tentativaPedido.current = null; setCheckoutOpen(true) }}
+          onRefazer={() => { setCartaoAguardando(null); tentativaPedido.current = null; setCheckoutOpen(true) }}
+        />
+      )}
       {confirmacaoAberta && (
         <>
           <div className="fixed inset-0 z-[60] bg-[#111827]/60" onClick={() => setConfirmacaoAberta(false)} />
@@ -5229,17 +5257,27 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
           {checkoutOpen && (checkoutStep === 1 || checkoutStep === 3) && (
             <div className="px-[16px] pb-[20px]" data-testid="etapa-pagamento">
-              {pixOnline && (
+              {(pixOnline || cartaoOnline) && (
                 <section className="mb-[20px]" data-testid="pagar-agora">
                   <TituloSecao>Pagar agora</TituloSecao>
-                  <OpcaoRadio
+                  {pixOnline && <OpcaoRadio
                     ativo={payMethod === 'Pix'}
                     onClick={() => setPayMethod('Pix')}
                     titulo={rotuloPagamento('Pix', tipoPedido)}
                     subtitulo="Pix online: pague agora pelo app do banco (QR Code ou copia e cola)"
                     icone={<PixIcon className="h-[20px] w-[20px]" />}
                     testid="pagamento-pix-online"
-                  />
+                  />}
+                  {cartaoOnline && (
+                    <OpcaoRadio
+                      ativo={payMethod === 'Cartão online'}
+                      onClick={() => setPayMethod('Cartão online')}
+                      titulo="Cartão online"
+                      subtitulo="Crédito ou débito, pago agora pelo Mercado Pago"
+                      icone={<CreditCard className="h-[20px] w-[20px] text-[#1D4ED8]" strokeWidth={1.8} />}
+                      testid="pagamento-cartao-online"
+                    />
+                  )}
                 </section>
               )}
               <section className="mb-[20px]" data-testid="pagar-na-entrega">
@@ -5391,10 +5429,11 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     {payMethod === 'Pix' ? <PixIcon className="h-[18px] w-[18px]" /> : payMethod === 'Dinheiro' ? <Banknote className="h-[18px] w-[18px] text-[#0B7A3E]" strokeWidth={1.8} /> : <CreditCard className="h-[18px] w-[18px] text-[#1D4ED8]" strokeWidth={1.8} />}
                   </span>
                   <div className="min-w-0 flex-1 text-[14px] leading-[18px]">
-                    <div className="font-semibold text-[#3D3D3D]">{payMethod === 'Pix' && pixOnline ? 'Pagar agora · Pix online' : rotuloPagamento(payMethod, tipoPedido)}</div>
+                    <div className="font-semibold text-[#3D3D3D]">{payMethod === 'Pix' && pixOnline ? 'Pagar agora · Pix online' : payMethod === 'Cartão online' ? 'Pagar agora · Cartão online' : rotuloPagamento(payMethod, tipoPedido)}</div>
                     <div className="mt-[2px] text-[12px] leading-[16px] text-[#5C5C5C]">
                       {payMethod === 'Dinheiro' ? (changeFor ? `Troco para R$ ${changeFor}` : 'Sem troco')
                         : payMethod === 'Pix' ? (pixOnline ? 'O QR Code aparece logo depois de fazer o pedido' : 'Pagamento instantâneo')
+                        : payMethod === 'Cartão online' ? 'Você digita o cartão logo depois de fazer o pedido'
                         : tipoPedido === 'retirada' ? 'Na maquininha, ao retirar' : 'Na maquininha, na entrega'}
                     </div>
                   </div>

@@ -19,6 +19,8 @@ const PAGINAS: [prefixo: string, permissao: Permissao][] = [
   // Ver o salão e a conta: garçom e caixa. Cada ação confere a sua permissão por dentro.
   ['/admin/mesas', 'comanda.ver'],
   ['/admin/cozinha', 'cozinha.gerenciar'],
+  // KDS (prévia, 12/10): quem vê o Kanban vê a tela da cozinha. A página confere "Novidades em teste".
+  ['/admin/kds', 'pedidos.delivery.ver'],
   ['/admin/equipe', 'equipe.gerenciar'],
   ['/admin/auditoria', 'auditoria.ver'],
   ['/admin/lista-pedidos', 'logistica.operar'],

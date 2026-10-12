@@ -127,3 +127,11 @@ describe('todo item do menu tem ícone (com e sem "Novidades em teste")', () => 
     }
   })
 })
+
+describe('KDS (prévia, 12/10)', () => {
+  it('Tela da cozinha só aparece com Novidades em teste', () => {
+    const tem = (novidades: boolean) => itensDoMenu({ papel: 'dono', moduloMesas: false, usaLogistica: true, novidades }).some((i) => i.href === '/admin/kds')
+    expect(tem(true)).toBe(true)
+    expect(tem(false)).toBe(false)
+  })
+})

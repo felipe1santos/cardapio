@@ -43,7 +43,9 @@ export async function iniciarConexao(admin: SupabaseClient, p: { restauranteId: 
 async function gravarTokens(admin: SupabaseClient, restauranteId: string, t: TokensMp, extra: Record<string, unknown>) {
   const { error } = await admin.from('pagamentos_contas').upsert({
     restaurante_id: restauranteId, mp_user_id: t.userId, access_token_cifrado: cifrar(t.accessToken), refresh_token_cifrado: cifrar(t.refreshToken),
-    expira_em: t.expiraEm, status: 'conectada', erro: null, atualizado_em: new Date().toISOString(), ...extra,
+    expira_em: t.expiraEm, status: 'conectada', erro: null, atualizado_em: new Date().toISOString(),
+    // Chave PÚBLICA da conta (cartão online, 12/10): o Brick precisa dela no navegador. Só grava quando o MP manda.
+    ...(t.publicKey ? { public_key: t.publicKey.slice(0, 200) } : {}), ...extra,
   }, { onConflict: 'restaurante_id' })
   if (error) throw error
 }

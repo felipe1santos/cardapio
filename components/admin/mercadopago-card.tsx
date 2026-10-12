@@ -12,9 +12,11 @@ import { BotaoAjudaIntegracao } from '@/components/admin/integracoes/ajuda-integ
 interface Pagamento {
   id: string; numero: number | null; cliente: string | null; valor: number; status: string; taxa: number | null; liquido: number | null
   criado_em: string; pago_em: string | null; devolvido_em: string | null; aprovado_por_nome: string | null; motivo_devolucao: string | null
+  metodo?: string | null; cartao_final?: string | null; cartao_tipo?: string | null; parcelas?: number | null
 }
 interface Estado {
   servidorPronto: boolean; lojaLiberada: boolean; validadeMin: number; podeConectar: boolean
+  cartaoAtivo: boolean; parcelasMax: number; temChavePublica: boolean
   conta: { conectada: boolean; status: string | null; apelido: string | null; email: string | null; desde: string | null; final: string | null; ambiente: string | null; erro: string | null }
   pagamentos: Pagamento[]
 }
@@ -24,6 +26,12 @@ const ROTULO: Record<string, { t: string; cor: string }> = {
   pendente: { t: 'Aguardando', cor: '#B45309' }, pago: { t: 'Pago', cor: '#047857' }, expirado: { t: 'Expirou', cor: '#4B5563' },
   cancelado: { t: 'Cancelado', cor: '#4B5563' }, a_devolver: { t: 'A devolver', cor: '#B91C1C' }, devolvido: { t: 'Devolvido', cor: '#1D4ED8' },
   verificacao_pendente: { t: 'Verificação pendente', cor: '#B45309' }, erro: { t: 'Não confere', cor: '#B91C1C' },
+}
+/** "Pix" ou "Cartão •••• 1234" (crédito/débito, parcelas) — nunca o número. */
+function formaDoPagamento(p: Pagamento): string {
+  if (p.metodo !== 'cartao') return 'Pix'
+  const tipo = p.cartao_tipo === 'debito' ? ' débito' : p.cartao_tipo === 'credito' ? ' crédito' : ''
+  return `Cartão${tipo}${p.cartao_final ? ` •••• ${p.cartao_final}` : ''}${p.parcelas && p.parcelas > 1 ? ` ${p.parcelas}x` : ''}`
 }
 
 export function MercadoPagoCard({ avisar }: { avisar: (m: string) => void }) {
@@ -58,6 +66,12 @@ export function MercadoPagoCard({ avisar }: { avisar: (m: string) => void }) {
     const r = await fetch('/api/admin/pix-online', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ validadeMin: min }) })
     if (r.ok) { avisar(`Validade do Pix: ${min} minutos.`); void carregar() }
   }
+  async function salvarCartao(mudar: { cartaoAtivo?: boolean; parcelasMax?: number }) {
+    const r = await fetch('/api/admin/pix-online', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(mudar) })
+    if (!r.ok) { avisar('Não foi possível salvar.'); return }
+    avisar(mudar.cartaoAtivo === true ? 'Cartão online ligado na vitrine.' : mudar.cartaoAtivo === false ? 'Cartão online desligado.' : mudar.parcelasMax === 1 ? 'Cartão: só à vista.' : `Cartão: até ${mudar.parcelasMax}x.`)
+    void carregar()
+  }
   async function verificarChave() {
     setOcupado(true)
     const r = await fetch('/api/admin/pix-online', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ acao: 'verificar_chave' }) }).catch(() => null)
@@ -75,7 +89,7 @@ export function MercadoPagoCard({ avisar }: { avisar: (m: string) => void }) {
     setOcupado(false)
     if (!r.ok) { setErro(j.error ?? 'Não foi possível devolver.'); return }
     setDevolver(null); setMotivo(''); setEtapa('motivo')
-    avisar('Pix devolvido ao cliente.'); void carregar()
+    avisar(devolver.metodo === 'cartao' ? 'Pagamento com cartão devolvido ao cliente.' : 'Pix devolvido ao cliente.'); void carregar()
   }
 
   // Loja sem o Pix online liberado: o card nem aparece (nada muda em Integrações).
@@ -85,7 +99,7 @@ export function MercadoPagoCard({ avisar }: { avisar: (m: string) => void }) {
     <section className="flex h-full flex-col rounded-[12px] border border-[#E5E7EB] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]" data-testid="cartao-mercadopago">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-[15px] font-semibold text-text-main">Mercado Pago · Pix online</p>
+          <p className="text-[15px] font-semibold text-text-main">Mercado Pago · Pix e cartão online</p>
           <p className="mt-[2px] text-[12.5px] text-text-subtle">O cliente paga o Pix na hora, pelo QR; o pedido só vai para a cozinha depois que o Mercado Pago confirma. O dinheiro cai na conta da loja.</p>
         </div>
         <div className="flex flex-shrink-0 items-center gap-1">
@@ -129,9 +143,29 @@ export function MercadoPagoCard({ avisar }: { avisar: (m: string) => void }) {
         </div>
       )}
 
+      {e.podeConectar && e.lojaLiberada && c.conectada && (
+        <div className="mt-[12px] rounded-[8px] border border-[#E5E7EB] px-[12px] py-[10px]" data-testid="mp-cartao">
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex cursor-pointer items-center gap-2 text-[13px] font-semibold text-text-main">
+              <input type="checkbox" checked={e.cartaoAtivo} onChange={(ev) => void salvarCartao({ cartaoAtivo: ev.target.checked })} className="h-[18px] w-[18px] accent-[#0688D4]" data-testid="mp-cartao-ativo" />
+              Cartão online (crédito e débito)
+            </label>
+            <label className="ml-auto flex items-center gap-2 text-[12.5px] text-text-main">Parcelas
+              <select value={e.parcelasMax} onChange={(ev) => void salvarCartao({ parcelasMax: Number(ev.target.value) })} className="h-[36px] rounded-[3px] border border-[#CBD2D9] bg-white px-2 text-[13px]" data-testid="mp-parcelas">
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n === 1 ? 'Só à vista' : `Até ${n}x`}</option>)}
+              </select>
+            </label>
+          </div>
+          <p className="mt-[6px] text-[12px] leading-[16px] text-text-subtle">
+            O cliente paga na vitrine pelo formulário seguro do Mercado Pago (os dados do cartão não passam pela Menuzia). Parcelado: os juros seguem o que está configurado na sua conta do Mercado Pago — &quot;sem juros&quot; só se você ativar lá.
+          </p>
+          {e.cartaoAtivo && !e.temChavePublica && <p className="mt-[6px] text-[12px] font-semibold text-[#92400E]">Falta a chave pública da conta: desconecte e conecte o Mercado Pago de novo.</p>}
+        </div>
+      )}
+
       {e.pagamentos.length > 0 && (
         <div className="mt-[14px]">
-          <p className="mb-[6px] text-[12px] font-semibold uppercase tracking-wide text-text-subtle">Últimos Pix online</p>
+          <p className="mb-[6px] text-[12px] font-semibold uppercase tracking-wide text-text-subtle">Últimos pagamentos online</p>
           <ul className="divide-y divide-[#E5E7EB] text-[13px]" data-testid="mp-pagamentos">
             {e.pagamentos.slice(0, 12).map((p) => {
               const r = ROTULO[p.status] ?? { t: p.status, cor: '#4B5563' }
@@ -139,6 +173,7 @@ export function MercadoPagoCard({ avisar }: { avisar: (m: string) => void }) {
                 <li key={p.id} className="flex items-center gap-2 py-[7px]">
                   <span className="w-[54px] font-semibold">#{p.numero ?? '—'}</span>
                   <span className="min-w-0 flex-1 truncate text-text-subtle">{p.cliente ?? ''}</span>
+                  <span className="flex-shrink-0 text-[12px] text-text-subtle" data-testid="mp-forma">{formaDoPagamento(p)}</span>
                   <span className="font-semibold">{brl(p.valor)}</span>
                   <span className="rounded-[3px] px-[6px] py-[2px] text-[11px] font-semibold text-white" style={{ background: r.cor }}>{r.t}</span>
                   {['pago', 'a_devolver'].includes(p.status) && (
@@ -152,7 +187,7 @@ export function MercadoPagoCard({ avisar }: { avisar: (m: string) => void }) {
       )}
 
       {devolver && (
-        <Janela titulo={`Devolver Pix do pedido #${devolver.numero ?? ''}`} onFechar={() => setDevolver(null)} testid="janela-devolver-pix">
+        <Janela titulo={`Devolver ${devolver.metodo === 'cartao' ? 'cartão' : 'Pix'} do pedido #${devolver.numero ?? ''}`} onFechar={() => setDevolver(null)} testid="janela-devolver-pix">
           <p className="text-[13px] text-text-main">Devolve {brl(devolver.valor)} ao cliente pelo Mercado Pago (valor total). Precisa da aprovação de um gerente ou do dono — nunca de quem pediu.</p>
           {etapa === 'motivo' ? (
             <>

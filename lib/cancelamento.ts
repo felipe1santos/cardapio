@@ -9,6 +9,7 @@ export type MotivoCancelamento =
   | 'outro'
   | 'nao_entregue'
   | 'pix_expirado'
+  | 'pagamento_expirado'
 
 const ROTULOS: Record<MotivoCancelamento, string> = {
   teste: 'Pedido teste',
@@ -18,6 +19,7 @@ const ROTULOS: Record<MotivoCancelamento, string> = {
   outro: 'Outro motivo',
   nao_entregue: 'Não entregue pelo entregador',
   pix_expirado: 'Pix não pago no prazo',
+  pagamento_expirado: 'Pagamento online não feito no prazo',
 }
 
 /** Motivos oferecidos no modal do Kanban. `nao_entregue` fica de fora: é gravado

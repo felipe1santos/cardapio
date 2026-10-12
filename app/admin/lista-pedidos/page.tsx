@@ -258,7 +258,7 @@ function ResumoPedido({ order, selo, extra }: { order: Pedido; selo?: React.Reac
         <span>{endereco(order)}</span>
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Badge tone={order.formaPagamento === 'dinheiro' ? 'pending' : 'alert'}>{rotuloForma(order.formaPagamento, order.cartaoTipo)}</Badge>
+        <Badge tone={order.formaPagamento === 'dinheiro' ? 'pending' : 'alert'}>{rotuloForma(order.formaPagamento, order.cartaoTipo, order.pagamentoOnline)}</Badge>
         {order.formaPagamento === 'dinheiro' && order.trocoPara !== null && <Badge tone="paused">Troco para {brl(order.trocoPara)}</Badge>}
         {!order.pago && <Badge tone="paused">{order.tipo === 'entrega' ? 'A receber' : 'A pagar'}</Badge>}
         <span className="text-[13.5px] font-semibold tabular-nums text-price-text">{brl(order.total)}</span>
@@ -1322,7 +1322,7 @@ export default function PedidosFinalizadosPage() {
                       {!entregue && <Badge tone="danger">Cancelado</Badge>}
                       {entregue && order.entregueAutomatico && <Badge tone="alert" data-testid="selo-entregue-automatico">Entregue (automático)</Badge>}
                       <span className="hidden flex-shrink-0 sm:inline">
-                        <Badge tone={order.formaPagamento === 'dinheiro' ? 'pending' : 'alert'}>{rotuloForma(order.formaPagamento, order.cartaoTipo)}</Badge>
+                        <Badge tone={order.formaPagamento === 'dinheiro' ? 'pending' : 'alert'}>{rotuloForma(order.formaPagamento, order.cartaoTipo, order.pagamentoOnline)}</Badge>
                       </span>
                       <span className="w-[84px] flex-shrink-0 text-right font-semibold tabular-nums text-price-text">{brl(order.total)}</span>
                     </button>

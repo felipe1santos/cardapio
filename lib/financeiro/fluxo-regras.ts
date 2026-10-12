@@ -315,7 +315,7 @@ export const ROTULO_CARTEIRA: Record<string, string> = {
 }
 export const ROTULO_FORMA: Record<string, string> = {
   dinheiro: 'Dinheiro', pix: 'Pix', credito: 'Crédito', debito: 'Débito', cartao: 'Cartão', vale: 'Vale', fiado: 'Fiado',
-  transferencia: 'Transferência', boleto: 'Boleto', outro: 'Outro',
+  transferencia: 'Transferência', boleto: 'Boleto', outro: 'Outro', pix_online: 'Pix online', cartao_online: 'Cartão online',
 }
 export const ROTULO_ORIGEM: Record<string, string> = {
   pdv: 'PDV', balcao: 'Balcão', mesa: 'Mesa', delivery: 'Delivery', motoboy: 'Motoboy', online: 'Online', manual: 'Manual', sistema: 'Sistema',

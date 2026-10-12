@@ -26,6 +26,7 @@ export const NAV_ITEMS = [
   { href: '/admin/pdv', label: 'PDV' },
   { href: '/admin/mesas', label: 'Mesas e Comandas' },
   { href: '/admin/cozinha', label: 'Cozinha' },
+  { href: '/admin/kds', label: 'Tela da cozinha' },
   { href: '/admin/lista-pedidos', label: 'Pedidos' },
   { href: '/admin/financeiro', label: 'Financeiro' },
   { href: '/admin/cardapio', label: 'Cardápio' },
@@ -62,6 +63,7 @@ export const PERMISSAO_DO_MENU: Record<string, Permissao> = {
   '/admin/pdv': 'pedidos.balcao.criar',
   '/admin/mesas': 'comanda.ver',
   '/admin/cozinha': 'cozinha.gerenciar',
+  '/admin/kds': 'pedidos.delivery.ver',
   '/admin/lista-pedidos': 'logistica.operar',
   '/admin/financeiro': 'pedidos.delivery.ver',
   '/admin/cardapio': 'cardapio.editar',
@@ -98,6 +100,8 @@ export function itensDoMenu(opcoes: {
     if (item.href === '/admin/lista-pedidos' && !opcoes.usaLogistica) continue
     if (item.href === '/admin/mesas' && !opcoes.moduloMesas) continue
     if (opcoes.novidades && FORA_DO_MENU_NOVO.has(item.href)) continue
+    // KDS (prévia, 12/10): só com "Novidades em teste".
+    if (item.href === '/admin/kds' && !opcoes.novidades) continue
     if (opcoes.papel !== null) {
       const exigida = PERMISSAO_DO_MENU[item.href]
       if (exigida && !pode(opcoes.papel, exigida)) {

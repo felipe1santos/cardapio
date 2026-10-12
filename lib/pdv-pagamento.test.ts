@@ -34,6 +34,10 @@ describe('pagamento do PDV', () => {
   it('rótulos e status (nunca "pago" antes da hora)', () => {
     expect(rotuloForma('cartao', 'debito')).toBe('Cartão débito')
     expect(rotuloForma('cartao', null)).toBe('Cartão')
+    // Pago pela vitrine (Mercado Pago, 12/10): o painel diz que foi online.
+    expect(rotuloForma('cartao', null, true)).toBe('Cartão online')
+    expect(rotuloForma('pix', null, true)).toBe('Pix online')
+    expect(rotuloForma('dinheiro', null, true)).toBe('Dinheiro')
     expect(statusAReceber('entrega')).toBe('A receber na entrega')
     expect(statusAReceber('retirada')).toBe('A pagar na retirada')
   })

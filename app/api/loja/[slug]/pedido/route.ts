@@ -6,6 +6,7 @@ import { notificarPedido } from '@/lib/whatsapp'
 import { registrarPedidoDoPush } from '@/lib/push/motor'
 import { avisarPainelPedidoNovo } from '@/lib/push/painel-pedidos'
 import { criarCobrancaPix, pixOnlineDaLoja } from '@/lib/pagamentos/pix-online'
+import { cartaoOnlineDaLoja, prepararCartao } from '@/lib/pagamentos/cartao-online'
 import { reverterBeneficiosPedidoCancelado } from '@/lib/fidelidade'
 import { enviarPurchaseCapi } from '@/lib/meta-capi'
 import { ipDaRequisicao } from '@/lib/limite-taxa'
@@ -59,6 +60,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
   if (input.pixOnline && !(await pixOnlineDaLoja(admin, loja.id).catch(() => ({ ativo: false }))).ativo) {
     return NextResponse.json({ error: 'O Pix online não está disponível agora. Escolha outra forma de pagamento.' }, { status: 409 })
   }
+  // Cartão online (12/10): a mesma regra — a loja tem que oferecer agora (flag + conta + chave pública).
+  if (input.cartaoOnline && input.pagamento === 'cartao' && !(await cartaoOnlineDaLoja(admin, loja.id).catch(() => ({ ativo: false }))).ativo) {
+    return NextResponse.json({ error: 'O pagamento com cartão online não está disponível agora. Escolha outra forma de pagamento.' }, { status: 409 })
+  }
 
   try {
     let pedido: { id: string; numero: number }
@@ -91,6 +96,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
         return NextResponse.json({ error: 'Não foi possível gerar o Pix agora. Escolha outra forma de pagamento.' }, { status: 502 })
       }
     }
+    // Cartão online: igual ao Pix — nada de aviso agora; a confirmação (lib/pagamentos/pix-online.ts › confirmarPago) avisa.
+    if (input.cartaoOnline && input.pagamento === 'cartao') {
+      try {
+        const cartao = await prepararCartao(admin, { restauranteId: loja.id, pedidoId: pedido.id, contexto: contextoCompra })
+        return NextResponse.json({ ...pedido, aguardandoPagamento: true, cartao }, { status: 201 })
+      } catch (e) {
+        console.error('[cartao-online] espera não criada:', (e as Error).message?.slice(0, 160))
+        await cancelarSemCobranca(admin, loja.id, pedido.id, 'Cartão online: não foi possível preparar o pagamento')
+        return NextResponse.json({ error: 'Não foi possível abrir o pagamento com cartão agora. Escolha outra forma de pagamento.' }, { status: 502 })
+      }
+    }
     notificarPedido(admin, pedido.id, 'recebido').catch((err) => console.error('[whatsapp] erro ao notificar pedido recebido', err))
     // Push do painel (0146): a equipe ouve o pedido novo com o celular/tablet de tela apagada.
     // Agendado não é pedido novo agora — entra no Kanban perto do horário.
@@ -115,6 +131,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
 async function comPix(admin: ReturnType<typeof getAdminSupabase>, restauranteId: string, pedido: { id: string; numero: number }) {
   const { data } = await admin.from('pedidos').select('status').eq('id', pedido.id).maybeSingle()
   if (data?.status !== 'aguardando_pagamento') return pedido
+  const { data: reg } = await admin.from('pagamentos_online').select('metodo').eq('pedido_id', pedido.id).eq('status', 'pendente').maybeSingle()
+  if (reg?.metodo === 'cartao') {
+    try { return { ...pedido, aguardandoPagamento: true, cartao: await prepararCartao(admin, { restauranteId, pedidoId: pedido.id }) } } catch { return { ...pedido, aguardandoPagamento: true } }
+  }
   try {
     return { ...pedido, aguardandoPagamento: true, pix: await criarCobrancaPix(admin, { restauranteId, pedidoId: pedido.id }) }
   } catch {
@@ -123,9 +143,9 @@ async function comPix(admin: ReturnType<typeof getAdminSupabase>, restauranteId:
 }
 
 /** O MP não gerou a cobrança: o pedido não pode ficar esperando um Pix que não existe. */
-async function cancelarSemCobranca(admin: ReturnType<typeof getAdminSupabase>, restauranteId: string, pedidoId: string) {
+async function cancelarSemCobranca(admin: ReturnType<typeof getAdminSupabase>, restauranteId: string, pedidoId: string, observacao = 'Pix online: o Mercado Pago não gerou a cobrança') {
   const { data } = await admin.from('pedidos').update({
-    status: 'cancelado', cancelado_motivo: 'outro', cancelado_observacao: 'Pix online: o Mercado Pago não gerou a cobrança', cancelado_por: 'sistema',
+    status: 'cancelado', cancelado_motivo: 'outro', cancelado_observacao: observacao, cancelado_por: 'sistema',
     cancelado_em: new Date().toISOString(), reimprimir: false,
   }).eq('id', pedidoId).eq('status', 'aguardando_pagamento').select('id').maybeSingle()
   if (data) await reverterBeneficiosPedidoCancelado(admin, restauranteId, pedidoId)

@@ -20,6 +20,17 @@ export interface PagamentoMp {
   id: string; status: string; statusDetail: string | null; externalReference: string | null
   valor: number; moeda: string; coletorId: string | null; taxa: number; liquido: number | null
   aprovadoEm: string | null; metodo: string | null
+  /** payment_type_id: 'credit_card' | 'debit_card' | 'bank_transfer' (Pix)… */
+  tipo?: string | null
+  /** Só os últimos 4 dígitos (o MP devolve; nunca o número). */
+  cartaoFinal?: string | null
+  parcelas?: number | null
+}
+
+/** Dados que o Card Payment Brick devolve no navegador (o token substitui o cartão; nada sensível). */
+export interface PagamentoCartao {
+  valor: number; token: string; metodoId: string; emissorId: string | null; parcelas: number; descricao: string; referencia: string
+  email: string; documento: { tipo: string; numero: string } | null; notificacaoUrl: string | null; idempotencia: string
 }
 export interface ReembolsoMp { id: string; status: string; valor: number }
 
@@ -31,6 +42,8 @@ export interface ProvedorMp {
   consultar(accessToken: string, pagamentoId: string): Promise<PagamentoMp>
   cancelar(accessToken: string, pagamentoId: string): Promise<void>
   reembolsar(accessToken: string, pagamentoId: string, idempotencia: string): Promise<ReembolsoMp>
+  /** Cartão online (12/10): cria o pagamento com o token do Brick. Devolve o pagamento já com o status (aprovado/recusado/em análise). */
+  pagarCartao(accessToken: string, p: PagamentoCartao): Promise<PagamentoMp>
 }
 
 export class ErroMp extends Error {
@@ -74,6 +87,9 @@ export function lerPagamento(j: Record<string, unknown>): PagamentoMp {
     coletorId: coletor == null ? null : String(coletor), taxa: Math.round(taxas * 100) / 100,
     liquido: det.net_received_amount == null ? null : Number(det.net_received_amount), aprovadoEm: (j.date_approved as string) ?? null,
     metodo: (j.payment_method_id as string) ?? null,
+    tipo: (j.payment_type_id as string) ?? null,
+    cartaoFinal: ((j.card as { last_four_digits?: unknown } | undefined)?.last_four_digits as string) ?? null,
+    parcelas: j.installments == null ? null : Number(j.installments),
   }
 }
 
@@ -115,6 +131,14 @@ const provedorReal: ProvedorMp = {
   },
   async consultar(token, id) { return lerPagamento(await chamar(`/v1/payments/${encodeURIComponent(id)}`, { token })) },
   async cancelar(token, id) { await chamar(`/v1/payments/${encodeURIComponent(id)}`, { metodo: 'PUT', token, corpo: { status: 'cancelled' } }) },
+  async pagarCartao(token, p) {
+    return lerPagamento(await chamar('/v1/payments', { metodo: 'POST', token, idempotencia: p.idempotencia, corpo: {
+      transaction_amount: p.valor, token: p.token, description: p.descricao, installments: p.parcelas, payment_method_id: p.metodoId,
+      ...(p.emissorId ? { issuer_id: p.emissorId } : {}), external_reference: p.referencia, binary_mode: false,
+      payer: { email: p.email, ...(p.documento ? { identification: { type: p.documento.tipo, number: p.documento.numero } } : {}) },
+      ...(p.notificacaoUrl ? { notification_url: p.notificacaoUrl } : {}),
+    } }))
+  },
   async reembolsar(token, id, idem) {
     const j = await chamar(`/v1/payments/${encodeURIComponent(id)}/refunds`, { metodo: 'POST', token, idempotencia: idem, corpo: {} })
     return { id: String(j.id), status: String(j.status ?? 'approved'), valor: Number(j.amount ?? 0) }
@@ -125,7 +149,7 @@ const provedorReal: ProvedorMp = {
 interface EstadoSim {
   contas: Record<string, { userId: string; refresh: string; expiraEm: string; apelido: string }> // por access token
   codigos: Record<string, { userId: string; desafio?: string }>
-  pagamentos: Record<string, { id: string; token: string; userId: string; status: string; valor: number; referencia: string; expiraEm: string; idem: string; taxa: number; reembolsos: string[] }>
+  pagamentos: Record<string, { id: string; token: string; userId: string; status: string; valor: number; referencia: string; expiraEm: string; idem: string; taxa: number; reembolsos: string[]; metodo?: string; tipo?: string; detalhe?: string | null; parcelas?: number }>
   falhas?: { renovar?: boolean; consultar?: boolean; semChavePix?: boolean }
 }
 const arquivoSim = () => process.env.MP_SIMULADO_ARQUIVO || ''
@@ -186,11 +210,21 @@ const provedorSimulado: ProvedorMp = {
     const pg = e.pagamentos[id]
     if (!pg) throw new ErroMp(404, 'MP 404: payment not found (simulado)')
     const aprovado = pg.status === 'approved' || pg.status === 'refunded'
-    return { id: pg.id, status: pg.status, statusDetail: null, externalReference: pg.referencia, valor: pg.valor, moeda: 'BRL', coletorId: pg.userId, taxa: aprovado ? pg.taxa : 0, liquido: aprovado ? Math.round((pg.valor - pg.taxa) * 100) / 100 : null, aprovadoEm: aprovado ? new Date().toISOString() : null, metodo: 'pix' }
+    return { id: pg.id, status: pg.status, statusDetail: pg.detalhe ?? null, externalReference: pg.referencia, valor: pg.valor, moeda: 'BRL', coletorId: pg.userId, taxa: aprovado ? pg.taxa : 0, liquido: aprovado ? Math.round((pg.valor - pg.taxa) * 100) / 100 : null, aprovadoEm: aprovado ? new Date().toISOString() : null, metodo: pg.metodo ?? 'pix', tipo: pg.tipo ?? 'bank_transfer', cartaoFinal: pg.tipo ? '4242' : null, parcelas: pg.parcelas ?? null }
   },
   async cancelar(token, id) {
     contaSim(token); const e = lerSim(); const pg = e.pagamentos[id]
     if (pg && pg.status === 'pending') { pg.status = 'cancelled'; gravarSim(e) }
+  },
+  // Igual aos cartões de teste do MP: o NOME do titular decide (APRO aprova, OTHE recusa, CONT fica em análise). Aqui o token simulado traz o nome.
+  async pagarCartao(token, p) {
+    const c = contaSim(token); const e = lerSim()
+    const igual = Object.values(e.pagamentos).find((x) => x.idem === p.idempotencia && x.token === token)
+    const nome = p.token.toUpperCase()
+    const status = nome.includes('OTHE') ? 'rejected' : nome.includes('CONT') ? 'in_process' : 'approved'
+    const pg = igual ?? { id: String(2_000_000_000 + Math.floor(Math.random() * 1e9)), token, userId: c.userId, status, valor: p.valor, referencia: p.referencia, expiraEm: new Date(Date.now() + 3600_000).toISOString(), idem: p.idempotencia, taxa: Math.round(p.valor * 3.99) / 100, reembolsos: [], metodo: p.metodoId, tipo: p.metodoId.startsWith('deb') ? 'debit_card' : 'credit_card', detalhe: status === 'rejected' ? 'cc_rejected_insufficient_amount' : status === 'in_process' ? 'pending_contingency' : 'accredited', parcelas: p.parcelas }
+    e.pagamentos[pg.id] = pg; gravarSim(e)
+    return this.consultar(token, pg.id)
   },
   async reembolsar(token, id, idem) {
     contaSim(token); const e = lerSim(); const pg = e.pagamentos[id]

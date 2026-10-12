@@ -41,7 +41,10 @@ export function daPedido(forma: string | null | undefined, cartaoTipo: string | 
 }
 
 /** Rótulo curto em qualquer tela: "Dinheiro", "Pix", "Cartão crédito", "Cartão" (vitrine, sem detalhe). */
-export function rotuloForma(forma: string | null | undefined, cartaoTipo?: string | null): string {
+export function rotuloForma(forma: string | null | undefined, cartaoTipo?: string | null, online?: boolean): string {
+  // Pago pela vitrine (Pix ou cartão online, Mercado Pago): não é maquininha nem Pix manual.
+  if (online && forma === 'cartao') return 'Cartão online'
+  if (online && forma === 'pix') return 'Pix online'
   if (forma === 'cartao') return cartaoTipo === 'debito' ? 'Cartão débito' : cartaoTipo === 'credito' ? 'Cartão crédito' : 'Cartão'
   if (forma === 'pix') return 'Pix'
   if (forma === 'dinheiro') return 'Dinheiro'

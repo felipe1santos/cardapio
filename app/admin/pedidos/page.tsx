@@ -1042,7 +1042,7 @@ export default function PedidosPage() {
                     const selecionado = detail?.id === order.id
                     const IconePag = order.formaPagamento === 'dinheiro' ? Banknote : order.formaPagamento === 'pix' ? QrCode : CreditCard
                     const dicaPag = [
-                      rotuloForma(order.formaPagamento, order.cartaoTipo),
+                      rotuloForma(order.formaPagamento, order.cartaoTipo, order.pagamentoOnline),
                       order.pago ? 'Pago' : statusAReceber(order.tipo),
                       order.formaPagamento === 'dinheiro' && order.trocoPara ? `Troco p/ ${brl(order.trocoPara)}` : null,
                     ].filter(Boolean).join(' · ')

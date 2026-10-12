@@ -8,6 +8,7 @@ import { motivoValido, rotuloMotivo, STATUS_NAO_CANCELAVEIS } from '@/lib/cancel
 import * as conta from '@/lib/servicos/conta-presencial'
 import { registrarAuditoria } from '@/lib/auditoria'
 import { avisarDonoSensivel, exigirSegundaPessoa, foiParaCozinha } from '@/lib/financeiro/aprovacao-sensivel'
+import { aDevolverAoCancelar } from '@/lib/pagamentos/pix-online'
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -117,6 +118,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     dados: { motivo, observacao: observacao || null, canal: 'delivery' },
   }).catch(() => {})
   if (sensivel) await avisarDonoSensivel(admin, { sessao: eu, acao: 'cancelamento', aprovadoPor, resumo, motivo: textoMotivo })
+  // Pago online (Pix ou cartão): fica "a devolver" com alerta; a devolução é de uma pessoa, com PIN (12/10).
+  await aDevolverAoCancelar(admin, restauranteId, { id, numero: ped.numero as number }).catch(() => 0)
 
   reverterBeneficiosPedidoCancelado(admin, restauranteId, id).catch(console.error)
   return NextResponse.json({ ok: true })

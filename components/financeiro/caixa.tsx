@@ -38,8 +38,8 @@ function LinhasPixOnline({ p }: { p?: Pendencias['pixOnline'] }) {
   if (!p || (!p.turno.qtd && !p.caixaFechado.qtd)) return null
   return (
     <div className="mt-[10px] rounded-[3px] bg-[#F0F7FF] px-[10px] py-[8px] text-[12.5px] text-text-main" data-testid="fechar-pix-online">
-      {p.turno.qtd > 0 && <p>Pix online no turno: {p.turno.qtd}, {brl(p.turno.brutoCentavos)} (taxa do Mercado Pago {brl(p.turno.taxaCentavos)}; líquido {brl(p.turno.brutoCentavos - p.turno.taxaCentavos)})</p>}
-      {p.caixaFechado.qtd > 0 && <p data-testid="fechar-pix-online-fechado">Pix online recebido com o caixa fechado: {p.caixaFechado.qtd}, {brl(p.caixaFechado.brutoCentavos)}</p>}
+      {p.turno.qtd > 0 && <p>Pago online (Pix e cartão) no turno: {p.turno.qtd}, {brl(p.turno.brutoCentavos)} (taxa do Mercado Pago {brl(p.turno.taxaCentavos)}; líquido {brl(p.turno.brutoCentavos - p.turno.taxaCentavos)})</p>}
+      {p.caixaFechado.qtd > 0 && <p data-testid="fechar-pix-online-fechado">Pago online (Pix e cartão) com o caixa fechado: {p.caixaFechado.qtd}, {brl(p.caixaFechado.brutoCentavos)}</p>}
       <p className="text-text-subtle">Fica na conta do Mercado Pago: não entra na conferência da gaveta.</p>
     </div>
   )
