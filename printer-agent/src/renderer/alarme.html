@@ -2,21 +2,17 @@
 <html lang="pt-BR"><head><meta charset="utf-8"><title>Alarme</title></head>
 <body>
 <!-- Alarme de pedido novo: janela oculta; o som vem do instalador (nada baixado da internet).
-     1.2.1: um toque de N s (o mp3 de 2 s em repetição até o prazo) e para sozinho. Toque novo com o som tocando
-     recomeça o prazo do MESMO som (não empilha). -->
+     1.2.2: um som único de 3 s, tocado UMA vez (sem loop). Pedido chegando com o som tocando não toca outro por cima. -->
 <audio id="a" src="alarme.mp3" preload="auto"></audio>
 <script>
   const a = document.getElementById('a')
   const vol = (v) => Math.max(0.1, Math.min(1, Number(v) || 1))
-  let fim = null
-  window.parar = () => { clearTimeout(fim); fim = null; a.pause(); a.loop = false; a.currentTime = 0; return true }
-  window.tocar = (v, seg) => {
+  window.tocar = (v) => {
     a.volume = vol(v)
-    clearTimeout(fim)
-    fim = setTimeout(window.parar, Math.max(1, Number(seg) || 8) * 1000)
-    a.loop = true
-    if (a.paused) { a.currentTime = 0; return a.play().then(() => true, () => { window.parar(); return false }) }
-    return Promise.resolve(true)
+    a.loop = false
+    if (!a.paused && !a.ended) return Promise.resolve(true)
+    a.currentTime = 0
+    return a.play().then(() => true, () => false)
   }
   window.volume = (v) => { a.volume = vol(v); return true }
 </script>

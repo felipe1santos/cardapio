@@ -1,16 +1,16 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { DURACAO_TOQUE_SEG, pedidosParaTocar, reivindicarToque, type MotivoFalhaSom } from '@/lib/alarme-pedidos'
+import { pedidosParaTocar, reivindicarToque, type MotivoFalhaSom } from '@/lib/alarme-pedidos'
 
 /**
  * Alarme de pedido novo do painel (2026-10-03; desde 2026-10-04 vive no layout, em toda tela —
  * components/admin/alarme-global.tsx).
  *
  *
- * - mp3 decodificado no Web Audio. 12/10 (pedido do dono): cada pedido novo toca UMA vez, ~8 s (o mp3 de 2 s em
- *   repetição até o prazo), e para sozinho; vários pedidos juntos = um toque só; toque novo com som tocando recomeça o
- *   mesmo som (nunca dois por cima). Sem repetição e sem precisar aceitar para parar.
+ * - mp3 decodificado no Web Audio. 12/10 (pedido do dono): cada pedido novo toca UMA vez um som único de 3 s (o
+ *   mesmo do Assistente 1.2.2; 1,5x o antigo de 2 s, original em docs/sons/), sem loop e sem precisar aceitar;
+ *   vários pedidos juntos = um som só; pedido chegando com o som tocando não toca outro por cima.
  * - Navegador bloqueou o som (painel aberto sem clique): `bloqueado = true` → a tela mostra o
  *   aviso clicável; qualquer clique/tecla destrava e toca o que estava esperando.
  * - Toca TODO pedido "recebido" que ainda não tocou nesta aba (tempo real, poll, reconexão ou
@@ -22,7 +22,7 @@ import { DURACAO_TOQUE_SEG, pedidosParaTocar, reivindicarToque, type MotivoFalha
  *
  * `window.__mzAlarme` expõe contadores para os testes automáticos (sem efeito na tela).
  */
-const SOM_SRC = '/sounds/som-telefone-alarme.mp3'
+const SOM_SRC = '/sounds/alarme-pedido-3s.mp3'
 const CHAVE_SOM = 'menuzia:kanban-som'
 
 type Estado = { tocou: number; falhas: Partial<Record<MotivoFalhaSom, number>>; bloqueado: boolean; ultimoMotivo: string | null }
@@ -38,7 +38,7 @@ const armazenamento = () => { try { return window.localStorage } catch { return 
 export function useAlarmePedidos({ ativo = true, mudo = false }: { ativo?: boolean; mudo?: boolean } = {}) {
   const [somAtivo, setSomAtivoEstado] = useState(true)
   const [bloqueado, setBloqueado] = useState(false)
-  /** Som saindo agora (o toque de ~8 s); o botão "silenciar" corta. */
+  /** Som saindo agora (o toque de 3 s); o botão "silenciar" corta. */
   const [tocando, setTocando] = useState(false)
   const [permissaoNotif, setPermissaoNotif] = useState<NotificationPermission | 'sem_suporte'>('default')
   const somRef = useRef(true)
@@ -112,7 +112,7 @@ export function useAlarmePedidos({ ativo = true, mudo = false }: { ativo?: boole
     setTocando(false)
   }, [])
 
-  /** Um toque de ~8 s (o mp3 em repetição até o prazo). Com som tocando, recomeça o mesmo (não empilha). Devolve se saiu som. */
+  /** Um toque (o mp3 inteiro, uma vez). Com som tocando, não toca outro por cima. Devolve se saiu som. */
   const tocarUmaVez = useCallback((): boolean => {
     const ctx = ctxRef.current
     if (!ctx) return false
@@ -122,15 +122,13 @@ export function useAlarmePedidos({ ativo = true, mudo = false }: { ativo?: boole
       return false
     }
     try {
+      if (fonteRef.current) return true
       if (bufferRef.current) {
-        pararSom()
         const src = ctx.createBufferSource()
         src.buffer = bufferRef.current
-        src.loop = true
         const ganho = ctx.createGain(); ganho.gain.value = 1
         src.connect(ganho); ganho.connect(ctx.destination)
         src.start()
-        src.stop(ctx.currentTime + DURACAO_TOQUE_SEG)
         fonteRef.current = src
         setTocando(true)
         src.onended = () => { src.disconnect(); ganho.disconnect(); if (fonteRef.current === src) { fonteRef.current = null; setTocando(false) } }

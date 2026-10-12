@@ -849,7 +849,7 @@ export default function PedidosPage() {
         </p>
       </Flutuante>
       {alarme.tocando ? (
-        <Dica texto="Alarme de pedido novo tocando (uma vez, ~8 s) – clique para silenciar já">
+        <Dica texto="Alarme de pedido novo tocando (uma vez, 3 s) – clique para silenciar já">
           <button onClick={alarme.silenciar} aria-label="Silenciar o alarme de pedido novo" className={`${QUAD} bg-[#FFEDD5] text-[#C2410C]`} data-testid="kanban-silenciar">
             <BellRing className={`${ICONE} animate-pulse`} />
           </button>

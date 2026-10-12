@@ -8,12 +8,6 @@
  */
 
 /**
- * 12/10 (pedido do dono): cada pedido novo toca UMA vez, por ~8 s, e para sozinho — sem repetição e sem precisar
- * aceitar. Vários pedidos juntos = um toque só (a mesma regra do Assistente 1.2.1).
- */
-export const DURACAO_TOQUE_SEG = 8
-
-/**
  * Pedidos que devem tocar agora: os "recebidos" que ainda não tocaram NESTA aba.
  * Na primeira leitura (anteriores = null) toca também o que já estava esperando — o pedido
  * que chegou com o painel fechado/recarregando não pode passar mudo.

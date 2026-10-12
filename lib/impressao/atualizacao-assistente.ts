@@ -10,12 +10,12 @@
  */
 export const ATUALIZACAO_ASSISTENTE = {
   ligada: true,
-  // 1.2.1 (12/10): alarme toca UMA vez por pedido novo (5/8/15 s, padrão 8) e para sozinho. 1.2.0 tocava até aceitar.
-  versao: '1.2.1',
-  url: 'https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v1.2.1/AssistenteMenuziaAlfa1-Setup-1.2.1.exe',
-  sha512: 'tIBt8oEX8BmKQYWigdBSYVAjsO6wYfkFkowhS8xA9FYiYjArQFpkcOjNu2oO2Fh6oP0bmXaSPaTEro3ceqbu0Q==',
-  tamanho: 82586196,
-  data: '2026-10-12T05:32:18.460Z',
+  // 1.2.2 (12/10): alarme = um som único de 3 s (1,5x o antigo), UMA vez por pedido, sem loop. 1.2.1 repetia 5/8/15 s.
+  versao: '1.2.2',
+  url: 'https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v1.2.2/AssistenteMenuziaAlfa1-Setup-1.2.2.exe',
+  sha512: 'Cqjf4c4wBws2P3RprCm3SMyOERvvLjHxoChptOfR9P+WzZ4K8mP66OGOscybsgswVq2mRrDPxpEfoMDn7oaVbw==',
+  tamanho: 82601718,
+  data: '2026-10-12T05:50:59.022Z',
 }
 
 /** O `latest.yml` no formato que o electron-updater lê (provedor genérico). */

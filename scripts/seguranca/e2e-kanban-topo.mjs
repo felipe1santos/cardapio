@@ -121,14 +121,14 @@ try {
   const t1 = (await alarme(p)).tocou
   await Promise.all([pedidoNovo('TESTE Dois A'), pedidoNovo('TESTE Dois B')])
   ok('dois pedidos ao mesmo tempo = um toque só', await ate(async () => (await alarme(p)).tocou >= t1 + 1, 15000), `${t1} → ${(await alarme(p)).tocou}`)
-  ok('o toque (~8 s) mostra "Silenciar"', await p.getByTestId('kanban-silenciar').isVisible())
+  ok('o toque (3 s) mostra "Silenciar"', await p.getByTestId('kanban-silenciar').isVisible())
   await esperar(3_000)
   const t2 = (await alarme(p)).tocou
-  ok('dois pedidos juntos: no máximo um recomeço do mesmo som (chegaram em leituras separadas)', t2 - t1 <= 2, `${t1} → ${t2}`)
+  ok('dois pedidos juntos: um som só (o segundo não toca por cima)', t2 - t1 <= 1, `${t1} → ${t2}`)
   await esperar(20_000)
   const t3 = (await alarme(p)).tocou
   ok('não repete enquanto ninguém aceita (toca uma vez e para sozinho)', t3 === t2, `${t2} → ${t3}`)
-  ok('depois de ~8 s o "Silenciar" some sozinho', !(await p.getByTestId('kanban-silenciar').isVisible().catch(() => false)))
+  ok('depois de 3 s o "Silenciar" some sozinho', !(await p.getByTestId('kanban-silenciar').isVisible().catch(() => false)))
   const t4 = (await alarme(p)).tocou
   await pedidoNovo('TESTE Depois do Silenciar')
   ok('pedido NOVO toca normalmente', await ate(async () => (await alarme(p)).tocou > t4, 15000))
