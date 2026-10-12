@@ -195,6 +195,9 @@ export async function conferirPagamento(admin: SupabaseClient, mpPaymentId: stri
     return 'devolvido'
   }
   if (['cancelled', 'rejected', 'expired'].includes(pg.status)) {
+    // Cobrança que NÓS cancelamos (cliente trocou para cartão/dinheiro pelo WhatsApp, 12/10): o aviso do MP chega antes
+    // de o pedido ir para a cozinha — não é Pix expirado, quem cancelou termina a troca (teste real #289).
+    if (reg.status === 'cancelado') return 'expirado'
     if (ped.status === 'aguardando_pagamento') await expirarPedido(admin, reg, ped)
     else if (reg.status === 'pendente' || reg.status === 'verificacao_pendente') await admin.from('pagamentos_online').update({ status: pg.status === 'rejected' ? 'cancelado' : 'expirado' }).eq('id', reg.id)
     return pg.status === 'rejected' ? 'recusado' : 'expirado'
