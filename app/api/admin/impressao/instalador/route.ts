@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { contextoImpressao, semCache } from '@/lib/impressao/contexto'
 import { gerarConvite } from '@/lib/impressao/servico'
 import { DOWNLOAD_ASSISTENTE_BETA, instaladorConectado, nomeInstalador } from '@/lib/impressao/rotulos'
+import { abrirInstalador, INSTALADORES } from '@/lib/impressao/instaladores'
 
 /**
  * Instalador "já conectado" (noite 5): o MESMO instalador do Assistente Beta, entregue com um
@@ -18,16 +19,17 @@ export async function POST() {
   }
   const r = await gerarConvite(ctx.admin, ctx.op, 'instalador')
   if (!r.ok) return NextResponse.json({ error: r.erro, codigo: r.codigo }, { status: r.status, headers: semCache })
-  const origem = await fetch(DOWNLOAD_ASSISTENTE_BETA.url, { redirect: 'follow' })
-  if (!origem.ok || !origem.body) return NextResponse.json({ error: 'Não foi possível baixar o instalador agora. Tente de novo.' }, { status: 502, headers: semCache })
+  // 12/10: o instalador sai do nosso storage (lib/impressao/instaladores.ts), não mais do release do GitHub.
+  const inst = INSTALADORES.find((i) => i.versao === DOWNLOAD_ASSISTENTE_BETA.versao)
+  if (!inst) return NextResponse.json({ error: 'Não foi possível baixar o instalador agora. Tente de novo.' }, { status: 502, headers: semCache })
   const nome = nomeInstalador(DOWNLOAD_ASSISTENTE_BETA.versao, r.valor.convite)
-  return new NextResponse(origem.body, {
+  return new NextResponse(abrirInstalador(inst), {
     status: 200,
     headers: {
       ...semCache,
       'Content-Type': 'application/octet-stream',
       'Content-Disposition': `attachment; filename="${nome}"`,
-      ...(origem.headers.get('content-length') ? { 'Content-Length': origem.headers.get('content-length')! } : {}),
+      'Content-Length': String(inst.tamanho),
     },
   })
 }

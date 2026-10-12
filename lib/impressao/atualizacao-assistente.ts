@@ -1,9 +1,10 @@
 /**
  * Atualização automática do Assistente Beta (0.2.0-beta.11+, item 60). O Assistente pergunta
  * a cada hora a GET /api/agente/atualizacao/latest.yml e, se a versão daqui for mais nova, baixa
- * o instalador do release do GitHub (confere o SHA-512) e instala sozinho fora do horário de pico.
+ * o instalador (servido pela Menuzia desde 12/10, lib/impressao/instaladores.ts; confere o SHA-512) e instala sozinho fora do horário de pico.
  *
- * Para LIBERAR uma versão nova para todas as lojas: publicar o release no GitHub e trocar
+ * Para LIBERAR uma versão nova para todas as lojas: subir o .exe (node .medidas/subir-partes.mjs), cadastrar em
+ * lib/impressao/instaladores.ts e trocar
  * ATUALIZACAO_ASSISTENTE abaixo (versão, url, sha512 em base64 e tamanho em bytes do .exe:
  * `node -e "…createHash('sha512')…digest('base64')"`). Para SEGURAR (ex.: versão com problema): `ligada: false`
  * — ninguém mais atualiza; quem já instalou fica onde está.
@@ -12,7 +13,8 @@ export const ATUALIZACAO_ASSISTENTE = {
   ligada: true,
   // 1.2.2 (12/10): alarme = um som único de 3 s (1,5x o antigo), UMA vez por pedido, sem loop. 1.2.1 repetia 5/8/15 s.
   versao: '1.2.2',
-  url: 'https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v1.2.2/AssistenteMenuziaAlfa1-Setup-1.2.2.exe',
+  // 12/10: servido pela Menuzia (lib/impressao/instaladores.ts), não mais pelo release do GitHub (repositório vai ficar privado).
+  url: 'https://app.menuzia.com.br/api/agente/instalador/AssistenteMenuziaAlfa1-Setup-1.2.2.exe',
   sha512: 'Cqjf4c4wBws2P3RprCm3SMyOERvvLjHxoChptOfR9P+WzZ4K8mP66OGOscybsgswVq2mRrDPxpEfoMDn7oaVbw==',
   tamanho: 82601718,
   data: '2026-10-12T05:50:59.022Z',
