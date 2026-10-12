@@ -3,7 +3,7 @@ import { telefoneWhatsapp } from '@/lib/telefone-br'
 import { buscarPedidoParaNotificacao, type Pedido, type StatusPedido } from '@/lib/queries/pedidos'
 import { concluirSaida, registrarSaida } from '@/lib/mensageria/historico'
 import { textoAgendado } from '@/lib/agendamento'
-import { decidirMensagem, etapaDoStatus, normalizarConfig, renderizar, tipoAutomatico, type ConfigMensagens } from '@/lib/mensagens-automaticas'
+import { decidirMensagem, etapaDoStatus, normalizarConfig, renderizar, textoPadraoDaEtapa, tipoAutomatico, type ConfigMensagens } from '@/lib/mensagens-automaticas'
 
 const FORMA_PAGAMENTO_LABEL: Record<Pedido['formaPagamento'], string> = {
   pix: 'Pix',
@@ -229,15 +229,17 @@ export async function textoDaNotificacao(admin: SupabaseClient, restauranteId: s
   }
   const d = decidirMensagem(cfg, etapa, tipoAutomatico(pedido.canal, pedido.tipo))
   if (!d.sai) return null
-  if (d.texto) {
-    return renderizar(d.texto, {
-      nome: (pedido.clienteNome ?? '').trim().split(/\s+/)[0] ?? '',
-      numero: String(pedido.numero),
-      loja: restauranteNome,
-      tipo: pedido.tipo === 'retirada' ? 'retirada' : 'entrega',
-      horario: pedido.agendadoPara ? textoAgendado(pedido.agendadoPara) : '',
-    })
+  const vars = {
+    nome: (pedido.clienteNome ?? '').trim().split(/\s+/)[0] ?? '',
+    numero: String(pedido.numero),
+    loja: restauranteNome,
+    tipo: pedido.tipo === 'retirada' ? 'retirada' : 'entrega',
+    horario: pedido.agendadoPara ? textoAgendado(pedido.agendadoPara) : '',
   }
+  if (d.texto) return renderizar(d.texto, vars)
+  // Sem texto próprio: o modelo formatado (padrão de todas as lojas desde 12/10).
+  const padrao = textoPadraoDaEtapa(etapa, vars)
+  if (padrao) return padrao
   return status === 'preparando' ? montarResumoPedido(pedido, restauranteNome) : montarMensagemStatus(pedido, status)
 }
 

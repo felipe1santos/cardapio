@@ -4,7 +4,7 @@ import { avisosDoCadastro } from '@/lib/avisos-cadastro'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { descricaoEmTextoPuro } from '@/lib/descricao-rica'
 import { avisoDoItem, erroDoItem, statusAoCriarItem } from '@/lib/item-cadastro'
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Clock, CupSoda, GripVertical, ImagePlus, Images, MoreVertical, Pause, Pencil, Pizza, Play, Plus, Sandwich, Search, Soup, Star, Trash2, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Clock, CupSoda, GripVertical, Images, MoreVertical, Pause, Pencil, Pizza, Play, Plus, Sandwich, Search, Soup, Star, Trash2, X } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Flutuante } from '@/components/ui/flutuante'
@@ -74,7 +74,6 @@ import { ToggleSwitch } from '@/components/admin/campos-ajustes'
 import { resumoAgenda } from '@/lib/promocao-agenda'
 import { FotosDoItem } from '@/components/admin/cardapio/fotos-item'
 import { juntarFotos, separarFotos } from '@/lib/fotos-item'
-import { useEstadoSessao } from '@/lib/sessao-cliente'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -752,8 +751,6 @@ function MargensProduto({ custo, linhas }: { custo: number | null; linhas: { nom
 export default function CardapioPage() {
   const supabase = useMemo(() => getBrowserSupabase(), [])
   // "Novidades em teste" (0178): fotos do item no formato novo (até 4, reordenar, escolher a principal).
-  const novidades = useEstadoSessao()?.novidades === true
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -834,7 +831,6 @@ export default function CardapioPage() {
   const toasts = useToasts()
   const [saving, setSaving] = useState(false)
   const [statusSavingId, setStatusSavingId] = useState<string | null>(null)
-  const [uploading, setUploading] = useState(false)
   const [newGroupName, setNewGroupName] = useState('')
 
   const [form, setForm] = useState<ItemFormState>(blankForm(null))
@@ -863,10 +859,8 @@ export default function CardapioPage() {
   const [confirmarFechar, setConfirmarFechar] = useState(false)
   const [agendaAberta, setAgendaAberta] = useState(false)
   const [avancadasAberto, setAvancadasAberto] = useState(false)
-  const [enviandoExtra, setEnviandoExtra] = useState(false)
   /** Já existe linha de custo/códigos (para apagar valores, não só gravar). */
   const [gestaoExiste, setGestaoExiste] = useState(false)
-  const extraInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -1077,43 +1071,9 @@ export default function CardapioPage() {
 
   /** Fechar: com alteração não salva, pergunta antes. */
   function closeDrawer() {
-    if (saving || uploading || enviandoExtra) return
+    if (saving) return
     if (formMudou) { setConfirmarFechar(true); return }
     setDrawer(null)
-  }
-
-  async function adicionarFotoExtra(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
-    event.target.value = ''
-    if (!file || !restauranteId || form.imagensExtras.length >= 4) return
-    setEnviandoExtra(true)
-    try {
-      const { url, thumbUrl } = await enviarImagemItemComThumb(supabase, restauranteId, file)
-      setForm((prev) => ({ ...prev, imagensExtras: [...prev.imagensExtras, { url, thumb: thumbUrl }].slice(0, 4) }))
-    } catch (e) {
-      console.error('[cardapio] foto extra:', (e as Error)?.message)
-      setError('Não foi possível enviar a foto extra.')
-    } finally {
-      setEnviandoExtra(false)
-    }
-  }
-
-  async function handleImagePick(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
-    event.target.value = ''
-    if (!file || !restauranteId) return
-    setUploading(true)
-    setError(null)
-    try {
-      // Gera full + miniatura numa operação só. Se a thumb falhar, vem null e a
-      // listagem cai no fallback — o cadastro não é bloqueado por causa dela.
-      const { url, thumbUrl } = await enviarImagemItemComThumb(supabase, restauranteId, file)
-      setForm((prev) => ({ ...prev, imagemUrl: url, imagemThumbUrl: thumbUrl }))
-    } catch {
-      setError('Não foi possível enviar a imagem. Verifique se o bucket "cardapio" existe no Supabase Storage.')
-    } finally {
-      setUploading(false)
-    }
   }
 
   const temVariacoes = form.tipoItem === 'pizza' || form.tipoItem === 'marmita' || (form.tipoItem === 'simples' && temTamanhos)
@@ -2320,7 +2280,7 @@ export default function CardapioPage() {
                   <div className="flex flex-col gap-5 md:flex-row">
                     {/* Fotos */}
                     <div className="flex-shrink-0 md:w-[232px]" data-testid="produto-fotos">
-                      {novidades ? (
+                      {/* Até 4 fotos: liberado para todas as lojas em 12/10 (antes só com "Novidades em teste"). */}
                         <FotosDoItem
                           nome={form.nome}
                           fotos={juntarFotos(form)}
@@ -2330,42 +2290,6 @@ export default function CardapioPage() {
                             return { url, thumb: thumbUrl }
                           }}
                         />
-                      ) : (<>
-                      <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImagePick} />
-                      <input ref={extraInputRef} type="file" accept="image/*" className="hidden" onChange={adicionarFotoExtra} />
-                      <div className="produto-foto group relative mx-auto aspect-square w-[168px] overflow-hidden rounded-[8px] border border-[#e5e7eb] bg-[#f3f4f6] md:w-full">
-                        {form.imagemUrl
-                          // eslint-disable-next-line @next/next/no-img-element
-                          ? <img src={form.imagemUrl} alt={form.nome || 'Foto do produto'} className="h-full w-full object-cover" />
-                          : (
-                            <button type="button" onClick={() => fileInputRef.current?.click()} className="flex h-full w-full flex-col items-center justify-center gap-2 text-[#6b7280] hover:text-[#0688d4]" data-testid="foto-enviar">
-                              <ImagePlus className="h-9 w-9" />
-                              <span className="text-[12.5px] font-semibold">{uploading ? 'Enviando…' : 'Adicionar foto'}</span>
-                            </button>
-                          )}
-                      </div>
-                      {form.imagemUrl && (
-                        <div className="mx-auto mt-2 flex max-w-[232px] gap-2 md:max-w-none">
-                          <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="h-8 flex-1 rounded-[5px] border border-[#d6dae1] text-[12px] font-semibold text-[#374151] hover:border-[#0688d4] hover:text-[#0688d4]" data-testid="foto-trocar">{uploading ? 'Enviando…' : 'Trocar'}</button>
-                          <button type="button" onClick={() => setForm((p) => ({ ...p, imagemUrl: null, imagemThumbUrl: null }))} className="h-8 flex-1 rounded-[5px] border border-[#fecaca] text-[12px] font-semibold text-[#b91c1c] hover:bg-[#fef2f2]" data-testid="foto-remover">Remover imagem</button>
-                        </div>
-                      )}
-                      <div className="mx-auto mt-3 grid max-w-[232px] grid-cols-4 gap-2 md:max-w-none" data-testid="fotos-extras">
-                        {form.imagensExtras.map((f, i) => (
-                          <div key={f.url} className="relative aspect-square overflow-hidden rounded-[6px] border border-[#e5e7eb]">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={f.thumb ?? f.url} alt={`Foto extra ${i + 1}`} className="h-full w-full object-cover" />
-                            <button type="button" aria-label={`Remover foto extra ${i + 1}`} onClick={() => setForm((p) => ({ ...p, imagensExtras: p.imagensExtras.filter((_, j) => j !== i) }))} className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white" data-toque-livre><X className="h-3 w-3" /></button>
-                          </div>
-                        ))}
-                        {form.imagensExtras.length < 4 && (
-                          <button type="button" onClick={() => extraInputRef.current?.click()} disabled={enviandoExtra} aria-label="Adicionar foto extra" className="flex aspect-square items-center justify-center rounded-[6px] border border-dashed border-[#c9d2dc] text-[#6b7280] hover:border-[#0688d4] hover:text-[#0688d4]" data-testid="foto-extra-adicionar">
-                            {enviandoExtra ? <span className="text-[10px]">…</span> : <Plus className="h-5 w-5" />}
-                          </button>
-                        )}
-                      </div>
-                      <p className="mt-1.5 text-[11.5px] text-[#6b7280]">Foto real do prato vende mais. Até 4 fotos extras.</p>
-                      </>)}
                     </div>
 
                     {/* Campos */}

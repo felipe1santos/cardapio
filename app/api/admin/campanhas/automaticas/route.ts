@@ -4,7 +4,7 @@ import { getAdminSupabase } from '@/lib/supabase/admin'
 import { getCurrentSession } from '@/lib/auth/session'
 import { pode } from '@/lib/auth/permissoes'
 import { registrarAuditoria } from '@/lib/auditoria'
-import { configEfetiva, ETAPAS, INFO_ETAPA, normalizarConfig, PADRAO, problemaNoTexto, VARIAVEIS } from '@/lib/mensagens-automaticas'
+import { configEfetiva, ETAPAS, INFO_ETAPA, normalizarConfig, PADRAO_FORMATADO, problemaNoTexto, VARIAVEIS } from '@/lib/mensagens-automaticas'
 
 /**
  * Mensagens automáticas de status do pedido (0129). Ler e gravar a configuração da loja.
@@ -25,7 +25,7 @@ export async function GET() {
   const linha = data as { mensagens_status?: unknown; evolution_instance?: string | null } | null
   return NextResponse.json({
     config: configEfetiva(normalizarConfig(linha?.mensagens_status)),
-    padrao: PADRAO,
+    padrao: PADRAO_FORMATADO,
     etapas: ETAPAS.map((k) => ({ chave: k, ...INFO_ETAPA[k] })),
     variaveis: VARIAVEIS,
     whatsappConectado: !!linha?.evolution_instance,

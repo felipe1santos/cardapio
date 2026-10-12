@@ -42,7 +42,8 @@ export const PADRAO: Record<Exclude<Etapa, 'aceito'>, string> = {
 
 /**
  * Padrão no estilo do robô de autoatendimento (0177): *negrito* no título, _itálico_ no nome, `código` no nº do pedido,
- * citação "> " no aviso. Vale só nas lojas com o autoatendimento ligado (decisão D18); texto próprio da loja nunca é trocado.
+ * citação "> " no aviso. Desde 12/10 é o padrão de TODAS as lojas sem texto próprio (antes só a Menuzia, decisão D18);
+ * texto próprio da loja nunca é trocado.
  */
 export const PADRAO_FORMATADO: Record<Exclude<Etapa, 'aceito'>, string> = {
   recebido: ['*📥 PEDIDO RECEBIDO!*', '', 'Olá, _{nome}_! Recebemos seu pedido `#{numero}` na *{loja}*.', '', '> Aguarde a confirmação da loja 🙌'].join('\n'),
@@ -59,7 +60,16 @@ export function renderizarFormatado(texto: string, vars: Record<string, string>)
   return renderizar(t, vars)
 }
 
-export const VARIAVEIS: { chave: string; rotulo: string; exemplo: string }[] = [
+/**
+ * Texto padrão de uma etapa (12/10, decisão do Felipe): o modelo formatado vale para TODAS as lojas sem texto próprio.
+ * "aceito" (resumo do pedido) não tem modelo → null (sai a função de sempre). Texto próprio da loja nunca passa por aqui.
+ */
+export function textoPadraoDaEtapa(etapa: Etapa, vars: Record<string, string>): string | null {
+  if (etapa === 'aceito') return null
+  return renderizarFormatado(PADRAO_FORMATADO[etapa], vars)
+}
+
+export const VARIAVEIS:{ chave: string; rotulo: string; exemplo: string }[] = [
   { chave: 'nome', rotulo: 'Primeiro nome do cliente', exemplo: 'Maria' },
   { chave: 'numero', rotulo: 'Número do pedido', exemplo: '1234' },
   { chave: 'loja', rotulo: 'Nome da loja', exemplo: 'Sua loja' },

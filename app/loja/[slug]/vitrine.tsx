@@ -4637,7 +4637,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   trocá-la por outra no mesmo gesto parece que ele foi parar em
                   outro lugar. Nos demais caminhos manda a foto do item. */}
               {/* "Novidades em teste" (0178): com mais de 1 foto (e sem a capa da gaveta), carrossel. */}
-              {restaurante.novidades && !sheetGaveta?.capaUrl && fotosDaVitrine(productSheet).length > 1
+              {!sheetGaveta?.capaUrl && fotosDaVitrine(productSheet).length > 1
                 ? <FotosCarrossel urls={fotosDaVitrine(productSheet)} nome={productSheet.nome} />
                 : (sheetGaveta?.capaUrl ?? productSheet.imagemUrl)
                 // O sheet só é montado depois do clique, então não concorre com o

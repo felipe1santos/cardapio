@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { montarMensagemStatus } from './whatsapp'
 import { textoAgendado } from './agendamento'
 import {
-  configEfetiva, decidirMensagem, etapaDoStatus, normalizarConfig, PADRAO, problemaNoTexto, renderizar, tipoAutomatico,
+  configEfetiva, decidirMensagem, etapaDoStatus, normalizarConfig, PADRAO, problemaNoTexto, renderizar, textoPadraoDaEtapa, tipoAutomatico,
 } from './mensagens-automaticas'
 import type { Pedido } from './queries/pedidos'
 
@@ -62,5 +62,19 @@ describe('mensagens automáticas', () => {
     expect(e.tipos).toEqual({ entrega: true, retirada: true, local: false })
     expect(e.etapas.entregue.ativo).toBe(false)
     expect(e.etapas.recebido).toEqual({ ativo: true, texto: null })
+  })
+})
+
+describe('padrão formatado para todas as lojas sem texto próprio (12/10)', () => {
+  const v = { nome: 'Maria', numero: '1234', loja: 'Loja X', tipo: 'entrega', horario: '' }
+  it('etapas personalizáveis saem no modelo formatado', () => {
+    expect(textoPadraoDaEtapa('recebido', v)).toBe(['*📥 PEDIDO RECEBIDO!*', '', 'Olá, _Maria_! Recebemos seu pedido `#1234` na *Loja X*.', '', '> Aguarde a confirmação da loja 🙌'].join('\n'))
+    expect(textoPadraoDaEtapa('em_rota', v)).toContain('SAIU PARA ENTREGA')
+  })
+  it('sem nome do cliente não sobra "Olá, __!"', () => {
+    expect(textoPadraoDaEtapa('recebido', { ...v, nome: '' })).toContain('Olá! Recebemos seu pedido')
+  })
+  it('"aceito" (resumo do pedido) continua com a função de sempre', () => {
+    expect(textoPadraoDaEtapa('aceito', v)).toBeNull()
   })
 })

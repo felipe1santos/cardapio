@@ -124,135 +124,104 @@
     <header class="guide">
       <div class="brand">Menuzia · Delivery</div>
       <h1>Como configurar a impressora</h1>
-      <p>Guia simples para deixar os pedidos saindo direto na impressora da loja. Não precisa entender de informática — é só seguir na ordem.</p>
+      <p>Guia do <strong>Assistente Menuzia Alfa 1</strong>, o programa que leva os pedidos do painel até a impressora da loja. É só seguir na ordem.</p>
     </header>
 
     <h2>Antes de começar: entenda a ideia</h2>
-    <p>O painel do Menuzia funciona <strong>no navegador</strong>, e o navegador <strong>não consegue falar direto com a impressora</strong>. Por isso existem <strong>duas partes</strong> que você vai ligar uma na outra:</p>
+    <p>O painel do Menuzia funciona <strong>no navegador</strong>, e o navegador <strong>não fala direto com a impressora</strong>. Por isso existem <strong>duas partes</strong>:</p>
     <ol>
-      <li><strong>O painel</strong> (o site do Menuzia, em <code>Ajustes &gt; Impressão</code>) → onde você cadastra a impressora e gera uma <strong>senha de conexão</strong> (chamada de "token").</li>
-      <li><strong>O Assistente de Impressão</strong> → um <strong>programinha que fica no computador da loja</strong>, ligado na impressora. É ele que recebe o pedido do painel e manda imprimir.</li>
+      <li><strong>O painel</strong> (o site do Menuzia, em <code>Ajustes &gt; Impressão</code>) → onde você liga o computador à loja e escolhe as impressoras.</li>
+      <li><strong>O Assistente Menuzia Alfa 1</strong> → um <strong>programa no computador da loja</strong>, ligado na impressora. Ele recebe os pedidos e imprime.</li>
     </ol>
     <div class="callout info">
-      <p>Pense assim: o <strong>token</strong> é a "senha" que faz o programinha do computador reconhecer a sua loja. Sem o programa instalado e pareado, configurar só no painel <strong>não imprime nada</strong>.</p>
+      <p>A ligação entre os dois é feita <strong>uma vez</strong>, com um <strong>código de pareamento</strong> que o painel mostra. Depois, é só deixar o <strong>computador ligado</strong>: o Assistente abre junto com o Windows, roda em segundo plano e <strong>se atualiza sozinho</strong>.</p>
     </div>
-    <p>Você só precisa fazer essa configuração <strong>uma vez</strong>. Depois disso, é só deixar o <strong>computador ligado</strong> que os pedidos imprimem sozinhos — o programa abre junto com o Windows e roda em segundo plano (pode até fechar a janela).</p>
 
     <h2>O que você precisa ter</h2>
     <ul>
-      <li>O <strong>computador da loja</strong> com <strong>Windows</strong>.</li>
-      <li>A <strong>impressora já instalada nesse computador</strong> (aquela que aparece em <em>Configurações do Windows &gt; Bluetooth e dispositivos &gt; Impressoras e scanners</em>). Se ela imprime uma página de teste pelo Windows, está pronta.</li>
-      <li>Acesso ao <strong>painel do Menuzia</strong> (seu login de dono/gerente).</li>
+      <li>O <strong>computador da loja</strong> com <strong>Windows</strong> e internet.</li>
+      <li>A <strong>impressora instalada nesse computador</strong> (aparece em <em>Configurações do Windows &gt; Bluetooth e dispositivos &gt; Impressoras e scanners</em>). Se ela imprime uma página de teste pelo Windows, está pronta.</li>
+      <li>Acesso ao <strong>painel do Menuzia</strong> (login de dono ou gerente).</li>
     </ul>
 
-    <span class="section-tag">Parte 1 — No painel do Menuzia</span>
-    <p style="color:var(--subtle);margin-top:6px">Pode ser feito em qualquer aparelho (celular, computador…).</p>
+    <span class="section-tag">Parte 1 — Instalar no computador da loja</span>
+    <p style="color:var(--subtle);margin-top:6px">Faça no <strong>computador onde a impressora está ligada</strong>.</p>
 
-    <h2><span class="step-num">1</span>Abra a tela de impressão</h2>
-    <p>No menu lateral, vá em <strong>Ajustes</strong> e clique na aba <strong>Impressão</strong>.</p>
+    <h2><span class="step-num">1</span>Baixe o Assistente</h2>
+    <p>Entre no painel por esse computador, vá em <strong>Ajustes &gt; Impressão</strong> e clique em <strong>"Baixar Assistente"</strong>. Vai baixar um arquivo <code>AssistenteMenuziaAlfa1-Setup-….exe</code> (cerca de 80 MB).</p>
 
-    <h2><span class="step-num">2</span>Gere a senha de conexão (token)</h2>
-    <p>Na primeira caixa ("Assistente de Impressão Menuzia"), procure a área de <strong>token de pareamento</strong> e clique em <strong>"Gerar token de pareamento"</strong>. Vai aparecer um código. Clique em <strong>"Copiar"</strong> (ou deixe essa tela aberta — você vai usar esse código daqui a pouco no computador).</p>
-    <div class="callout warn">
-      <p>⚠️ Se um dia você clicar em "Gerar novo token", o token antigo para de funcionar e você precisa colar o novo no Assistente de novo.</p>
-    </div>
-
-    <h2><span class="step-num">3</span>Ligue as opções de impressão</h2>
-    <p>Ainda nessa caixa, ligue (deixe azul) os botões:</p>
-    <ul>
-      <li><strong>Ativar uso do Assistente de Impressão</strong></li>
-      <li><strong>Impressão automática de pedidos</strong> — <em>este é o mais importante</em>: é o que faz o pedido imprimir sozinho assim que chega. Se ele estiver desligado, nada imprime automaticamente.</li>
-    </ul>
-
-    <h2><span class="step-num">4</span>Cadastre a impressora</h2>
-    <p>Mais abaixo, na caixa <strong>"Impressoras"</strong>, clique em <strong>"+ Nova impressora"</strong> e preencha:</p>
-    <ul>
-      <li><strong>Nome</strong>: um apelido qualquer pra você se achar (ex.: <code>Cozinha</code> ou <code>Balcão</code>).</li>
-      <li><strong>Largura</strong>: medida em <strong>colunas</strong> (caracteres por linha), não em milímetros. Para papel de <strong>80mm</strong> use <strong>48</strong> (valor padrão); para papel de <strong>58mm</strong> use <strong>32</strong>. Na dúvida, deixe 48.</li>
-      <li><strong>Cópias</strong>: quantas vias imprimir de cada pedido (normalmente <strong>1</strong>).</li>
-    </ul>
-    <p>Clique em <strong>Salvar</strong>. Pronto, a Parte 1 está feita.</p>
-
-    <span class="section-tag">Parte 2 — No computador da loja</span>
-    <p style="color:var(--subtle);margin-top:6px">Faça esta parte <strong>no computador onde a impressora está conectada</strong>.</p>
-
-    <h2><span class="step-num">5</span>Baixe o instalador</h2>
-    <p>Na mesma tela <strong>Ajustes &gt; Impressão</strong>, clique no botão amarelo <strong>"⬇ Baixar Assistente de Impressão (Windows)"</strong>. Vai baixar um arquivo chamado <code>AssistenteImpressaoMenuzia-Setup-0.1.9.exe</code> (cerca de 75 MB). Espere terminar.</p>
-
-    <h2><span class="step-num">6</span>Instale (dois cliques)</h2>
+    <h2><span class="step-num">2</span>Instale (dois cliques)</h2>
     <ol>
-      <li>Abra a pasta <strong>Downloads</strong> e dê <strong>dois cliques</strong> no arquivo que baixou.</li>
-      <li>Se o Windows mostrar um aviso azul <strong>"O Windows protegeu o computador"</strong>, clique em <strong>"Mais informações"</strong> e depois em <strong>"Executar assim mesmo"</strong>. (É só porque o programa ainda não é assinado digitalmente — pode confiar.)</li>
-      <li><strong>Pronto.</strong> Ele instala sozinho (não pede senha de administrador, não tem tela de "Avançar"), cria um <strong>atalho na área de trabalho</strong> e <strong>abre o programa</strong> automaticamente.</li>
+      <li>Abra a pasta <strong>Downloads</strong> e dê <strong>dois cliques</strong> no arquivo.</li>
+      <li>Se o Windows mostrar <strong>"O Windows protegeu o computador"</strong>, clique em <strong>"Mais informações"</strong> e depois em <strong>"Executar assim mesmo"</strong>.</li>
+      <li>Ele instala sozinho (sem senha de administrador, sem "Avançar"), cria o atalho <strong>"Assistente Menuzia Alfa 1"</strong> na área de trabalho e abre o programa.</li>
     </ol>
-    <div class="callout info"><p>Da próxima vez é só abrir pelo atalho <strong>"Assistente de Impressão Menuzia"</strong> na área de trabalho.</p></div>
 
-    <h2><span class="step-num">7</span>Conecte com o token (Passo 1 do Assistente)</h2>
-    <p>A janela do Assistente abre no <strong>Passo 1 · Conectar</strong>. O endereço do sistema já vem <strong>fixo</strong> (<code>https://app.menuzia.com.br</code>, com um cadeado 🔒) — você <strong>não precisa preencher nada de endereço</strong>.</p>
+    <span class="section-tag">Parte 2 — Ligar o computador à loja</span>
+
+    <h2><span class="step-num">3</span>Gere o código no painel</h2>
+    <p>Em <strong>Ajustes &gt; Impressão</strong>, clique em <strong>"Parear computador"</strong>. O painel mostra um <strong>código</strong>. Ele vale <strong>uma vez</strong> e vence em poucos minutos (se vencer, clique em <strong>"Gerar outro código"</strong>).</p>
+
+    <h2><span class="step-num">4</span>Digite o código no Assistente</h2>
+    <p>Na janela do Assistente, preencha o <strong>Código de pareamento</strong> e um <strong>nome para este computador</strong> (ex.: <code>Caixa</code>) e confirme. No painel, a tela sai de "Aguardando o computador…" e mostra o computador conectado. ✅</p>
+
+    <h2><span class="step-num">5</span>Escolha as impressoras</h2>
+    <p>Ainda no painel, clique em <strong>"Escolher impressoras"</strong> e indique:</p>
     <ul>
-      <li><strong>Token de pareamento</strong>: <strong>cole aqui</strong> o código que você copiou no Passo 2.</li>
+      <li><strong>Cozinha</strong>: a impressora que imprime os pedidos.</li>
+      <li><strong>Recibo/Extrato</strong>: a do caixa (pode ser a mesma).</li>
     </ul>
-    <p>Clique em <strong>"Testar conexão"</strong>. Se aparecer <strong>"Conexão ok!"</strong>, está ligado na sua loja. ✅ Só então o <strong>Passo 2 · Impressora</strong> libera (antes disso ele fica esmaecido). Se der erro, a própria janela mostra o motivo — veja "Deu problema?" no fim.</p>
+    <p>A largura do papel (80 mm ou 58 mm) é detectada sozinha. Se a impressora não aparecer, clique em <strong>"Atualizar lista"</strong>.</p>
+    <div class="callout warn"><p>⚠️ Evite impressoras <strong>virtuais</strong> (ex.: "Microsoft Print to PDF"): elas abrem uma janela para salvar arquivo em vez de imprimir em papel.</p></div>
 
-    <h2><span class="step-num">8</span>Escolha a impressora (Passo 2 do Assistente)</h2>
-    <p>No campo <strong>"Impressora (instalada no Windows)"</strong>, abra a lista e selecione a impressora da loja (ex.: <strong>Cozinha</strong>). Se ela não aparecer, clique em <strong>"Atualizar lista"</strong> (se ainda não aparecer, a janela mostra o erro na tela).</p>
-    <p>Em <strong>"Escolha a config. salva no painel"</strong>, escolha o nome que você cadastrou no Passo 4 (ex.: <code>Cozinha</code>). Acabou de cadastrar e ela não apareceu? Clique em <strong>"Atualizar lista"</strong> que ela entra na hora.</p>
-    <div class="callout ok"><p>Depois que você salvar, no painel (<code>Ajustes &gt; Impressão</code>) essa impressora fica <strong>destacada em amarelo com a etiqueta "Conectada"</strong> — é o sinal de que o computador está ligado no sistema.</p></div>
-
-    <h2><span class="step-num">9</span>Salve e teste</h2>
+    <h2><span class="step-num">6</span>Ligue para valer e teste</h2>
     <ol>
-      <li>Clique em <strong>"Salvar"</strong>.</li>
-      <li>Clique em <strong>"Imprimir teste"</strong> — deve sair um papel de teste na impressora.</li>
+      <li>Deixe o modo em <strong>"Cozinha e Caixa"</strong> (em <strong>"Somente teste"</strong> os pedidos de verdade não imprimem).</li>
+      <li>Clique em <strong>"Testar impressão"</strong>. Deve sair um papel de teste.</li>
     </ol>
-    <div class="callout ok"><p>Se saiu o teste, <strong>está tudo pronto</strong>. 🎉</p></div>
+    <div class="callout ok"><p>Saiu o teste? <strong>Está tudo pronto.</strong> 🎉 A partir de agora, todo pedido novo imprime sozinho.</p></div>
 
     <hr />
 
+    <h2>Alarme de pedido novo</h2>
+    <p>Com o Assistente ligado, <strong>ele toca o alarme</strong> no computador a cada pedido novo (uma vez por pedido), mesmo com o navegador fechado, e o painel fica em silêncio. Na janela do Assistente você ajusta o <strong>volume</strong> e usa <strong>"Testar alarme"</strong>. Confira se a caixa de som do computador está ligada e fora do mudo.</p>
+
     <h2>Deixando funcionando no dia a dia</h2>
     <ul>
-      <li>Só deixe o <strong>computador ligado</strong> durante o expediente — o resto é automático.</li>
-      <li><strong>Pode fechar a janela do Assistente.</strong> Ele continua rodando em segundo plano e imprimindo normalmente (não precisa ficar com a janela aberta).</li>
-      <li><strong>Liga sozinho com o Windows.</strong> Depois de configurado uma vez, o Assistente abre automaticamente toda vez que você liga o computador — não precisa abrir nada nem colar o token de novo.</li>
-      <li>A partir de agora, <strong>todo pedido novo imprime sozinho</strong>.</li>
-      <li>Precisa abrir a janela de novo (pra trocar algo)? Use o atalho <strong>"Assistente de Impressão Menuzia"</strong> na área de trabalho.</li>
+      <li>Deixe o <strong>computador ligado</strong> durante o expediente. O resto é automático.</li>
+      <li><strong>Pode fechar a janela</strong>: o Assistente continua rodando em segundo plano.</li>
+      <li><strong>Abre sozinho com o Windows</strong> e <strong>se atualiza sozinho</strong> nos horários de pouco movimento, sem interromper a impressão.</li>
+      <li>Para abrir a janela de novo, use o atalho <strong>"Assistente Menuzia Alfa 1"</strong> na área de trabalho.</li>
     </ul>
 
     <h2>Deu problema? (soluções rápidas)</h2>
-    <p><strong>Não imprime nada quando chega pedido</strong></p>
+    <p><strong>Pedido não imprime</strong></p>
     <ul>
-      <li>O <strong>computador está ligado</strong>? No painel (<code>Ajustes &gt; Impressão</code>) a impressora aparece <strong>amarela "Conectada"</strong>? Se não estiver, abra o Assistente pelo atalho na área de trabalho.</li>
-      <li>No painel, o botão <strong>"Impressão automática de pedidos"</strong> está <strong>ligado</strong>?</li>
-      <li>No Assistente, a impressora certa está selecionada e o <strong>"Imprimir teste"</strong> funciona?</li>
+      <li>O <strong>computador está ligado</strong> e o Assistente aberto (ícone perto do relógio do Windows)?</li>
+      <li>Em <strong>Ajustes &gt; Impressão</strong>, o modo está em <strong>"Cozinha e Caixa"</strong> e a impressora da Cozinha está escolhida?</li>
+      <li>O papel acabou, a tampa está aberta ou a impressora desligou? Se a fila do Windows travou, abra a impressora em <em>Impressoras e scanners</em> e cancele os documentos parados.</li>
     </ul>
-    <p><strong>"Testar conexão" dá erro</strong></p>
+    <p><strong>O código não funciona</strong></p>
     <ul>
-      <li>A janela mostra o motivo do erro na tela — leia a mensagem.</li>
-      <li>Se disser <strong>token inválido</strong>: volte no painel, gere um token novo, copie e cole de novo no Assistente.</li>
-      <li>Se disser <strong>sem conexão</strong>: confira se o computador está com internet.</li>
+      <li>Ele vale uma vez e vence em poucos minutos: clique em <strong>"Gerar outro código"</strong> e digite o novo.</li>
     </ul>
-    <p><strong>A impressora não aparece na lista do Assistente</strong></p>
+    <p><strong>Reinstalei ou troquei de computador</strong></p>
     <ul>
-      <li>Confirme que ela está instalada no Windows (imprime página de teste pelo próprio Windows). Depois clique em <strong>"Atualizar lista"</strong> no Assistente.</li>
+      <li>No painel, desconecte a entrada antiga do computador e faça o pareamento de novo (passos 3 a 6).</li>
     </ul>
-    <p><strong>Saiu o teste mas o papel vem cortado / fonte estranha</strong></p>
+    <p><strong>Ainda tem o programa antigo "Assistente de Impressão Menuzia" instalado?</strong></p>
     <ul>
-      <li>Ajuste a <strong>Largura</strong> em colunas no cadastro da impressora no painel (Passo 4): <strong>48</strong> para papel 80mm, <strong>32</strong> para 58mm. Salve e teste de novo.</li>
-    </ul>
-    <p><strong>Aviso "O Windows protegeu o computador" ao abrir o .exe</strong></p>
-    <ul>
-      <li>Normal. Clique em <strong>"Mais informações" &gt; "Executar assim mesmo"</strong>.</li>
+      <li>Ele não imprime mais. Pode desinstalar em <em>Configurações &gt; Aplicativos</em>. <strong>Não</strong> desinstale o "Assistente Menuzia Alfa 1".</li>
     </ul>
 
     <h2>Resumo de bolso</h2>
     <div class="resumo">
       <ol>
-        <li>Painel → <strong>Ajustes &gt; Impressão</strong> → <strong>Gerar token</strong> e <strong>copiar</strong>.</li>
-        <li>Ligar <strong>"Impressão automática de pedidos"</strong>.</li>
-        <li>Cadastrar a impressora (<strong>+ Nova impressora</strong>).</li>
-        <li><strong>Baixar</strong> o instalador e dar <strong>dois cliques</strong> (instala sozinho e abre).</li>
-        <li>No Assistente (Passo 1): colar o <strong>token</strong> → <strong>Testar conexão</strong> (o endereço já vem fixo).</li>
-        <li>(Passo 2) Escolher a <strong>impressora</strong> → <strong>Salvar</strong> → <strong>Imprimir teste</strong>.</li>
-        <li>Deixar o computador ligado — o programa abre sozinho com o Windows e roda em segundo plano. ✅</li>
+        <li>No computador da loja: painel → <strong>Ajustes &gt; Impressão</strong> → <strong>Baixar Assistente</strong> → dois cliques para instalar.</li>
+        <li>Painel → <strong>Parear computador</strong> → digitar o <strong>código</strong> no Assistente.</li>
+        <li><strong>Escolher impressoras</strong> (Cozinha e Recibo/Extrato).</li>
+        <li>Modo <strong>"Cozinha e Caixa"</strong> → <strong>Testar impressão</strong>.</li>
+        <li>Deixar o computador ligado. ✅</li>
       </ol>
     </div>
 

@@ -14,7 +14,6 @@ import { LOJAS_DE_TESTE } from '@/lib/dashboard-limpeza'
 import { resumoPorOrigem } from '@/lib/dashboard-origem'
 import { OrigemVisitas } from '@/components/dashboard/origem-visitas'
 import { VendasPorOrigem } from '@/components/dashboard/vendas-por-origem'
-import { useEstadoSessao } from '@/lib/sessao-cliente'
 import { MiniGrafico } from '@/components/dashboard/mini-grafico'
 import { GraficoVendas } from '@/components/dashboard/grafico-vendas'
 import { ICONES } from '@/lib/icones-painel'
@@ -385,7 +384,6 @@ export default function DashboardPage() {
 
   // Origem das visitas e dos pedidos por canal (item 55): visitas da vitrine + pedidos com origem (0149).
   const origem = useMemo(() => resumoPorOrigem(vitrine?.origens ?? [], m.pedidos), [vitrine, m.pedidos])
-  const novidades = useEstadoSessao()?.novidades === true
 
 
   // Filtro de período ÚNICO da página: o mesmo controle no topo e no cabeçalho das análises.
@@ -558,7 +556,7 @@ export default function DashboardPage() {
         <OrigemVisitas linhas={origem.linhas} totais={origem.totais} semOrigem={origem.semOrigem} />
 
         {/* "Novidades em teste" (0178): vendas por origem (primeira/última), com PDV, Mesa e Sem origem — total = Resumo. */}
-        {novidades && <VendasPorOrigem pedidos={m.pedidos} />}
+        <VendasPorOrigem pedidos={m.pedidos} />
 
         {/* Tudo de "Análise de pedidos" para baixo: um bloco só, em abas, no visual do kit (item 54). */}
         <AnalisesAbas
