@@ -116,24 +116,22 @@ try {
   }
   ok('com pedido esperando, o botão vira "Silenciar"', await p.getByTestId('kanban-silenciar').isVisible())
 
-  secao('3. Dois pedidos juntos, repetição, silenciar e testar som')
-  await p.getByTestId('kanban-mais').click()
-  await p.getByTestId('kanban-repetir-10').click()
-  await p.keyboard.press('Escape')
+  secao('3. Dois pedidos juntos, um toque só, sem repetição, silenciar e testar som')
   await gesto(p)
   const t1 = (await alarme(p)).tocou
   await Promise.all([pedidoNovo('TESTE Dois A'), pedidoNovo('TESTE Dois B')])
-  ok('dois pedidos ao mesmo tempo = dois toques', await ate(async () => (await alarme(p)).tocou >= t1 + 2, 15000), `${t1} → ${(await alarme(p)).tocou}`)
+  ok('dois pedidos ao mesmo tempo = um toque só', await ate(async () => (await alarme(p)).tocou >= t1 + 1, 15000), `${t1} → ${(await alarme(p)).tocou}`)
+  ok('o toque (~8 s) mostra "Silenciar"', await p.getByTestId('kanban-silenciar').isVisible())
+  await esperar(3_000)
   const t2 = (await alarme(p)).tocou
-  await esperar(23_000)
+  ok('dois pedidos juntos: no máximo um recomeço do mesmo som (chegaram em leituras separadas)', t2 - t1 <= 2, `${t1} → ${t2}`)
+  await esperar(20_000)
   const t3 = (await alarme(p)).tocou
-  ok('repete a cada 10 s enquanto ninguém aceita (sem o corte antigo de 2 min)', t3 - t2 >= 2, `${t2} → ${t3}`)
-  await p.getByTestId('kanban-silenciar').click()
-  await esperar(12_000)
-  ok('"Silenciar" para a repetição dos que já tocaram', (await alarme(p)).tocou === (await alarme(p)).tocou && (await alarme(p)).tocou - t3 <= 1, `${t3} → ${(await alarme(p)).tocou}`)
+  ok('não repete enquanto ninguém aceita (toca uma vez e para sozinho)', t3 === t2, `${t2} → ${t3}`)
+  ok('depois de ~8 s o "Silenciar" some sozinho', !(await p.getByTestId('kanban-silenciar').isVisible().catch(() => false)))
   const t4 = (await alarme(p)).tocou
   await pedidoNovo('TESTE Depois do Silenciar')
-  ok('depois de silenciar, pedido NOVO toca normalmente', await ate(async () => (await alarme(p)).tocou > t4, 15000))
+  ok('pedido NOVO toca normalmente', await ate(async () => (await alarme(p)).tocou > t4, 15000))
   await p.getByTestId('kanban-silenciar').click().catch(() => {})
   const t5 = (await alarme(p)).tocou
   await p.getByTestId('kanban-mais').click()

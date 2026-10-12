@@ -12,6 +12,9 @@ contextBridge.exposeInMainWorld('agente', {
   alarmeVolume: () => ipcRenderer.invoke('alarme-volume'),
   alarmeSalvarVolume: (v) => ipcRenderer.invoke('alarme-salvar-volume', v),
   alarmeTestar: () => ipcRenderer.invoke('alarme-testar'),
+  // 1.2.1: duração do toque (5/8/15 s).
+  alarmeDuracao: () => ipcRenderer.invoke('alarme-duracao'),
+  alarmeSalvarDuracao: (s) => ipcRenderer.invoke('alarme-salvar-duracao', s),
   ambiente: () => ipcRenderer.invoke('ambiente'),
   estadoAgente: () => ipcRenderer.invoke('estado-agente'),
   parearCodigo: (args) => ipcRenderer.invoke('parear-codigo', args),

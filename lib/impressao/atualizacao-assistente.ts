@@ -10,12 +10,12 @@
  */
 export const ATUALIZACAO_ASSISTENTE = {
   ligada: true,
-  // 1.2.0 (12/10): alarme de pedido novo no Assistente. Testado na Menuzia (DESKTOP-BIE4TTM).
-  versao: '1.2.0',
-  url: 'https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v1.2.0/AssistenteMenuziaAlfa1-Setup-1.2.0.exe',
-  sha512: 'W64Ycp9zqgx+ud1v+YjooKdM3VNizFD7myVVIjej6trirK5Fu2uQxoWd+N1ApKpraxbvw5P7faQ+EWc1GvdrPw==',
-  tamanho: 82586029,
-  data: '2026-10-12T04:09:28.760Z',
+  // 1.2.1 (12/10): alarme toca UMA vez por pedido novo (5/8/15 s, padrão 8) e para sozinho. 1.2.0 tocava até aceitar.
+  versao: '1.2.1',
+  url: 'https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v1.2.1/AssistenteMenuziaAlfa1-Setup-1.2.1.exe',
+  sha512: 'tIBt8oEX8BmKQYWigdBSYVAjsO6wYfkFkowhS8xA9FYiYjArQFpkcOjNu2oO2Fh6oP0bmXaSPaTEro3ceqbu0Q==',
+  tamanho: 82586196,
+  data: '2026-10-12T05:32:18.460Z',
 }
 
 /** O `latest.yml` no formato que o electron-updater lê (provedor genérico). */

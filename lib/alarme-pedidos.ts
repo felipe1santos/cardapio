@@ -7,9 +7,11 @@
  * tocavam ao mesmo tempo.
  */
 
-/** Intervalos de repetição oferecidos (segundos). 0 = toca só uma vez por pedido. */
-export const OPCOES_REPETICAO = [0, 10, 15, 30, 60] as const
-export const REPETICAO_PADRAO = 15
+/**
+ * 12/10 (pedido do dono): cada pedido novo toca UMA vez, por ~8 s, e para sozinho — sem repetição e sem precisar
+ * aceitar. Vários pedidos juntos = um toque só (a mesma regra do Assistente 1.2.1).
+ */
+export const DURACAO_TOQUE_SEG = 8
 
 /**
  * Pedidos que devem tocar agora: os "recebidos" que ainda não tocaram NESTA aba.
@@ -20,12 +22,6 @@ export function pedidosParaTocar(atuais: Iterable<string>, jaTocados: ReadonlySe
   const novos: string[] = []
   for (const id of atuais) if (!jaTocados.has(id)) novos.push(id)
   return novos
-}
-
-/** Repetir agora? Só com pedido pendente, som ligado e o intervalo vencido. */
-export function deveRepetir(p: { repetirSeg: number; pendentes: number; somLigado: boolean; ultimoToque: number; agora: number }): boolean {
-  if (!p.somLigado || p.pendentes <= 0 || p.repetirSeg <= 0) return false
-  return p.agora - p.ultimoToque >= p.repetirSeg * 1000 - 250
 }
 
 export interface ArmazenamentoSimples {

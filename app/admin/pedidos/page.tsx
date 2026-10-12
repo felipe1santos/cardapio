@@ -57,7 +57,6 @@ import { Dica, Flutuante } from '@/components/ui/flutuante'
 import { pedidoParado, tempoParado } from '@/lib/pedido-parado'
 import { AvisosPedidos, type Aviso } from '@/components/pedidos/avisos-pedidos'
 import { useAlarme } from '@/components/admin/alarme-global'
-import { OPCOES_REPETICAO } from '@/lib/alarme-pedidos'
 import { cancelarPedidoRequest } from '@/lib/cancelamento'
 import { atualizarConfigImpressao, buscarConfigImpressao, solicitarReimpressao } from '@/lib/queries/impressao'
 import {
@@ -850,7 +849,7 @@ export default function PedidosPage() {
         </p>
       </Flutuante>
       {alarme.tocando ? (
-        <Dica texto="Alarme de pedido novo tocando – clique para silenciar (o próximo pedido novo toca de novo)">
+        <Dica texto="Alarme de pedido novo tocando (uma vez, ~8 s) – clique para silenciar já">
           <button onClick={alarme.silenciar} aria-label="Silenciar o alarme de pedido novo" className={`${QUAD} bg-[#FFEDD5] text-[#C2410C]`} data-testid="kanban-silenciar">
             <BellRing className={`${ICONE} animate-pulse`} />
           </button>
@@ -925,18 +924,6 @@ export default function PedidosPage() {
         <button onClick={() => { void alarme.testar(); setMaisAberto(false) }} className={ITEM} data-testid="kanban-testar-som">
           <Volume2 className="h-4 w-4" /> Testar som
         </button>
-        <div className="border-t border-border px-3 py-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Repetir o alarme</p>
-          <div className="mt-1.5 flex flex-wrap gap-1.5">
-            {OPCOES_REPETICAO.map((s) => (
-              <button key={s} onClick={() => alarme.setRepetirSeg(s)} aria-pressed={alarme.repetirSeg === s}
-                className={`h-[32px] rounded-[3px] border px-2 text-[12px] font-semibold ${alarme.repetirSeg === s ? 'border-[#0369A1] bg-[#0369A1] text-white' : 'border-border bg-white text-text-main hover:bg-page'}`} data-testid={`kanban-repetir-${s}`}>
-                {s === 0 ? 'Não repetir' : `${s} s`}
-              </button>
-            ))}
-          </div>
-          <p className="mt-1 text-[11px] leading-snug text-text-subtle">Repete enquanto houver pedido novo sem aceitar.</p>
-        </div>
         {alarme.permissaoNotif !== 'sem_suporte' && (
           <button onClick={() => void alarme.pedirNotificacao()} disabled={alarme.permissaoNotif === 'granted'}
             className={`${ITEM} border-t border-border disabled:cursor-default disabled:hover:bg-white`} data-testid="kanban-notificacoes">

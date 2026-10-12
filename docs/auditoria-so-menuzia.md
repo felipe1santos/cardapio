@@ -104,3 +104,56 @@ select r.slug from push_config p join restaurantes r on r.id=p.restaurante_id;  
 - `public/sw-loja.js`, `public/sw.js`: sem cache.
 - Busca por gates fixos por loja (`slug === 'menuzia'`, id da Menuzia): só `lib/dashboard-limpeza.ts:8` e o alerta de custo
   (`lib/custo/alerta-whatsapp.ts:20`, que usa o WhatsApp da Menuzia para avisar o dono); nenhum na vitrine.
+
+## Lista completa: o que ainda NÃO está em todas as lojas (12/10/2026, 02:40)
+
+Feita a partir do levantamento acima (banco e páginas conferidos em 12/10 de madrugada) e da leitura do código de tudo o que a
+chave "Novidades em teste" esconde. **Nada foi liberado; o Felipe decide item a item.** São 10 lojas.
+
+Importante: os itens 8 a 15 são **um pacote só**. Todos dependem da mesma chave, "Novidades em teste" (`novidades_teste`, só
+na Menuzia), e ligam juntos. Para liberar um deles sozinho é preciso uma mudança pequena no código.
+
+### Vitrine (o que o cliente vê)
+
+| # | O que é | Onde está ligado hoje | Por que não está nas outras | Risco de liberar | Recomendação |
+|---|---|---|---|---|---|
+| 1 | Letra "iFood" (Figtree) na vitrine, na sacola, no checkout e na tela de forma de pagamento: é o "carrinho novo" | Só Menuzia | Ajuste de cada loja (Ajustes › Aparência); o padrão é a letra antiga e ninguém trocou | Baixo (só visual; o dono volta em Ajustes) | Agora, se o Felipe quiser a cara nova em todas |
+| 2 | Foto do item na lista em tamanho menor (90/100/110 px) | Só Menuzia (110) | Ajuste de cada loja; o padrão é o tamanho antigo (120/140 px) | Baixo (só visual) | Agora, junto com o 1 |
+| 3 | Vitrine nova inteira (sacola, checkout, pagamento, perfil) | 9 lojas; falta a **firehouse** | Loja nova nasce com a vitrine antiga (padrão `false`); a firehouse foi criada depois da ligação em massa | Baixo (as outras 9 usam há 4 dias) | Agora na firehouse; depois, decidir se loja nova já nasce com ela |
+| 4 | Pix online pelo Mercado Pago no checkout (código copia e cola com baixa automática) | Só Menuzia | Só a Menuzia conectou uma conta do Mercado Pago | Médio (dinheiro; cada loja precisa da própria conta) | Depois, só com a loja conectando a conta dela |
+| 5 | Carrossel de fotos (até 4) na ficha do item | Só Menuzia (pacote Novidades) | Faz parte do pacote "Novidades em teste" | Baixo (só aparece em item com mais de uma foto) | Depois, com o pacote (ou separar) |
+| 6 | Notificações push para o cliente (app do cardápio) | Só Menuzia | Liberado à mão e sem tela para ligar; só a Menuzia tem limites configurados | Médio (envio automático para clientes) | Depois, uma loja por vez |
+| 7 | Agendamento de pedidos (pedir para mais tarde) | Só Menuzia | Configuração da própria loja, desligada por padrão | Baixo na vitrine, médio na operação | Depois, se a loja pedir |
+
+### Painel da loja: pacote "Novidades em teste" (só Menuzia)
+
+| # | O que é | Onde está ligado hoje | Por que não está nas outras | Risco de liberar | Recomendação |
+|---|---|---|---|---|---|
+| 8 | Menu lateral reorganizado e escuro | Só Menuzia | Chave de teste (0178), ligada à mão | Médio (muda o menu de todos os funcionários da loja) | Depois, uma loja por vez, avisando o dono |
+| 9 | Impressão dentro de Ajustes (sai do menu e vai para Ajustes › Impressão) | Só Menuzia | Pacote Novidades | Médio (quem configura a impressora procura no lugar antigo) | Depois, junto com o 8 |
+| 10 | Agente de IA dentro de Ajustes (sai do menu) | Só Menuzia | Pacote Novidades | Baixo | Depois, junto com o 8 |
+| 11 | "Modelos de mensagem" e "Notificações do app" mudam de Ajustes para Campanhas | Só Menuzia | Pacote Novidades | Baixo (o link antigo redireciona) | Depois, junto com o 8 |
+| 12 | Links para divulgar (Ajustes › Perfil): um link do cardápio para cada canal (Instagram, Google etc.) | Só Menuzia | Pacote Novidades | Baixo | Depois, com o pacote. Se quiser antes, dá para separar (mudança pequena) |
+| 13 | Até 4 fotos por item no cadastro do Gestor de Cardápio (as outras têm 1 foto) | Só Menuzia | Pacote Novidades | Baixo | Depois, com o pacote (ou separar) |
+| 14 | Ícone de origem "Direto" / "Sem origem" no card do Kanban. Os ícones de canal (Instagram, Google…) já aparecem em todas as lojas; só estes dois são do pacote | Só Menuzia | Pacote Novidades | Baixo (só visual) | Depois, com o pacote |
+| 15 | Gráfico "Vendas por origem" no Dashboard | Só Menuzia | Pacote Novidades | Baixo (só leitura) | Depois, com o pacote; faz par com o 12 |
+
+### Módulos pagos e recursos de operação
+
+| # | O que é | Onde está ligado hoje | Por que não está nas outras | Risco de liberar | Recomendação |
+|---|---|---|---|---|---|
+| 16 | Agente de IA no WhatsApp (Claude): anota pedido pela conversa | Só Menuzia (teto de US$ 0,50/dia). Ponto 400 tem o módulo liberado, mas o interruptor está desligado | Módulo pago; precisa de teto diário | Alto (custo por resposta) | Depois, só com o módulo contratado e o teto configurado |
+| 17 | Módulo Financeiro (caixa, contas, fluxo, DRE) | Só Menuzia | Módulo pago (bloqueado nas outras, mesmo com o financeiro ativo) | Médio (muda a rotina de caixa) | Depois, conforme contratação |
+| 18 | Controle de caixa nível 2 (trava com PIN do gerente) | Nenhuma loja, nem a Menuzia | Falta gerente com PIN nas lojas | Alto (pode travar o caixa) | Depois |
+| 19 | Disparos (campanhas em massa no WhatsApp) | Nenhuma (a Menuzia foi bloqueada pelo dono em 10/10) | Módulo pago | Médio | Depois, só por ordem do Felipe |
+| 20 | Despacho automático de entregas (atribui o motoboy sozinho) | Só Menuzia | Cada loja liga no Kanban; ninguém ligou | Médio | Depois, se a loja pedir |
+| 21 | PDV v2 (balcão novo) | 6 lojas: Menuzia, Estância, Mama Pizza, Pizza do Rosa, Ponto 400, Villa. Fora: DB Doces, Nossa Cozinha, W Lanches, firehouse | Ligado à mão por loja (não tem tela) | Médio (muda o balcão/caixa) | Depois, avisando a loja |
+| 22 | Mesas e comandas | 4 lojas: Menuzia, Pizza do Rosa, Ponto 400, Villa | Só faz sentido para quem atende salão | Baixo | Não precisa liberar; é por loja |
+| 23 | Robô de atendimento novo no WhatsApp | Ligado em 7 lojas (Nossa Cozinha desligou). Responde de verdade só onde há WhatsApp conectado: Menuzia, Ponto 400, Estância, Villa | Falta conectar o WhatsApp nas outras | Médio (responde clientes reais) | Já está; falta só o WhatsApp das lojas |
+| 24 | Chave Pix enviada pelo robô | Menuzia e Estância | Cada loja cadastra a chave dela | Baixo | Não é liberação; é cadastro da loja |
+| 25 | Modelos novos (formatados) das mensagens de status do pedido | Só Menuzia (texto próprio dela) | Gravados só na Menuzia, sem trocar o padrão das outras | Baixo | Depois, se o Felipe quiser trocar o padrão de todas |
+| 26 | Impressão nova (Assistente Alfa 1) | 9 lojas; falta a firehouse | Loja nova nasce no padrão `false` | Baixo | Agora na firehouse, se ela já imprime |
+| 27 | Alarme de pedido novo pelo Assistente (1.2.x, toca uma vez por pedido) | Lojas com Assistente 1.2.0+ e online; as outras seguem com o alarme do painel | Chega pela atualização automática; a **Villa fica fora** (travada no 1.1.0) | Baixo | Já vai sozinho; Villa continua no alarme do painel |
+| 28 | Integração Nexta Delivery | Só Menuzia, e desligada | Falta registrar a webhook com o suporte da Nexta | — | Depois |
+| 29 | Dashboard mostra os pedidos de teste | Só Menuzia | De propósito: é a loja de teste | — | Manter assim |
+| 30 | Cor da marca própria (#f50018) | Só Menuzia | É escolha de cada loja; não é chave | — | Nada a fazer |

@@ -1,18 +1,20 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { deveRepetir, pedidosParaTocar, reivindicarToque, REPETICAO_PADRAO, type MotivoFalhaSom } from '@/lib/alarme-pedidos'
+import { DURACAO_TOQUE_SEG, pedidosParaTocar, reivindicarToque, type MotivoFalhaSom } from '@/lib/alarme-pedidos'
 
 /**
  * Alarme de pedido novo do painel (2026-10-03; desde 2026-10-04 vive no layout, em toda tela —
  * components/admin/alarme-global.tsx).
  *
  *
- * - mp3 decodificado no Web Audio; cada toque é uma fonte nova (dois pedidos = dois sons).
+ * - mp3 decodificado no Web Audio. 12/10 (pedido do dono): cada pedido novo toca UMA vez, ~8 s (o mp3 de 2 s em
+ *   repetição até o prazo), e para sozinho; vários pedidos juntos = um toque só; toque novo com som tocando recomeça o
+ *   mesmo som (nunca dois por cima). Sem repetição e sem precisar aceitar para parar.
  * - Navegador bloqueou o som (painel aberto sem clique): `bloqueado = true` → a tela mostra o
  *   aviso clicável; qualquer clique/tecla destrava e toca o que estava esperando.
  * - Toca TODO pedido "recebido" que ainda não tocou nesta aba (tempo real, poll, reconexão ou
- *   o que já esperava quando a página abriu) e repete a cada N s enquanto houver pendente.
+ *   o que já esperava quando a página abriu).
  * - Aba escondida: a notificação do navegador sai do layout do painel (notificacoes-pedidos).
  *   Wake Lock: a tela não dorme.
  * - Várias abas: só uma toca cada pedido (lib/alarme-pedidos.ts › reivindicarToque).
@@ -22,10 +24,6 @@ import { deveRepetir, pedidosParaTocar, reivindicarToque, REPETICAO_PADRAO, type
  */
 const SOM_SRC = '/sounds/som-telefone-alarme.mp3'
 const CHAVE_SOM = 'menuzia:kanban-som'
-const CHAVE_REPETIR = 'menuzia:kanban-som-repetir'
-/** Silenciados valem para todas as abas do painel. */
-const CHAVE_SILENCIADOS = 'menuzia:alarme:silenciados'
-const lerSilenciados = (): string[] => { try { const v = JSON.parse(localStorage.getItem(CHAVE_SILENCIADOS) ?? '[]'); return Array.isArray(v) ? v.filter((x) => typeof x === 'string') : [] } catch { return [] } }
 
 type Estado = { tocou: number; falhas: Partial<Record<MotivoFalhaSom, number>>; bloqueado: boolean; ultimoMotivo: string | null }
 declare global { interface Window { __mzAlarme?: Estado } }
@@ -39,19 +37,17 @@ const armazenamento = () => { try { return window.localStorage } catch { return 
  */
 export function useAlarmePedidos({ ativo = true, mudo = false }: { ativo?: boolean; mudo?: boolean } = {}) {
   const [somAtivo, setSomAtivoEstado] = useState(true)
-  const [repetirSeg, setRepetirSegEstado] = useState(REPETICAO_PADRAO)
   const [bloqueado, setBloqueado] = useState(false)
+  /** Som saindo agora (o toque de ~8 s); o botão "silenciar" corta. */
   const [tocando, setTocando] = useState(false)
   const [permissaoNotif, setPermissaoNotif] = useState<NotificationPermission | 'sem_suporte'>('default')
   const somRef = useRef(true)
-  const repetirRef = useRef(REPETICAO_PADRAO)
   const ctxRef = useRef<AudioContext | null>(null)
   const bufferRef = useRef<AudioBuffer | null>(null)
+  /** O toque em andamento (no máximo um). */
+  const fonteRef = useRef<AudioBufferSourceNode | null>(null)
   const tocadosRef = useRef<Set<string>>(new Set())
-  /** Pedidos silenciados pelo botão: não repetem; pedido NOVO toca normalmente. */
-  const silenciadosRef = useRef<Set<string>>(new Set())
   const pendentesRef = useRef<{ id: string; numero: number }[]>([])
-  const ultimoToqueRef = useRef(0)
   const abaRef = useRef<string>('')
   const logadoRef = useRef<Map<string, number>>(new Map())
   const wakeRef = useRef<{ release: () => Promise<void> } | null>(null)
@@ -83,9 +79,7 @@ export function useAlarmePedidos({ ativo = true, mudo = false }: { ativo?: boole
     abaRef.current = idDaAba()
     const s = armazenamento()
     const som = s?.getItem(CHAVE_SOM) !== '0'
-    const rep = Number(s?.getItem(CHAVE_REPETIR) ?? REPETICAO_PADRAO)
     somRef.current = som; setSomAtivoEstado(som)
-    repetirRef.current = Number.isFinite(rep) ? rep : REPETICAO_PADRAO; setRepetirSegEstado(repetirRef.current)
     setPermissaoNotif(typeof Notification === 'undefined' ? 'sem_suporte' : Notification.permission)
     // Sem acesso ao Painel de Pedidos (ex.: garçom): nada de áudio nem aviso de bloqueio.
     if (!ativo) return
@@ -110,7 +104,15 @@ export function useAlarmePedidos({ ativo = true, mudo = false }: { ativo?: boole
     return () => { ctx.onstatechange = null; void ctx.close().catch(() => {}); ctxRef.current = null; estado().bloqueado = false; setBloqueado(false) }
   }, [registrarFalha, ativo])
 
-  /** Um toque (fonte nova a cada vez). Devolve se saiu som. */
+  /** Corta o toque em andamento. */
+  const pararSom = useCallback(() => {
+    const f = fonteRef.current
+    fonteRef.current = null
+    if (f) try { f.stop() } catch { /* já parou */ }
+    setTocando(false)
+  }, [])
+
+  /** Um toque de ~8 s (o mp3 em repetição até o prazo). Com som tocando, recomeça o mesmo (não empilha). Devolve se saiu som. */
   const tocarUmaVez = useCallback((): boolean => {
     const ctx = ctxRef.current
     if (!ctx) return false
@@ -121,12 +123,17 @@ export function useAlarmePedidos({ ativo = true, mudo = false }: { ativo?: boole
     }
     try {
       if (bufferRef.current) {
+        pararSom()
         const src = ctx.createBufferSource()
         src.buffer = bufferRef.current
+        src.loop = true
         const ganho = ctx.createGain(); ganho.gain.value = 1
         src.connect(ganho); ganho.connect(ctx.destination)
         src.start()
-        src.onended = () => { src.disconnect(); ganho.disconnect() }
+        src.stop(ctx.currentTime + DURACAO_TOQUE_SEG)
+        fonteRef.current = src
+        setTocando(true)
+        src.onended = () => { src.disconnect(); ganho.disconnect(); if (fonteRef.current === src) { fonteRef.current = null; setTocando(false) } }
       } else {
         // mp3 ainda não decodificado (ou indisponível): 3 bipes sintetizados.
         for (const [f, t] of [[880, 0], [1175, 0.2], [880, 0.4]] as const) {
@@ -138,63 +145,41 @@ export function useAlarmePedidos({ ativo = true, mudo = false }: { ativo?: boole
         }
       }
       estado().tocou++
-      ultimoToqueRef.current = Date.now()
       return true
     } catch (err) {
       registrarFalha('erro_reproducao', String(err))
       return false
     }
-  }, [registrarFalha])
+  }, [registrarFalha, pararSom])
 
   /**
-   * Chamado a cada leitura dos pedidos (tempo real, poll, reconexão). Toca uma vez para CADA
-   * pedido recebido que ainda não tocou nesta aba (dois juntos = dois toques).
+   * Chamado a cada leitura dos pedidos (tempo real, poll, reconexão). Toca UMA vez para o lote de
+   * pedidos recebidos que ainda não tocaram nesta aba (dois juntos = um toque só).
    */
   const aoAtualizarPedidos = useCallback((recebidos: { id: string; numero: number }[]) => {
     pendentesRef.current = recebidos
     const ids = new Set(recebidos.map((p) => p.id))
     for (const id of [...tocadosRef.current]) if (!ids.has(id)) tocadosRef.current.delete(id)
-    for (const id of lerSilenciados()) if (ids.has(id)) { silenciadosRef.current.add(id); tocadosRef.current.add(id) }
-    for (const id of [...silenciadosRef.current]) if (!ids.has(id)) silenciadosRef.current.delete(id)
     const novos = pedidosParaTocar(ids, tocadosRef.current)
-    setTocando(somRef.current && recebidos.some((p) => !silenciadosRef.current.has(p.id)))
     if (!novos.length) return
     for (const id of novos) tocadosRef.current.add(id)
-    // Chegou pedido novo: a repetição recomeça a contar em TODAS as abas (a que não tocou não
-    // pode repetir na hora só porque nunca tocou).
-    ultimoToqueRef.current = Date.now()
     if (!somRef.current || mudoRef.current) return
     const s = armazenamento()
     const meus = novos.filter((id) => reivindicarToque(`menuzia:alarme:${id}`, abaRef.current, Date.now(), s))
-    if (!meus.length) return
-    meus.forEach((_, i) => setTimeout(() => tocarUmaVez(), i * 1400))
+    if (meus.length) tocarUmaVez()
     // A notificação do navegador (aba escondida) já sai do layout do painel para todo pedido
     // novo (components/admin/notificacoes-pedidos.tsx) — aqui não repete.
   }, [tocarUmaVez])
 
-  // Repetição enquanto houver pedido não aceito (sem o antigo corte de 2 min).
-  useEffect(() => {
-    const t = setInterval(() => {
-      const pend = pendentesRef.current.filter((p) => !silenciadosRef.current.has(p.id)).length
-      if (mudoRef.current || !deveRepetir({ repetirSeg: repetirRef.current, pendentes: pend, somLigado: somRef.current, ultimoToque: ultimoToqueRef.current, agora: Date.now() })) return
-      if (!reivindicarToque('menuzia:alarme:repeticao', abaRef.current, Date.now(), armazenamento(), repetirRef.current * 800)) return
-      tocarUmaVez()
-    }, 1000)
-    return () => clearInterval(t)
-  }, [tocarUmaVez])
-
-  // Assistente saiu do ar (ou voltou): a troca é imediata — saiu com pedido esperando, o painel toca já.
+  // Assistente saiu do ar (ou voltou): a troca é imediata — saiu com pedido esperando, o painel toca já (uma vez).
   useEffect(() => {
     const era = mudoRef.current
     mudoRef.current = mudo
-    if (era && !mudo && somRef.current && pendentesRef.current.some((p) => !silenciadosRef.current.has(p.id))) {
-      ultimoToqueRef.current = Date.now()
-      tocarUmaVez()
-    }
+    if (era && !mudo && somRef.current && pendentesRef.current.length) tocarUmaVez()
   }, [mudo, tocarUmaVez])
 
   aoLiberarRef.current = () => {
-    if (!mudoRef.current && somRef.current && pendentesRef.current.some((p) => !silenciadosRef.current.has(p.id))) tocarUmaVez()
+    if (!mudoRef.current && somRef.current && pendentesRef.current.length) tocarUmaVez()
   }
 
   // Destrave: qualquer interação libera o áudio; a mudança de estado toca o que esperava.
@@ -231,13 +216,9 @@ export function useAlarmePedidos({ ativo = true, mudo = false }: { ativo?: boole
   const setSomAtivo = useCallback((v: boolean) => {
     somRef.current = v; setSomAtivoEstado(v)
     try { localStorage.setItem(CHAVE_SOM, v ? '1' : '0') } catch { /* sem storage */ }
-    if (v) { void ctxRef.current?.resume().catch(() => {}); setTocando(pendentesRef.current.length > 0) } else setTocando(false)
-  }, [])
-
-  const setRepetirSeg = useCallback((s: number) => {
-    repetirRef.current = s; setRepetirSegEstado(s)
-    try { localStorage.setItem(CHAVE_REPETIR, String(s)) } catch { /* sem storage */ }
-  }, [])
+    if (v) void ctxRef.current?.resume().catch(() => {})
+    else pararSom()
+  }, [pararSom])
 
   /** "Testar som" e o aviso clicável: o próprio clique libera o áudio. */
   const testar = useCallback(async () => {
@@ -245,17 +226,13 @@ export function useAlarmePedidos({ ativo = true, mudo = false }: { ativo?: boole
     if (ctx && ctx.state !== 'running') {
       await ctx.resume().catch(() => {})
       // A liberação já tocou o pedido que esperava (aoLiberar): não toca de novo em cima.
-      if (somRef.current && pendentesRef.current.some((p) => !silenciadosRef.current.has(p.id))) return true
+      if (somRef.current && pendentesRef.current.length && !mudoRef.current) return true
     }
     return tocarUmaVez()
   }, [tocarUmaVez])
 
-  /** Para a repetição dos pedidos que já tocaram (o próximo pedido novo toca normalmente). */
-  const silenciar = useCallback(() => {
-    for (const p of pendentesRef.current) silenciadosRef.current.add(p.id)
-    try { localStorage.setItem(CHAVE_SILENCIADOS, JSON.stringify([...new Set([...lerSilenciados(), ...silenciadosRef.current])].slice(-200))) } catch { /* sem storage */ }
-    setTocando(false)
-  }, [])
+  /** Corta o toque que está saindo agora (o próximo pedido novo toca normalmente). */
+  const silenciar = pararSom
 
   const pedirNotificacao = useCallback(async () => {
     if (typeof Notification === 'undefined') return
@@ -263,5 +240,5 @@ export function useAlarmePedidos({ ativo = true, mudo = false }: { ativo?: boole
     setPermissaoNotif(p)
   }, [])
 
-  return { somAtivo, setSomAtivo, repetirSeg, setRepetirSeg, bloqueado, tocando, testar, silenciar, aoAtualizarPedidos, permissaoNotif, pedirNotificacao }
+  return { somAtivo, setSomAtivo, bloqueado, tocando, testar, silenciar, aoAtualizarPedidos, permissaoNotif, pedirNotificacao }
 }

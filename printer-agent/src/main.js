@@ -17,7 +17,7 @@ const { montarComandaV3, montarPreContaV3, textoDoV3 } = require('./v3')
 const { montarComandaAlfa1, montarPreContaAlfa1, textoPlanoAlfa1 } = require('./alfa1')
 const { conviteDosArgumentos, conviteNosDownloads } = require('./convite')
 const { iniciarAtualizacao } = require('./atualizacao')
-const { criarAlarme } = require('./alarme')
+const { criarAlarme, duracaoValida } = require('./alarme')
 
 // Variante do build (electron-builder grava `menuziaAmbiente` no package.json empacotado):
 //   · sem o campo   → o Assistente de sempre, exatamente como sempre;
@@ -132,8 +132,10 @@ let voltaPedidosEm = Date.now()
 let geracaoLaco = 0
 // Alarme de pedido novo (1.2.0): volume da tela (10–100%), padrão 100%.
 const volumeAlarme = () => { const v = Number(carregarConfig().alarmeVolume); return Number.isFinite(v) && v >= 0.1 && v <= 1 ? v : 1 }
+// 1.2.1: duração do toque (5/8/15 s), padrão 8 s.
+const duracaoAlarme = () => duracaoValida(carregarConfig().alarmeDuracao)
 let alarme = null
-const alarmeAgente = () => (alarme ??= criarAlarme({ volume: volumeAlarme, registrar: (m) => { log(m); logArquivo(m) } }))
+const alarmeAgente = () => (alarme ??= criarAlarme({ volume: volumeAlarme, duracao: duracaoAlarme, registrar: (m) => { log(m); logArquivo(m) } }))
 let cicloRodando = false // trava de reentrância: impede dois ciclos imprimirem o mesmo pedido
 // Atualização automática (beta.11): só instala com o Assistente parado. Marca a última impressão
 // (pedido ou trabalho recebido) e se há algo sendo impresso agora.
@@ -831,6 +833,8 @@ ipcMain.handle('alarme-salvar-volume', (_e, v) => {
   if (alarme) alarme.reaplicarVolume()
   return n
 })
+ipcMain.handle('alarme-duracao', () => duracaoAlarme())
+ipcMain.handle('alarme-salvar-duracao', (_e, s) => { const n = duracaoValida(s); salvarConfig({ alarmeDuracao: n }); return n })
 ipcMain.handle('alarme-testar', () => alarmeAgente().testar())
 ipcMain.handle('ambiente', () => ({ testeLocal: EH_TESTE_LOCAL || (EH_BETA && API_BASE_URL !== PRODUCAO), beta: EH_BETA, servidor: API_BASE_URL }))
 ipcMain.handle('carregar-config', () => carregarConfig())

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { deveRepetir, pedidosParaTocar, reivindicarToque } from './alarme-pedidos'
+import { pedidosParaTocar, reivindicarToque } from './alarme-pedidos'
 
 const mem = () => { const m = new Map<string, string>(); return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v) } }
 
@@ -8,20 +8,6 @@ describe('pedidosParaTocar', () => {
     expect(pedidosParaTocar(['a', 'b'], new Set())).toEqual(['a', 'b'])
     expect(pedidosParaTocar(['a', 'b', 'c'], new Set(['a', 'b']))).toEqual(['c'])
     expect(pedidosParaTocar([], new Set(['a']))).toEqual([])
-  })
-})
-
-describe('deveRepetir', () => {
-  const base = { repetirSeg: 15, pendentes: 1, somLigado: true, ultimoToque: 0, agora: 15_000 }
-  it('repete enquanto houver pendente, sem limite de 2 minutos', () => {
-    expect(deveRepetir(base)).toBe(true)
-    expect(deveRepetir({ ...base, agora: 10 * 60_000, ultimoToque: 10 * 60_000 - 15_000 })).toBe(true)
-  })
-  it('não repete sem pendente, com som desligado, antes do intervalo ou com repetição desligada', () => {
-    expect(deveRepetir({ ...base, pendentes: 0 })).toBe(false)
-    expect(deveRepetir({ ...base, somLigado: false })).toBe(false)
-    expect(deveRepetir({ ...base, agora: 10_000 })).toBe(false)
-    expect(deveRepetir({ ...base, repetirSeg: 0 })).toBe(false)
   })
 })
 

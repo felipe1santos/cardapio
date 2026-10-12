@@ -320,6 +320,12 @@ function ligarTelaSimples() {
     vol.addEventListener('change', () => { void window.agente.alarmeSalvarVolume(Number(vol.value) / 100) })
     document.getElementById('alarmeTestar').addEventListener('click', () => { void window.agente.alarmeTestar() })
   }
+  // 1.2.1: duração do toque.
+  const dur = document.getElementById('alarmeDuracao')
+  if (dur && window.agente.alarmeDuracao) {
+    window.agente.alarmeDuracao().then((s) => { dur.value = String(s) })
+    dur.addEventListener('change', () => { void window.agente.alarmeSalvarDuracao(Number(dur.value)) })
+  }
   document.getElementById('simplesDesconectar').addEventListener('click', async () => {
     if (!confirm('Desconectar este computador da loja? Ele para de imprimir até ser conectado de novo pelo painel.')) return
     await window.agente.desparear()
