@@ -85,6 +85,16 @@
       </div>
     </div>
     <div class="ultima" id="simplesUltima" style="display:none"></div>
+    <div class="alarme" id="simplesAlarme" style="margin:12px 0 4px;padding-top:10px;border-top:1px solid #E5E7EB">
+      <div style="font-weight:600;font-size:13px;margin-bottom:6px">🔔 Alarme de pedido novo</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <label for="alarmeVolume" style="font-size:12px;color:#6B7280">Volume</label>
+        <input type="range" id="alarmeVolume" min="10" max="100" step="10" value="100" style="flex:1">
+        <span id="alarmeVolumeTexto" style="font-size:12px;width:36px;text-align:right">100%</span>
+        <button type="button" id="alarmeTestar" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:6px 10px;border:1px solid #D1D5DB;border-radius:3px;background:#fff;cursor:pointer">Testar alarme</button>
+      </div>
+      <p style="font-size:11px;color:#6B7280;margin:6px 0 0">Toca aqui até o pedido ser aceito, mesmo com o navegador fechado. Enquanto este computador estiver ligado, o painel não toca.</p>
+    </div>
     <button type="button" class="link-discreto" id="simplesDesconectar" style="display:none">Desconectar este computador</button>
     <details id="simplesCodigo" style="display:none">
       <summary>Tenho um código de pareamento</summary>

@@ -8,6 +8,10 @@ contextBridge.exposeInMainWorld('agente', {
   buscarImpressorasCloud: (token) => ipcRenderer.invoke('buscar-impressoras-cloud', { token }),
   testarImpressora: (args) => ipcRenderer.invoke('testar-impressora', args),
   versao: () => ipcRenderer.invoke('versao'),
+  // 1.2.0: alarme de pedido novo (volume e "Testar alarme").
+  alarmeVolume: () => ipcRenderer.invoke('alarme-volume'),
+  alarmeSalvarVolume: (v) => ipcRenderer.invoke('alarme-salvar-volume', v),
+  alarmeTestar: () => ipcRenderer.invoke('alarme-testar'),
   ambiente: () => ipcRenderer.invoke('ambiente'),
   estadoAgente: () => ipcRenderer.invoke('estado-agente'),
   parearCodigo: (args) => ipcRenderer.invoke('parear-codigo', args),

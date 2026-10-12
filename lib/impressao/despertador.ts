@@ -108,6 +108,11 @@ export async function esperarComBusca<T>(
    * para e devolve vazio — nada é reservado para quem deixou de ser o destino.
    */
   aindaVale: () => Promise<boolean> = async () => true,
+  /**
+   * Alarme do Assistente (12/10): depois de um aviso sem nada para imprimir, a contagem de pedidos esperando aceite
+   * mudou (aceitaram/recusaram)? Então devolve já (vazio) para o Assistente parar o som na hora.
+   */
+  devolverJa?: () => Promise<boolean>,
 ): Promise<T[]> {
   const fim = Date.now() + Math.max(0, Math.min(segundos, 20)) * 1000
   const buscarSeVale = async () => ((await aindaVale()) ? buscar() : null)
@@ -126,6 +131,7 @@ export async function esperarComBusca<T>(
         if (outra === null) return []
         lista = outra
       }
+      if (!lista.length && devolverJa && (await devolverJa())) break
     }
   }
   return lista

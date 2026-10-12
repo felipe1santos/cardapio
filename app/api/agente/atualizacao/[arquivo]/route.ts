@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { latestYml } from '@/lib/impressao/atualizacao-assistente'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { bloqueiaAtualizacao, ipDoRequest } from '@/lib/impressao/atualizacao-bloqueio'
+import { dentroDaJanelaDeAtualizacao } from '@/lib/impressao/alarme-assistente'
 
 /**
  * Atualização automática do Assistente (0.2.0-beta.11+): devolve o `latest.yml` com a versão
@@ -18,6 +19,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ arquivo:
   const { arquivo } = await params
   const yml = arquivo === 'latest.yml' ? latestYml() : null
   if (!yml) return new NextResponse('não encontrado', { status: 404 })
+  // Versão nova só nas janelas de pouco movimento (03:00–10:30 e 14:30–17:00, Brasília; ordem do dono 12/10). Fora delas
+  // o Assistente fica onde está e pergunta de novo na hora seguinte. O Assistente ainda espera a fila vazia para instalar.
+  if (!dentroDaJanelaDeAtualizacao(new Date())) return new NextResponse('não encontrado', { status: 404 })
   const ip = ipDoRequest(req.headers)
   if (ip) {
     const admin = getAdminSupabase()

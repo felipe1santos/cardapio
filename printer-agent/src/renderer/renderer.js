@@ -311,6 +311,15 @@ function ligarTelaSimples() {
   const bloco = document.getElementById('blocoLog')
   bloco.parentNode.insertBefore(det, bloco)
   det.appendChild(bloco)
+  // 1.2.0: alarme de pedido novo.
+  const vol = document.getElementById('alarmeVolume')
+  const volTexto = document.getElementById('alarmeVolumeTexto')
+  if (vol && window.agente.alarmeVolume) {
+    window.agente.alarmeVolume().then((v) => { vol.value = String(Math.round(v * 100)); volTexto.textContent = `${vol.value}%` })
+    vol.addEventListener('input', () => { volTexto.textContent = `${vol.value}%` })
+    vol.addEventListener('change', () => { void window.agente.alarmeSalvarVolume(Number(vol.value) / 100) })
+    document.getElementById('alarmeTestar').addEventListener('click', () => { void window.agente.alarmeTestar() })
+  }
   document.getElementById('simplesDesconectar').addEventListener('click', async () => {
     if (!confirm('Desconectar este computador da loja? Ele para de imprimir até ser conectado de novo pelo painel.')) return
     await window.agente.desparear()

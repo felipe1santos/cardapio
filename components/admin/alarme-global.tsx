@@ -28,9 +28,31 @@ export function useAlarme(): ValorAlarme | null {
 }
 
 const LEITURA_MS = 20_000
+/** De quanto em quanto tempo o painel pergunta se o Assistente da loja está tocando o alarme (12/10). */
+const ASSISTENTE_MS = 15_000
 
 export function AlarmeProvider({ restauranteId, ativo, children }: { restauranteId: string | null; ativo: boolean; children: ReactNode }) {
-  const alarme = useAlarmePedidos({ ativo })
+  // Um alarme só (12/10): Assistente online e com alarme → o painel fica mudo. Na dúvida (erro, sem resposta), toca.
+  const [assistenteToca, setAssistenteToca] = useState(false)
+  useEffect(() => {
+    if (!restauranteId || !ativo) return
+    let vivo = true
+    const perguntar = async () => {
+      try {
+        const r = await fetch('/api/admin/pedidos/alarme-assistente', { cache: 'no-store' })
+        const j = r.ok ? await r.json() : null
+        if (vivo) setAssistenteToca(j?.assistente === true)
+      } catch {
+        if (vivo) setAssistenteToca(false)
+      }
+    }
+    void perguntar()
+    const t = setInterval(() => void perguntar(), ASSISTENTE_MS)
+    const aoVoltar = () => { if (document.visibilityState === 'visible') void perguntar() }
+    document.addEventListener('visibilitychange', aoVoltar)
+    return () => { vivo = false; clearInterval(t); document.removeEventListener('visibilitychange', aoVoltar) }
+  }, [restauranteId, ativo])
+  const alarme = useAlarmePedidos({ ativo, mudo: assistenteToca })
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [pendentes, setPendentes] = useState<{ id: string; numero: number }[]>([])
   const aoAtualizar = useRef(alarme.aoAtualizarPedidos)

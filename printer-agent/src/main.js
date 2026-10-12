@@ -17,6 +17,7 @@ const { montarComandaV3, montarPreContaV3, textoDoV3 } = require('./v3')
 const { montarComandaAlfa1, montarPreContaAlfa1, textoPlanoAlfa1 } = require('./alfa1')
 const { conviteDosArgumentos, conviteNosDownloads } = require('./convite')
 const { iniciarAtualizacao } = require('./atualizacao')
+const { criarAlarme } = require('./alarme')
 
 // Variante do build (electron-builder grava `menuziaAmbiente` no package.json empacotado):
 //   · sem o campo   → o Assistente de sempre, exatamente como sempre;
@@ -129,6 +130,10 @@ let polling = false
 // sinal (trabalhos) sem imprimir a cozinha. Cada volta marca a hora; parado há 3 min → recomeça.
 let voltaPedidosEm = Date.now()
 let geracaoLaco = 0
+// Alarme de pedido novo (1.2.0): volume da tela (10–100%), padrão 100%.
+const volumeAlarme = () => { const v = Number(carregarConfig().alarmeVolume); return Number.isFinite(v) && v >= 0.1 && v <= 1 ? v : 1 }
+let alarme = null
+const alarmeAgente = () => (alarme ??= criarAlarme({ volume: volumeAlarme }))
 let cicloRodando = false // trava de reentrância: impede dois ciclos imprimirem o mesmo pedido
 // Atualização automática (beta.11): só instala com o Assistente parado. Marca a última impressão
 // (pedido ou trabalho recebido) e se há algo sendo impresso agora.
@@ -235,7 +240,8 @@ async function cicloDePolling() {
   const headers = { ...auth, 'X-Impressora-Id': config.impressoraCloudId || '', 'X-Agente-Instancia': instanciaAgente() }
 
   try {
-    const url = `${API_BASE_URL}/api/agente/pedidos${EH_BETA ? '?esperar=20' : ''}`
+    // ?alarme=N (1.2.0): quantos pedidos este computador sabe que esperam aceite — o servidor devolve na hora se mudar.
+    const url = `${API_BASE_URL}/api/agente/pedidos${EH_BETA ? `?esperar=20&alarme=${alarmeAgente().sabido()}` : ''}`
     const res = await fetch(url, { headers, ...(EH_BETA ? { signal: AbortSignal.timeout(35_000) } : {}) })
     if (!res.ok) {
       ultimoCicloPedidos.erro = true
@@ -244,6 +250,8 @@ async function cicloDePolling() {
     }
     const recebidoEm = Date.now()
     const data = await res.json()
+    // Antes de qualquer saída do ciclo (impressão desligada, sem destino): o alarme vale mesmo sem imprimir.
+    if (EH_BETA) alarmeAgente().atualizar(data.alarme)
     ultimoCicloPedidos.longo = data.esperaAte === 20
     const { config: configImpressao, pedidos } = data
     const lojaNome = data.loja?.nome ?? ''
@@ -816,6 +824,14 @@ app.on('before-quit', () => { app.isQuitting = true; encerrarServidores() })
 app.on('window-all-closed', () => { /* mantém rodando em segundo plano */ })
 
 ipcMain.handle('versao', () => app.getVersion())
+ipcMain.handle('alarme-volume', () => volumeAlarme())
+ipcMain.handle('alarme-salvar-volume', (_e, v) => {
+  const n = Math.max(0.1, Math.min(1, Number(v) || 1))
+  salvarConfig({ alarmeVolume: n })
+  if (alarme) alarme.reaplicarVolume()
+  return n
+})
+ipcMain.handle('alarme-testar', () => alarmeAgente().testar())
 ipcMain.handle('ambiente', () => ({ testeLocal: EH_TESTE_LOCAL || (EH_BETA && API_BASE_URL !== PRODUCAO), beta: EH_BETA, servidor: API_BASE_URL }))
 ipcMain.handle('carregar-config', () => carregarConfig())
 

@@ -7,6 +7,7 @@ import { destinoCozinha } from '@/lib/impressao/servico'
 import { aposCorteDaTransferencia } from '@/lib/impressao/transferencia'
 import { extrasDaCozinhaBeta, lojaDaCozinhaBeta, lojaImpressao, qrDaRotaImpressa, type QrCozinha, type LojaImpressao } from '@/lib/impressao/cozinha-beta'
 import { esperarComBusca } from '@/lib/impressao/despertador'
+import { aguardandoAceite } from '@/lib/impressao/alarme-assistente'
 import { anunciaEsperaLonga } from '@/lib/impressao/espera-longa'
 
 export const dynamic = 'force-dynamic'
@@ -66,21 +67,31 @@ export async function GET(request: Request) {
       const [r2, c2] = await Promise.all([destinoCozinha(admin, restauranteId), buscarConfigImpressao(admin, restauranteId)])
       return r2.ativo && r2.agenteId === rota.agenteId && r2.transferidaEm === rota.transferidaEm && !!c2?.impressaoAutomatica
     }
+    // Alarme do Assistente (1.2.0+, 12/10): ele manda quantos pedidos sabe que esperam aceite (?alarme=N). Se isso mudar
+    // durante a espera (aceitaram/recusaram/chegou outro), a resposta volta na hora para o som parar ou começar.
+    const alarmeBruto = new URL(request.url).searchParams.get('alarme')
+    const alarmeSabido = souDono && alarmeBruto !== null && /^d{1,3}$/.test(alarmeBruto) ? Number(alarmeBruto) : null
+    const alarmeMudou = alarmeSabido === null ? undefined
+      : async () => (await aguardandoAceite(admin, restauranteId).catch(() => null))?.aguardando !== alarmeSabido
     const pedidos = souDono && config?.impressaoAutomatica
       ? await esperarComBusca(restauranteId, esperar, request.signal, async () =>
-          aposCorteDaTransferencia(await listarPedidosParaImprimir(admin, restauranteId, instancia) as { criadoEm?: string | null }[], rota.transferidaEm), aindaDono)
+          aposCorteDaTransferencia(await listarPedidosParaImprimir(admin, restauranteId, instancia) as { criadoEm?: string | null }[], rota.transferidaEm), aindaDono, alarmeMudou)
       : []
     // Modelo novo da comanda (Beta 0.2.0-beta.2+): desconto, horários, comanda, atendente
     // e o QR do fim. Só para o dono da Cozinha — a resposta do Assistente antigo não muda.
     // Nome, telefone e endereço da loja para o rodapé (0.2.0-beta.6+).
     let beta: { extras: Record<string, unknown>; qr: QrCozinha | null; qrPorPedido?: Record<string, QrCozinha>; loja: LojaImpressao | null } | undefined
+    let alarme: { aguardando: number; numeros: number[] } | null = null
     if (souDono) {
       const ids = (pedidos as { id?: string }[]).map((p) => p.id).filter((id): id is string => typeof id === 'string')
-      const [extras, lojaBeta, dadosLoja] = await Promise.all([
+      // A contagem do alarme vem em paralelo com o resto da comanda: não atrasa a impressão.
+      const [extras, lojaBeta, dadosLoja, aceite] = await Promise.all([
         extrasDaCozinhaBeta(admin, restauranteId, ids).catch(() => ({})),
         lojaDaCozinhaBeta(admin, restauranteId).catch(() => null),
         lojaImpressao(admin, restauranteId).catch(() => null),
+        aguardandoAceite(admin, restauranteId).catch(() => null),
       ])
+      alarme = aceite
       void lojaBeta
       // Item 61: a comanda (modelo Cozinha) só leva QR na ENTREGA — o da rota ("ROTA DE ENTREGA").
       // Retirada, balcão e mesa saem sem QR; o QR do cardápio não vai mais para o papel. O campo
@@ -100,6 +111,7 @@ export async function GET(request: Request) {
       pedidos,
       loja,
       ...(beta ? { cozinhaBeta: beta } : {}),
+      ...(alarme ? { alarme } : {}),
       ...(anunciaEsperaLonga(esperar, config?.impressaoAutomatica) ? { esperaAte: 20 } : {}),
       destinoCozinha: souDono
         ? { nomeSistema: rota.nomeSistema, larguraMm: rota.larguraMm, tamanhoFonte: rota.tamanhoFonte, copias: rota.copias,

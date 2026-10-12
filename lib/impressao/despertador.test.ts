@@ -35,6 +35,15 @@ describe('espera longa do Assistente (despertador)', () => {
     expect(Date.now() - t).toBeGreaterThanOrEqual(280)
   })
 
+  it('alarme do Assistente (12/10): pedido aceito durante a espera → devolve na hora (vazio), sem esperar os 20 s', async () => {
+    let aceito = false
+    const t = Date.now()
+    setTimeout(() => { aceito = true; _avisarParaTeste('loja-7') }, 100)
+    const r = await esperarComBusca('loja-7', 20, undefined, async () => [], async () => true, async () => aceito)
+    expect(r).toEqual([])
+    expect(Date.now() - t).toBeLessThan(2500)
+  })
+
   it('pedido antes dos itens: depois do aviso confere de novo logo em seguida', async () => {
     let chamadas = 0
     setTimeout(() => _avisarParaTeste('loja-4'), 50)

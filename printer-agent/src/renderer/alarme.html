@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>Alarme</title></head>
+<body>
+<!-- Alarme de pedido novo (1.2.0): janela oculta; o som vem do instalador (nada baixado da internet). -->
+<audio id="a" src="alarme.mp3" preload="auto"></audio>
+<script>
+  const a = document.getElementById('a')
+  const vol = (v) => Math.max(0.1, Math.min(1, Number(v) || 1))
+  window.tocar = (v) => { a.volume = vol(v); a.loop = true; if (a.paused) { a.currentTime = 0; return a.play().then(() => true, () => false) } return Promise.resolve(true) }
+  window.parar = () => { a.pause(); a.loop = false; a.currentTime = 0; return true }
+  window.testar = (v) => { a.volume = vol(v); a.loop = false; a.currentTime = 0; return a.play().then(() => true, () => false) }
+</script>
+</body></html>

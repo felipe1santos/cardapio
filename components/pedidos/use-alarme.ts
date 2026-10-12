@@ -33,7 +33,11 @@ declare global { interface Window { __mzAlarme?: Estado } }
 const idDaAba = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : String(Math.random()))
 const armazenamento = () => { try { return window.localStorage } catch { return null } }
 
-export function useAlarmePedidos({ ativo = true }: { ativo?: boolean } = {}) {
+/**
+ * `mudo` (12/10): o Assistente da loja está ONLINE e tocando o alarme — o painel fica só visual (um alarme só). Os
+ * pedidos continuam sendo marcados como "já tocou"; voltou a false com pedido esperando → o painel toca na hora.
+ */
+export function useAlarmePedidos({ ativo = true, mudo = false }: { ativo?: boolean; mudo?: boolean } = {}) {
   const [somAtivo, setSomAtivoEstado] = useState(true)
   const [repetirSeg, setRepetirSegEstado] = useState(REPETICAO_PADRAO)
   const [bloqueado, setBloqueado] = useState(false)
@@ -53,6 +57,7 @@ export function useAlarmePedidos({ ativo = true }: { ativo?: boolean } = {}) {
   const wakeRef = useRef<{ release: () => Promise<void> } | null>(null)
   /** Liberou o áudio (clique ou o próprio navegador): toca na hora o que esperava. */
   const aoLiberarRef = useRef<() => void>(() => {})
+  const mudoRef = useRef(mudo)
 
   const estado = (): Estado => {
     if (!window.__mzAlarme) window.__mzAlarme = { tocou: 0, falhas: {}, bloqueado: false, ultimoMotivo: null }
@@ -158,7 +163,7 @@ export function useAlarmePedidos({ ativo = true }: { ativo?: boolean } = {}) {
     // Chegou pedido novo: a repetição recomeça a contar em TODAS as abas (a que não tocou não
     // pode repetir na hora só porque nunca tocou).
     ultimoToqueRef.current = Date.now()
-    if (!somRef.current) return
+    if (!somRef.current || mudoRef.current) return
     const s = armazenamento()
     const meus = novos.filter((id) => reivindicarToque(`menuzia:alarme:${id}`, abaRef.current, Date.now(), s))
     if (!meus.length) return
@@ -171,15 +176,25 @@ export function useAlarmePedidos({ ativo = true }: { ativo?: boolean } = {}) {
   useEffect(() => {
     const t = setInterval(() => {
       const pend = pendentesRef.current.filter((p) => !silenciadosRef.current.has(p.id)).length
-      if (!deveRepetir({ repetirSeg: repetirRef.current, pendentes: pend, somLigado: somRef.current, ultimoToque: ultimoToqueRef.current, agora: Date.now() })) return
+      if (mudoRef.current || !deveRepetir({ repetirSeg: repetirRef.current, pendentes: pend, somLigado: somRef.current, ultimoToque: ultimoToqueRef.current, agora: Date.now() })) return
       if (!reivindicarToque('menuzia:alarme:repeticao', abaRef.current, Date.now(), armazenamento(), repetirRef.current * 800)) return
       tocarUmaVez()
     }, 1000)
     return () => clearInterval(t)
   }, [tocarUmaVez])
 
+  // Assistente saiu do ar (ou voltou): a troca é imediata — saiu com pedido esperando, o painel toca já.
+  useEffect(() => {
+    const era = mudoRef.current
+    mudoRef.current = mudo
+    if (era && !mudo && somRef.current && pendentesRef.current.some((p) => !silenciadosRef.current.has(p.id))) {
+      ultimoToqueRef.current = Date.now()
+      tocarUmaVez()
+    }
+  }, [mudo, tocarUmaVez])
+
   aoLiberarRef.current = () => {
-    if (somRef.current && pendentesRef.current.some((p) => !silenciadosRef.current.has(p.id))) tocarUmaVez()
+    if (!mudoRef.current && somRef.current && pendentesRef.current.some((p) => !silenciadosRef.current.has(p.id))) tocarUmaVez()
   }
 
   // Destrave: qualquer interação libera o áudio; a mudança de estado toca o que esperava.
