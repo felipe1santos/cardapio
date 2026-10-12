@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { categoriasDoCardapio, escolherOpcao, linkJaEnviado, pedeOpcoes, previaDoLink, respondeuSimAoPedido, textoCategorias, textoItensDaCategoria } from './categorias'
+import { categoriasDoCardapio, escolherOpcao, itemEscolhidoNaLista, linkJaEnviado, pedeOpcoes, previaDoLink, respondeuSimAoPedido, textoCategorias, textoItensDaCategoria } from './categorias'
 import type { ItemIa } from '@/lib/agente-ia/cardapio'
 
 const item = (id: string, nome: string, categoria: string, preco: number, situacao = 'disponivel'): ItemIa =>
@@ -53,6 +53,18 @@ describe('"sim" ao "Quer fazer um pedido?" → link do cardápio (robô, sem IA)
     expect(respondeuSimAoPedido('Sim, quero pedir', 'Quer fazer o seu pedido?')).toBe(true)
     expect(respondeuSimAoPedido('sim', 'Está tudo certo? Responda *sim* para confirmar o pedido.')).toBe(false)
     expect(respondeuSimAoPedido('quero um x-bacon', 'Quer fazer um pedido?')).toBe(false)
+  })
+})
+
+describe('número da lista de itens → nome do item para a IA (teste real 12/10: "3" virou "Item 3")', () => {
+  const cats = categoriasDoCardapio([item('a', 'Item 3', 'Gourmet', 1), item('b', 'Item 5', 'Gourmet', 22), item('c', 'Item 4', 'Gourmet', 12)])
+  it('o número é a posição na lista, não o número do nome', () => {
+    expect(itemEscolhidoNaLista('3', cats, 0)).toBe('Quero o *Item 4* (opção 3 da lista)')
+    expect(itemEscolhidoNaLista('item 5', cats, 0)).toBe('Quero o *Item 5* (opção 2 da lista)')
+  })
+  it('não achou na lista ou categoria sumiu: a IA recebe o texto como veio', () => {
+    expect(itemEscolhidoNaLista('9', cats, 0)).toBeNull()
+    expect(itemEscolhidoNaLista('3', cats, 5)).toBeNull()
   })
 })
 

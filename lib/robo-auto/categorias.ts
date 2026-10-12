@@ -60,6 +60,13 @@ export function textoItensDaCategoria(cat: CategoriaRobo, link: string, comIa: b
   return [...linhas, comIa ? 'Qual você quer? Responda o número ou o nome.' : `Para pedir, é só usar o link abaixo 👇\n${link}`].join('\n')
 }
 
+/** Resposta à lista de itens da categoria N, traduzida para a IA (o número é a posição na lista, não parte do nome). */
+export function itemEscolhidoNaLista(texto: string, cats: CategoriaRobo[], categoria: number): string | null {
+  const nomes = cats[categoria]?.itens.slice(0, MAX_ITENS_LISTA).map((i) => i.nome)
+  const i = nomes ? escolherOpcao(texto, nomes) : null
+  return i === null || !nomes ? null : `Quero o *${nomes[i]}* (opção ${i + 1} da lista)`
+}
+
 /** "sim"/"quero" logo depois de a loja perguntar "Quer fazer um pedido?" (sem citar item). */
 export function respondeuSimAoPedido(texto: string, ultimaDaLoja: string | null): boolean {
   if (!ultimaDaLoja || !/quer fazer (um|o seu|seu) pedido\?/i.test(ultimaDaLoja)) return false

@@ -18,7 +18,7 @@ import { responder, type DadosLojaAuto, type PedidoAuto } from './respostas'
 import type { ChaveTexto } from './textos'
 import { itemCitado, modoIaAtivo, nomesDoCardapio, rotaDaMensagem } from '@/lib/agente-ia/gatilho'
 import { carregarCardapioIa } from '@/lib/agente-ia/cardapio'
-import { categoriasDoCardapio, escolherOpcao, linkJaEnviado, pedeOpcoes, respondeuSimAoPedido, textoCategorias, textoItensDaCategoria } from './categorias'
+import { categoriasDoCardapio, escolherOpcao, itemEscolhidoNaLista, linkJaEnviado, pedeOpcoes, respondeuSimAoPedido, textoCategorias, textoItensDaCategoria } from './categorias'
 import {
   agenteLigadoNaLoja, atenderComIa, estadoIaDaConversa, historicoDaConversa, iaEsgotadaNaConversa, registrarFalhaIa, registrarRespostaIa,
   textoLimiteIa, ultimaDoClienteAntes, TEXTO_AUDIO_IA, type ConfigIa,
@@ -333,9 +333,15 @@ export async function processarMensagemAuto(
       const { data: ja } = await admin.from('whatsapp_envios').select('id').eq('restaurante_id', restauranteId).eq('chave', `resposta:${e.mensagem_id}`).limit(1)
       if ((ja ?? []).length) return { respostas: 0, motivo: 'duplicada' }
       const estadoSessao = emModoIa ? estIa : { iaDesde: null, iaRespostas: 0 }
+      // Resposta à lista de itens do robô: "3" é a 3ª opção da lista, não o "Item 3" (teste real 12/10).
+      const escolhido = escolhendoItem && m.tipo === 'texto'
+        ? itemEscolhidoNaLista(m.texto ?? '', categoriasDoCardapio(cardapio.itens), Number(estado.autoEstado?.split(':')[1]))
+        : null
+      const textoIa = escolhido ?? m.texto ?? ''
+      const histIa = escolhido ? hist.map((h) => (h.id === e.mensagem_id ? { ...h, texto: escolhido } : h)) : hist
       const r = await atenderComIa(admin, {
         restauranteId, conversaId: e.conversa_id, mensagemId: e.mensagem_id ?? '', telefone, nomeWhatsapp: e.nome ?? m.nome ?? null, tipo: m.tipo,
-        waId: m.waId, texto: m.texto ?? '', instancia: ctx.instancia ?? null, cfg: cfgIa, loja, semEntregador: ctx.semEntregador, historico: hist, agora,
+        waId: m.waId, texto: textoIa, instancia: ctx.instancia ?? null, cfg: cfgIa, loja, semEntregador: ctx.semEntregador, historico: histIa, agora,
       })
       if (r.ok) {
         const { saiuPorLimite } = await registrarRespostaIa(admin, { restauranteId, conversaId: e.conversa_id, estado: estadoSessao, efeitos: r.efeitos, custoMicroUsd: r.custoMicroUsd, ferramentas: r.ferramentas, agora })
