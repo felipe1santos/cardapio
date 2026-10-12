@@ -54,10 +54,19 @@ const MODELO_DO_CARGO: Record<Exclude<Cargo, 'dono' | 'personalizado'>, Acessos>
   atendente: { areas: ['pedidos', 'pdv', 'clientes'], sensiveis: [] },
 }
 
+/**
+ * Perfis prontos com o KDS (12/10): só nas lojas com "Novidades em teste" — sem a chave, os de antes (lojas reais iguais).
+ * Cozinha = só o KDS (entra direto nele); Caixa = PDV, Painel de Pedidos e Mesas; Garçom = Mesas e Comandas.
+ */
+const MODELO_DO_CARGO_KDS: Partial<Record<Cargo, Acessos>> = {
+  cozinha: { areas: ['kds'], sensiveis: [] },
+  caixa: { areas: ['pedidos', 'pdv', 'mesas'], sensiveis: ['desconto', 'taxa', 'fechar_caixa'] },
+}
+
 /** Modelo de permissões do cargo (cópia). Personalizado/dono: null (não preenche nada). */
-export function modeloDoCargo(cargo: Cargo): Acessos | null {
+export function modeloDoCargo(cargo: Cargo, opcoes: { novidades?: boolean } = {}): Acessos | null {
   if (cargo === 'dono' || cargo === 'personalizado') return null
-  const m = MODELO_DO_CARGO[cargo]
+  const m = (opcoes.novidades && MODELO_DO_CARGO_KDS[cargo]) || MODELO_DO_CARGO[cargo]
   return { areas: [...m.areas], sensiveis: [...m.sensiveis] }
 }
 
@@ -71,7 +80,7 @@ export function cargoDoUsuario(cargo: string | null | undefined, papel: string, 
   if (papel === 'cozinha') return 'cozinha'
   if (papel === 'atendente') {
     if (!acessos) return 'atendente'
-    for (const c of ['caixa', 'cozinha', 'atendente'] as const) if (mesmosAcessos(acessos, MODELO_DO_CARGO[c])) return c
+    for (const c of ['caixa', 'cozinha', 'atendente'] as const) if (mesmosAcessos(acessos, MODELO_DO_CARGO[c]) || (MODELO_DO_CARGO_KDS[c] && mesmosAcessos(acessos, MODELO_DO_CARGO_KDS[c]!))) return c
     return 'personalizado'
   }
   return 'personalizado'
@@ -89,6 +98,7 @@ const PERMISSAO_DA_AREA: Record<Area, Permissao> = {
   pdv: 'balcao.abrir',
   mesas: 'comanda.ver',
   cozinha: 'cozinha.gerenciar',
+  kds: 'pedidos.delivery.ver',
   logistica: 'logistica.operar',
   cardapio: 'cardapio.editar',
   clientes: 'clientes.ver',
@@ -189,6 +199,7 @@ export const GRUPOS_PERMISSOES: { titulo: string; itens: ItemPermissao[]; soComF
       { tipo: 'area', chave: 'pdv', rotulo: rotArea('pdv'), descricao: 'Abrir o balcão e lançar vendas.' },
       { tipo: 'area', chave: 'mesas', rotulo: rotArea('mesas'), descricao: 'Abrir mesas, lançar itens e ver a conta.' },
       { tipo: 'area', chave: 'cozinha', rotulo: rotArea('cozinha'), descricao: 'Configurar as estações e telas de preparo.' },
+      { tipo: 'area', chave: 'kds', rotulo: rotArea('kds'), descricao: 'Fila, preparo e pronto dos pedidos na tela da cozinha (em teste).' },
       { tipo: 'area', chave: 'logistica', rotulo: rotArea('logistica'), descricao: 'Despachar entregas e o caixa do entregador.' },
     ],
   },

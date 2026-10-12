@@ -18,3 +18,12 @@ describe('ficha de preparo (5.3)', () => {
     expect(fichaVazia(normalizarFicha({ tempoMin: 5 }))).toBe(false)
   })
 })
+
+describe('modo de preparo (12/10, KDS)', () => {
+  it('texto curto, cortado em 500; sozinho já faz a ficha não-vazia', () => {
+    expect(normalizarFicha({ modoPreparo: '  Chapa 3 min de cada lado  ' }).modoPreparo).toBe('Chapa 3 min de cada lado')
+    expect(normalizarFicha({ modoPreparo: 'x'.repeat(600) }).modoPreparo).toHaveLength(500)
+    expect(normalizarFicha({}).modoPreparo).toBeNull()
+    expect(fichaVazia(normalizarFicha({ modoPreparo: 'Montar no pão' }))).toBe(false)
+  })
+})

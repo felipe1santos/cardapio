@@ -57,6 +57,8 @@ const APIS: [prefixo: string, permissao: Permissao][] = [
   // PDV v2. Porta: abrir balcão / ver a conta. Cada ação confere a sua por dentro.
   ['/api/admin/balcao', 'balcao.abrir'],
   ['/api/admin/comandas', 'comanda.ver'],
+  // KDS (12/10): quem vê pedidos opera o KDS; a área "KDS" dos acessos e a rota conferem o resto.
+  ['/api/admin/kds', 'pedidos.delivery.ver'],
   ['/api/admin/pedidos', 'pedidos.delivery.cancelar'],
   ['/api/admin/campanhas', 'campanhas.gerenciar'],
   ['/api/admin/agente-ia', 'integracoes.gerenciar'],

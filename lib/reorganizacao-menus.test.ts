@@ -53,9 +53,9 @@ describe('cadeados continuam', () => {
     expect(moduloDoCaminho('/admin/agente-ia')).toBe('agente_ia')
     expect(moduloDoCaminho('/api/admin/agente-ia')).toBe('agente_ia')
   })
-  it('Campanhas (com Modelos e Notificações do app) continua no módulo Disparos; status do pedido segue livre', () => {
+  it('Campanhas (disparos) continua no módulo Disparos; push do app (12/10) e status do pedido são livres', () => {
     expect(moduloDoCaminho('/admin/campanhas')).toBe('disparos')
-    expect(moduloDoCaminho('/api/admin/campanhas/push')).toBe('disparos')
+    expect(moduloDoCaminho('/api/admin/campanhas/push')).toBeNull()
     expect(moduloDoCaminho('/api/admin/campanhas/automaticas')).toBeNull()
   })
 })

@@ -26,7 +26,7 @@ export const NAV_ITEMS = [
   { href: '/admin/pdv', label: 'PDV' },
   { href: '/admin/mesas', label: 'Mesas e Comandas' },
   { href: '/admin/cozinha', label: 'Cozinha' },
-  { href: '/admin/kds', label: 'Tela da cozinha' },
+  { href: '/admin/kds', label: 'KDS' },
   { href: '/admin/lista-pedidos', label: 'Pedidos' },
   { href: '/admin/financeiro', label: 'Financeiro' },
   { href: '/admin/cardapio', label: 'Cardápio' },

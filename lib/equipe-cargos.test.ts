@@ -99,3 +99,18 @@ describe('cargos da equipe', () => {
     expect(sensivelDaRequisicao('POST', '/api/admin/mesas/m1/conta', { acao: 'ajustar_valores', descontoValor: 5 })).toBe('desconto')
   })
 })
+
+describe('perfis prontos com o KDS (12/10, só com "Novidades em teste")', () => {
+  it('Cozinha = só KDS; Caixa = PDV, Painel de Pedidos e Mesas; Garçom = Mesas', () => {
+    expect(modeloDoCargo('cozinha', { novidades: true })?.areas).toEqual(['kds'])
+    expect(modeloDoCargo('caixa', { novidades: true })?.areas.sort()).toEqual(['mesas', 'pdv', 'pedidos'])
+    expect(modeloDoCargo('garcom', { novidades: true })?.areas).toEqual(['mesas'])
+  })
+  it('sem "Novidades em teste" nada muda (lojas reais)', () => {
+    expect(modeloDoCargo('cozinha')?.areas).toEqual(['pedidos'])
+    expect(modeloDoCargo('caixa')?.areas).toContain('clientes')
+  })
+  it('usuário com o perfil novo continua reconhecido pelo cargo', () => {
+    expect(cargoDoUsuario(null, 'atendente', { areas: ['kds'], sensiveis: [] })).toBe('cozinha')
+  })
+})

@@ -93,6 +93,12 @@ export function FichaPreparoForm({ itemId, restauranteId }: { itemId: string | n
           ))}
           <button type="button" data-testid="ficha-add-passo" onClick={() => set({ passos: [...ficha.passos, { texto: '', fotoUrl: null }] })} className="mt-1.5 text-[12px] font-semibold text-primary">+ Passo</button>
 
+          <label className="mt-3 block text-[12px] font-semibold text-text-main">
+            Modo de preparo <span className="font-normal text-text-subtle">(texto curto; aparece no KDS)</span>
+            <textarea value={ficha.modoPreparo ?? ''} rows={2} maxLength={500} placeholder="Ex.: Pão na chapa 1 min, carne 3 min de cada lado, montar com molho por último"
+              className={`${campo} mt-1 w-full`} data-testid="ficha-modo-preparo" onChange={(e) => set({ modoPreparo: e.target.value })} />
+          </label>
+
           <label className="mt-3 flex items-center gap-2 text-[12px] font-semibold text-text-main">
             Tempo estimado
             <input value={ficha.tempoMin ?? ''} inputMode="numeric" placeholder="—" className={`${campo} w-16 text-center`} data-testid="ficha-tempo"

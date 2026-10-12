@@ -15,6 +15,8 @@ export const AREAS = [
   { chave: 'pdv', rotulo: 'PDV', href: '/admin/pdv', prefixos: ['/admin/pdv', '/api/admin/pdv', '/api/admin/balcao', '/api/admin/comandas'] },
   { chave: 'mesas', rotulo: 'Mesas e Comandas', href: '/admin/mesas', prefixos: ['/admin/mesas', '/api/admin/mesas'] },
   { chave: 'cozinha', rotulo: 'Cozinha', href: '/admin/cozinha', prefixos: ['/admin/cozinha'] },
+  // KDS único (12/10; a tela só abre com "Novidades em teste").
+  { chave: 'kds', rotulo: 'KDS (tela da cozinha)', href: '/admin/kds', prefixos: ['/admin/kds', '/api/admin/kds'] },
   { chave: 'logistica', rotulo: 'Pedidos (finalizados e entregadores)', href: '/admin/lista-pedidos', prefixos: ['/admin/lista-pedidos', '/admin/logistica', '/api/admin/caixa', '/api/admin/entregadores'] },
   { chave: 'cardapio', rotulo: 'Cardápio', href: '/admin/cardapio', prefixos: ['/admin/cardapio', '/api/admin/cardapio'] },
   { chave: 'clientes', rotulo: 'Clientes', href: '/admin/clientes', prefixos: ['/admin/clientes', '/api/admin/clientes'] },

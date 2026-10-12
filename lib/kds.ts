@@ -35,6 +35,21 @@ export function pedidosDaCozinha(lista: Pedido[], agora: Date, liberaMin: number
     .sort((a, b) => a.criadoEm.localeCompare(b.criadoEm))
 }
 
+/**
+ * KDS único (12/10): colunas da tela. "Na fila" = aceitos no Kanban (preparando) sem preparo começado; "Em preparo" = alguém
+ * tocou em Começar preparo (preparando_por); "Prontos" = os 8 mais recentes, para desfazer engano. Agendado só perto da hora.
+ */
+export function colunasKds(lista: Pedido[], agora: Date, liberaMin: number) {
+  const liberados = lista.filter((p) => pedidoLiberado(p.agendadoPara, liberaMin, agora))
+  const porCriacao = (a: Pedido, b: Pedido) => a.criadoEm.localeCompare(b.criadoEm)
+  return {
+    fila: liberados.filter((p) => p.status === 'preparando' && !p.preparandoPor).sort(porCriacao),
+    preparo: liberados.filter((p) => p.status === 'preparando' && !!p.preparandoPor).sort(porCriacao),
+    prontos: lista.filter((p) => p.status === 'pronto').sort((a, b) => String(b.atualizadoEm ?? '').localeCompare(String(a.atualizadoEm ?? ''))).slice(0, 8),
+    aguardandoAceite: liberados.filter((p) => p.status === 'recebido').length,
+  }
+}
+
 export function setoresDosPedidos(lista: Pedido[], setorDoItem: Map<string, string>): string[] {
   const s = new Set<string>()
   for (const p of lista) for (const i of p.itens) { const nome = i.itemId ? setorDoItem.get(i.itemId) : undefined; if (nome) s.add(nome) }

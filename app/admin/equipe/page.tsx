@@ -308,6 +308,7 @@ export default function EquipePage() {
           onRedefinirSenha={(s) => redefinirSenha(modal.usuario!, s)}
           onApagarPin={() => apagarPin(modal.usuario!)}
           financeiroAtivo={!!estadoSessao?.financeiroAtivo}
+          novidades={estadoSessao?.novidades === true}
         />
       )}
 

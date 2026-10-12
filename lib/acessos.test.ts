@@ -59,3 +59,18 @@ describe('ações sensíveis na requisição', async () => {
     expect(caminhoPermitidoCompleto('/admin/dashboard', 'gerente', { areas: ['dashboard'], sensiveis: ['financeiro'] })).toBe(true)
   })
 })
+
+describe('KDS por usuário (12/10)', () => {
+  const cozinha = { areas: ['kds' as const], sensiveis: [] }
+  it('usuário Cozinha: só o KDS (tela e API); o resto é recusado', () => {
+    expect(caminhoPermitido('/admin/kds', 'atendente', cozinha)).toBe(true)
+    expect(caminhoPermitido('/api/admin/kds', 'atendente', cozinha)).toBe(true)
+    expect(caminhoPermitido('/admin/pedidos', 'atendente', cozinha)).toBe(false)
+    expect(caminhoPermitido('/api/admin/pedidos/x/cancelar', 'atendente', cozinha)).toBe(false)
+    expect(caminhoPermitido('/admin/pdv', 'atendente', cozinha)).toBe(false)
+    expect(caminhoPermitido('/api/admin/campanhas', 'atendente', cozinha)).toBe(false)
+    expect(areaDoCaminho('/admin/kds')).toBe('kds')
+  })
+  it('ao entrar, cai direto no KDS', () => expect(primeiraTela(cozinha)).toBe('/admin/kds'))
+  it('dono continua com tudo', () => expect(caminhoPermitido('/admin/financeiro', 'dono', cozinha)).toBe(true))
+})
