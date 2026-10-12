@@ -94,7 +94,7 @@ export async function desconectar(admin: SupabaseClient, restauranteId: string) 
  * Token válido da loja: renova sozinho quando falta menos de RENOVAR_ANTES_DIAS (ou com `forcar`,
  * depois de um 401). Falhou a renovação → conta "erro" (a vitrine para de oferecer o Pix online) e null.
  */
-export async function tokenDaLoja(admin: SupabaseClient, restauranteId: string, opcoes: { forcar?: boolean } = {}): Promise<{ token: string; mpUserId: string } | null> {
+export async function tokenDaLoja(admin: SupabaseClient, restauranteId: string, opcoes: { forcar?: boolean; /** Só para buscar a chave pública (cartão online): se falhar, NÃO marca a conta com erro (o Pix segue). */ semMarcarErro?: boolean } = {}): Promise<{ token: string; mpUserId: string } | null> {
   const { data: c } = await admin.from('pagamentos_contas').select('*').eq('restaurante_id', restauranteId).maybeSingle()
   if (!c || c.status === 'desconectada') return null
   const falta = new Date(c.expira_em).getTime() - Date.now()
@@ -104,6 +104,7 @@ export async function tokenDaLoja(admin: SupabaseClient, restauranteId: string, 
     await gravarTokens(admin, restauranteId, t, { renovado_em: new Date().toISOString() })
     return { token: t.accessToken, mpUserId: t.userId || c.mp_user_id }
   } catch (e) {
+    if (opcoes.semMarcarErro) return null
     // Token atual ainda vale (só faltam dias): segue com ele e tenta renovar de novo depois.
     if (!opcoes.forcar && falta > 0 && c.status === 'conectada') return { token: decifrar(c.access_token_cifrado), mpUserId: c.mp_user_id }
     await admin.from('pagamentos_contas').update({ status: 'erro', erro: e instanceof ErroMp ? `renovação recusada pelo MP (${e.status})` : 'renovação falhou', atualizado_em: new Date().toISOString() }).eq('restaurante_id', restauranteId)

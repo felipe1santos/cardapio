@@ -34,7 +34,7 @@ export async function cartaoOnlineDaLoja(admin: SupabaseClient, restauranteId: s
   // Conta conectada antes de guardarmos a chave pública: uma renovação traz a chave (o MP manda junto com o token).
   if (!publicKey && Date.now() - (renovouEm.get(restauranteId) ?? 0) > 3_600_000) {
     renovouEm.set(restauranteId, Date.now())
-    await tokenDaLoja(admin, restauranteId, { forcar: true }).catch(() => null)
+    await tokenDaLoja(admin, restauranteId, { forcar: true, semMarcarErro: true }).catch(() => null)
     const { data: de } = await admin.from('pagamentos_contas').select('public_key').eq('restaurante_id', restauranteId).maybeSingle()
     publicKey = (de?.public_key as string | null) ?? null
   }
