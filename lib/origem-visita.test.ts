@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { atribuirOrigem, canalDaOrigem, capturarOrigem, descreverOrigem, JANELA_ATRIBUICAO_MS, origemDoPedido, textoDaVisita, primeiraOrigem } from './origem-visita'
+import { ROTULO_CANAL, atribuirOrigem, canalDaOrigem, capturarOrigem, descreverOrigem, JANELA_ATRIBUICAO_MS, origemDoPedido, textoDaVisita, primeiraOrigem } from './origem-visita'
 
 const cap = (busca: string, referrer = '') => capturarOrigem({ busca, referrer, hostAtual: 'app.menuzia.com.br' })
 
@@ -8,7 +8,7 @@ describe('captura e canal de cada origem', () => {
     ['', '', 'direto'],
     ['', 'https://app.menuzia.com.br/loja/x', 'direto'],
     ['?utm_source=instagram', '', 'instagram'],
-    ['?utm_source=ig&utm_medium=paid', '', 'instagram'],
+    ['?utm_source=ig&utm_medium=paid', '', 'meta'], // 12/10: Instagram pago = Anúncio Meta
     ['', 'https://l.instagram.com/?u=x', 'instagram'],
     ['?utm_source=fb', '', 'facebook'],
     ['', 'https://m.facebook.com/', 'facebook'],
@@ -98,5 +98,39 @@ describe('primeira origem e utm_content (Bloco 2, 10/10/2026)', () => {
     expect(d.detalhe.primeira).toEqual({ canal: 'google_busca', fonte: 'google', meio: 'perfil', campanha: null, conteudo: 'site' })
     // Vitrine antiga (sem primeira): continua igual ao de antes
     expect(origemDoPedido({ fonte: 'instagram' }).detalhe.primeira).toBeUndefined()
+  })
+})
+
+describe('anúncios (12/10): Anúncio Meta e Anúncio Google separados do orgânico', () => {
+  const canal = (url: string, referrer = '') => {
+    const q = url.includes('?') ? url.slice(url.indexOf('?')) : ''
+    return canalDaOrigem(capturarOrigem({ busca: q, referrer, hostAtual: 'app.menuzia.com.br' }))
+  }
+  it('Meta: utm_source facebook/instagram/fb/ig + meio pago', () => {
+    for (const f of ['facebook', 'instagram', 'fb', 'ig', 'meta']) for (const m of ['paid', 'cpc', 'ads', 'paid_social']) {
+      expect(canal(`/loja/x?utm_source=${f}&utm_medium=${m}`), `${f}/${m}`).toBe('meta')
+    }
+  })
+  it('Meta: fbclid sem etiqueta, ou vindo do link do Facebook/Instagram (l.facebook.com…)', () => {
+    expect(canal('/loja/x?fbclid=AbC123')).toBe('meta')
+    expect(canal('/loja/x?fbclid=AbC123', 'https://l.facebook.com/')).toBe('meta')
+    expect(canal('/loja/x?fbclid=AbC123', 'https://l.instagram.com/')).toBe('meta')
+  })
+  it('orgânico continua orgânico: links de divulgar (bio, stories) e referência sem fbclid', () => {
+    expect(canal('/loja/x?utm_source=instagram&utm_medium=bio')).toBe('instagram')
+    expect(canal('/loja/x?utm_source=instagram&utm_medium=stories&fbclid=X1')).toBe('instagram')
+    expect(canal('/loja/x', 'https://l.instagram.com/')).toBe('instagram')
+    expect(canal('/loja/x', 'https://m.facebook.com/')).toBe('facebook')
+    expect(canal('/loja/x?utm_source=facebook')).toBe('facebook')
+  })
+  it('Google: gclid ou utm_medium=cpc é anúncio; perfil/busca é orgânico', () => {
+    expect(canal('/loja/x?gclid=Cj0K')).toBe('google_anuncio')
+    expect(canal('/loja/x?utm_source=google&utm_medium=cpc')).toBe('google_anuncio')
+    expect(canal('/loja/x?utm_source=google&utm_medium=perfil')).toBe('google_busca')
+    expect(canal('/loja/x', 'https://www.google.com/')).toBe('google_busca')
+  })
+  it('nomes', () => {
+    expect(ROTULO_CANAL.meta).toBe('Anúncio Meta')
+    expect(ROTULO_CANAL.google_anuncio).toBe('Anúncio Google')
   })
 })

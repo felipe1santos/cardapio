@@ -50,13 +50,24 @@ export function IconeFacebook({ className = 'h-4 w-4' }: P) {
   )
 }
 
+/** Anúncio Google (12/10): o G com o selo "Ad" no canto — separado do Google Busca. */
+export function IconeAnuncioGoogle({ className = 'h-4 w-4' }: P) {
+  return (
+    <span className={`relative inline-flex ${className}`} aria-hidden="true">
+      <IconeGoogle className="h-full w-full" />
+      <span className="absolute -bottom-[3px] -right-[5px] rounded-[2px] bg-[#1F2937] px-[2px] text-[7px] font-semibold leading-[9px] text-white">Ad</span>
+    </span>
+  )
+}
+
 /** Ícone de uma origem do pedido/visita (canal da 0149) ou do canal presencial ("pdv", "balcao", "mesa"). */
 export function IconeOrigem({ canal, className = 'h-4 w-4' }: { canal: string; className?: string }) {
   switch (canal) {
     case 'instagram': return <IconeInstagram className={className} />
     case 'facebook': return <IconeFacebook className={className} />
     case 'meta': return <IconeMeta className={className} />
-    case 'google_anuncio': case 'google_busca': return <IconeGoogle className={className} />
+    case 'google_anuncio': return <IconeAnuncioGoogle className={className} />
+    case 'google_busca': return <IconeGoogle className={className} />
     case 'whatsapp': case 'whatsapp_ia': return <IconeWhatsapp className={className} />
     case 'qrcode': return <QrCode className={`${className} text-[#C2410C]`} aria-hidden="true" />
     case 'pdv': return <Monitor className={`${className} text-[#1D4ED8]`} aria-hidden="true" />
@@ -83,7 +94,7 @@ export function IconePix({ className = 'h-4 w-4' }: P) {
  * chama já tirou Direto, PDV, Mesa e Balcão.
  */
 const COR_SELO: Record<string, string> = {
-  instagram: '#C13584', facebook: '#0B5FCC', meta: '#0064E0', google_anuncio: '#1967D2', google_busca: '#1967D2',
+  instagram: '#C13584', facebook: '#0B5FCC', meta: '#0064E0', google_anuncio: '#B06000', google_busca: '#1967D2',
   whatsapp: '#0E7569', whatsapp_ia: '#7E22CE', qrcode: '#C2410C', outros: '#4B5563', direto: '#4B5563', sem_origem: '#6B7280',
 }
 export function SeloOrigem({ canal }: { canal: string }) {
@@ -96,7 +107,9 @@ export function SeloOrigem({ canal }: { canal: string }) {
         return <svg viewBox="0 0 24 24" className="h-[12px] w-[12px]" aria-hidden="true"><path fill="#fff" d="M13.8 22v-8.2h2.8l.4-3.3h-3.2V8.4c0-.9.3-1.6 1.6-1.6h1.7V3.9c-.3 0-1.3-.1-2.5-.1-2.5 0-4.2 1.5-4.2 4.3v2.4H7.6v3.3h2.8V22h3.4Z" /></svg>
       case 'meta':
         return <svg viewBox="0 0 24 24" className="h-[13px] w-[13px]" aria-hidden="true"><path fill="none" stroke="#fff" strokeWidth="2.8" strokeLinecap="round" d="M3 15.5c0-4.5 2.3-8 4.8-8 3.6 0 5.6 9 8.6 9 1.9 0 3.6-1.6 3.6-4.5 0-3-1.6-4.5-3.4-4.5-3.3 0-5.4 9-8.8 9C5 16.5 3 15.9 3 15.5Z" /></svg>
-      case 'google_anuncio': case 'google_busca':
+      case 'google_anuncio':
+        return <span className="text-[9px] font-semibold leading-none text-white" aria-hidden="true">Ad</span>
+      case 'google_busca':
         return <svg viewBox="0 0 24 24" className="h-[12px] w-[12px]" aria-hidden="true"><path fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" d="M20 12.2h-7.6M19.4 8A8.4 8.4 0 1 0 20.4 13" /></svg>
       case 'whatsapp': return <MessageCircle className="h-[12px] w-[12px] text-white" strokeWidth={2.6} aria-hidden="true" />
       case 'whatsapp_ia': return <Sparkles className="h-[12px] w-[12px] text-white" strokeWidth={2.6} aria-hidden="true" />

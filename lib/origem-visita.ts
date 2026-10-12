@@ -16,7 +16,7 @@ export type CanalOrigem = 'direto' | 'instagram' | 'facebook' | 'meta' | 'google
 export const CANAIS: readonly CanalOrigem[] = ['direto', 'instagram', 'facebook', 'meta', 'google_anuncio', 'google_busca', 'whatsapp', 'whatsapp_ia', 'qrcode', 'outros']
 
 export const ROTULO_CANAL: Record<CanalOrigem, string> = {
-  direto: 'Direto', instagram: 'Instagram', facebook: 'Facebook', meta: 'Meta (anúncio)', google_anuncio: 'Google Anúncio',
+  direto: 'Direto', instagram: 'Instagram', facebook: 'Facebook', meta: 'Anúncio Meta', google_anuncio: 'Anúncio Google',
   google_busca: 'Google Busca', whatsapp: 'WhatsApp', qrcode: 'QR Code', outros: 'Outros', whatsapp_ia: 'WhatsApp IA',
 }
 
@@ -69,6 +69,11 @@ export function canalDaOrigem(o: Pick<OrigemBruta, 'fonte' | 'meio' | 'clique'>)
     if (o.clique === 'fbclid') return 'meta'
     return 'direto'
   }
+  // Anúncio Meta (12/10): fonte Facebook/Instagram com meio pago, ou o clique do anúncio (fbclid) chegando pelo link do
+  // Facebook/Instagram sem etiqueta nossa (l.facebook.com…). Os links de divulgar (utm_source=instagram&utm_medium=bio)
+  // seguem orgânicos mesmo com fbclid: a etiqueta nossa vale mais que o fbclid.
+  const daMeta = tem(f, 'ig', 'instagram', 'instagram.com', 'l.instagram.com', 'fb', 'facebook', 'facebook.com', 'm.facebook.com', 'l.facebook.com', 'lm.facebook.com', 'mbasic.facebook.com', 'meta')
+  if (daMeta && (pago || (o.clique === 'fbclid' && f.includes('.')))) return 'meta'
   if (tem(f, 'ig', 'instagram', 'instagram.com', 'l.instagram.com')) return 'instagram'
   if (tem(f, 'meta', 'an', 'msg', 'adsmanager.facebook.com', 'business.facebook.com', 'threads', 'threads.net', 'messenger.com')) return 'meta'
   if (tem(f, 'fb', 'facebook', 'facebook.com', 'm.facebook.com', 'l.facebook.com', 'lm.facebook.com', 'mbasic.facebook.com')) return 'facebook'

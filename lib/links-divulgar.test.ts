@@ -20,9 +20,10 @@ describe('Links para divulgar', () => {
   })
   it('cada link cai no canal certo quando o cliente abre', () => {
     const esperado: Record<string, string> = { google: 'google_busca', instagram: 'instagram', whatsapp: 'whatsapp', qrcode: 'qrcode' }
+    const porId: Record<string, string> = { 'anuncio-meta': 'meta', 'anuncio-google': 'google_anuncio' }
     for (const l of links) {
       const o = capturarOrigem({ busca: new URL(l.url).search, referrer: '', hostAtual: 'app.menuzia.com.br' })
-      expect(canalDaOrigem(o), l.id).toBe(esperado[l.canal])
+      expect(canalDaOrigem(o), l.id).toBe(porId[l.id] ?? esperado[l.canal])
     }
   })
 })

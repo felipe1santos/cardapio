@@ -15,6 +15,7 @@ const GRUPOS: { canal: LinkDivulgar['canal']; titulo: string }[] = [
   { canal: 'instagram', titulo: 'Instagram' },
   { canal: 'whatsapp', titulo: 'WhatsApp' },
   { canal: 'qrcode', titulo: 'Panfleto / QR' },
+  { canal: 'anuncio', titulo: 'Anúncios pagos' },
 ]
 
 function LinhaLink({ l }: { l: LinkDivulgar }) {
