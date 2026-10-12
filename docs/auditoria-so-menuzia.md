@@ -157,3 +157,12 @@ na Menuzia), e ligam juntos. Para liberar um deles sozinho é preciso uma mudan�
 | 28 | Integração Nexta Delivery | Só Menuzia, e desligada | Falta registrar a webhook com o suporte da Nexta | — | Depois |
 | 29 | Dashboard mostra os pedidos de teste | Só Menuzia | De propósito: é a loja de teste | — | Manter assim |
 | 30 | Cor da marca própria (#f50018) | Só Menuzia | É escolha de cada loja; não é chave | — | Nada a fazer |
+
+## Atualização 12/10/2026 (03:30): o que foi LIBERADO
+
+Decisão do Felipe. Detalhes em `docs/relatorios/2026-10-12-liberacao-todas.md` (main `ce75d57`, migração 0186).
+
+- **Liberados para todas as lojas:** 1 (letra iFood), 2 (foto 110), 3 (vitrine nova na firehouse e padrão para loja nova),
+  5 (carrossel), 12 (Links para divulgar, nos dois menus), 13 (até 4 fotos), 14 (selo Direto/Sem origem), 15 (Vendas por
+  origem), 25 (mensagens formatadas como padrão de quem não personalizou), 26 (impressão nova na firehouse e padrão para loja nova).
+- **Continuam como estavam:** 4, 6, 7, 8–11 (menu reorganizado), 16–21, 22–24, 27–30.
