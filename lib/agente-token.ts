@@ -1,7 +1,7 @@
 /**
  * Lê o token de pareamento do Assistente de Impressão de uma requisição.
- * Prefere o header `Authorization: Bearer <token>` (não vaza em logs de proxy);
- * cai para `?token=` por compatibilidade com agentes antigos.
+ * Só o header `Authorization: Bearer <token>` (não vaza em logs de proxy). O `?token=` era do Assistente
+ * antigo, desligado em 12/10.
  */
 export function lerAgenteToken(request: Request): string | null {
   const auth = request.headers.get('authorization')
@@ -9,5 +9,5 @@ export function lerAgenteToken(request: Request): string | null {
     const t = auth.slice(7).trim()
     if (t) return t
   }
-  return new URL(request.url).searchParams.get('token')
+  return null
 }

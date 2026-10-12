@@ -131,7 +131,9 @@ export async function alternarBetaImpressaoAction(restauranteId: string, liberar
   const quem = await ensureSuperAdmin()
   if (!UUID.test(restauranteId)) return { ok: false, erro: 'Loja inválida.' }
   const admin = getAdminSupabase()
-  if (!liberar) {
+  // Loja só do assistente novo (todas desde 12/10): voltar para "Somente teste" deixaria a comanda sem sair.
+  const { data: lojaImp } = await admin.from('restaurantes').select('impressao_somente_nova').eq('id', restauranteId).maybeSingle()
+  if (!liberar && lojaImp?.impressao_somente_nova !== true) {
     const { error: e1 } = await admin.rpc('impressao_modo_definir', { p_restaurante: restauranteId, p_modo: 'teste', p_ator: null, p_ator_nome: 'Plataforma' })
     if (e1) return { ok: false, erro: 'Não foi possível voltar a loja para o Assistente antigo.' }
   }

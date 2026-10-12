@@ -205,11 +205,14 @@ export function PainelImpressao({ semTopo = false }: { semTopo?: boolean } = {})
       setAtualImpressoraId(s.vistoEm && Date.now() - new Date(s.vistoEm).getTime() < 30_000 ? s.impressoraId : null)
     } catch { /* sem sinal */ }
   }, [supabase, restauranteId])
+  // Loja só do assistente novo (todas desde 12/10): nada de consultar o sinal do antigo a cada 8 s.
+  const soNova = p?.somenteNova !== false
   useEffect(() => {
+    if (soNova) return
     void checarAntigo()
     const t = setInterval(() => void checarAntigo(), 8000)
     return () => clearInterval(t)
-  }, [checarAntigo])
+  }, [checarAntigo, soNova])
 
   useEffect(() => {
     if (!aviso) return

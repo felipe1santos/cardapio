@@ -1,11 +1,7 @@
 import { NextResponse } from 'next/server'
-import { somenteNova } from '@/lib/impressao/servico'
 import { getServerSupabase } from '@/lib/supabase/server'
-import { getAdminSupabase } from '@/lib/supabase/admin'
 import { getCurrentSession } from '@/lib/auth/session'
 import { pode } from '@/lib/auth/permissoes'
-import { buscarTokenAgente, gerarTokenAgente } from '@/lib/queries/impressao'
-import { registrarAuditoria } from '@/lib/auditoria'
 
 /**
  * Token de pareamento do Assistente de Impressão (página Impressão).
@@ -27,30 +23,15 @@ async function contexto() {
   return { sessao }
 }
 
+// Assistente antigo DESLIGADO em 12/10: nenhuma loja tem (nem gera) token dele. A tela trata { token: null, somenteNova: true }.
 export async function GET() {
-  const { sessao, erro } = await contexto()
+  const { erro } = await contexto()
   if (erro) return erro
-  // 0161: loja só do assistente novo não tem (nem gera) token do assistente antigo.
-  if (await somenteNova(getAdminSupabase(), sessao.restauranteId)) return NextResponse.json({ token: null, somenteNova: true }, { headers: { 'Cache-Control': 'no-store' } })
-  const token = await buscarTokenAgente(getAdminSupabase(), sessao.restauranteId)
-  return NextResponse.json({ token }, { headers: { 'Cache-Control': 'no-store' } })
+  return NextResponse.json({ token: null, somenteNova: true }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
 export async function POST() {
-  const { sessao, erro } = await contexto()
+  const { erro } = await contexto()
   if (erro) return erro
-  const admin = getAdminSupabase()
-  if (await somenteNova(admin, sessao.restauranteId)) return NextResponse.json({ error: 'Esta loja imprime só pelo assistente novo.' }, { status: 409 })
-  const token = await gerarTokenAgente(admin, sessao.restauranteId)
-  // Quem trocou e quando — sem o valor.
-  await registrarAuditoria(admin, {
-    restauranteId: sessao.restauranteId,
-    usuarioId: sessao.userId,
-    usuarioNome: sessao.nome,
-    acao: 'impressao.gerou_token',
-    entidade: 'restaurante',
-    entidadeId: sessao.restauranteId,
-    dados: {},
-  }).catch(() => {})
-  return NextResponse.json({ token }, { headers: { 'Cache-Control': 'no-store' } })
+  return NextResponse.json({ error: 'O assistente antigo foi desligado. Use o Assistente novo.' }, { status: 410 })
 }

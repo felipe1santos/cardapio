@@ -56,11 +56,7 @@ export const ROTULO_MODO_BETA: Record<'teste' | 'caixa' | 'cozinha_caixa', strin
 
 export const EXPLICACAO_RECIBO_EXTRATO = 'Documento não fiscal usado para o cliente conferir a conta antes ou depois do pagamento.'
 
-/** Instaladores. O antigo (0.1.x) só fica para quem já tem instalado — não aparece mais na tela (Alfa 1, 09/10). */
-export const DOWNLOAD_ASSISTENTE_ATUAL = {
-  versao: '0.1.23',
-  url: 'https://github.com/felipe1santos/cardapio/releases/download/printer-agent-v0.1.23/AssistenteImpressaoMenuzia-Setup-0.1.23.exe',
-}
+/** Instaladores. O antigo (0.1.x) foi desligado em 12/10: não há mais link para ele. */
 /** O instalador que a tela oferece: SEMPRE o mesmo da atualização automática (lib/impressao/atualizacao-assistente.ts). */
 export const DOWNLOAD_ASSISTENTE_BETA = { versao: ATUALIZACAO_ASSISTENTE.versao, url: ATUALIZACAO_ASSISTENTE.url }
 

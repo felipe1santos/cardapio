@@ -1,7 +1,6 @@
 import { createHash, randomBytes, randomInt } from 'node:crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { lerAgenteToken } from '@/lib/agente-token'
-import { resolverRestauranteIdPorToken } from '@/lib/queries/impressao'
 import { deveGravarIp, ipDoRequest } from '@/lib/impressao/atualizacao-bloqueio'
 
 /**
@@ -96,6 +95,6 @@ export async function identificarAgente(admin: SupabaseClient, request: Request)
     if (linha) gravarIp(admin, linha.agente_id, ipDoRequest(request.headers))
     return linha ? { tipo: 'agente', agenteId: linha.agente_id, restauranteId: linha.restaurante_id, nome: linha.nome } : null
   }
-  const restauranteId = await resolverRestauranteIdPorToken(admin, bruto)
-  return restauranteId ? { tipo: 'legado', restauranteId } : null
+  // Assistente antigo (token da loja) DESLIGADO em 12/10: todas as lojas imprimem pelo novo; o token antigo não autentica mais.
+  return null
 }
