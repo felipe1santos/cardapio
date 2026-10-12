@@ -13,7 +13,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { provedorAtual } from './provedor'
 import { enfileirar, processarFila } from './fila'
-import { classificarIntencao, numeroPermitido, pedidoDeDescadastro, roboLiberadoNoServidor, textoDescadastro, variantesTelefone, type Acao, type DadosLoja } from './robo'
+import { classificarIntencao, numeroPermitido, palavraAmbiguaDeSair, pedidoDeDescadastro, roboLiberadoNoServidor, textoDescadastro, variantesTelefone, type Acao, type DadosLoja } from './robo'
 import { statusDoProvedor } from './campanhas'
 import { ehSaidaNossa } from './historico'
 import { COLUNAS_CONFIG_AUTO, processarMensagemAuto, type ConfigAuto } from '@/lib/robo-auto/motor'
@@ -212,8 +212,13 @@ async function processarEntradaInterna(admin: SupabaseClient, segredo: string, c
 
     // SAIR / VOLTAR (0112): vale com o robô ligado OU desligado — é direito do cliente
     // parar de receber campanhas. Avisos de pedido não mudam. A confirmação sai pela fila.
-    const descadastro = pedidoDeDescadastro(m.tipo, m.texto)
+    // "cancelar" sozinho só é SAIR para quem recebeu disparo nos últimos 7 dias (12/10); sem isso é do pedido.
+    const recebeuDisparo = palavraAmbiguaDeSair(m.tipo, m.texto) ? await recebeuDisparoRecente(admin, restauranteId, m.telefone) : false
+    const descadastro = pedidoDeDescadastro(m.tipo, m.texto, { recebeuDisparo })
     if (descadastro) {
+      // Confirma UMA vez: SAIR de quem já saiu (ou VOLTAR de quem já está) não gera outra resposta.
+      const jaFora = await jaDescadastrado(admin, restauranteId, m.telefone)
+      if (jaFora === (descadastro === 'sair')) { contar(r, 'descadastro_repetido'); continue }
       const { error: errDesc } = await admin.rpc('whatsapp_descadastrar', { p_restaurante: restauranteId, p_telefone: m.telefone, p_sair: descadastro === 'sair', p_origem: 'cliente' })
       if (errDesc) throw errDesc
       const envio = await enfileirar(admin, {
@@ -234,4 +239,15 @@ async function processarEntradaInterna(admin: SupabaseClient, segredo: string, c
 
   if (r.respostas > 0) await processarFila(admin, { restauranteId, limite: 10 })
   return r
+}
+
+/** Recebeu disparo (campanha enviada) desta loja nos últimos 7 dias? Mesma chave de telefone do descadastro. */
+async function recebeuDisparoRecente(admin: SupabaseClient, restauranteId: string, telefone: string): Promise<boolean> {
+  const { data } = await admin.rpc('whatsapp_recebeu_disparo', { p_restaurante: restauranteId, p_telefone: telefone, p_dias: 7 })
+  return data === true
+}
+
+async function jaDescadastrado(admin: SupabaseClient, restauranteId: string, telefone: string): Promise<boolean> {
+  const { data } = await admin.rpc('whatsapp_esta_descadastrado', { p_restaurante: restauranteId, p_telefone: telefone })
+  return data === true
 }

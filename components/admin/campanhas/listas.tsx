@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Ban, Copy, Eye, Image as ImageIcon, ListChecks, Mic, MessageSquareText, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
+import { Ban, Copy, Eye, Image as ImageIcon, ListChecks, Mic, MessageSquareText, Pause, Pencil, Play, Plus, Search, Trash2, X } from 'lucide-react'
+import { ROTULO_PAUSA } from '@/lib/mensageria/disparo-regras'
 import type { Campanha, TipoMensagem } from '@/lib/queries/campanhas'
 import { progressoCampanha, situacaoCampanha } from '@/lib/mensageria/campanhas'
 import { getBrowserSupabase } from '@/lib/supabase/client'
@@ -16,6 +17,9 @@ export interface AcoesCampanha {
   onDuplicar: (c: Campanha) => void
   onCancelar: (c: Campanha) => void
   onExcluir: (c: Campanha) => void
+  /** 12/10: Pausar e Retomar. */
+  onPausar?: (c: Campanha) => void
+  onRetomar?: (c: Campanha) => void
 }
 
 const TIPO: Record<TipoMensagem, { rotulo: string; icone: typeof MessageSquareText }> = {
@@ -25,7 +29,10 @@ const TIPO: Record<TipoMensagem, { rotulo: string; icone: typeof MessageSquareTe
 }
 
 const editavel = (c: Campanha) => c.status === 'rascunho' || c.status === 'agendada'
-const cancelavel = (c: Campanha) => c.status === 'agendada' || c.status === 'enviando'
+const cancelavel = (c: Campanha) => c.status === 'agendada' || c.status === 'enviando' || c.status === 'pausada'
+const pausavel = (c: Campanha) => c.status === 'agendada' || c.status === 'enviando'
+// Pausa por desconexão volta sozinha ao reconectar; manual e do freio, só pelo Retomar.
+const retomavel = (c: Campanha) => c.status === 'pausada' && c.pausaMotivo !== 'whatsapp_desconectado'
 const excluivel = (c: Campanha) => c.status === 'rascunho' || c.status === 'concluida' || c.status === 'cancelada'
 
 function Progresso({ c }: { c: Campanha }) {
@@ -42,7 +49,7 @@ function Progresso({ c }: { c: Campanha }) {
         <span className="text-[12px] tabular-nums text-[#5b6472]">{p.enviados}/{p.total}</span>
       </div>
       {p.falhas > 0 && <span className="mt-0.5 block text-[11px] text-[#b91c1c]">{p.falhas} {p.falhas === 1 ? 'falha' : 'falhas'}</span>}
-      {c.status === 'pausada' && <span className="mt-0.5 block text-[11px] text-[#b45309]">WhatsApp desconectado — volta sozinha ao reconectar</span>}
+      {c.status === 'pausada' && <span className="mt-0.5 block text-[11px] text-[#b45309]" data-testid="motivo-pausa">{ROTULO_PAUSA[c.pausaMotivo ?? 'whatsapp_desconectado'] ?? 'Pausada'}</span>}
     </div>
   )
 }
@@ -61,6 +68,8 @@ function Acoes({ c, a, destinatarios }: { c: Campanha; a: AcoesCampanha; destina
       {editavel(c) ? <BotaoAcao titulo="Editar" icone={Pencil} onClick={() => a.onEditar(c)} testid="campanha-editar" /> : <BotaoAcao titulo="Ver mensagem" icone={Eye} onClick={() => a.onVer(c)} testid="campanha-ver" />}
       <BotaoAcao titulo="Duplicar" icone={Copy} onClick={() => a.onDuplicar(c)} testid="campanha-duplicar" />
       {destinatarios && <BotaoAcao titulo="Ver destinatários" icone={ListChecks} onClick={destinatarios} testid="campanha-destinatarios" />}
+      {pausavel(c) && a.onPausar && <BotaoAcao titulo="Pausar" icone={Pause} onClick={() => a.onPausar!(c)} testid="campanha-pausar" />}
+      {retomavel(c) && a.onRetomar && <BotaoAcao titulo="Retomar" icone={Play} onClick={() => a.onRetomar!(c)} testid="campanha-retomar" />}
       {cancelavel(c) && <BotaoAcao titulo="Cancelar envio" icone={Ban} perigo onClick={() => a.onCancelar(c)} testid="campanha-cancelar" />}
       {excluivel(c) && <BotaoAcao titulo="Excluir" icone={Trash2} perigo onClick={() => a.onExcluir(c)} testid="campanha-excluir" />}
     </div>

@@ -26,7 +26,8 @@ const PREFIXOS: Record<Modulo, string[]> = {
 }
 
 /** Livres mesmo dentro de um prefixo pago: as mensagens automáticas de STATUS do pedido (Ajustes) usam a API de Campanhas. */
-const LIVRES = ['/api/admin/campanhas/automaticas']
+// Push do app do cardápio é GRÁTIS (12/10): fica fora do módulo Disparos.
+const LIVRES = ['/api/admin/campanhas/automaticas', '/api/admin/campanhas/push']
 
 /** De qual módulo pago é este caminho (null = livre). Pura. */
 export function moduloDoCaminho(pathname: string): Modulo | null {

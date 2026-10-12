@@ -208,6 +208,16 @@ describe('pedidoDeDescadastro (SAIR / VOLTAR)', () => {
     }
     expect(pedidoDeDescadastro('audio', null)).toBeNull()
   })
+  it('variações de "me tira da lista" (12/10)', () => {
+    for (const t of ['me tira da lista', 'Me tire da lista!', 'me remove da lista', 'não quero mais receber mensagem', 'para de mandar mensagem', 'não me mande mais', 'PARE DE ENVIAR', 'sai da lista']) {
+      expect(pedidoDeDescadastro('texto', t), t).toBe('sair')
+    }
+  })
+  it('"cancelar" sozinho só é SAIR para quem recebeu disparo há pouco (senão é do pedido)', () => {
+    expect(pedidoDeDescadastro('texto', 'CANCELAR', { recebeuDisparo: true })).toBe('sair')
+    expect(pedidoDeDescadastro('texto', 'cancelar', { recebeuDisparo: false })).toBeNull()
+    expect(pedidoDeDescadastro('texto', 'quero cancelar o pedido', { recebeuDisparo: true })).toBeNull()
+  })
   it('confirmação diz que avisos de pedido continuam e como voltar', () => {
     const loja = { nome: 'Menuzia', slug: 'menuzia', boasVindas: null }
     expect(textoDescadastro(loja, true)).toMatch(/não vai mais receber promoções.*avisos dos seus pedidos continuam[\s\S]*VOLTAR/)

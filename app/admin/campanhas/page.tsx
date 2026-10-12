@@ -19,7 +19,8 @@ import { PushNotificacoes } from '@/components/admin/push-notificacoes'
 import { useEstadoSessao } from '@/lib/sessao-cliente'
 import { BoasPraticas } from '@/components/admin/campanhas/boas-praticas'
 import { Ajuda, Confirmar } from '@/components/admin/campanhas/comum'
-import { Lightbulb, Send } from 'lucide-react'
+import { AlertTriangle, Lightbulb, Send } from 'lucide-react'
+import { AVISO_DISPAROS } from '@/lib/mensageria/disparo-regras'
 
 // Campanhas = disparos. Com "Novidades em teste" (0178, hoje só a Menuzia; ordem do dono 10/10), "Modelos de mensagem"
 // e "Notificações do app" (push do app do cardápio para os CLIENTES) moram aqui, sob o mesmo cadeado (Disparos). Sem a
@@ -62,11 +63,13 @@ const TIPO_LABEL: Record<TipoMensagem, string> = {
   audio:  'Áudio PTT',
 }
 
+// 12/10: o público é SEMPRE de quem já fez pedido na loja (nada de lista importada nem número de fora).
 const FILTRO_LABEL: Record<FiltroTipo, string> = {
-  todos:        'Todos os clientes',
-  inativos:     'Inativos',
+  todos:        'Todos que já pediram',
+  recentes:     'Comprou nos últimos X dias',
+  inativos:     'Não compra há X dias',
+  gastou_acima: 'Gastou acima de R$ X',
   frequentes:   'Compradores frequentes',
-  recentes:     'Compraram recentemente',
   dias_semana:  'Por dia da semana',
   valor_minimo: 'Ticket médio mínimo',
 }
@@ -87,17 +90,20 @@ interface FormState {
   incluirDescadastro: boolean
   /** Botões de link (Fase 4): saem como links no texto. */
   botoes: BotaoCampanha[]
+  /** Janela de envio (12/10). */
+  janelaInicio: string
+  janelaFim: string
 }
 
 function formDefault(): FormState {
-  return { nome: '', tipoMensagem: 'texto', mensagem: '', imagemUrl: null, audioUrl: null, filtro: filtroDefault(), agendadoEm: '', incluirLink: true, incluirDescadastro: true, botoes: [] }
+  return { nome: '', tipoMensagem: 'texto', mensagem: '', imagemUrl: null, audioUrl: null, filtro: filtroDefault(), agendadoEm: '', incluirLink: true, incluirDescadastro: true, botoes: [], janelaInicio: '17:00', janelaFim: '19:00' }
 }
 
 /** Prévia com um link de exemplo no lugar do link de cada cliente. */
-function mensagemComLink(mensagem: string, incluirLink: boolean, incluirDescadastro = false, botoes: BotaoCampanha[] = []) {
-  // {nome} com um nome de exemplo: a prévia mostra como chega para cada cliente.
+function mensagemComLink(mensagem: string, incluirLink: boolean, incluirDescadastro = false, botoes: BotaoCampanha[] = [], loja = 'Sua loja') {
+  // Cliente de exemplo: Maria, que pediu um X-Burger da última vez.
   const validos = botoes.filter((b) => b.texto.trim() && b.url.trim())
-  return montarTextoCampanha(mensagem, { incluirLink, token: '0'.repeat(24), nome: 'Maria', incluirDescadastro, botoes: validos }).replace(/\/c\/0{24}/, '/c/…')
+  return montarTextoCampanha(mensagem, { incluirLink, token: '0'.repeat(24), nome: 'Maria', incluirDescadastro, botoes: validos, loja, ultimoItem: 'X-Burger' }).replace(/\/c\/0{24}/, '/c/…')
 }
 
 // ─── WhatsApp Bubble (preview) ────────────────────────────────────────────────
@@ -277,6 +283,16 @@ function FiltroEditor({ filtro, onChange }: { filtro: FiltroCampanha; onChange: 
         </div>
       )}
 
+      {filtro.tipo === 'gastou_acima' && (
+        <div>
+          <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Gastou no total pelo menos (R$)</label>
+          <input type="number" min={0} step={10} value={filtro.valor_total ?? 100}
+            onChange={(e) => onChange({ ...filtro, valor_total: Number(e.target.value) })}
+            className="w-full rounded-menuzia border border-border bg-white px-3 py-2.5 text-sm outline-none focus:border-primary" data-testid="filtro-gastou" />
+          <p className="mt-1 text-[11px] text-text-subtle">Clientes que já gastaram {brl(filtro.valor_total ?? 100)} ou mais na loja.</p>
+        </div>
+      )}
+      <p className="text-[11px] text-text-subtle">Só entram clientes que já fizeram pedido na loja. Quem respondeu SAIR nunca recebe.</p>
       {filtro.tipo === 'valor_minimo' && (
         <div>
           <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Ticket médio mínimo (R$)</label>
@@ -298,9 +314,10 @@ export default function CampanhasPage() {
   const [restauranteId, setRestauranteId] = useState<string | null>(null)
   // Link da vitrine para o atalho "Ver cardápio" dos botões.
   const [slugLoja, setSlugLoja] = useState<string | null>(null)
+  const [nomeLoja, setNomeLoja] = useState('Sua loja')
   useEffect(() => {
     if (!restauranteId) return
-    supabase.from('restaurantes').select('slug').eq('id', restauranteId).maybeSingle().then(({ data }) => setSlugLoja((data?.slug as string | undefined) ?? null), () => setSlugLoja(null))
+    supabase.from('restaurantes').select('slug, nome').eq('id', restauranteId).maybeSingle().then(({ data }) => { setSlugLoja((data?.slug as string | undefined) ?? null); if (data?.nome) setNomeLoja(String(data.nome)) }, () => setSlugLoja(null))
   }, [supabase, restauranteId])
   const urlCardapioLoja = slugLoja ? `https://app.menuzia.com.br/loja/${slugLoja}` : ''
   const [campanhas, setCampanhas] = useState<Campanha[]>([])
@@ -396,6 +413,7 @@ export default function CampanhasPage() {
       incluirLink: c.incluirLink,
       incluirDescadastro: c.incluirDescadastro,
       botoes: c.botoes ?? [],
+      janelaInicio: c.janelaInicio ?? '17:00', janelaFim: c.janelaFim ?? '19:00',
     })
     setErro(null); setEstimativa(null); setDrawerOpen(true)
   }
@@ -409,6 +427,7 @@ export default function CampanhasPage() {
       nome: `${c.nome} (cópia)`.slice(0, 120), tipoMensagem: c.tipoMensagem, mensagem: c.mensagem,
       imagemUrl: c.imagemUrl, audioUrl: c.audioUrl, filtro: c.filtro, agendadoEm: '',
       incluirLink: c.incluirLink, incluirDescadastro: c.incluirDescadastro, botoes: c.botoes ?? [],
+      janelaInicio: c.janelaInicio ?? '17:00', janelaFim: c.janelaFim ?? '19:00',
     })
     setErro(null); setEstimativa(null); setDrawerOpen(true)
   }
@@ -437,7 +456,7 @@ export default function CampanhasPage() {
     if (form.tipoMensagem === 'audio') { setErro('Modelo é só para texto ou imagem.'); return }
     if (!form.mensagem.trim()) { setErro('Escreva a mensagem antes de salvar como modelo.'); return }
     const e = await modelos.salvar({ nome: form.nome.trim() || 'Modelo sem nome', mensagem: form.mensagem, imagem_url: form.tipoMensagem === 'imagem' ? form.imagemUrl : null })
-    toasts.mostrar(e ? 'erro' : 'ok', e ?? 'Modelo salvo. Ele aparece em Ajustes › Modelos de mensagem.')
+    toasts.mostrar(e ? 'erro' : 'ok', e ?? 'Modelo salvo em Modelos de mensagem.')
   }
 
   // ── Upload ────────────────────────────────────────────────────────────────
@@ -480,6 +499,7 @@ export default function CampanhasPage() {
         incluirLink: form.tipoMensagem !== 'audio' && form.incluirLink,
         incluirDescadastro: form.tipoMensagem !== 'audio' && form.incluirDescadastro,
         botoes: form.tipoMensagem === 'audio' ? [] : form.botoes.filter((b) => b.texto.trim() || b.url.trim()),
+        janelaInicio: form.janelaInicio, janelaFim: form.janelaFim,
         disparar: true,
       }
       const res = editingId
@@ -518,6 +538,16 @@ export default function CampanhasPage() {
     onDuplicar: duplicar,
     onCancelar: (c) => setConfirmacao({ tipo: 'cancelar', c }),
     onExcluir: (c) => setConfirmacao({ tipo: 'excluir', c }),
+    onPausar: (c) => void mudarStatus(c, 'pausada'),
+    onRetomar: (c) => void mudarStatus(c, 'enviando'),
+  }
+
+  /** Pausar / Retomar (12/10). */
+  async function mudarStatus(c: Campanha, status: 'pausada' | 'enviando') {
+    const res = await fetch(`/api/admin/campanhas/${c.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
+    if (!res.ok) toasts.mostrar('erro', (await res.json().catch(() => null))?.error ?? 'Não foi possível mudar a campanha.')
+    else toasts.mostrar('ok', status === 'pausada' ? 'Campanha pausada.' : 'Campanha retomada.')
+    carregar()
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -552,11 +582,14 @@ export default function CampanhasPage() {
           {aba === 'campanhas' && <ListaCampanhas campanhas={campanhas} carregando={loading} acoes={acoes} onNovo={abrirNovo} />}
           {aba === 'agendamentos' && <Agendamentos campanhas={campanhas} carregando={loading} acoes={acoes} onNovo={abrirNovo} />}
           {/* "Usar" abre o disparo com o modelo, aqui mesmo. */}
-          {aba === 'modelos' && novidades && <Modelos api={modelos} onUsar={usarModelo} onToast={toasts.mostrar} />}
+          {aba === 'modelos' && novidades && <Modelos api={modelos} onUsar={usarModelo} onUsarPush={(m) => { router.replace(`/admin/campanhas?aba=notificacoes&modelo=${encodeURIComponent(m.id)}`); setAba('notificacoes') }} onToast={toasts.mostrar} />}
           {aba === 'notificacoes' && novidades && <PushNotificacoes />}
         </div>
       </div>
 
+      <p className="flex flex-shrink-0 items-start gap-2 border-b border-[#FCD34D] bg-[#FEF3C7] px-4 py-2 text-[12.5px] font-medium text-[#92400E] sm:px-5" data-testid="aviso-disparos">
+        <AlertTriangle className="mt-[1px] h-4 w-4 flex-shrink-0" aria-hidden /> {AVISO_DISPAROS}
+      </p>
       {boasPraticas && <BoasPraticas onFechar={() => setBoasPraticas(false)} />}
       {confirmacao && (
         <Confirmar
@@ -663,7 +696,14 @@ export default function CampanhasPage() {
                   placeholder={form.tipoMensagem === 'imagem' ? 'Ex: 🍔 Combo especial essa semana! Peça já.' : 'Ex: Sentimos sua falta 😊 Que tal pedir algo hoje?'}
                   className="w-full resize-none rounded-menuzia border border-border bg-white px-3 py-2.5 text-sm text-text-main outline-none focus:border-primary placeholder:text-text-subtle/60"
                 />
-                <p className="mt-1 text-right text-[11px] text-text-subtle">{form.mensagem.length} chars</p>
+                <div className="mt-1 flex flex-wrap items-center gap-1.5" data-testid="variaveis">
+                  <span className="text-[11px] text-text-subtle">Inserir:</span>
+                  {(['{nome}', '{loja}', '{link_cardapio}', '{ultimo_item}'] as const).map((v) => (
+                    <button key={v} type="button" onClick={() => setForm((f) => ({ ...f, mensagem: `${f.mensagem}${f.mensagem && !f.mensagem.endsWith(' ') ? ' ' : ''}${v}`, incluirLink: v === '{link_cardapio}' ? true : f.incluirLink }))}
+                      className="h-[28px] rounded-menuzia border border-border bg-white px-2 text-[11.5px] font-semibold text-[#0570AE] hover:border-primary">{v}</button>
+                  ))}
+                  <span className="ml-auto text-[11px] text-text-subtle">{form.mensagem.length} chars</span>
+                </div>
               </div>
             )}
 
@@ -683,16 +723,12 @@ export default function CampanhasPage() {
 
             {/* Descadastro (0112) */}
             {form.tipoMensagem !== 'audio' && (
-              <label className="flex cursor-pointer items-start gap-3 rounded-menuzia border border-border px-3 py-3">
-                <input type="checkbox" checked={form.incluirDescadastro} onChange={(e) => setForm((f) => ({ ...f, incluirDescadastro: e.target.checked }))}
-                  className="mt-0.5 h-[18px] w-[18px] shrink-0 accent-primary" data-testid="incluir-descadastro" />
-                <span>
-                  <span className="block text-[13px] font-semibold text-text-main">Terminar com &quot;Para não receber mais, responda SAIR.&quot;</span>
-                  <span className="block text-[12px] text-text-subtle">
-                    Quem responder SAIR não recebe mais campanhas desta loja (os avisos de pedido continuam). Vale mesmo sem esta linha.
-                  </span>
+              <div className="rounded-menuzia border border-border bg-page px-3 py-3" data-testid="rodape-sair">
+                <span className="block text-[13px] font-semibold text-text-main">Toda mensagem termina com &quot;Responda SAIR para não receber mais.&quot;</span>
+                <span className="block text-[12px] text-text-subtle">
+                  Obrigatório. Quem responder SAIR (ou &quot;parar&quot;, &quot;me tira da lista&quot;…) nunca mais recebe disparos desta loja; os avisos do próprio pedido continuam.
                 </span>
-              </label>
+              </div>
             )}
 
             {/* Botões (Fase 4) */}
@@ -752,6 +788,19 @@ export default function CampanhasPage() {
               <p className="mt-1 text-[11px] text-text-subtle">Sem horário? Use o botão &quot;Disparar agora&quot;.</p>
             </div>
 
+            {/* Janela de envio (12/10) */}
+            <div data-testid="janela-envio">
+              <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Enviar só entre</label>
+              <div className="flex items-center gap-2">
+                <input type="time" min="09:00" max="21:30" value={form.janelaInicio} onChange={(e) => setForm((f) => ({ ...f, janelaInicio: e.target.value }))}
+                  className="w-full rounded-menuzia border border-border bg-white px-3 py-2.5 text-sm outline-none focus:border-primary" aria-label="Início da janela" />
+                <span className="text-[12px] text-text-subtle">e</span>
+                <input type="time" min="09:00" max="21:30" value={form.janelaFim} onChange={(e) => setForm((f) => ({ ...f, janelaFim: e.target.value }))}
+                  className="w-full rounded-menuzia border border-border bg-white px-3 py-2.5 text-sm outline-none focus:border-primary" aria-label="Fim da janela" />
+              </div>
+              <p className="mt-1 text-[11px] text-text-subtle">Uma mensagem a cada 25–90 segundos, até o limite diário da loja (padrão 150). O que sobrar continua no dia seguinte, na mesma janela. Nunca antes das 09:00 nem depois das 21:30. Cada cliente recebe no máximo 1 disparo a cada 3 dias.</p>
+            </div>
+
             {erro && <p className="rounded-menuzia border border-danger bg-danger/10 px-3 py-2 text-[13px] text-danger">{erro}</p>}
           </div>
 
@@ -761,7 +810,7 @@ export default function CampanhasPage() {
             <div className="flex-1">
               <WhatsappPreview
                 tipo={form.tipoMensagem}
-                mensagem={form.tipoMensagem === 'audio' ? form.mensagem : mensagemComLink(form.mensagem, form.incluirLink, form.incluirDescadastro, form.botoes)}
+                mensagem={form.tipoMensagem === 'audio' ? form.mensagem : mensagemComLink(form.mensagem, form.incluirLink, form.incluirDescadastro, form.botoes, nomeLoja)}
                 imagemUrl={form.imagemUrl}
                 audioUrl={form.audioUrl}
               />

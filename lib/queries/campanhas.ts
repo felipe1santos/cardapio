@@ -5,12 +5,13 @@ import { otimizarImagem, CACHE_CONTROL_SEGUNDOS } from '@/lib/imagem'
 import { deduplicarDestinatarios, telefoneChave } from '@/lib/mensageria/campanhas'
 import { diaSemanaSaoPaulo } from '@/lib/timezone'
 import { lerTodas } from './ler-todas'
+import { filtrarPublico, type FiltroPublico } from '@/lib/mensageria/disparo-regras'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type TipoMensagem = 'texto' | 'imagem' | 'audio'
 export type StatusCampanha = 'rascunho' | 'agendada' | 'enviando' | 'pausada' | 'concluida' | 'cancelada'
-export type FiltroTipo = 'todos' | 'inativos' | 'frequentes' | 'recentes' | 'dias_semana' | 'valor_minimo'
+export type FiltroTipo = 'todos' | 'inativos' | 'frequentes' | 'recentes' | 'dias_semana' | 'valor_minimo' | 'gastou_acima'
 
 export interface FiltroCampanha {
   tipo: FiltroTipo
@@ -19,6 +20,7 @@ export interface FiltroCampanha {
   ultimos_dias?: number        // recentes: comprou nos últimos X dias (padrão 1)
   dias_semana?: number[]       // dias_semana: costuma comprar nesses dias (0=dom..6=sáb)
   valor_minimo?: number        // valor_minimo: ticket médio >= R$ X
+  valor_total?: number         // gastou_acima: total gasto na loja >= R$ X (12/10)
 }
 
 export interface Campanha {
@@ -46,6 +48,8 @@ export interface Campanha {
   /** Pausada porque o WhatsApp da loja caiu (0112). */
   pausadaEm: string | null
   pausaMotivo: string | null
+  janelaInicio?: string | null
+  janelaFim?: string | null
 }
 
 // ─── Mapeamento ───────────────────────────────────────────────────────────────
@@ -73,6 +77,8 @@ function mapCampanha(row: any): Campanha {
     botoes: Array.isArray(row.botoes) ? (row.botoes as BotaoCampanha[]) : [],
     pausadaEm: row.pausada_em ?? null,
     pausaMotivo: row.pausa_motivo ?? null,
+    janelaInicio: typeof row.janela_inicio === 'string' ? row.janela_inicio.slice(0, 5) : null,
+    janelaFim: typeof row.janela_fim === 'string' ? row.janela_fim.slice(0, 5) : null,
   }
 }
 
@@ -101,6 +107,9 @@ export interface CampanhaInput {
   incluirLink?: boolean
   incluirDescadastro?: boolean
   botoes?: BotaoCampanha[]
+  /** Janela de envio (12/10): HH:MM, dentro de 09:00–21:30. */
+  janelaInicio?: string | null
+  janelaFim?: string | null
 }
 
 export async function criarCampanha(supabase: SupabaseClient, restauranteId: string, input: CampanhaInput): Promise<Campanha> {
@@ -116,8 +125,11 @@ export async function criarCampanha(supabase: SupabaseClient, restauranteId: str
       filtro: input.filtro,
       agendado_em: input.agendadoEm ?? null,
       incluir_link: input.incluirLink === true,
-      incluir_descadastro: input.incluirDescadastro === true,
+      // Rodapé do SAIR obrigatório (12/10).
+      incluir_descadastro: true,
       botoes: input.botoes ?? [],
+      janela_inicio: input.janelaInicio ?? '17:00',
+      janela_fim: input.janelaFim ?? '19:00',
       status: input.agendadoEm ? 'agendada' : 'rascunho',
     })
     .select(CAMPANHA_SELECT)
@@ -135,7 +147,10 @@ export async function atualizarCampanha(supabase: SupabaseClient, restauranteId:
   if ('audioUrl' in patch) row.audio_url = patch.audioUrl ?? null
   if (patch.filtro !== undefined) row.filtro = patch.filtro
   if (patch.incluirLink !== undefined) row.incluir_link = patch.incluirLink === true
-  if (patch.incluirDescadastro !== undefined) row.incluir_descadastro = patch.incluirDescadastro === true
+  // Rodapé do SAIR obrigatório (12/10): nunca desliga.
+  if (patch.incluirDescadastro !== undefined) row.incluir_descadastro = true
+  if (patch.janelaInicio) row.janela_inicio = patch.janelaInicio
+  if (patch.janelaFim) row.janela_fim = patch.janelaFim
   if (patch.botoes !== undefined) row.botoes = patch.botoes
   if ('agendadoEm' in patch) {
     row.agendado_em = patch.agendadoEm ?? null
@@ -179,14 +194,12 @@ export async function uploadMidiaCampanha(supabase: SupabaseClient, restauranteI
 
 // ─── Filtros e destinatários ─────────────────────────────────────────────────
 
-const MS_DIA = 86_400_000
-const MS_SEMANA = 7 * MS_DIA
 
 export async function resolverDestinatarios(
   admin: SupabaseClient,
   restauranteId: string,
   filtro: FiltroCampanha,
-): Promise<{ telefone: string; nome: string }[]> {
+): Promise<{ telefone: string; nome: string; ultimoItem?: string | null }[]> {
   const clientes = await lerTodas<{ telefone: string; nome: string | null }>((de, ate) => admin
     .from('clientes')
     .select('telefone, nome')
@@ -212,18 +225,17 @@ export async function resolverDestinatarios(
     if (!clientes.length) return []
   }
 
-  if (filtro.tipo === 'todos') return clientes.map((c) => ({ telefone: c.telefone, nome: c.nome ?? '' }))
-
-  const pedidos = await lerTodas<{ cliente_telefone: string; criado_em: string; total: number }>((de, ate) => admin
+  // 12/10: SÓ quem já fez pedido na loja recebe disparo (nada de lista importada nem número de fora) — em todos os filtros.
+  const pedidos = await lerTodas<{ id: string; cliente_telefone: string; criado_em: string; total: number }>((de, ate) => admin
     .from('pedidos')
-    .select('cliente_telefone, criado_em, total')
+    .select('id, cliente_telefone, criado_em, total')
     .eq('restaurante_id', restauranteId)
     .neq('status', 'cancelado')
     .order('criado_em', { ascending: true })
     .order('id', { ascending: true })
     .range(de, ate))
 
-  const pedidosPorTelefone = new Map<string, { criado_em: string; total: number }[]>()
+  const pedidosPorTelefone = new Map<string, { id: string; criado_em: string; total: number }[]>()
   for (const p of pedidos) {
     const tel = normalizarTelefone(p.cliente_telefone)
     const lista = pedidosPorTelefone.get(tel)
@@ -231,45 +243,25 @@ export async function resolverDestinatarios(
     else pedidosPorTelefone.set(tel, [p])
   }
 
-  const agora = Date.now()
+  const escolhidos = filtrarPublico(clientes, pedidosPorTelefone, filtro as FiltroPublico & Record<string, unknown>, Date.now(), normalizarTelefone, diaSemanaSaoPaulo)
 
-  return clientes
-    .filter((c) => {
-      const tel = normalizarTelefone(c.telefone)
-      const ordens = pedidosPorTelefone.get(tel) ?? []
+  // {ultimo_item}: o primeiro item do último pedido de cada um.
+  const ultimoPedido = new Map<string, string>()
+  for (const c of escolhidos) {
+    const ordens = pedidosPorTelefone.get(normalizarTelefone(c.telefone)) ?? []
+    if (ordens.length) ultimoPedido.set(normalizarTelefone(c.telefone), ordens[ordens.length - 1].id)
+  }
+  const itemDoPedido = new Map<string, string>()
+  const ids = [...new Set(ultimoPedido.values())]
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data } = await admin.from('pedido_itens').select('pedido_id, nome').in('pedido_id', ids.slice(i, i + 200)).order('id', { ascending: true })
+    for (const it of (data ?? []) as { pedido_id: string; nome: string }[]) if (!itemDoPedido.has(it.pedido_id)) itemDoPedido.set(it.pedido_id, it.nome)
+  }
 
-      switch (filtro.tipo) {
-        case 'inativos': {
-          if (!ordens.length) return true
-          const ultima = new Date(ordens[ordens.length - 1].criado_em).getTime()
-          return agora - ultima >= (filtro.dias_inativo ?? 7) * MS_DIA
-        }
-        case 'frequentes': {
-          if (!ordens.length) return false
-          const primeiraTs = new Date(ordens[0].criado_em).getTime()
-          const semanas = Math.max(1, (agora - primeiraTs) / MS_SEMANA)
-          return ordens.length / semanas >= (filtro.compras_por_semana ?? 2)
-        }
-        case 'recentes': {
-          const dias = filtro.ultimos_dias ?? 1
-          return ordens.some((p) => agora - new Date(p.criado_em).getTime() <= dias * MS_DIA)
-        }
-        case 'dias_semana': {
-          const diasAlvo = new Set(filtro.dias_semana ?? [])
-          // Dia de São Paulo: o servidor roda em UTC e o pedido de domingo 21h (00h UTC
-          // de segunda) contava como segunda.
-          return ordens.some((p) => diasAlvo.has(diaSemanaSaoPaulo(p.criado_em)))
-        }
-        case 'valor_minimo': {
-          if (!ordens.length) return false
-          const totalValor = ordens.reduce((s, p) => s + Number(p.total), 0)
-          return totalValor / ordens.length >= (filtro.valor_minimo ?? 0)
-        }
-        default:
-          return true
-      }
-    })
-    .map((c) => ({ telefone: c.telefone, nome: c.nome ?? '' }))
+  return escolhidos.map((c) => {
+    const pid = ultimoPedido.get(normalizarTelefone(c.telefone))
+    return { telefone: c.telefone, nome: c.nome ?? '', ultimoItem: pid ? (itemDoPedido.get(pid) ?? null) : null }
+  })
 }
 
 // ─── Fila de envios ──────────────────────────────────────────────────────────
@@ -278,7 +270,7 @@ export async function popularFilaCampanha(
   admin: SupabaseClient,
   campanhaId: string,
   restauranteId: string,
-  destinatarios: { telefone: string; nome: string }[],
+  destinatarios: { telefone: string; nome: string; ultimoItem?: string | null }[],
 ): Promise<void> {
   if (!destinatarios.length) return
   // Um envio por telefone (com/sem 55, com/sem o 9): o banco também recusa repetido.
@@ -288,6 +280,7 @@ export async function popularFilaCampanha(
     restaurante_id: restauranteId,
     telefone: d.telefone,
     nome_cliente: d.nome,
+    ultimo_item: d.ultimoItem ? d.ultimoItem.slice(0, 120) : null,
   }))
   const { error } = await admin.from('campanha_envios').insert(rows)
   if (error) throw error

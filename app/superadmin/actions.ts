@@ -230,6 +230,27 @@ export async function definirCotacaoAction(cotacao: string): Promise<ResultadoAc
   return { ok: true, mensagem: `Cotação: R$ ${valor.toFixed(2)}.` }
 }
 
+/** Tetos das campanhas (12/10): disparo de WhatsApp por dia, frequência por cliente e push de campanha por dia. */
+export async function definirLimitesCampanhasAction(v: { disparoTetoDia: string; frequenciaDias: string; pushTetoDia: string }): Promise<ResultadoAcao> {
+  const quem = await ensureSuperAdmin()
+  const n = (x: string) => Math.round(Number(String(x ?? '').trim()))
+  const disparo = n(v.disparoTetoDia), freq = n(v.frequenciaDias), push = n(v.pushTetoDia)
+  if (!(disparo >= 1 && disparo <= 1000)) return { ok: false, erro: 'Máximo por dia entre 1 e 1000.' }
+  if (!(freq >= 0 && freq <= 30)) return { ok: false, erro: 'Frequência entre 0 e 30 dias.' }
+  if (!(push >= 0 && push <= 3)) return { ok: false, erro: 'Push por dia entre 0 e 3.' }
+  const admin = getAdminSupabase()
+  const agora = new Date().toISOString()
+  const { error } = await admin.from('plataforma_config').upsert([
+    { chave: 'disparo_teto_dia', valor: disparo, atualizado_em: agora, atualizado_por: quem.email },
+    { chave: 'disparo_frequencia_dias', valor: freq, atualizado_em: agora, atualizado_por: quem.email },
+    { chave: 'push_teto_dia', valor: push, atualizado_em: agora, atualizado_por: quem.email },
+  ], { onConflict: 'chave' })
+  if (error) return { ok: false, erro: 'Não foi possível salvar.' }
+  await auditarPlataforma(admin, { ator: quem.email, acao: 'plataforma.limites_campanhas', dados: { disparo, freq, push } })
+  revalidatePath('/superadmin/gasto')
+  return { ok: true, mensagem: 'Limites salvos.' }
+}
+
 /** Libera as "Novidades em teste" para TODAS as lojas (confirmação digitada: LIBERAR). */
 export async function liberarNovidadesTodasAction(confirmacao: string): Promise<ResultadoAcao> {
   const quem = await ensureSuperAdmin()

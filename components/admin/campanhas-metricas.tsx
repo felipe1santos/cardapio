@@ -46,6 +46,8 @@ export interface MetricaCampanha {
   retries: number
   duplicados_bloqueados: number
   rastreada: boolean
+  /** Pedidos de SAIR depois do envio (12/10). */
+  sair?: number
 }
 
 type Totais = Omit<MetricaCampanha, 'id' | 'nome' | 'status' | 'tipo_mensagem' | 'incluir_link' | 'quando' | 'rastreada'> & { campanhas: number; rastreadas: number }
@@ -538,6 +540,9 @@ export function DetalheCampanha({ campanha, onClose }: { campanha: MetricaCampan
         <div className="overflow-y-auto px-5 py-4">
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
             <Mini icone={Send} tom="cinza" titulo="Enviadas" valor={inteiro(campanha.enviadas)} />
+            <Mini icone={Send} tom="cinza" titulo="Falhas" valor={inteiro(campanha.falhas)} />
+            <Mini icone={Send} tom="cinza" titulo="Respostas" valor={inteiro(campanha.respondidas)} />
+            <Mini icone={Send} tom="cinza" titulo="Pediram SAIR" valor={inteiro(campanha.sair ?? 0)} />
             <Mini icone={MousePointerClick} tom="ambar" titulo="Cliques" valor={campanha.incluir_link ? inteiro(campanha.clicaram) : '—'} />
             <Mini icone={ShoppingBag} tom="azul" titulo="Pedidos" valor={inteiro(campanha.pedidos)} />
             <Mini icone={Wallet} tom="verde" titulo="Faturamento" valor={formatarReal(Number(campanha.faturamento))} />

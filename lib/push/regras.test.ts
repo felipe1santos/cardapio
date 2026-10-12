@@ -24,6 +24,11 @@ describe('janela de envio do marketing', () => {
   it('nunca de madrugada, mesmo aberta', () => {
     expect(podeMarketingAgora({ aberta: true, minutosParaAbrir: null, horaAgora: '01:30' }, 30)).toBe(false)
     expect(podeMarketingAgora({ aberta: true, minutosParaAbrir: null, horaAgora: '07:59' }, 30)).toBe(false)
+    // 12/10: só entre 09:00 e 21:30 (Brasília).
+    expect(podeMarketingAgora({ aberta: true, minutosParaAbrir: null, horaAgora: '08:59' }, 30)).toBe(false)
+    expect(podeMarketingAgora({ aberta: true, minutosParaAbrir: null, horaAgora: '09:00' }, 30)).toBe(true)
+    expect(podeMarketingAgora({ aberta: true, minutosParaAbrir: null, horaAgora: '21:30' }, 30)).toBe(true)
+    expect(podeMarketingAgora({ aberta: true, minutosParaAbrir: null, horaAgora: '21:31' }, 30)).toBe(false)
   })
   it('fechada: só até N min antes de abrir', () => {
     expect(podeMarketingAgora({ aberta: false, minutosParaAbrir: 20, horaAgora: '17:40' }, 30)).toBe(true)

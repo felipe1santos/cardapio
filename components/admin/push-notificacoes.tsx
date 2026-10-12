@@ -249,6 +249,19 @@ function NovaAvulsa({ loja, onCriada }: { loja: Dados['loja']; onCriada: (msg: s
   const [confirmar, setConfirmar] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
 
+  // Modelo de mensagem (12/10): "No push" abre aqui com título e texto do modelo (só o que o push entende).
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('modelo')
+    if (!id || !/^[0-9a-f-]{36}$/i.test(id)) return
+    let vivo = true
+    void getBrowserSupabase().from('campanha_modelos').select('titulo, mensagem, imagem_url').eq('id', id).maybeSingle().then(({ data }) => {
+      if (!vivo || !data) return
+      if (data.titulo) setTitulo(String(data.titulo).slice(0, 60))
+      setTexto(textoParaPush(String(data.mensagem ?? '')))
+      if (data.imagem_url) setImagem(String(data.imagem_url))
+    })
+    return () => { vivo = false }
+  }, [])
   const pub = useMemo(() => (publico === 'recentes' || publico === 'inativos' ? { tipo: publico, dias } : { tipo: publico }), [publico, dias])
   useEffect(() => {
     let vivo = true
@@ -355,6 +368,11 @@ function NovaAvulsa({ loja, onCriada }: { loja: Dados['loja']; onCriada: (msg: s
       </div>
     </Cartao>
   )
+}
+
+/** Texto de modelo → push: tira o que só o WhatsApp entende ({link…}, {ultimo_item}, *negrito*) e corta em 200. */
+export function textoParaPush(m: string): string {
+  return m.replace(/\{link_cardapio\}|\{link\}/g, '').replace(/\{ultimo_item\}/g, 'seu pedido de sempre').replace(/[*_~]/g, '').replace(/[ \t]+/g, ' ').replace(/\s*:\s*$/, '').trim().slice(0, 200)
 }
 
 export function PushNotificacoes() {

@@ -3,6 +3,9 @@ import { exigirPushLiberado, lojaDoPainel } from '@/lib/push/painel'
 import { linkDoDestino, processarAvulsas, resolverPublico, type DestinoAvulsa, type PublicoAvulsa } from '@/lib/push/motor'
 import { processarFilaPush } from '@/lib/push/envio'
 
+/** "AAAA-MM-DD" em Brasília. */
+const diaSaoPaulo = (iso: string) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date(iso))
+
 function lerPublico(p: unknown): PublicoAvulsa | null {
   const o = (p && typeof p === 'object' ? p : {}) as Record<string, unknown>
   if (o.tipo === 'todos' || o.tipo === 'fidelidade') return { tipo: o.tipo }
@@ -44,6 +47,17 @@ export async function POST(request: Request) {
     if (t.getTime() > Date.now() + 60 * 24 * 3600_000) return NextResponse.json({ error: 'Agende para no máximo 60 dias.' }, { status: 400 })
     agendadoEm = t.toISOString()
   }
+  // Limite de notificações de campanha por dia (12/10): o da loja, preso ao teto do Super Admin (padrão 1).
+  const dia = diaSaoPaulo(agendadoEm ?? new Date().toISOString())
+  const [{ data: cfg }, { data: teto }, { data: doDia }] = await Promise.all([
+    c.admin.from('push_config').select('limite_dia').eq('restaurante_id', c.loja.id).maybeSingle(),
+    c.admin.from('plataforma_config').select('valor').eq('chave', 'push_teto_dia').maybeSingle(),
+    c.admin.from('push_avulsas').select('agendado_em, criado_em').eq('restaurante_id', c.loja.id).neq('status', 'cancelada')
+      .gte('criado_em', new Date(Date.now() - 62 * 86_400_000).toISOString()),
+  ])
+  const limite = Math.max(1, Math.min(Number(cfg?.limite_dia ?? 1) || 1, Number((teto as { valor?: unknown } | null)?.valor ?? 1) || 1))
+  const usadas = (doDia ?? []).filter((x) => diaSaoPaulo((x.agendado_em as string | null) ?? (x.criado_em as string)) === dia).length
+  if (usadas >= limite) return NextResponse.json({ error: `Limite de ${limite} notificação${limite > 1 ? 'ões' : ''} de campanha por dia já usado neste dia. Escolha outro dia.` }, { status: 409 })
   if (destino.tipo === 'produto') {
     const { data } = await c.admin.from('itens_cardapio').select('id').eq('id', destino.id).eq('restaurante_id', c.loja.id).maybeSingle()
     if (!data) return NextResponse.json({ error: 'Produto não encontrado.' }, { status: 400 })

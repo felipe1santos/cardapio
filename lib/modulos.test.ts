@@ -11,6 +11,8 @@ describe('módulos pagos (0176)', () => {
     expect(moduloDoCaminho('/admin/agente-ia')).toBe('agente_ia')
     expect(moduloDoCaminho('/api/admin/whatsapp/robo')).toBeNull()
     expect(moduloDoCaminho('/api/admin/campanhas/automaticas')).toBeNull() // mensagens de status do pedido: livres
+    expect(moduloDoCaminho('/api/admin/campanhas/push')).toBeNull() // push do app: grátis (12/10)
+    expect(moduloDoCaminho('/api/admin/campanhas/push/avulsas')).toBeNull()
     expect(moduloDoCaminho('/api/admin/dashboard/custos')).toBeNull()
     expect(moduloDoCaminho('/api/admin/caixa')).toBeNull() // troco do motoboy no despacho (delivery) segue igual
     expect(moduloDoCaminho('/admin/financeiroX')).toBeNull()

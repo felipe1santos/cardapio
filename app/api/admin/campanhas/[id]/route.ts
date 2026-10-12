@@ -11,6 +11,7 @@ import {
   type CampanhaInput,
 } from '@/lib/queries/campanhas'
 import { deduplicarDestinatarios, problemasDasVariaveis, validarBotoes } from '@/lib/mensageria/campanhas'
+import { janelaDoDisparo } from '@/lib/mensageria/disparo-regras'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
@@ -34,13 +35,28 @@ export async function PATCH(request: Request, { params }: Ctx) {
 
     const body: Partial<CampanhaInput> & { disparar?: boolean; status?: string } = await request.json()
     const admin = getAdminSupabase()
-    const { data: atual } = await supabase.from('campanhas').select('status, mensagem, incluir_link, tipo_mensagem').eq('id', id).eq('restaurante_id', restauranteId).maybeSingle()
+    const { data: atual } = await supabase.from('campanhas').select('status, mensagem, incluir_link, tipo_mensagem, pausa_motivo').eq('id', id).eq('restaurante_id', restauranteId).maybeSingle()
     if (!atual) return NextResponse.json({ error: 'Campanha não encontrada.' }, { status: 404 })
 
-    // Pelo painel, o único status que se escolhe é "cancelada".
-    if (body.status !== undefined && body.status !== 'cancelada') return NextResponse.json({ error: 'Status inválido.' }, { status: 400 })
+    // Pelo painel (12/10): Pausar, Retomar e Cancelar.
+    if (body.status !== undefined && !['cancelada', 'pausada', 'enviando'].includes(body.status)) return NextResponse.json({ error: 'Status inválido.' }, { status: 400 })
+    if (body.status === 'pausada') {
+      const { data: p } = await admin.from('campanhas').update({ status: 'pausada', pausada_em: new Date().toISOString(), pausa_motivo: 'manual', atualizado_em: new Date().toISOString() })
+        .eq('id', id).eq('restaurante_id', restauranteId).in('status', ['agendada', 'enviando']).select('id').maybeSingle()
+      if (!p) return NextResponse.json({ error: 'Só dá para pausar campanha agendada ou enviando.' }, { status: 409 })
+      return NextResponse.json({ ok: true })
+    }
+    if (body.status === 'enviando') {
+      // Retomar: pausa manual ou do freio. Desconexão volta sozinha quando o WhatsApp reconecta.
+      if (atual.status !== 'pausada') return NextResponse.json({ error: 'A campanha não está pausada.' }, { status: 409 })
+      if (atual.pausa_motivo === 'whatsapp_desconectado') return NextResponse.json({ error: 'Reconecte o WhatsApp da loja: a campanha volta sozinha.' }, { status: 409 })
+      const { data: r } = await admin.from('campanhas').update({ status: 'enviando', pausada_em: null, pausa_motivo: null, atualizado_em: new Date().toISOString() })
+        .eq('id', id).eq('restaurante_id', restauranteId).eq('status', 'pausada').select('id').maybeSingle()
+      if (!r) return NextResponse.json({ error: 'Não foi possível retomar.' }, { status: 409 })
+      return NextResponse.json({ ok: true })
+    }
     if (body.status === 'cancelada') {
-      if (!['rascunho', 'agendada', 'enviando'].includes(atual.status)) return NextResponse.json({ error: 'Esta campanha já terminou.' }, { status: 409 })
+      if (!['rascunho', 'agendada', 'enviando', 'pausada'].includes(atual.status)) return NextResponse.json({ error: 'Esta campanha já terminou.' }, { status: 409 })
       const campanha = await atualizarCampanha(supabase, restauranteId, id, { status: 'cancelada' })
       await cancelarFila(admin, id)
       return NextResponse.json(campanha)
@@ -53,6 +69,12 @@ export async function PATCH(request: Request, { params }: Ctx) {
     }
     const patch: Partial<CampanhaInput> & { disparar?: boolean; status?: string } = { ...body }
     delete patch.status
+    if (body.janelaInicio !== undefined || body.janelaFim !== undefined) {
+      const janela = janelaDoDisparo(body.janelaInicio ?? '17:00', body.janelaFim ?? '19:00')
+      if (!janela.ok) return NextResponse.json({ error: janela.erro }, { status: 400 })
+      patch.janelaInicio = janela.inicio
+      patch.janelaFim = janela.fim
+    }
 
     const tipoFinal = body.tipoMensagem ?? atual.tipo_mensagem
     const variaveis = tipoFinal === 'audio' ? null : problemasDasVariaveis(body.mensagem ?? atual.mensagem ?? '', { incluirLink: body.incluirLink ?? atual.incluir_link === true })

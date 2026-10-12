@@ -1976,21 +1976,20 @@ function TabWhatsapp({ tipo, restauranteId }: { tipo: 'mensagens' | 'modelos' | 
   const toasts = useToasts()
   const estadoSessao = useEstadoSessao()
   const disparosLiberado = !!estadoSessao?.modulos?.disparos
-  const disparosBloqueado = !!estadoSessao && !estadoSessao.modulos?.disparos
   const agenteLiberado = !!estadoSessao?.modulos?.agente_ia
   const modelos = useModelos(tipo === 'modelos' ? restauranteId : null)
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-5 lg:px-6" data-ajustes-rolagem data-testid={`ajustes-${tipo}`}>
         <div className={tipo === 'robo' ? 'max-w-[1240px]' : 'max-w-[980px]'}>
-          {/* Notificações do app (push) são do módulo Disparos (0176); as mensagens de status do pedido são livres. */}
-          {disparosBloqueado && tipo === 'notificacoes' && <JanelaModuloBloqueado inline modulo="disparos" loja={estadoSessao?.lojaNome ?? ''} whatsapp={estadoSessao?.whatsappComercial} />}
+          {/* Notificações do app (push) são GRÁTIS para todas as lojas (12/10); só o disparo de WhatsApp é pago. */}
           {tipo === 'mensagens' && <MensagensAutomaticas onToast={toasts.mostrar} onAtivoMudou={() => {}} />}
           {tipo === 'modelos' && (
             // "Usar" leva o modelo para um disparo novo em Campanhas.
-            <Modelos api={modelos} onUsar={(m) => { router.push(`/admin/campanhas?modelo=${encodeURIComponent(m.id)}`) }} onToast={toasts.mostrar} />
+            <Modelos api={modelos} onUsar={disparosLiberado ? (m) => { router.push(`/admin/campanhas?modelo=${encodeURIComponent(m.id)}`) } : undefined}
+              onUsarPush={(m) => { router.push(`/admin/ajustes?aba=notificacoes&modelo=${encodeURIComponent(m.id)}`) }} onToast={toasts.mostrar} />
           )}
-          {tipo === 'notificacoes' && disparosLiberado && <PushNotificacoes />}
+          {tipo === 'notificacoes' && <PushNotificacoes />}
           {/* Robô único (0182): o robô de atendimento, para todas as lojas (menu antigo e novo). */}
           {tipo === 'robo' && <RoboAtendimentoAjustes />}
           {/* Agente de IA (módulo pago, 0176): sem o módulo, o "Quero liberar" no lugar. */}

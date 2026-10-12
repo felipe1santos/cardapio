@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { janelaDoDisparo } from '@/lib/mensageria/disparo-regras'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import {
@@ -50,6 +51,11 @@ export async function POST(request: Request) {
     const botoes = validarBotoes(body.botoes)
     if (!botoes.ok) return NextResponse.json({ error: botoes.erro }, { status: 400 })
     body.botoes = body.tipoMensagem === 'audio' ? [] : botoes.botoes
+    // Janela de envio (12/10): a loja escolhe; nunca fora de 09:00–21:30.
+    const janela = janelaDoDisparo(body.janelaInicio ?? '17:00', body.janelaFim ?? '19:00')
+    if (!janela.ok) return NextResponse.json({ error: janela.erro }, { status: 400 })
+    body.janelaInicio = janela.inicio
+    body.janelaFim = janela.fim
 
     // Se já tem agendamento, o público é resolvido ANTES de criar: campanha agendada sem
     // ninguém na fila nunca concluía (ficava "agendada" para sempre).

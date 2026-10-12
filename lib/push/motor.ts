@@ -496,6 +496,10 @@ export function linkDoDestino(d: DestinoAvulsa): string {
   return ''
 }
 
+export function comOrigemCampanha(destino: string): string {
+  return `${destino}${destino.includes('?') ? '&' : '?'}utm_source=push&utm_medium=campanha`
+}
+
 /** Aparelhos que recebem uma avulsa com este público (categoria promoções ligada). */
 export async function resolverPublico(admin: SupabaseClient, restauranteId: string, publico: PublicoAvulsa, agora = Date.now()): Promise<{ aparelhos: AssinaturaPush[]; clientes: number }> {
   const todas = (await assinaturasAtivas(admin, restauranteId)).filter((a) => a.categorias.includes('promocoes'))
@@ -543,7 +547,8 @@ export async function processarAvulsas(admin: SupabaseClient, agora = Date.now()
       return {
         assinatura: ap, origem: 'avulsa' as const, tipo: 'avulsa' as const, categoria: 'promocoes' as const,
         chave: `avulsa:${a.id}`, titulo: aplicarVariaveis(a.titulo, vars) || loja.nome, texto: aplicarVariaveis(a.texto, vars),
-        destino: linkDoDestino(a.destino as DestinoAvulsa), imagem: a.imagem_url, avulsaId: a.id,
+        // Origem "campanha" (12/10): o clique e o pedido contam para esta notificação (push=<envio> + utm).
+        destino: comOrigemCampanha(linkDoDestino(a.destino as DestinoAvulsa)), imagem: a.imagem_url, avulsaId: a.id,
       }
     }))
     await admin.from('push_avulsas').update({ status: 'concluida' }).eq('id', a.id)

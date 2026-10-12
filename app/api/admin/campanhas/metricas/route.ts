@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { getAdminSupabase } from '@/lib/supabase/admin'
 
 /**
  * Métricas das campanhas (0104). Tudo roda com a sessão do usuário: a função do banco
@@ -47,6 +48,16 @@ export async function GET(request: Request) {
 
     const { data, error } = await supabase.rpc('campanhas_metricas', { p_de: de.toISOString(), p_ate: ate.toISOString(), p_campanha: campanha || null })
     if (error) return erroBanco(error)
+    // Pedidos de SAIR por campanha (12/10). As campanhas vieram da função acima, que já filtra a loja do usuário.
+    const dados = data as { campanhas?: { id: string; sair?: number }[] } | null
+    const lista = dados?.campanhas ?? []
+    if (lista.length) {
+      const admin = getAdminSupabase()
+      await Promise.all(lista.slice(0, 100).map(async (c) => {
+        const { data: n } = await admin.rpc('campanha_freio_numeros', { p_campanha: c.id })
+        c.sair = Number(((Array.isArray(n) ? n[0] : n) as { sair?: number } | null)?.sair ?? 0)
+      }))
+    }
     return NextResponse.json({ de: de.toISOString(), ate: ate.toISOString(), ...(data as object) })
   } catch (err) {
     console.error('[campanhas/metricas] erro:', (err as Error).message?.slice(0, 200))

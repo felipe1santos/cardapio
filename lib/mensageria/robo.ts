@@ -126,14 +126,27 @@ export function textoPadrao(loja: DadosLoja, tipo: TipoMensagem = 'texto', comSa
 const PALAVRAS_SAIR = new Set([
   'sair', 'parar', 'pare', 'stop', 'descadastrar', 'descadastro', 'descadastre', 'remover', 'me remova', 'me tira', 'me tire',
   'nao quero mais', 'nao quero receber', 'nao quero mais receber', 'parar de receber', 'sair da lista', 'nao envie mais', 'nao mande mais',
+  // 12/10: variações comuns.
+  'me tira da lista', 'me tire da lista', 'me remove', 'me remove da lista', 'me remova da lista', 'tira meu numero', 'sai da lista',
+  'nao quero mais receber mensagem', 'nao quero mais mensagem', 'nao me mande mais', 'nao me mande mais mensagem', 'para de mandar',
+  'para de mandar mensagem', 'pare de mandar', 'pare de enviar', 'para de enviar', 'nao mande mais mensagem',
 ])
+/** Ambíguas: só valem como SAIR para quem recebeu disparo há pouco ("cancelar" sem contexto é do pedido). */
+const PALAVRAS_SAIR_COM_DISPARO = new Set(['cancelar', 'cancela', 'cancele', 'cancelar inscricao'])
 const PALAVRAS_VOLTAR = new Set(['voltar', 'quero voltar', 'voltar a receber', 'receber de novo', 'quero receber'])
 
-export function pedidoDeDescadastro(tipo: TipoMensagem, texto: string | null): 'sair' | 'voltar' | null {
+/** "cancelar" e afins: só viram SAIR com contexto (recebeu disparo). Diz se vale a pena consultar o contexto. */
+export function palavraAmbiguaDeSair(tipo: TipoMensagem, texto: string | null): boolean {
+  if (tipo !== 'texto') return false
+  return PALAVRAS_SAIR_COM_DISPARO.has(normalizar(texto ?? '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim())
+}
+
+export function pedidoDeDescadastro(tipo: TipoMensagem, texto: string | null, contexto: { recebeuDisparo?: boolean } = {}): 'sair' | 'voltar' | null {
   if (tipo !== 'texto') return null
   const t = normalizar(texto ?? '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim()
   if (!t || t.length > 40) return null
   if (PALAVRAS_SAIR.has(t)) return 'sair'
+  if (contexto.recebeuDisparo && PALAVRAS_SAIR_COM_DISPARO.has(t)) return 'sair'
   if (PALAVRAS_VOLTAR.has(t)) return 'voltar'
   return null
 }

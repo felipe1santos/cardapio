@@ -3,6 +3,8 @@ import { acessoDeRobo, deduplicarDestinatarios, linkRastreavel, montarTextoCampa
 import { interpretarWebhookEvolution } from './provedor'
 
 const TOKEN = 'a1b2c3d4e5f6a1b2c3d4e5f6'
+// 12/10: o rodapé do SAIR agora é obrigatório (testado em disparo-regras.test.ts); aqui conferimos o corpo da mensagem.
+const semRodape = (...a: Parameters<typeof montarTextoCampanha>) => montarTextoCampanha(...a).replace(/(\n\n)?Responda SAIR para não receber mais\.$/, '')
 
 describe('link rastreável', () => {
   it('link não leva dado do cliente, só o token', () => {
@@ -10,17 +12,17 @@ describe('link rastreável', () => {
   })
 
   it('troca {link} (todas as ocorrências) ou acrescenta no fim', () => {
-    expect(montarTextoCampanha('Peça: {link} ou {link}', { incluirLink: true, token: TOKEN }))
+    expect(semRodape('Peça: {link} ou {link}', { incluirLink: true, token: TOKEN }))
       .toBe(`Peça: ${linkRastreavel(TOKEN)} ou ${linkRastreavel(TOKEN)}`)
-    expect(montarTextoCampanha('Promoção hoje!  ', { incluirLink: true, token: TOKEN }))
+    expect(semRodape('Promoção hoje!  ', { incluirLink: true, token: TOKEN }))
       .toBe(`Promoção hoje!\n\n👉 Peça pelo cardápio: ${linkRastreavel(TOKEN)}`)
-    expect(montarTextoCampanha('', { incluirLink: true, token: TOKEN })).toBe(linkRastreavel(TOKEN))
+    expect(semRodape('', { incluirLink: true, token: TOKEN })).toBe(linkRastreavel(TOKEN))
   })
 
   it('link desligado, token ausente ou inválido: mensagem exatamente como a loja escreveu', () => {
-    expect(montarTextoCampanha('Oi {link}', { incluirLink: false, token: TOKEN })).toBe('Oi {link}')
-    expect(montarTextoCampanha('Oi', { incluirLink: true, token: null })).toBe('Oi')
-    expect(montarTextoCampanha('Oi', { incluirLink: true, token: '../admin' })).toBe('Oi')
+    expect(semRodape('Oi {link}', { incluirLink: false, token: TOKEN })).toBe('Oi') // {link} sem link ligado não sai cru
+    expect(semRodape('Oi', { incluirLink: true, token: null })).toBe('Oi')
+    expect(semRodape('Oi', { incluirLink: true, token: '../admin' })).toBe('Oi')
   })
 })
 
@@ -132,9 +134,9 @@ describe('público da campanha: telefone inválido', () => {
 
 describe('variáveis da mensagem', () => {
   it('{nome} vira o primeiro nome; sem nome, "cliente"', () => {
-    expect(montarTextoCampanha('Oi {nome}!', { incluirLink: false, token: null, nome: 'MARIA  da silva' })).toBe('Oi Maria!')
-    expect(montarTextoCampanha('Oi {nome}!', { incluirLink: false, token: null, nome: '  ' })).toBe('Oi cliente!')
-    expect(montarTextoCampanha('Oi {nome}!', { incluirLink: false, token: null, nome: '😀' })).toBe('Oi cliente!')
+    expect(semRodape('Oi {nome}!', { incluirLink: false, token: null, nome: 'MARIA  da silva' })).toBe('Oi Maria!')
+    expect(semRodape('Oi {nome}!', { incluirLink: false, token: null, nome: '  ' })).toBe('Oi cliente!')
+    expect(semRodape('Oi {nome}!', { incluirLink: false, token: null, nome: '😀' })).toBe('Oi cliente!')
   })
 
   it('variável desconhecida bloqueia; {link} sem o link ligado também', () => {
@@ -146,8 +148,8 @@ describe('variáveis da mensagem', () => {
 
   it('rodapé do descadastro fecha a mensagem (depois do link)', () => {
     const t = montarTextoCampanha('Promo!', { incluirLink: true, token: TOKEN, incluirDescadastro: true })
-    expect(t).toBe(`Promo!\n\n👉 Peça pelo cardápio: ${linkRastreavel(TOKEN)}\n\nPara não receber mais, responda SAIR.`)
-    expect(montarTextoCampanha('Promo!', { incluirLink: false, token: null, incluirDescadastro: false })).toBe('Promo!')
+    expect(t).toBe(`Promo!\n\n👉 Peça pelo cardápio: ${linkRastreavel(TOKEN)}\n\nResponda SAIR para não receber mais.`)
+    expect(montarTextoCampanha('Promo!', { incluirLink: false, token: null, incluirDescadastro: false })).toBe('Promo!\n\nResponda SAIR para não receber mais.') // sempre
   })
 })
 
@@ -179,10 +181,10 @@ describe('botões da campanha (Fase 4)', () => {
   it('saem como links no texto, um por linha, antes do rodapé do SAIR', async () => {
     const { montarTextoCampanha } = await import('./campanhas')
     const t = montarTextoCampanha('Promo hoje!', { incluirLink: false, token: null, incluirDescadastro: true, botoes: [{ texto: 'Ver cardápio', url: 'https://app.menuzia.com.br/loja/x' }, { texto: 'Pegar cupom', url: 'https://app.menuzia.com.br/c/1' }] })
-    expect(t).toBe('Promo hoje!\n\n👉 Ver cardápio: https://app.menuzia.com.br/loja/x\n👉 Pegar cupom: https://app.menuzia.com.br/c/1\n\nPara não receber mais, responda SAIR.')
+    expect(t).toBe('Promo hoje!\n\n👉 Ver cardápio: https://app.menuzia.com.br/loja/x\n👉 Pegar cupom: https://app.menuzia.com.br/c/1\n\nResponda SAIR para não receber mais.')
   })
   it('campanha antiga (sem botões) sai igual', async () => {
     const { montarTextoCampanha } = await import('./campanhas')
-    expect(montarTextoCampanha('Oi', { incluirLink: false, token: null })).toBe('Oi')
+    expect(montarTextoCampanha('Oi', { incluirLink: false, token: null })).toBe('Oi\n\nResponda SAIR para não receber mais.')
   })
 })

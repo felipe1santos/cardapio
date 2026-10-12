@@ -18,6 +18,8 @@ import { montarTextoCampanha, type BotaoCampanha } from './campanhas'
 import { telefoneWhatsapp } from '@/lib/telefone-br'
 import { concluirSaida, registrarSaida } from './historico'
 import { moduloLiberado } from '@/lib/modulos'
+import { decidirFreio } from './disparo-regras'
+import { criarAlerta } from '@/lib/financeiro/alertas'
 
 interface EnvioReservado {
   id: string
@@ -34,6 +36,9 @@ interface EnvioReservado {
   evolution_instance: string | null
   slug: string
   incluir_descadastro?: boolean
+  /** 0190: variáveis {ultimo_item} e {loja}. */
+  ultimo_item?: string | null
+  nome_loja?: string | null
   /** Botões da campanha (0118) — carregados à parte, por campanha. */
   botoes?: BotaoCampanha[]
 }
@@ -52,7 +57,7 @@ export interface ResumoCampanhas {
 const espera = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 function textoDoEnvio(e: EnvioReservado): string {
-  return montarTextoCampanha(e.mensagem, { incluirLink: e.incluir_link, token: e.token, nome: e.nome_cliente, incluirDescadastro: e.incluir_descadastro === true, botoes: e.tipo_mensagem === 'audio' ? [] : e.botoes })
+  return montarTextoCampanha(e.mensagem, { incluirLink: e.incluir_link, token: e.token, nome: e.nome_cliente, incluirDescadastro: true, botoes: e.tipo_mensagem === 'audio' ? [] : e.botoes, loja: e.nome_loja, ultimoItem: e.ultimo_item })
 }
 
 /** Botões de cada campanha do lote, numa consulta só. Falhou: segue sem botões. */
@@ -102,10 +107,10 @@ async function enviarUm(provedor: ProvedorWhatsapp, e: EnvioReservado): Promise<
 async function sincronizarPausas(admin: SupabaseClient, provedor: ProvedorWhatsapp, r: ResumoCampanhas) {
   const { data } = await admin
     .from('campanhas')
-    .select('id, status, restaurante_id, restaurantes ( evolution_instance )')
+    .select('id, status, pausa_motivo, restaurante_id, restaurantes ( evolution_instance )')
     .in('status', ['agendada', 'enviando', 'pausada'])
     .lte('agendado_em', new Date().toISOString())
-  const linhas = (data ?? []) as unknown as { id: string; status: string; restaurante_id: string; restaurantes: { evolution_instance: string | null } | null }[]
+  const linhas = (data ?? []) as unknown as { id: string; status: string; pausa_motivo: string | null; restaurante_id: string; restaurantes: { evolution_instance: string | null } | null }[]
   const estados = new Map<string, EstadoConexaoProvedor>()
   for (const c of linhas) {
     const inst = c.restaurantes?.evolution_instance ?? null
@@ -116,9 +121,9 @@ async function sincronizarPausas(admin: SupabaseClient, provedor: ProvedorWhatsa
       await admin.from('campanhas').update({ status: 'pausada', pausada_em: new Date().toISOString(), pausa_motivo: 'whatsapp_desconectado', atualizado_em: new Date().toISOString() })
         .eq('id', c.id).in('status', ['agendada', 'enviando'])
       r.campanhasPausadas++
-    } else if (estado === 'aberto' && c.status === 'pausada') {
+    } else if (estado === 'aberto' && c.status === 'pausada' && (c.pausa_motivo ?? 'whatsapp_desconectado') === 'whatsapp_desconectado') {
       await admin.from('campanhas').update({ status: 'enviando', pausada_em: null, pausa_motivo: null, atualizado_em: new Date().toISOString() })
-        .eq('id', c.id).eq('status', 'pausada')
+        .eq('id', c.id).eq('status', 'pausada').eq('pausa_motivo', 'whatsapp_desconectado')
       r.campanhasRetomadas++
     }
   }
@@ -195,5 +200,30 @@ export async function processarCampanhas(
     // Intervalo aleatório entre envios para reduzir risco de bloqueio.
     if (i < lista.length - 1 && !lojasCaidas.has(lista[i + 1].restaurante_id)) await espera(opcoes.intervalo())
   }
+  await aplicarFreio(admin, [...new Set(lista.map((e) => e.campanha_id))], r)
   return r
+}
+
+/**
+ * Freio (12/10): erro acima de 5% ou SAIR acima de 3% dos enviados (a partir de 20) pausa a campanha e avisa a loja.
+ * Pausa do freio NÃO volta sozinha: a loja revê o público e toca em Retomar.
+ */
+async function aplicarFreio(admin: SupabaseClient, campanhas: string[], r: ResumoCampanhas) {
+  for (const id of campanhas) {
+    try {
+      const { data } = await admin.rpc('campanha_freio_numeros', { p_campanha: id })
+      const n = (Array.isArray(data) ? data[0] : data) as { enviados: number; erros: number; sair: number } | null
+      const motivo = n ? decidirFreio(n) : null
+      if (!motivo) continue
+      const { data: pausou } = await admin.from('campanhas').update({ status: 'pausada', pausada_em: new Date().toISOString(), pausa_motivo: motivo, atualizado_em: new Date().toISOString() })
+        .eq('id', id).in('status', ['agendada', 'enviando']).select('restaurante_id, nome').maybeSingle()
+      if (!pausou) continue
+      r.campanhasPausadas++
+      await criarAlerta(admin, {
+        restauranteId: pausou.restaurante_id as string, tipo: 'campanha_pausada', gravidade: 'grave',
+        mensagem: `Campanha "${String(pausou.nome).slice(0, 60)}" pausada pelo freio: ${motivo === 'erro_alto' ? 'muitas mensagens com erro' : 'muitos clientes pedindo para sair'}. Revise o público em Campanhas antes de retomar.`,
+        dados: { campanha: id, ...n }, dedupeMin: 24 * 60, dedupeChave: `freio:${id}`,
+      }).catch(() => null)
+    } catch { /* freio nunca derruba o envio */ }
+  }
 }

@@ -6,7 +6,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { enfileirar } from '@/lib/mensageria/fila'
-import { pedidoDeDescadastro, textoDescadastro, variantesTelefone, linkDoRobo, type DadosLoja } from '@/lib/mensageria/robo'
+import { palavraAmbiguaDeSair, pedidoDeDescadastro, textoDescadastro, variantesTelefone, linkDoRobo, type DadosLoja } from '@/lib/mensageria/robo'
 import type { MensagemRecebida } from '@/lib/mensageria/provedor'
 import { normalizarForaDaLista, resolverFrete } from '@/lib/frete'
 import { composeEndereco } from '@/lib/endereco'
@@ -219,8 +219,14 @@ export async function processarMensagemAuto(
   }
 
   // SAIR / VOLTAR das campanhas (0112) continua valendo; no modo novo também para/reativa o robô na conversa.
-  const descadastro = pedidoDeDescadastro(m.tipo, m.texto)
+  // 12/10: "cancelar" sozinho só é SAIR para quem recebeu disparo nos últimos 7 dias; e a confirmação sai UMA vez.
+  const recebeuDisparo = palavraAmbiguaDeSair(m.tipo, m.texto)
+    ? (await admin.rpc('whatsapp_recebeu_disparo', { p_restaurante: restauranteId, p_telefone: telefone, p_dias: 7 })).data === true
+    : false
+  const descadastro = pedidoDeDescadastro(m.tipo, m.texto, { recebeuDisparo })
   if (descadastro) {
+    const jaFora = (await admin.rpc('whatsapp_esta_descadastrado', { p_restaurante: restauranteId, p_telefone: telefone })).data === true
+    if (jaFora === (descadastro === 'sair')) return { respostas, motivo: 'descadastro_repetido' }
     const { error: errDesc } = await admin.rpc('whatsapp_descadastrar', { p_restaurante: restauranteId, p_telefone: telefone, p_sair: descadastro === 'sair', p_origem: 'cliente' })
     if (errDesc) throw errDesc
     if (descadastro === 'sair' && e.acao === 'decidir') {

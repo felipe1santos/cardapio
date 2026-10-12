@@ -44,8 +44,9 @@ export const PRIORIDADE: Record<Exclude<TipoAutomacao, 'status_pedido'>, number>
 /** Teto do sistema: a loja escolhe abaixo disso. */
 export const TETO_DIA = 3
 export const TETO_SEMANA = 10
-/** Madrugada: nenhum marketing de 00:00 a 07:59 (horário de Brasília), mesmo com a loja aberta. */
-export const INICIO_PERMITIDO = '08:00'
+/** Marketing só entre 09:00 e 21:30 (horário de Brasília), mesmo com a loja aberta (12/10). */
+export const INICIO_PERMITIDO = '09:00'
+export const FIM_PERMITIDO = '21:30'
 
 export interface JanelaLoja {
   aberta: boolean
@@ -57,7 +58,7 @@ export interface JanelaLoja {
 
 /** Pode mandar marketing agora? */
 export function podeMarketingAgora(j: JanelaLoja, antecedenciaMin: number): boolean {
-  if (j.horaAgora < INICIO_PERMITIDO) return false
+  if (j.horaAgora < INICIO_PERMITIDO || j.horaAgora > FIM_PERMITIDO) return false
   if (j.aberta) return true
   return j.minutosParaAbrir !== null && j.minutosParaAbrir >= 0 && j.minutosParaAbrir <= Math.max(0, antecedenciaMin)
 }

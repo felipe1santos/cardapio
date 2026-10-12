@@ -15,8 +15,13 @@ export function linkRastreavel(token: string): string {
 }
 
 export const MARCADOR_NOME = '{nome}'
-export const VARIAVEIS_CAMPANHA = [MARCADOR_NOME, MARCADOR_LINK] as const
-export const RODAPE_DESCADASTRO = 'Para não receber mais, responda SAIR.'
+// 12/10: {loja}, {link_cardapio} (o mesmo link rastreável do {link}: clique e pedido contam para a campanha) e {ultimo_item}.
+export const MARCADOR_LOJA = '{loja}'
+export const MARCADOR_LINK_CARDAPIO = '{link_cardapio}'
+export const MARCADOR_ULTIMO_ITEM = '{ultimo_item}'
+export const VARIAVEIS_CAMPANHA = [MARCADOR_NOME, MARCADOR_LOJA, MARCADOR_LINK_CARDAPIO, MARCADOR_ULTIMO_ITEM, MARCADOR_LINK] as const
+// Rodapé OBRIGATÓRIO em todo disparo (12/10, decisão do Felipe): o robô reconhece SAIR e variações.
+export const RODAPE_DESCADASTRO = 'Responda SAIR para não receber mais.'
 
 /** Primeiro nome do cliente para o {nome}; sem nome, "cliente". */
 export function primeiroNome(nome: string | null | undefined): string {
@@ -34,10 +39,10 @@ export function problemasDasVariaveis(mensagem: string, opcoes: { incluirLink: b
   const usadas = [...new Set((mensagem ?? '').match(/\{[^{}\n]{0,40}\}/g) ?? [])]
   const desconhecidas = usadas.filter((v) => !(VARIAVEIS_CAMPANHA as readonly string[]).includes(v))
   if (desconhecidas.length) {
-    return `Variável desconhecida: ${desconhecidas.join(', ')}. Use {nome} (primeiro nome do cliente) ou {link} (link do cardápio).`
+    return `Variável desconhecida: ${desconhecidas.join(', ')}. Use {nome}, {loja}, {link_cardapio} ou {ultimo_item}.`
   }
-  if (!opcoes.incluirLink && usadas.includes(MARCADOR_LINK)) {
-    return 'A mensagem usa {link}, mas "Incluir link do cardápio" está desligado. Ligue a opção ou tire o {link}.'
+  if (!opcoes.incluirLink && (usadas.includes(MARCADOR_LINK) || usadas.includes(MARCADOR_LINK_CARDAPIO))) {
+    return 'A mensagem usa o link do cardápio, mas "Incluir link do cardápio" está desligado. Ligue a opção ou tire o {link_cardapio}.'
   }
   return null
 }
@@ -86,9 +91,13 @@ export function linhasDosBotoes(botoes: BotaoCampanha[] | null | undefined): str
 
 export function montarTextoCampanha(
   mensagem: string,
-  opcoes: { incluirLink: boolean; token: string | null; nome?: string | null; incluirDescadastro?: boolean; botoes?: BotaoCampanha[] | null },
+  opcoes: { incluirLink: boolean; token: string | null; nome?: string | null; incluirDescadastro?: boolean; botoes?: BotaoCampanha[] | null; loja?: string | null; ultimoItem?: string | null },
 ): string {
   let texto = (mensagem ?? '').split(MARCADOR_NOME).join(primeiroNome(opcoes.nome))
+    .split(MARCADOR_LOJA).join((opcoes.loja ?? '').trim())
+    // Sem último item (pedido antigo sem itens): "seu pedido de sempre" em vez da variável crua.
+    .split(MARCADOR_ULTIMO_ITEM).join((opcoes.ultimoItem ?? '').trim() || 'seu pedido de sempre')
+    .split(MARCADOR_LINK_CARDAPIO).join(MARCADOR_LINK)
   if (opcoes.incluirLink && opcoes.token && TOKEN_VALIDO.test(opcoes.token)) {
     const link = linkRastreavel(opcoes.token)
     if (texto.includes(MARCADOR_LINK)) texto = texto.split(MARCADOR_LINK).join(link)
@@ -96,7 +105,10 @@ export function montarTextoCampanha(
   }
   const linhas = linhasDosBotoes(opcoes.botoes)
   if (linhas) texto = texto.trim() ? `${texto.trimEnd()}\n\n${linhas}` : linhas
-  if (opcoes.incluirDescadastro) texto = texto.trim() ? `${texto.trimEnd()}\n\n${RODAPE_DESCADASTRO}` : RODAPE_DESCADASTRO
+  // Sem link ligado, {link} não pode sair cru.
+  texto = texto.split(MARCADOR_LINK).join('')
+  // Rodapé sempre (12/10): `incluirDescadastro` ficou só por compatibilidade.
+  texto = texto.trim() ? `${texto.trimEnd()}\n\n${RODAPE_DESCADASTRO}` : RODAPE_DESCADASTRO
   return texto
 }
 

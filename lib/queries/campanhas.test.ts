@@ -11,6 +11,7 @@ function bancoFalso(tabelas: Record<string, Record<string, unknown>[]>) {
       select: () => b,
       eq: () => b,
       neq: () => b,
+      in: () => b,
       order: () => b,
       range: (de: number, ate: number) => {
         consultas.push(`${tabela}:${de}-${ate}`)
@@ -29,9 +30,11 @@ const tel = (i: number) => `27999${String(i).padStart(6, '0')}`
 const DIA = 86_400_000
 
 describe('público da campanha em loja grande (mais de 1000 linhas)', () => {
-  it('"todos" alcança todos os clientes, não só os 1000 primeiros', async () => {
+  it('"todos" alcança todos os clientes que já pediram, não só os 1000 primeiros', async () => {
     const clientes = Array.from({ length: 2500 }, (_, i) => ({ telefone: tel(i), nome: `C${i}` }))
-    const { cliente } = bancoFalso({ clientes })
+    // 12/10: só quem já fez pedido entra no disparo — todos os 2500 pediram uma vez.
+    const pedidos = clientes.map((c, i) => ({ id: `p${i}`, cliente_telefone: c.telefone, criado_em: new Date(Date.now() - DIA).toISOString(), total: 10 }))
+    const { cliente } = bancoFalso({ clientes, pedidos })
     const lista = await resolverDestinatarios(cliente, 'loja', { tipo: 'todos' })
     expect(lista).toHaveLength(2500)
   })
