@@ -7,7 +7,8 @@
  * ("atendente", "humano", "falar com…", "0") e parar/voltar vão ao robô: "cancela a coca" e "o endereço tá errado" são
  * da conversa do pedido (a IA chama o atendente se for reclamação de verdade).
  */
-import { normalizarTexto, type Intencao } from '@/lib/robo-auto/classificador'
+import type { Intencao } from '@/lib/robo-auto/classificador'
+import { normalizarNomeItem } from './cardapio'
 import type { TipoMensagem } from '@/lib/mensageria/provedor'
 
 export type RotaMensagem = 'robo' | 'ia' | 'audio_ia'
@@ -50,12 +51,20 @@ export function rotaDaMensagem(p: {
   return 'robo'
 }
 
-/** A conversa continua em modo IA? (entrou, não passou de 30 min sem o cliente falar e não estourou 25 respostas) */
-/** Logo depois do pedido criado pela IA, mudança de última hora ("é cartão, tô sem pix") ainda é com ela (teste 12/10). */
-export const POS_PEDIDO_MS = 15 * 60_000
+/**
+ * Depois do pedido criado pela IA, tudo sobre ele ("é cartão, tô sem pix", "quero cancelar") continua com ela por 30 min,
+ * ou até o pedido ser entregue/cancelado (teste do Felipe, #287: o robô assumiu e leu a forma de pagamento como bairro).
+ */
+export const POS_PEDIDO_MS = 30 * 60_000
 
-export function modoIaAtivo(c: { iaDesde: string | null; iaRespostas: number; iaPedidoEm?: string | null }, ultimaDoClienteAntes: string | null, agora: Date): boolean {
-  if (c.iaPedidoEm && agora.getTime() - Date.parse(c.iaPedidoEm) < POS_PEDIDO_MS) return true
+/** Pedido encerrado (entregue ou cancelado). Pix expirado não encerra: a IA oferece gerar outro ou pagar na entrega. */
+export function pedidoFinalizado(p: { status: string; cancelado_motivo: string | null }): boolean {
+  return p.status === 'entregue' || (p.status === 'cancelado' && p.cancelado_motivo !== 'pix_expirado')
+}
+
+/** A conversa continua em modo IA? (entrou, não passou de 30 min sem o cliente falar e não estourou 25 respostas) */
+export function modoIaAtivo(c: { iaDesde: string | null; iaRespostas: number; iaPedidoEm?: string | null; iaPedidoFinalizado?: boolean }, ultimaDoClienteAntes: string | null, agora: Date): boolean {
+  if (c.iaPedidoEm && !c.iaPedidoFinalizado && agora.getTime() - Date.parse(c.iaPedidoEm) < POS_PEDIDO_MS) return true
   if (!c.iaDesde || c.iaRespostas >= MAX_RESPOSTAS_IA) return false
   const ref = ultimaDoClienteAntes && Date.parse(ultimaDoClienteAntes) > Date.parse(c.iaDesde) ? ultimaDoClienteAntes : c.iaDesde
   return agora.getTime() - Date.parse(ref) < MODO_IA_SEM_MENSAGEM_MS
@@ -66,7 +75,7 @@ export interface NomeItem { id: string; palavras: string[] }
 /** Nomes do cardápio já normalizados (só disponíveis ou não; a ferramenta diz se pode pedir). Nome curto demais fica de fora. */
 export function nomesDoCardapio(itens: { id: string; nome: string }[]): NomeItem[] {
   return itens
-    .map((i) => ({ id: i.id, palavras: normalizarTexto(i.nome.replace(/[-/]/g, ' ')).split(' ').filter(Boolean) }))
+    .map((i) => ({ id: i.id, palavras: normalizarNomeItem(i.nome).split(' ').filter(Boolean) }))
     .filter((i) => i.palavras.length > 1 || (i.palavras[0]?.length ?? 0) >= 4)
 }
 
@@ -86,7 +95,7 @@ function parecida(a: string, b: string): boolean {
 
 /** A mensagem cita algum item do cardápio da loja? Tolera acento, hífen e 1 letra trocada em palavra de 5+ letras. */
 export function itemCitado(texto: string, nomes: NomeItem[]): boolean {
-  const palavras = normalizarTexto(texto.replace(/[-/]/g, ' ')).split(' ').filter(Boolean)
+  const palavras = normalizarNomeItem(texto).split(' ').filter(Boolean)
   if (!palavras.length) return false
   return nomes.some(({ palavras: n }) => {
     for (let i = 0; i + n.length <= palavras.length; i++) if (n.every((w, k) => parecida(palavras[i + k], w))) return true

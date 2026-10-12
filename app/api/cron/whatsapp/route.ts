@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { processarFila } from '@/lib/mensageria/fila'
 import { garantirWebhookDeTempoEmTempo } from '@/lib/mensageria/webhook-loja'
+import { avisarAtendentesPendentes } from '@/lib/agente-ia/avisos'
 
 /**
  * Cron da fila do WhatsApp: novas tentativas (espera crescente) e retenção de 90 dias.
@@ -16,6 +17,8 @@ export async function POST(request: Request) {
   const fila = await processarFila(admin, { limite: 20 })
   const { data: limpeza, error } = await admin.rpc('whatsapp_limpar_antigos')
   if (error) console.error('[whatsapp] limpeza falhou:', error.message)
+  // Pediu atendente pela IA e ninguém respondeu em 10 min: avisa o cliente uma vez (12/10).
+  await avisarAtendentesPendentes(admin).catch((e) => console.error('[whatsapp] aviso de atendente:', (e as Error).message))
   // "Perguntas que o robô não entendeu" ficam 30 dias (0177).
   await admin.from('whatsapp_auto_nao_entendidas').delete().lt('ultima_em', new Date(Date.now() - 30 * 24 * 3600_000).toISOString())
   // Webhook de toda loja com WhatsApp (a cada 30 min por loja): reconectar pelo celular,

@@ -6,7 +6,8 @@ import type { FerramentaClaude } from '@/lib/custo/anthropic'
 import { resolverFrete } from '@/lib/frete'
 import { brl, type DadosLojaAuto } from '@/lib/robo-auto/respostas'
 import { pedidoPorNumero, pedidosAbertosDoTelefone } from '@/lib/robo-auto/motor'
-import { buscarNoCardapio, sugerirParecidos, type CardapioIa } from './cardapio'
+import { buscarNoCardapio, familiaDaBusca, sugerirParecidos, type CardapioIa } from './cardapio'
+import { ACOES_POS_PEDIDO, alterarPedidoFeito } from './pos-pedido'
 import { calcularPedido, criarPedidoDaConversa, limparCarrinho, type ContextoPedido } from './pedido'
 
 export const MAX_FERRAMENTAS_POR_RESPOSTA = 4
@@ -71,6 +72,20 @@ export const FERRAMENTAS: FerramentaClaude[] = [
     input_schema: { type: 'object', properties: {} },
   },
   {
+    name: 'alterar_pedido_feito',
+    description: 'Cliente quer mudar ou cancelar um pedido JÁ CRIADO (trocar a forma de pagamento, cancelar, mudar itens ou endereço). O SISTEMA decide o que pode (troca o pagamento, cancela o Pix ou chama alguém da loja) e responde ao cliente. Para dinheiro, pergunte ANTES se precisa de troco e para quanto.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        acao: { type: 'string', enum: ACOES_POS_PEDIDO },
+        pagamento: { type: 'string', enum: ['pix', 'dinheiro', 'cartao'], description: 'Só para trocar_pagamento' },
+        troco_para: { type: 'number', description: 'Só para dinheiro: troco para quanto (0 = sem troco)' },
+        numero: { type: 'integer', description: 'Número do pedido, se o cliente disser (senão, o último pedido desta conversa)' },
+      },
+      required: ['acao'],
+    },
+  },
+  {
     name: 'chamar_atendente',
     description: 'Chama uma pessoa da loja para continuar a conversa (cliente pediu, reclamação séria ou você não consegue resolver).',
     input_schema: { type: 'object', properties: { motivo: { type: 'string' } }, required: ['motivo'] },
@@ -82,6 +97,8 @@ export interface EfeitosFerramentas {
   resumo?: string
   pedido?: { id: string; numero: number; total: number; pixOnline: boolean; repetido: boolean }
   atendente?: string
+  /** Mensagens do SERVIDOR (troca de pagamento, cancelamento, atendente): o texto da IA não vai junto. */
+  mensagens?: string[]
 }
 
 export interface ContextoFerramentas extends ContextoPedido {
@@ -100,6 +117,11 @@ export async function executarFerramenta(ctx: ContextoFerramentas, efeitos: Efei
       case 'consultar_cardapio': {
         const achados = buscarNoCardapio(ctx.cardapio, String(input.busca ?? ''))
         if (!achados.length) {
+          // "um refri" numa loja sem bebida (teste 11/10): diz que não tem, sem sugerir lanche no lugar.
+          const familia = familiaDaBusca(String(input.busca ?? ''))
+          if (familia && familia.rotulo !== 'lanche') {
+            return { conteudo: json({ itens: [], aviso: `A loja NÃO tem ${familia.rotulo} no cardápio. Diga com naturalidade, por exemplo: "Aqui a gente não tem ${familia.rotulo}, só o que está no cardápio 😕", e siga com o pedido.` }) }
+          }
           const parecidos = sugerirParecidos(ctx.cardapio, String(input.busca ?? ''))
           return {
             conteudo: json({
@@ -175,6 +197,13 @@ export async function executarFerramenta(ctx: ContextoFerramentas, efeitos: Efei
         if (!r.ok) return { conteudo: r.erro, erro: true }
         efeitos.pedido = { id: r.id, numero: r.numero, total: r.total, pixOnline: r.pixOnline, repetido: r.repetido }
         return { conteudo: json({ ok: true, numero: r.numero, aviso: 'O sistema já avisou o cliente com o número e o pagamento. Não escreva mais nada.' }) }
+      }
+      case 'alterar_pedido_feito': {
+        const r = await alterarPedidoFeito(ctx, input)
+        if (r.resumo) efeitos.resumo = r.resumo
+        if (r.mensagens?.length) efeitos.mensagens = [...(efeitos.mensagens ?? []), ...r.mensagens]
+        if (r.atendente) efeitos.atendente = r.atendente
+        return { conteudo: r.conteudo, ...(r.erro ? { erro: true } : {}) }
       }
       case 'chamar_atendente': {
         efeitos.atendente = String(input.motivo ?? '').slice(0, 200) || 'pedido do cliente'

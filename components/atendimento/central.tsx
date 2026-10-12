@@ -374,7 +374,7 @@ function ListaConversas({ conversas, tags, carregando, temMais, onMais, selecion
                   </span>
                   <span className="mt-0.5 flex items-center gap-1.5">
                     {c.pedindoAtendenteDesde
-                      ? <span className="inline-flex flex-shrink-0 items-center gap-1 text-[11.5px] font-semibold text-[#92400E]"><Headset className="h-3.5 w-3.5" aria-hidden />Pediu atendente</span>
+                      ? <span className="inline-flex flex-shrink-0 items-center gap-1 text-[11.5px] font-semibold text-[#92400E]"><Headset className="h-3.5 w-3.5" aria-hidden /><span className="truncate">{c.pedindoAtendenteMotivo ?? 'Pediu atendente'}</span></span>
                       : c.atendimento === 'aguardando' && <Clock className="h-3.5 w-3.5 flex-shrink-0 text-[#D97706]" aria-label="Aguardando" />}
                     <span className="min-w-0 flex-1 truncate text-[12.5px] text-[#6B7280]">
                       {c.ultimaOrigem && c.ultimaOrigem !== 'cliente' ? `${c.ultimaOrigem === 'atendente' ? 'Você' : ROTULO_ORIGEM[c.ultimaOrigem] ?? ''}: ` : ''}{c.previa ?? ''}
@@ -610,7 +610,7 @@ function Conversa({ id, tags, onTagsMudaram, onVoltar, onMudou, onAviso, fotoDe,
             ) : (
               <span className="flex items-center gap-1.5">
                 <Headset className="h-4 w-4 flex-shrink-0" aria-hidden />
-                <span><strong className="font-semibold">Cliente pediu atendente</strong> às {horaCurta(c.pedindoAtendenteDesde)}. Responda por aqui e, no fim, toque em <strong className="font-semibold">Resolvido</strong>.</span>
+                <span><strong className="font-semibold">{c.pedindoAtendenteMotivo ?? 'Cliente pediu atendente'}</strong> às {horaCurta(c.pedindoAtendenteDesde)}. Responda por aqui e, no fim, toque em <strong className="font-semibold">Resolvido</strong>.</span>
               </span>
             )}
           </div>

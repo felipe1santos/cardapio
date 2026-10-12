@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { classificar } from '@/lib/robo-auto/classificador'
-import { itemCitado, modoIaAtivo, nomesDoCardapio, rotaDaMensagem, MAX_RESPOSTAS_IA } from './gatilho'
+import { itemCitado, modoIaAtivo, nomesDoCardapio, pedidoFinalizado, rotaDaMensagem, MAX_RESPOSTAS_IA } from './gatilho'
 
 const NOMES = nomesDoCardapio([
   { id: '1', nome: 'X-Tudo' }, { id: '2', nome: 'Coca-Cola 2L' }, { id: '3', nome: 'Batata Frita' }, { id: '4', nome: 'Pão' }, { id: '5', nome: 'Hambúrguer Artesanal' },
@@ -62,9 +62,21 @@ describe('modo IA: até quando vale', () => {
     expect(modoIaAtivo({ iaDesde: ha(5), iaRespostas: 2 }, null, agora)).toBe(true)
     expect(modoIaAtivo({ iaDesde: ha(50), iaRespostas: 2 }, ha(10), agora)).toBe(true)
   })
-  it('logo depois do pedido criado pela IA (15 min) a conversa continua com a IA ("é cartão, tô sem pix")', () => {
+  it('depois do pedido criado pela IA, 30 min com a IA ("é cartão, tô sem pix" não vai ao robô) — #287', () => {
     expect(modoIaAtivo({ iaDesde: null, iaRespostas: 0, iaPedidoEm: ha(3) }, ha(3), agora)).toBe(true)
-    expect(modoIaAtivo({ iaDesde: null, iaRespostas: 0, iaPedidoEm: ha(16) }, ha(3), agora)).toBe(false)
+    expect(modoIaAtivo({ iaDesde: null, iaRespostas: 0, iaPedidoEm: ha(16) }, ha(3), agora)).toBe(true)
+    expect(modoIaAtivo({ iaDesde: null, iaRespostas: 0, iaPedidoEm: ha(31) }, ha(3), agora)).toBe(false)
+  })
+  it('pedido entregue ou cancelado encerra antes dos 30 min (Pix expirado NÃO encerra: a IA oferece outro Pix)', () => {
+    expect(modoIaAtivo({ iaDesde: null, iaRespostas: 0, iaPedidoEm: ha(3), iaPedidoFinalizado: true }, ha(3), agora)).toBe(false)
+    expect(pedidoFinalizado({ status: 'entregue', cancelado_motivo: null })).toBe(true)
+    expect(pedidoFinalizado({ status: 'cancelado', cancelado_motivo: 'nao_entregue' })).toBe(true)
+    expect(pedidoFinalizado({ status: 'cancelado', cancelado_motivo: 'pix_expirado' })).toBe(false)
+    expect(pedidoFinalizado({ status: 'aguardando_pagamento', cancelado_motivo: null })).toBe(false)
+  })
+  it('"Desculpa é cartão na entrega, tô sem pix" depois do pedido vai para a IA, não para o bairro do robô', () => {
+    expect(rota('Desculpa e cartão na entrega , tô sem pix', true)).toBe('ia')
+    expect(rota('Eu quero pagar com dinheiro em espécie', true)).toBe('ia')
   })
   it('30 min sem mensagem do cliente, nunca entrou ou 25 respostas: não vale', () => {
     expect(modoIaAtivo({ iaDesde: ha(50), iaRespostas: 2 }, ha(31), agora)).toBe(false)

@@ -113,12 +113,22 @@ export function resumoDoCardapio(c: CardapioIa): string {
   return linhas.join('\n') || '(cardápio vazio)'
 }
 
-/** Busca da ferramenta: nome e descrição, sem acento, tolerante; os mais parecidos primeiro. */
+/**
+ * Nome de item/busca no mesmo formato (12/10, teste do Felipe): sem acento e hífen, "xburger"/"xtudo" → "x burger"/"x tudo",
+ * e as grafias de hambúrguer (hamburguer, hamburger, burguer) viram "burger". Vale para a busca e para o nome do item.
+ */
+export function normalizarNomeItem(s: string): string {
+  return normalizarTexto(s.replace(/[-/]/g, ' '))
+    .replace(/\bx(?=[a-z]{3,})/g, 'x ')
+    .replace(/\b(ham)?burg(u?er|uer)\b/g, 'burger')
+}
+
+/** Busca da ferramenta: nome e descrição, sem acento, tolerante; os mais parecidos primeiro. Nada pelo nome → a categoria da família ("refri" → Bebidas). */
 export function buscarNoCardapio(c: CardapioIa, busca: string, limite = 6): ItemIa[] {
-  const termos = normalizarTexto(busca.replace(/[-/]/g, ' ')).split(' ').filter((t) => t.length >= 2)
+  const termos = normalizarNomeItem(busca).split(' ').filter((t) => t.length >= 2)
   if (!termos.length) return []
   const pontos = c.itens.map((i) => {
-    const nome = normalizarTexto(i.nome.replace(/[-/]/g, ' '))
+    const nome = normalizarNomeItem(i.nome)
     const desc = normalizarTexto(i.descricao)
     const cat = normalizarTexto(i.categoria)
     let p = 0
@@ -130,16 +140,25 @@ export function buscarNoCardapio(c: CardapioIa, busca: string, limite = 6): Item
     }
     return { i, p }
   })
-  return pontos.filter((x) => x.p > 0).sort((a, b) => b.p - a.p).slice(0, limite).map((x) => x.i)
+  const achados = pontos.filter((x) => x.p > 0).sort((a, b) => b.p - a.p).slice(0, limite).map((x) => x.i)
+  if (achados.length) return achados
+  const familia = familiaDaBusca(busca)
+  return familia ? c.itens.filter((i) => familia.categoria.test(normalizarTexto(i.categoria))).slice(0, limite) : []
 }
 
-const FAMILIAS: [RegExp, RegExp][] = [
-  [/\b(x|xis|burg|burger|hamburg|hamburguer|lanche|sanduiche|smash|bacon|salada|egg|cheddar)/, /lanche|burg|hamb|sanduich|smash/],
-  [/\b(pizza|calabresa|mussarela|marguerita|portuguesa|frango com)/, /pizza/],
-  [/\b(coca|guarana|refri|refrigerante|suco|agua|cerveja|bebida|lata|fanta|sprite)/, /bebida|refri|suco|drink/],
-  [/\b(acai|sorvete|doce|sobremesa|milk|shake|brownie)/, /acai|sobremesa|doce|sorvete/],
-  [/\b(batata|porcao|frita|nugget|onion|isca)/, /porc|batata|acompanh|petisc/],
+const FAMILIAS: [RegExp, RegExp, string][] = [
+  [/\b(x|xis|burg|burger|hamburg|hamburguer|lanche|sanduiche|smash|bacon|salada|egg|cheddar)/, /lanche|burg|hamb|sanduich|smash/, 'lanche'],
+  [/\b(pizza|calabresa|mussarela|marguerita|portuguesa|frango com)/, /pizza/, 'pizza'],
+  [/\b(coca|guarana|refri|refrigerante|suco|agua|cerveja|bebida|lata|fanta|sprite|pepsi|2l|600ml|litro)/, /bebida|refri|suco|drink/, 'bebida'],
+  [/\b(acai|sorvete|doce|sobremesa|milk|shake|brownie)/, /acai|sobremesa|doce|sorvete/, 'sobremesa'],
+  [/\b(batata|porcao|frita|nugget|onion|isca)/, /porc|batata|acompanh|petisc/, 'porção'],
 ]
+
+/** Família do que o cliente pediu ("um refri" → bebida), ou null. Usada quando a loja não tem nada daquilo. */
+export function familiaDaBusca(busca: string): { rotulo: string; categoria: RegExp } | null {
+  const f = FAMILIAS.find(([pedido]) => pedido.test(normalizarTexto(busca.replace(/[-/]/g, ' '))))
+  return f ? { rotulo: f[2], categoria: f[1] } : null
+}
 
 /**
  * Item pedido não existe (ex.: "x-tudo"): até 3 itens DISPONÍVEIS da mesma família (lanche, pizza, bebida, doce, porção),

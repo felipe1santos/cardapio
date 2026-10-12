@@ -9,6 +9,7 @@ import { notificarPedido } from '@/lib/whatsapp'
 import { enviarPurchaseCapi, type ContextoCompra } from '@/lib/meta-capi'
 import { avisarPainelPedidoNovo } from '@/lib/push/painel-pedidos'
 import { conferirAprovacao, type Aprovacao } from '@/lib/financeiro/caixa'
+import { avisarPixExpiradoIa } from '@/lib/agente-ia/avisos'
 
 /**
  * Pix online (Mercado Pago) — núcleo. Plano: docs/pix-online/plano.md (aprovado em 2026-10-04).
@@ -260,8 +261,40 @@ async function expirarPedido(admin: SupabaseClient, reg: Reg, ped: Reg) {
   await admin.from('pagamentos_online').update({ status: 'expirado' }).eq('id', reg.id).in('status', ['pendente', 'verificacao_pendente'])
   if (!mudou) return
   await reverterBeneficiosPedidoCancelado(admin, reg.restaurante_id, ped.id)
-  notificarPedido(admin, ped.id, 'cancelado').catch(() => null)
+  // Pedido feito pela IA no WhatsApp (12/10): a IA pergunta se gera outro Pix ou paga na entrega, no lugar do aviso de cancelado.
+  const pelaIa = await avisarPixExpiradoIa(admin, reg.restaurante_id, ped.id).catch(() => false)
+  if (!pelaIa) notificarPedido(admin, ped.id, 'cancelado').catch(() => null)
   await registrarAuditoria(admin, { restauranteId: reg.restaurante_id, usuarioNome: 'Sistema', acao: 'pix_online.expirado', entidade: 'pedido', entidadeId: ped.id, dados: { pagamento: reg.id } })
+}
+
+/**
+ * Cliente desistiu do Pix ainda NÃO pago (troca para cartão/dinheiro ou cancela pelo WhatsApp, 12/10). Ordem segura:
+ * consulta (pago → 'paga', não mexe) → marca a cobrança 'cancelado' aqui (a verificação periódica deixa de olhar) →
+ * cancela no MP. O MP recusou (ex.: pago naquele segundo) → volta a 'pendente' e devolve 'erro' (quem chama aciona o
+ * atendente). Não consulta de novo depois de cancelar: "cancelled" com o pedido aguardando expiraria o pedido.
+ */
+export async function cancelarCobrancaPendente(admin: SupabaseClient, restauranteId: string, pedidoId: string): Promise<'cancelada' | 'paga' | 'sem_cobranca' | 'erro'> {
+  const { data: reg } = await admin.from('pagamentos_online').select('id, mp_payment_id, status').eq('pedido_id', pedidoId).eq('restaurante_id', restauranteId)
+    .in('status', ['pendente', 'verificacao_pendente']).maybeSingle()
+  if (!reg) return 'sem_cobranca'
+  if (reg.mp_payment_id) {
+    const r = await conferirPagamento(admin, reg.mp_payment_id, 'cliente')
+    if (r === 'confirmado' || r === 'ja_confirmado') return 'paga'
+    if (r !== 'pendente') return 'erro'
+  }
+  const { data: marcada } = await admin.from('pagamentos_online').update({ status: 'cancelado', atualizado_em: new Date().toISOString() })
+    .eq('id', reg.id).in('status', ['pendente', 'verificacao_pendente']).select('id').maybeSingle()
+  if (!marcada) return 'erro'
+  if (reg.mp_payment_id) {
+    try {
+      await comTokenDaLoja(admin, restauranteId, (t) => provedorMp().cancelar(t, reg.mp_payment_id))
+    } catch (e) {
+      console.error('[pix-online] cancelar cobrança:', (e as Error).message?.slice(0, 160))
+      await admin.from('pagamentos_online').update({ status: reg.status }).eq('id', reg.id).eq('status', 'cancelado')
+      return 'erro'
+    }
+  }
+  return 'cancelada'
 }
 
 /**

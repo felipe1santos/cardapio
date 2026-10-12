@@ -15,7 +15,7 @@ import { carregarCardapioIa, resumoDoCardapio } from './cardapio'
 import { blocosDoSistema, mensagensDoHistorico, MAX_HISTORICO, type MensagemHistorico } from './prompt'
 import { conversarComIa } from './agente'
 import { executarFerramenta, FERRAMENTAS, type EfeitosFerramentas } from './ferramentas'
-import { MAX_RESPOSTAS_IA, MODO_IA_SEM_MENSAGEM_MS } from './gatilho'
+import { MAX_RESPOSTAS_IA, MODO_IA_SEM_MENSAGEM_MS, pedidoFinalizado } from './gatilho'
 import { limparTom } from './tom'
 
 export interface ConfigIa { ia_ativo?: boolean | null; ia_teto_usd_dia?: number | string | null }
@@ -27,7 +27,7 @@ export async function agenteLigadoNaLoja(admin: SupabaseClient, restauranteId: s
   return moduloLiberado(admin, restauranteId, 'agente_ia').catch(() => false)
 }
 
-export interface EstadoConversaIa { iaDesde: string | null; iaRespostas: number; iaPedidoEm?: string | null }
+export interface EstadoConversaIa { iaDesde: string | null; iaRespostas: number; iaPedidoEm?: string | null; iaPedidoFinalizado?: boolean }
 export interface LinhaHistorico extends MensagemHistorico { id: string; criadoEm: string }
 
 /** Últimas mensagens da conversa (mais antiga primeiro), a atual incluída. */
@@ -45,9 +45,15 @@ export async function historicoDaConversa(admin: SupabaseClient, restauranteId: 
 }
 
 export async function estadoIaDaConversa(admin: SupabaseClient, conversaId: string): Promise<EstadoConversaIa> {
-  const { data } = await admin.from('whatsapp_conversas').select('ia_desde, ia_respostas, ia_pedido_em').eq('id', conversaId).maybeSingle()
-  const d = (data ?? {}) as { ia_desde?: string | null; ia_respostas?: number | null; ia_pedido_em?: string | null }
-  return { iaDesde: d.ia_desde ?? null, iaRespostas: Number(d.ia_respostas) || 0, iaPedidoEm: d.ia_pedido_em ?? null }
+  const { data } = await admin.from('whatsapp_conversas').select('ia_desde, ia_respostas, ia_pedido_em, ia_pedido_id').eq('id', conversaId).maybeSingle()
+  const d = (data ?? {}) as { ia_desde?: string | null; ia_respostas?: number | null; ia_pedido_em?: string | null; ia_pedido_id?: string | null }
+  // Pedido da IA entregue/cancelado: os 30 min pós-pedido acabam antes (12/10).
+  let iaPedidoFinalizado = false
+  if (d.ia_pedido_id && d.ia_pedido_em) {
+    const { data: p } = await admin.from('pedidos').select('status, cancelado_motivo').eq('id', d.ia_pedido_id).maybeSingle()
+    iaPedidoFinalizado = !!p && pedidoFinalizado(p as { status: string; cancelado_motivo: string | null })
+  }
+  return { iaDesde: d.ia_desde ?? null, iaRespostas: Number(d.ia_respostas) || 0, iaPedidoEm: d.ia_pedido_em ?? null, iaPedidoFinalizado }
 }
 
 /** Mensagem do cliente anterior à atual (para os 30 min do modo IA). */
@@ -135,16 +141,21 @@ export async function atenderComIa(admin: SupabaseClient, e: EntradaAtender): Pr
   if (!r.ok) return { ok: false, motivo: r.motivo, custoMicroUsd: r.custoMicroUsd }
 
   // Mensagens ao cliente: o que é dinheiro (resumo, confirmação, Pix) é texto do SERVIDOR, não da IA.
-  let mensagens: string[]
-  if (efeitos.pedido) {
-    mensagens = await mensagensDoPedidoCriado(admin, e, efeitos.pedido)
-  } else {
-    // Tom (12/10): o texto da IA sai sem cabeçalho nem marcador de lista; o resumo (do servidor) fica como está.
-    const texto = limparTom(r.texto)
-    mensagens = [...(efeitos.resumo ? [efeitos.resumo] : []), ...(texto ? [texto] : [])]
-  }
+  const mensagens = efeitos.pedido ? await mensagensDoPedidoCriado(admin, e, efeitos.pedido) : mensagensDaResposta(efeitos, r.texto)
   if (!mensagens.length) return { ok: false, motivo: 'resposta_vazia', custoMicroUsd: r.custoMicroUsd }
   return { ok: true, mensagens, efeitos, custoMicroUsd: r.custoMicroUsd, chamadas: r.chamadas, ferramentas: r.ferramentas }
+}
+
+/**
+ * O que vai ao cliente quando não houve pedido criado. Quando o SERVIDOR já respondeu (resumo, troca de pagamento,
+ * atendente), o texto da IA não vai junto: era o "Seu pedido está montado… Posso confirmar?" repetindo o resumo (#287).
+ * Senão, o texto da IA sem cabeçalho nem marcador de lista (tom, 12/10). Puro.
+ */
+export function mensagensDaResposta(efeitos: EfeitosFerramentas, textoIa: string): string[] {
+  const doServidor = [...(efeitos.resumo ? [efeitos.resumo] : []), ...(efeitos.mensagens ?? [])]
+  if (doServidor.length) return doServidor
+  const texto = limparTom(textoIa)
+  return texto ? [texto] : []
 }
 
 /** Confirmação do pedido criado + Pix (online: copia e cola; senão, a chave cadastrada no robô). Dispara os avisos. */
@@ -186,10 +197,15 @@ export async function registrarRespostaIa(
   const respostas = p.estado.iaRespostas + 1
   const saiuPorLimite = respostas >= MAX_RESPOSTAS_IA && !p.efeitos.pedido
   const patch: Record<string, unknown> = { ia_respostas: p.efeitos.pedido ? 0 : respostas, ia_desde: p.estado.iaDesde ?? agora }
-  if (p.efeitos.pedido) Object.assign(patch, { ia_desde: null, ia_carrinho: null, ia_resumo_em: null, ia_pedido_id: p.efeitos.pedido.id, ia_pedido_em: agora })
+  // O carrinho fica guardado (Pix expirado → a IA remonta o mesmo pedido com outra forma); sem resumo, criar_pedido não repete.
+  if (p.efeitos.pedido) Object.assign(patch, { ia_desde: null, ia_resumo_em: null, ia_pedido_id: p.efeitos.pedido.id, ia_pedido_em: agora })
   if (saiuPorLimite) Object.assign(patch, { ia_desde: null, ia_carrinho: null, ia_resumo_em: null })
   if (p.efeitos.atendente) {
-    Object.assign(patch, { estado: 'silenciada', silenciada_em: agora, silenciada_motivo: 'cliente', atendimento: 'aguardando', pediu_atendente_em: agora })
+    // Motivo na central ("Cancelamento do pedido #X") e aviso ao cliente se ninguém responder em 10 min (0184).
+    Object.assign(patch, {
+      estado: 'silenciada', silenciada_em: agora, silenciada_motivo: 'cliente', atendimento: 'aguardando', pediu_atendente_em: agora,
+      pediu_atendente_motivo: p.efeitos.atendente.slice(0, 200), pediu_atendente_aviso_em: null,
+    })
   }
   await admin.from('whatsapp_conversas').update(patch).eq('id', p.conversaId).eq('restaurante_id', p.restauranteId)
   const eventos: { restaurante_id: string; conversa_id: string; tipo: string; resultado: Record<string, unknown> }[] = []

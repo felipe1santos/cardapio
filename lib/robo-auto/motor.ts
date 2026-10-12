@@ -341,6 +341,8 @@ export async function processarMensagemAuto(
   }
   // Outra mensagem da mesma conversa (ex.: foto do mesmo álbum) decidiu antes: esta não responde (nada em dobro).
   if (!(await aplicar(d.acao, novo, d.silenciar ?? null))) return { respostas: 0, motivo: 'concorrencia' }
+  // Pedido de atendente pelo robô: o motivo de um pedido antigo da IA não vale (nem o aviso de 10 min, que é da IA).
+  if (d.silenciar === 'atendente') await admin.from('whatsapp_conversas').update({ pediu_atendente_motivo: null }).eq('id', e.conversa_id).then(() => {}, () => {})
   if (d.naoEntendida && c) await registrarNaoEntendida(admin, restauranteId, c.normalizado, m.texto ?? '')
   for (let i = 0; i < r.mensagens.length; i++) await fila(r.mensagens[i], i)
   return { respostas, motivo: d.acao }

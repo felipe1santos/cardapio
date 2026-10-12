@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buscarNoCardapio, sugerirParecidos, type CardapioIa, type ItemIa } from './cardapio'
+import { buscarNoCardapio, familiaDaBusca, sugerirParecidos, type CardapioIa, type ItemIa } from './cardapio'
 
 const item = (nome: string, categoria: string, preco: number, situacao = 'disponivel'): ItemIa =>
   ({ id: nome, nome, descricao: '', categoria, posicao: 0, preco, precoCheio: null, situacao, tipo: 'simples', grupos: [], tamanhos: [], sabores: [] })
@@ -25,5 +25,25 @@ describe('item que não existe: sugerir parecidos do cardápio (12/10)', () => {
   })
   it('categoria inteira ("o que vocês têm de pizza") acha pela categoria', () => {
     expect(buscarNoCardapio(C, 'pizza').map((i) => i.nome)).toContain('Pizza Calabresa')
+  })
+})
+
+describe('sinônimos e categoria (teste do Felipe, 11/10, #287)', () => {
+  it('"um refri" acha a categoria Bebidas (refri/refrigerante/coca/guaraná/lata/2L)', () => {
+    for (const b of ['refri', 'um refri', 'refrigerante', 'guarana', 'uma lata', 'refri 2l']) {
+      expect(buscarNoCardapio(C, b).map((i) => i.categoria), b).toContain('Bebidas')
+    }
+  })
+  it('x-burguer / xburger / hamburguer acham o hambúrguer (grafias do cliente)', () => {
+    for (const b of ['x-burguer', 'xburger', 'hamburguer', 'hamburger', 'x burguer']) {
+      expect(buscarNoCardapio(C, b).map((i) => i.nome), b).toContain('Hamburguer Supremo')
+    }
+    expect(buscarNoCardapio(C, 'xbacon').map((i) => i.nome)).toContain('X-Bacon')
+  })
+  it('loja sem bebida: busca vazia e a família é reconhecida (a IA diz que não tem bebida)', () => {
+    const sem: CardapioIa = { ...C, itens: C.itens.filter((i) => i.categoria !== 'Bebidas') }
+    expect(buscarNoCardapio(sem, 'um refri')).toEqual([])
+    expect(familiaDaBusca('um refri')?.rotulo).toBe('bebida')
+    expect(familiaDaBusca('sushi')).toBeNull()
   })
 })
