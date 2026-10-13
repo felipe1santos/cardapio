@@ -14,7 +14,8 @@ import { brl, type DadosLojaAuto } from '@/lib/robo-auto/respostas'
 import { carregarCardapioIa, resumoDoCardapio } from './cardapio'
 import { blocosDoSistema, mensagensDoHistorico, MAX_HISTORICO, type MensagemHistorico } from './prompt'
 import { conversarComIa } from './agente'
-import { executarFerramenta, FERRAMENTAS, type EfeitosFerramentas } from './ferramentas'
+import { conversaIa, executarFerramenta, fecharMontagem, FERRAMENTAS, opcoesDaLoja, type EfeitosFerramentas } from './ferramentas'
+import { descreverRascunho, rascunhoParaCarrinho, rascunhoValido, responderPeloRascunho } from './rascunho'
 import { confirmouPedido, criarPedidoDaConversa } from './pedido'
 import { MAX_RESPOSTAS_IA, MODO_IA_SEM_MENSAGEM_MS, pedidoFinalizado } from './gatilho'
 import { limparTom } from './tom'
@@ -55,6 +56,13 @@ export async function estadoIaDaConversa(admin: SupabaseClient, conversaId: stri
     iaPedidoFinalizado = !!p && pedidoFinalizado(p as { status: string; cancelado_motivo: string | null })
   }
   return { iaDesde: d.ia_desde ?? null, iaRespostas: Number(d.ia_respostas) || 0, iaPedidoEm: d.ia_pedido_em ?? null, iaPedidoFinalizado }
+}
+
+/** Mensagens do cliente desde a última da loja (várias seguidas = uma resposta só). Puro. */
+export function textosDoClienteDesdeALoja(hist: LinhaHistorico[]): string[] {
+  const t: string[] = []
+  for (let i = hist.length - 1; i >= 0 && hist[i].direcao === 'entrada'; i--) if (hist[i].texto?.trim()) t.unshift(hist[i].texto!.trim())
+  return t
 }
 
 /** Mensagem do cliente anterior à atual (para os 30 min do modo IA). */
@@ -125,20 +133,21 @@ export async function atenderComIa(admin: SupabaseClient, e: EntradaAtender): Pr
     e.tipo === 'imagem' ? imagemDoCliente(e.instancia, e.waId) : Promise.resolve(null),
   ])
   const hora = agora.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'long', hour: '2-digit', minute: '2-digit' })
+  const conv = await conversaIa({ admin, conversaId: e.conversaId, restauranteId: e.restauranteId })
+  const lojaOp = opcoesDaLoja(e.loja)
+  const rascunho = rascunhoValido(conv?.ia_rascunho, agora.getTime(), conv?.ia_pedido_em ?? null) ? conv!.ia_rascunho! : null
   const system = blocosDoSistema(
     {
       nome: e.loja.nome, link: e.loja.link, endereco: e.loja.endereco, gradeHorario: e.loja.gradeHorario, aceitaEntrega: e.loja.aceitaEntrega,
       aceitaRetirada: e.loja.aceitaRetirada, tempoEntrega: e.loja.tempoEntrega, formasPagamento: formasDePagamento(e.loja), resumoCardapio: resumoDoCardapio(cardapio),
     },
-    { agora: hora, aberta: e.loja.aberta, proximaAbertura: e.loja.proximaAbertura, nomeWhatsapp: e.nomeWhatsapp },
+    { agora: hora, aberta: e.loja.aberta, proximaAbertura: e.loja.proximaAbertura, nomeWhatsapp: e.nomeWhatsapp, pedidoEmAndamento: rascunho ? descreverRascunho(rascunho, cardapio, lojaOp) : null },
   )
   const mensagemAtual = e.historico.find((m) => m.id === e.mensagemId)
   const efeitos: EfeitosFerramentas = {}
   if (e.tipo === 'texto') {
-    const { data: conv } = await admin.from('whatsapp_conversas').select('ia_carrinho, ia_resumo_em').eq('id', e.conversaId).eq('restaurante_id', e.restauranteId).maybeSingle()
-    const c = conv as { ia_carrinho?: { carrinho?: unknown } | null; ia_resumo_em?: string | null } | null
     const em = mensagemAtual?.criadoEm ?? agora.toISOString()
-    if (confirmacaoDireta({ texto: e.texto, em, resumoEm: c?.ia_resumo_em ?? null, temCarrinho: !!c?.ia_carrinho?.carrinho })) {
+    if (confirmacaoDireta({ texto: e.texto, em, resumoEm: conv?.ia_resumo_em ?? null, temCarrinho: !!conv?.ia_carrinho?.carrinho })) {
       const r = await criarPedidoDaConversa({ admin, restauranteId: e.restauranteId, telefone: e.telefone, conversaId: e.conversaId, nomeWhatsapp: e.nomeWhatsapp, pixOnlineAtivo: pix.ativo === true }, { texto: e.texto, em }, agora)
       if (r.ok) {
         efeitos.pedido = { id: r.id, numero: r.numero, total: r.total, pixOnline: r.pixOnline, repetido: r.repetido }
@@ -151,6 +160,22 @@ export async function atenderComIa(admin: SupabaseClient, e: EntradaAtender): Pr
     admin, restauranteId: e.restauranteId, telefone: e.telefone, conversaId: e.conversaId, nomeWhatsapp: e.nomeWhatsapp,
     pixOnlineAtivo: pix.ativo === true, cardapio, loja: e.loja, semEntregador: e.semEntregador,
     mensagemAtual: { texto: e.texto, em: mensagemAtual?.criadoEm ?? agora.toISOString() },
+  }
+  // Pedido em andamento (12/10, teste 19:36): respostas simples ("1 234", "nenhuma", "retirada", "pix", "fica quanto?") o
+  // SERVIDOR entende e responde, sem IA; confere mínimo/máximo e pergunta o que falta, uma coisa por mensagem.
+  if (e.tipo === 'texto' && rascunho) {
+    const r = responderPeloRascunho(rascunho, textosDoClienteDesdeALoja(e.historico), cardapio, lojaOp)
+    const nome = (e.nomeWhatsapp ?? '').trim().slice(0, 80)
+    const carrinho = r?.completo ? rascunhoParaCarrinho(r.rascunho, cardapio, lojaOp, nome) : null
+    if (r && (!r.completo || carrinho?.nomeCliente)) {
+      await admin.from('whatsapp_conversas').update({ ia_rascunho: r.rascunho }).eq('id', e.conversaId).eq('restaurante_id', e.restauranteId)
+      efeitos.mensagens = [...r.mensagens]
+      if (carrinho) {
+        try { await fecharMontagem(ctx, efeitos, carrinho, conv) } catch (err) { efeitos.mensagens.push(`Não consegui fechar o pedido: ${(err as Error).message}`) }
+      }
+      const mensagens = [...efeitos.mensagens, ...(efeitos.resumo ? [efeitos.resumo] : [])]
+      if (mensagens.length) return { ok: true, mensagens, efeitos, custoMicroUsd: 0, chamadas: 0, ferramentas: ['pedido em andamento (servidor)'] }
+    }
   }
   const teto = e.cfg.ia_teto_usd_dia === null || e.cfg.ia_teto_usd_dia === undefined ? null : Number(e.cfg.ia_teto_usd_dia)
   const r = await conversarComIa({
@@ -177,6 +202,8 @@ export function mensagensDaResposta(efeitos: EfeitosFerramentas, textoIa: string
   const doServidor = [...(efeitos.resumo ? [efeitos.resumo] : []), ...(efeitos.mensagens ?? [])]
   if (doServidor.length) return doServidor
   const texto = limparTom(textoIa)
+  // Próxima pergunta do pedido em andamento (texto do servidor). Da IA, só uma frase curta SEM pergunta antes dela.
+  if (efeitos.pergunta) return [...(texto && !texto.includes('?') && texto.split('\n').length <= 2 ? [texto] : []), efeitos.pergunta]
   return texto ? [texto] : []
 }
 
@@ -224,8 +251,8 @@ export async function registrarRespostaIa(
   const saiuPorLimite = respostas >= MAX_RESPOSTAS_IA && !p.efeitos.pedido
   const patch: Record<string, unknown> = { ia_respostas: p.efeitos.pedido ? 0 : respostas, ia_desde: p.estado.iaDesde ?? agora }
   // O carrinho fica guardado (Pix expirado → a IA remonta o mesmo pedido com outra forma); sem resumo, criar_pedido não repete.
-  if (p.efeitos.pedido) Object.assign(patch, { ia_desde: null, ia_resumo_em: null, ia_pedido_id: p.efeitos.pedido.id, ia_pedido_em: agora })
-  if (saiuPorLimite) Object.assign(patch, { ia_desde: null, ia_carrinho: null, ia_resumo_em: null })
+  if (p.efeitos.pedido) Object.assign(patch, { ia_desde: null, ia_resumo_em: null, ia_rascunho: null, ia_pedido_id: p.efeitos.pedido.id, ia_pedido_em: agora })
+  if (saiuPorLimite) Object.assign(patch, { ia_desde: null, ia_carrinho: null, ia_resumo_em: null, ia_rascunho: null })
   if (p.efeitos.atendente) {
     // Motivo na central ("Cancelamento do pedido #X") e aviso ao cliente se ninguém responder em 10 min (0184).
     Object.assign(patch, {

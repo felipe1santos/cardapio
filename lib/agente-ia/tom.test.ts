@@ -23,8 +23,18 @@ describe('tom das mensagens da IA', () => {
     expect(problemasDeTom('Agora preciso saber:\n1. É entrega ou retirada?\n2. Forma de pagamento?')).toContain('lista')
     expect(problemasDeTom('Oba 😊🍔 vamos lá')).toContain('emojis')
   })
-  it('limparTom tira lista numerada também (teste do Felipe: "1. É entrega ou retirada?")', () => {
-    expect(limparTom('Agora preciso saber:\n1. É entrega ou retirada?\n2. Forma de pagamento?')).toBe('Agora preciso saber:\nÉ entrega ou retirada?\nForma de pagamento?')
+  it('limparTom tira lista numerada também (teste do Felipe: "1. É entrega ou retirada?") e fica só a 1ª pergunta', () => {
+    expect(limparTom('Agora preciso saber:\n1. É entrega ou retirada?\n2. Forma de pagamento?')).toBe('Agora preciso saber:\nÉ entrega ou retirada?')
+  })
+  it('12/10 (teste 19:36): nunca duas perguntas na mesma mensagem — o servidor corta depois da 1ª', () => {
+    expect(problemasDeTom('Entrega ou retirada? E a forma de pagamento: Pix, dinheiro ou cartão?')).toContain('duas_perguntas')
+    expect(limparTom('Beleza! Agora me diz: entrega ou retirada no balcão? E a forma de pagamento: Pix, dinheiro (com troco) ou cartão na entrega?'))
+      .toBe('Beleza! Agora me diz: entrega ou retirada no balcão?')
+    expect(limparTom('Quer seguir só com o ffd? Se quiser, me diz se é para entrega ou retirada, o endereço (se for entrega) e a forma de pagamento.'))
+      .toBe('Quer seguir só com o ffd?')
+    expect(limparTom('Quer alguma fruta extra? Pode responder com os nomes ou dizer "nenhuma".\n\nTambém me fala: entrega ou retirada, e a forma de pagamento.'))
+      .toBe('Quer alguma fruta extra? Pode responder com os nomes ou dizer "nenhuma".')
+    expect(limparTom('Quer pedir esse? Pode responder com o nome.')).toBe('Quer pedir esse? Pode responder com o nome.')
   })
   it('limparTom tira linhas que são só cabeçalho e marcadores de lista, mantendo o conteúdo', () => {
     expect(limparTom('*🍕 PIZZAS*\n- Calabresa R$ 40,00\n- Mussarela R$ 38,00\nQual você prefere?')).toBe('Calabresa R$ 40,00\nMussarela R$ 38,00\nQual você prefere?')

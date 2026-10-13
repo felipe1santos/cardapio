@@ -25,7 +25,8 @@ describe('"Peça também" (order bump): até 2 sugestões escolhidas pelo servid
   })
   it('texto: lista numerada, emoji, nome em negrito, preço em cinza; aceita número ou "não"', () => {
     const t = textoPecaTambem([item('a1', 'Batata média', 'Acompanhamentos', 12), item('b1', 'Coca lata', 'Bebidas', 6)])
-    expect(t).toBe('Quer acompanhar? 😋\n1. 🍟 *Batata média* `R$ 12,00`\n2. 🥤 *Coca lata* `R$ 6,00`\nResponda o número ou *não* para seguir.')
+    // Sem número na frente (12/10: números só no robô sem IA).
+    expect(t).toBe('Quer acompanhar? 😋\n\n🍟 *Batata média* `R$ 12,00`\n🥤 *Coca lata* `R$ 6,00`\n\n_Se não quiser, é só dizer "não"._')
   })
 })
 

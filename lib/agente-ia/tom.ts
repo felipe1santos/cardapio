@@ -4,7 +4,7 @@
  * `problemasDeTom` é a régua dos testes (e da avaliação com a API real); `limparTom` tira cabeçalho e marcador de lista
  * que escaparem, sem mudar o conteúdo.
  */
-export type ProblemaTom = 'longa' | 'cabecalho' | 'lista' | 'emojis' | 'exemplo_de_pedido'
+export type ProblemaTom = 'longa' | 'cabecalho' | 'lista' | 'emojis' | 'exemplo_de_pedido' | 'duas_perguntas'
 
 export const MAX_CARACTERES_IA = 400
 
@@ -23,17 +23,34 @@ export function problemasDeTom(texto: string, opcoes: { entrada?: boolean } = {}
   // No máximo 1 emoji por LINHA (antes: por mensagem; as listas levam o emoji de cada item).
   if (linhas.some((l) => (l.match(EMOJI) ?? []).length > 1)) p.push('emojis')
   if (opcoes.entrada && EXEMPLO_PEDIDO.test(texto)) p.push('exemplo_de_pedido')
+  if ((texto.match(/\?/g) ?? []).length >= 2) p.push('duas_perguntas')
   return p
 }
 
-/** Tira linhas que são só cabeçalho e os marcadores de lista ("- "), mantendo o texto. */
+/** Frase depois da 1ª pergunta que é outra pergunta ("E a forma de pagamento?", "me diz o endereço", "Também me fala…"). */
+const OUTRA_PERGUNTA = /\?|\b(diz|diga|fala|fale|passa|passe|manda|mande|conta|conte|informa|informe)\b|^\s*tamb[ée]m\b/i
+
+/** Uma pergunta por mensagem (12/10, teste 19:36): o que vier depois da 1ª e for outra pergunta sai. */
+export function umaPergunta(texto: string): string {
+  const i = texto.indexOf('?')
+  if (i < 0) return texto
+  const frases = texto.slice(i + 1).match(/[^.!?\n]+[.!?]*\s*|\n+/g) ?? []
+  let fica = ''
+  for (const f of frases) {
+    if (f.trim() && OUTRA_PERGUNTA.test(f)) break
+    fica += f
+  }
+  return (texto.slice(0, i + 1) + fica).replace(/\n{3,}/g, '\n\n').trim()
+}
+
+/** Tira linhas que são só cabeçalho e os marcadores de lista ("- "), mantendo o texto; uma pergunta só. */
 export function limparTom(texto: string): string {
-  return texto
+  return umaPergunta(texto
     .split('\n')
     .filter((l) => !CABECALHO.test(l))
     // Tira "- " e "• "; o número fica nas opções (para o cliente responder o número) e sai só de pergunta numerada.
     .map((l) => l.replace(/^\s*[-•]\s+/, '').replace(/^\s*\d+[.)]\s+(?=.*\?\s*$)/, ''))
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
-    .trim()
+    .trim())
 }

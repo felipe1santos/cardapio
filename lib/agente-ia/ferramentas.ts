@@ -9,7 +9,8 @@ import { pedidoPorNumero, pedidosAbertosDoTelefone } from '@/lib/robo-auto/motor
 import { buscarNoCardapio, familiaDaBusca, sugerirParecidos, type CardapioIa } from './cardapio'
 import { bumpJaOferecido, sugestoesPecaTambem, textoPecaTambem, vendasPorItem } from './peca-tambem'
 import { ACOES_POS_PEDIDO, alterarPedidoFeito } from './pos-pedido'
-import { calcularPedido, criarPedidoDaConversa, limparCarrinho, type ContextoPedido } from './pedido'
+import { calcularPedido, criarPedidoDaConversa, type Carrinho, type ContextoPedido } from './pedido'
+import { mesclarDoIa, proximaPergunta, rascunhoParaCarrinho, rascunhoValido, valorParcial, type OpcoesLoja, type Rascunho } from './rascunho'
 
 export const MAX_FERRAMENTAS_POR_RESPOSTA = 4
 
@@ -42,7 +43,7 @@ export const FERRAMENTAS: FerramentaClaude[] = [
   },
   {
     name: 'montar_pedido',
-    description: 'Monta o pedido com tudo que o cliente escolheu. O sistema calcula preços, taxa e total e ENVIA o resumo ao cliente. Depois disso, só pergunte se pode confirmar.',
+    description: 'Anota o pedido EM ANDAMENTO (pode ser parcial: só o que o cliente já disse). O SISTEMA guarda, pergunta o que falta (uma coisa por mensagem: adicionais obrigatórios, extras, entrega ou retirada, endereço, pagamento, troco) e, com tudo certo, ENVIA o resumo com o total. Mande só o que é novo; itens, quando mandar, é a lista COMPLETA.',
     input_schema: {
       type: 'object',
       properties: {
@@ -62,9 +63,10 @@ export const FERRAMENTAS: FerramentaClaude[] = [
         endereco: ENDERECO,
         pagamento: { type: 'string', enum: ['pix', 'dinheiro', 'cartao'] },
         troco_para: { type: 'number', description: 'Só para dinheiro: troco para quanto' },
+        sem_troco: { type: 'boolean', description: 'Dinheiro sem precisar de troco' },
         nome_cliente: { type: 'string' },
       },
-      required: ['itens', 'tipo', 'pagamento', 'nome_cliente'],
+      required: [],
     },
   },
   {
@@ -96,6 +98,8 @@ export const FERRAMENTAS: FerramentaClaude[] = [
 export interface EfeitosFerramentas {
   /** Resumo do pedido montado pelo servidor (vai ao cliente antes do texto da IA). */
   resumo?: string
+  /** Próxima pergunta do pedido em andamento (texto do servidor, uma só). */
+  pergunta?: string
   pedido?: { id: string; numero: number; total: number; pixOnline: boolean; repetido: boolean }
   atendente?: string
   /** Mensagens do SERVIDOR (troca de pagamento, cancelamento, atendente): o texto da IA não vai junto. */
@@ -177,33 +181,22 @@ export async function executarFerramenta(ctx: ContextoFerramentas, efeitos: Efei
         return { conteudo: json({ pedidos: lista.map((p) => ({ numero: p!.numero, situacao: p!.rotuloStatus, total: brl(p!.total), itens: p!.itens.map((i) => `${i.quantidade}x ${i.nome}`) })) }) }
       }
       case 'montar_pedido': {
-        const c = limparCarrinho(input, ctx.nomeWhatsapp)
-        if (!c.ok) return { conteudo: c.erro, erro: true }
-        const resumo = await calcularPedido(ctx, c.carrinho)
-        // Mesmo pedido de um resumo JÁ mostrado (o Haiku real remonta no "sim", 12/10): não renova a hora do resumo
-        // (senão a confirmação fica "antes" dele e o pedido nunca é criado) nem manda o resumo de novo.
-        const { data: atual } = await ctx.admin.from('whatsapp_conversas').select('ia_carrinho, ia_resumo_em, ia_bump_em, ia_pedido_em').eq('id', ctx.conversaId).eq('restaurante_id', ctx.restauranteId).maybeSingle()
-        const salvo = atual as { ia_carrinho?: { hash?: string } | null; ia_resumo_em?: string | null; ia_bump_em?: string | null; ia_pedido_em?: string | null } | null
-        if (salvo?.ia_resumo_em && salvo.ia_carrinho?.hash === resumo.hash) {
-          return { conteudo: json({ ok: true, total: brl(resumo.total), aviso: 'Este é o mesmo pedido do resumo que o cliente já recebeu. Se ele confirmou, chame criar_pedido agora; senão, só pergunte se pode confirmar.' }) }
+        const conv = await conversaIa(ctx)
+        const m = mesclarDoIa(rascunhoValido(conv?.ia_rascunho, Date.now(), conv?.ia_pedido_em ?? null) ? conv!.ia_rascunho : null, input, ctx.cardapio, new Date().toISOString())
+        if (!m.ok) return { conteudo: m.erro, erro: true }
+        if (!m.rascunho.itens.length) return { conteudo: 'O pedido está sem itens: mande itens com o item_id de consultar_cardapio.', erro: true }
+        await ctx.admin.from('whatsapp_conversas').update({ ia_rascunho: m.rascunho }).eq('id', ctx.conversaId).eq('restaurante_id', ctx.restauranteId)
+        const loja = opcoesDaLoja(ctx.loja)
+        const p = proximaPergunta(m.rascunho, ctx.cardapio, loja)
+        if (p) {
+          efeitos.pergunta = p.texto
+          return { conteudo: json({ ok: true, valor_ate_agora: brl(valorParcial(m.rascunho, ctx.cardapio)), aviso: 'O SISTEMA já mandou ao cliente a próxima pergunta (uma só, com as opções). NÃO pergunte nada e não liste opções; no máximo uma frase curta sem pergunta.' }) }
         }
-        // "Peça também" (12/10): UMA vez por pedido, antes do resumo, até 2 sugestões escolhidas pelo servidor.
-        if (!bumpJaOferecido(salvo, Date.now())) {
-          await ctx.admin.from('whatsapp_conversas').update({ ia_bump_em: new Date().toISOString() }).eq('id', ctx.conversaId).eq('restaurante_id', ctx.restauranteId)
-          const sugestoes = sugestoesPecaTambem(ctx.cardapio.itens, c.carrinho.itens.map((i) => i.itemId), await vendasPorItem(ctx.admin, ctx.restauranteId).catch(() => new Map()))
-          if (sugestoes.length) {
-            efeitos.mensagens = [...(efeitos.mensagens ?? []), textoPecaTambem(sugestoes)]
-            return { conteudo: json({
-              ok: true, peca_tambem: sugestoes.map((s, n) => ({ opcao: n + 1, item_id: s.id, nome: s.nome, preco: brl(s.preco) })),
-              aviso: 'O SISTEMA ofereceu estas sugestões ao cliente ANTES do resumo. Não escreva nada agora; espere a resposta. Aceitou (número ou nome): inclua o item e chame montar_pedido de novo. Recusou: chame montar_pedido de novo com o mesmo pedido.',
-            }) }
-          }
-        }
-        await ctx.admin.from('whatsapp_conversas')
-          .update({ ia_carrinho: { carrinho: c.carrinho, hash: resumo.hash }, ia_resumo_em: new Date().toISOString() })
-          .eq('id', ctx.conversaId).eq('restaurante_id', ctx.restauranteId)
-        efeitos.resumo = resumo.texto
-        return { conteudo: json({ ok: true, total: brl(resumo.total), aviso: 'O sistema já enviou o resumo ao cliente. Não repita; só pergunte se pode confirmar.' }) }
+        const nome = (typeof input.nome_cliente === 'string' ? input.nome_cliente.trim().slice(0, 80) : '') || (ctx.nomeWhatsapp ?? '').trim().slice(0, 80)
+        const carrinho = rascunhoParaCarrinho(m.rascunho, ctx.cardapio, loja, nome)
+        if (!carrinho) return { conteudo: 'Ainda falta algo no pedido.', erro: true }
+        if (!carrinho.nomeCliente) return { conteudo: 'Falta o nome do cliente.', erro: true }
+        return fecharMontagem(ctx, efeitos, carrinho, conv)
       }
       case 'criar_pedido': {
         const r = await criarPedidoDaConversa(ctx, ctx.mensagemAtual)
@@ -230,3 +223,38 @@ export async function executarFerramenta(ctx: ContextoFerramentas, efeitos: Efei
   }
 }
 
+export const opcoesDaLoja = (l: DadosLojaAuto): OpcoesLoja => ({ aceitaEntrega: l.aceitaEntrega, aceitaRetirada: l.aceitaRetirada, pix: !!(l.pixChave || l.pixOnline) })
+
+type ConversaIa = { ia_rascunho?: Rascunho | null; ia_carrinho?: { hash?: string; carrinho?: unknown } | null; ia_resumo_em?: string | null; ia_bump_em?: string | null; ia_pedido_em?: string | null } | null
+
+export async function conversaIa(ctx: Pick<ContextoFerramentas, 'admin' | 'conversaId' | 'restauranteId'>): Promise<ConversaIa> {
+  const { data } = await ctx.admin.from('whatsapp_conversas').select('ia_rascunho, ia_carrinho, ia_resumo_em, ia_bump_em, ia_pedido_em').eq('id', ctx.conversaId).eq('restaurante_id', ctx.restauranteId).maybeSingle()
+  return data as ConversaIa
+}
+
+/** Pedido completo: "Peça também" (1x por pedido) ou o resumo com o total (texto do servidor). */
+export async function fecharMontagem(ctx: ContextoFerramentas, efeitos: EfeitosFerramentas, carrinho: Carrinho, salvo: ConversaIa): Promise<{ conteudo: string; erro?: boolean }> {
+  const resumo = await calcularPedido(ctx, carrinho)
+  // Mesmo pedido de um resumo JÁ mostrado (o Haiku real remonta no "sim", 12/10): não renova a hora do resumo
+  // (senão a confirmação fica "antes" dele e o pedido nunca é criado) nem manda o resumo de novo.
+  if (salvo?.ia_resumo_em && salvo.ia_carrinho?.hash === resumo.hash) {
+    return { conteudo: json({ ok: true, total: brl(resumo.total), aviso: 'Este é o mesmo pedido do resumo que o cliente já recebeu. Se ele confirmou, chame criar_pedido agora; senão, só pergunte se pode confirmar.' }) }
+  }
+  // "Peça também" (12/10): UMA vez por pedido, antes do resumo, até 2 sugestões escolhidas pelo servidor.
+  if (!bumpJaOferecido(salvo, Date.now())) {
+    await ctx.admin.from('whatsapp_conversas').update({ ia_bump_em: new Date().toISOString() }).eq('id', ctx.conversaId).eq('restaurante_id', ctx.restauranteId)
+    const sugestoes = sugestoesPecaTambem(ctx.cardapio.itens, carrinho.itens.map((i) => i.itemId), await vendasPorItem(ctx.admin, ctx.restauranteId).catch(() => new Map()))
+    if (sugestoes.length) {
+      efeitos.mensagens = [...(efeitos.mensagens ?? []), textoPecaTambem(sugestoes)]
+      return { conteudo: json({
+        ok: true, peca_tambem: sugestoes.map((s) => ({ item_id: s.id, nome: s.nome, preco: brl(s.preco) })),
+        aviso: 'O SISTEMA ofereceu estas sugestões ao cliente ANTES do resumo. Não escreva nada agora; espere a resposta. Aceitou: chame montar_pedido com a lista completa de itens (com o novo). Recusou: chame montar_pedido sem nada novo.',
+      }) }
+    }
+  }
+  await ctx.admin.from('whatsapp_conversas')
+    .update({ ia_carrinho: { carrinho, hash: resumo.hash }, ia_resumo_em: new Date().toISOString() })
+    .eq('id', ctx.conversaId).eq('restaurante_id', ctx.restauranteId)
+  efeitos.resumo = resumo.texto
+  return { conteudo: json({ ok: true, total: brl(resumo.total), aviso: 'O sistema já enviou o resumo ao cliente. Não repita; só pergunte se pode confirmar.' }) }
+}

@@ -41,6 +41,8 @@ export interface ConfigAuto {
 export const COLUNAS_CONFIG_AUTO =
   'restaurante_id, autoatendimento_ativo, auto_assuntos_desligados, auto_textos, auto_palavras, auto_tempo_entrega, pix_chave, pix_chave_tipo, ia_ativo, ia_teto_usd_dia'
 
+/** Espera antes de a IA responder, para juntar mensagens seguidas do cliente numa resposta só (12/10). */
+export const ESPERA_AGRUPAR_MS = 4000
 const DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 const STATUS_ABERTOS = ['recebido', 'preparando', 'pronto', 'em_rota', 'aguardando_pagamento']
 
@@ -302,11 +304,12 @@ export async function processarMensagemAuto(
   let iaFalhou = false
   let classif = classificacao
   if (iaLigada) {
-    const [hist, estIa, cardapio] = await Promise.all([
+    const [hist0, estIa, cardapio] = await Promise.all([
       historicoDaConversa(admin, restauranteId, e.conversa_id),
       estadoIaDaConversa(admin, e.conversa_id),
       carregarCardapioIa(admin, restauranteId, agora),
     ])
+    let hist = hist0
     const antes = ultimaDoClienteAntes(hist, e.mensagem_id ?? '')
     const emModoIa = modoIaAtivo(estIa, antes, agora)
     // "sim" ao "Quer fazer um pedido?" (12/10): o robô manda o link (1ª vez), não a IA.
@@ -328,6 +331,18 @@ export async function processarMensagemAuto(
       return { respostas, motivo: 'audio_ia' }
     }
     if (rota === 'ia') {
+      // Várias mensagens seguidas do cliente = UMA resposta (12/10, teste 19:38: "Nenhum fruta extra..." + "Fica quanto"
+      // geraram duas respostas quase iguais). Espera ~4 s; chegou outra depois desta → quem responde é a última.
+      if (m.tipo === 'texto') {
+        const minha = hist.find((h) => h.id === e.mensagem_id)?.criadoEm
+        await new Promise((r) => setTimeout(r, ESPERA_AGRUPAR_MS))
+        if (minha) {
+          const { data: depois } = await admin.from('whatsapp_mensagens').select('id').eq('restaurante_id', restauranteId).eq('conversa_id', e.conversa_id)
+            .eq('direcao', 'entrada').gt('criado_em', minha).limit(1)
+          if ((depois ?? []).length) return { respostas: 0, motivo: 'agrupada' }
+        }
+        hist = await historicoDaConversa(admin, restauranteId, e.conversa_id)
+      }
       if (!(await aplicar('ia', { ...estado, autoEstado: null, autoEstadoEm: null, naoEntendeu: 0 }, null))) return { respostas: 0, motivo: 'concorrencia' }
       // Reentrega do webhook enquanto a IA pensava: a resposta já está na fila, não gasta de novo.
       const { data: ja } = await admin.from('whatsapp_envios').select('id').eq('restaurante_id', restauranteId).eq('chave', `resposta:${e.mensagem_id}`).limit(1)

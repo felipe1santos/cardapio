@@ -30,7 +30,7 @@ export function sugestoesPecaTambem(itens: ItemIa[], noCarrinho: string[], venda
 }
 
 export function textoPecaTambem(s: ItemIa[]): string {
-  return ['Quer acompanhar? 😋', ...s.map((i, n) => `${n + 1}. ${linhaItem(1, i.nome, i.preco).replace('*1x ', '*')}`), 'Responda o número ou *não* para seguir.'].join('\n')
+  return ['Quer acompanhar? 😋', '', ...s.map((i) => linhaItem(1, i.nome, i.preco).replace('*1x ', '*')), '', '_Se não quiser, é só dizer "não"._'].join('\n')
 }
 
 /** Quantidade vendida por item nos últimos 60 dias (pedidos não cancelados). Uma consulta, no máximo 3.000 linhas. */

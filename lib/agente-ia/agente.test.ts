@@ -100,8 +100,11 @@ describe('prompt: regras fixas e histórico', () => {
     expect(REGRAS_AGENTE).toMatch(/atendente virtual/)
   })
   it('tom humano (12/10): curto, uma pergunta, sem exemplos de pedido na entrada, sem títulos/listas, parecidos e poucas opções', () => {
-    expect(REGRAS_AGENTE).toMatch(/1 a 3 linhas/)
-    expect(REGRAS_AGENTE).toMatch(/UMA pergunta por vez/)
+    expect(REGRAS_AGENTE).toMatch(/frases curtas, com quebra de linha/)
+    expect(REGRAS_AGENTE).toMatch(/UMA pergunta por mensagem — nunca duas/)
+    // 12/10 (teste 19:36): o sistema faz as perguntas do pedido, nesta ordem; link com o texto do dono.
+    expect(REGRAS_AGENTE).toMatch(/complementos obrigatórios → extras pagos → entrega ou retirada → endereço → pagamento → troco/)
+    expect(REGRAS_AGENTE).toMatch(/Claro! Aqui está o link do cardápio, com fotos 👇\n\{link\}\n\nPode escolher por lá e, se preferir continuar aqui, é só me falar o que quer 😊/)
     expect(REGRAS_AGENTE).toMatch(/sem dar exemplos de pedido/)
     expect(REGRAS_AGENTE).toMatch(/No máximo 1 emoji/)
     expect(REGRAS_AGENTE).toMatch(/Nada de títulos/)
