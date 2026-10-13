@@ -1236,9 +1236,6 @@ export default function PedidosPage() {
           onReimprimir={() => reimprimir(detail)}
           onCancelar={() => pedirCancelamento(detail)}
           visualNovo={cardsNovos}
-          concluirSemEntregador={fluxo.usaLogistica && !fluxo.entregaSemEntregador && detail.tipo === 'entrega' && (detail.status === 'pronto' || detail.status === 'em_rota')
-            ? () => { const p = detail; setDetail(null); moverPara(p, 'entregue') }
-            : undefined}
         />
       )}
       </div>

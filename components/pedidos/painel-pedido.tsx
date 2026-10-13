@@ -77,7 +77,7 @@ function Obs({ texto, testid }: { texto: string; testid: string }) {
 
 export function PainelPedido({
   pedido, agora, onFechar, editandoPag, setEditandoPag, onPagamentoAlterado,
-  reimpEstado, onReimprimir, onCancelar, concluirSemEntregador, visualNovo = false,
+  reimpEstado, onReimprimir, onCancelar, visualNovo = false,
 }: {
   pedido: Pedido
   agora: number
@@ -88,8 +88,6 @@ export function PainelPedido({
   reimpEstado: 'idle' | 'enviando' | 'ok' | 'erro'
   onReimprimir: () => void
   onCancelar: () => void
-  /** "Concluir sem entregador" (loja com Logística, pedido de entrega pronto/em rota). */
-  concluirSemEntregador?: () => void
   /** Card novo do Kanban (13/10, "Novidades em teste"): o painel no mesmo visual do card. Só aparência. */
   visualNovo?: boolean
 }) {
@@ -282,11 +280,6 @@ export function PainelPedido({
         </button>
         {reimpEstado === 'ok' && <p className="text-center text-[12px] text-text-subtle">Sai na próxima varredura do Assistente (impressão automática precisa estar ligada).</p>}
         {reimpEstado === 'erro' && <p className="text-center text-[12px] text-danger">Não foi possível solicitar a reimpressão. Tente de novo.</p>}
-        {concluirSemEntregador && (
-          <button type="button" onClick={concluirSemEntregador} className={`flex h-[44px] w-full items-center justify-center gap-2 ${botao} border border-status-ready px-4 text-[13px] font-semibold text-status-ready hover:bg-status-ready/10`}>
-            ✓ Concluir sem entregador
-          </button>
-        )}
         {podeCancelar(p.status) && (
           <button type="button" onClick={onCancelar} className={`flex h-[44px] w-full items-center justify-center gap-2 ${botao} bg-[#991B1B] px-4 text-[13px] font-semibold text-white hover:bg-[#7F1D1D]`} data-testid="painel-cancelar">
             <X className="h-4 w-4" /> Cancelar pedido
