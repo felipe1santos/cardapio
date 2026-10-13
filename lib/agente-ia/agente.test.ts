@@ -106,6 +106,7 @@ describe('prompt: regras fixas e histórico', () => {
     expect(REGRAS_AGENTE).toMatch(/complementos obrigatórios → extras pagos → entrega ou retirada → endereço → pagamento → troco/)
     expect(REGRAS_AGENTE).toMatch(/Claro! Aqui está o link do cardápio, com fotos 👇\n\{link\}\n\nPode escolher por lá e, se preferir continuar aqui, é só me falar o que quer 😊/)
     expect(REGRAS_AGENTE).toMatch(/sem dar exemplos de pedido/)
+    expect(REGRAS_AGENTE).toMatch(/Se ele JÁ disse o item .* não pergunte de novo/)
     expect(REGRAS_AGENTE).toMatch(/No máximo 1 emoji/)
     expect(REGRAS_AGENTE).toMatch(/Nada de títulos/)
     expect(REGRAS_AGENTE).toMatch(/até 3 parecidos/)
