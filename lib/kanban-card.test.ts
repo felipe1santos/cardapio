@@ -20,6 +20,7 @@ describe('forma de pagamento (etiqueta embaixo do valor)', () => {
   it('dinheiro (com troco), Pix, Pix pago, cartão na entrega/retirada, na conta (mesa)', () => {
     expect(pagamentoDoCard(base)).toEqual({ texto: 'Dinheiro', icone: 'dinheiro' })
     expect(pagamentoDoCard({ ...base, trocoPara: 50 })).toEqual({ texto: 'Dinheiro · troco p/ R$ 50,00', icone: 'dinheiro' })
+    expect(pagamentoDoCard({ ...base, pago: true })).toEqual({ texto: 'Dinheiro pago', icone: 'dinheiro' })
     expect(pagamentoDoCard({ ...base, formaPagamento: 'pix' })).toEqual({ texto: 'Pix', icone: 'pix' })
     expect(pagamentoDoCard({ ...base, formaPagamento: 'pix', pago: true })).toEqual({ texto: 'Pix pago', icone: 'pix' })
     expect(pagamentoDoCard({ ...base, formaPagamento: 'cartao' })).toEqual({ texto: 'Cartão na entrega', icone: 'cartao' })

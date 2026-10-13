@@ -143,10 +143,10 @@ export function CardPedidoKanban({
         corTexto,
       ].join(' ')}
     >
-      {/* Linha 1 */}
-      <div className="flex h-[28px] items-center gap-[8px]">
+      {/* Linha 1 (quebra só em coluna estreita: o nome guarda ao menos 72 px) */}
+      <div className="flex min-h-[28px] flex-wrap items-center gap-x-[8px] gap-y-[2px]">
         <EtiquetaNumero numero={p.numero} />
-        <span className="min-w-0 truncate text-[16px] font-bold uppercase leading-[20px]" title={p.clienteNome || undefined}>{p.clienteNome || 'Cliente'}</span>
+        <span className="min-w-0 flex-1 basis-[72px] truncate text-[16px] font-bold uppercase leading-[20px]" title={p.clienteNome || undefined}>{p.clienteNome || 'Cliente'}</span>
         {novo && <span className="flex-shrink-0 bg-[#15803D] px-[6px] text-[11px] font-bold uppercase leading-[18px] tracking-wide text-white" data-testid="card-novo">Novo</span>}
         {p.agendadoPara && (
           <span className="flex-shrink-0 border border-[#0369A1] px-[5px] text-[11px] font-semibold leading-[16px] text-[#0369A1]">
@@ -162,18 +162,21 @@ export function CardPedidoKanban({
       </div>
       <div className={`mb-[8px] mt-[4px] h-px ${novo ? 'bg-[#9ED8B4]' : 'bg-[#E2E4E8]'}`} />
       {/* Linha 2 */}
-      <div className="flex items-center gap-[12px]">
-        <ul className="min-w-0 flex-1 space-y-[2px] text-[14px] leading-[19px]" data-testid="card-itens">
+      <div className="flex flex-wrap items-center gap-x-[12px] gap-y-[6px]">
+        <ul className="min-w-0 flex-1 basis-[120px] space-y-[2px] text-[14px] leading-[19px]" data-testid="card-itens">
           {linhas.map((l) => (
             <li key={l.id} className="truncate"><b className="font-bold tabular-nums">{l.quantidade}x</b> {nomeLimpo(l.nome)}</li>
           ))}
           {resto > 0 && <li className="text-[13px] font-semibold opacity-75">+{resto} {resto === 1 ? 'item' : 'itens'}</li>}
         </ul>
-        <div className="flex flex-shrink-0 flex-col items-end gap-[4px]">
-          <span className="text-[15px] font-bold tabular-nums text-[#0B4A2A]" data-testid="card-preco">{formatarReal(p.total)}</span>
-          <EtiquetaPagamento pedido={p} novo={novo} />
+        {/* Valor + pagamento + logo: em coluna estreita descem para baixo dos itens, alinhados à direita. */}
+        <div className="ml-auto flex flex-shrink-0 items-center gap-[12px]">
+          <div className="flex flex-col items-end gap-[4px]">
+            <span className="text-[15px] font-bold tabular-nums text-[#0B4A2A]" data-testid="card-preco">{formatarReal(p.total)}</span>
+            <EtiquetaPagamento pedido={p} novo={novo} />
+          </div>
+          <LogoOrigemPedido pedido={p} />
         </div>
-        <LogoOrigemPedido pedido={p} />
       </div>
       {/* Setinha de avançar (o botão de etapa de antes) */}
       {a && seta && (

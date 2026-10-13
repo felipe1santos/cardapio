@@ -30,7 +30,7 @@ export type IconePagamento = 'dinheiro' | 'pix' | 'cartao' | 'mercado_pago' | 'c
 export function pagamentoDoCard(p: PedidoCard): { texto: string; icone: IconePagamento } {
   if (p.canal === 'mesa') return { texto: 'Na conta', icone: 'conta' }
   if (p.pagamentoOnline) return { texto: p.pago ? 'Pago' : 'Aguardando pagamento', icone: 'mercado_pago' }
-  if (p.formaPagamento === 'dinheiro') return { texto: `Dinheiro${p.trocoPara ? ` · troco p/ ${formatarReal(p.trocoPara)}` : ''}`, icone: 'dinheiro' }
+  if (p.formaPagamento === 'dinheiro') return { texto: p.pago ? 'Dinheiro pago' : `Dinheiro${p.trocoPara ? ` · troco p/ ${formatarReal(p.trocoPara)}` : ''}`, icone: 'dinheiro' }
   if (p.formaPagamento === 'pix') return { texto: p.pago ? 'Pix pago' : 'Pix', icone: 'pix' }
   if (p.pago) return { texto: 'Cartão pago', icone: 'cartao' }
   return { texto: p.tipo === 'entrega' ? 'Cartão na entrega' : 'Cartão na retirada', icone: 'cartao' }

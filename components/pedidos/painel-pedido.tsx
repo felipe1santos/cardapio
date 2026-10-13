@@ -244,7 +244,8 @@ export function PainelPedido({
                 <span className="text-text-subtle">Pagamento</span>
                 <span className="text-right">
                   {visualNovo ? <EtiquetaPagamento pedido={p} /> : <span className="inline-flex items-center gap-1.5 font-semibold"><Icone className="h-4 w-4" aria-hidden /> {rotuloForma(p.formaPagamento, p.cartaoTipo, p.pagamentoOnline)}</span>}
-                  <br />{p.pago ? <span className="font-semibold text-price-text">Pago</span> : <span className="font-semibold text-[#92400E]">{statusAReceber(p.tipo)}</span>}
+                  {/* Visual novo: a etiqueta já diz "Pago" (online ou Pix pago); não repete. */}
+                  {!(visualNovo && p.pago) && <><br />{p.pago ? <span className="font-semibold text-price-text">Pago</span> : <span className="font-semibold text-[#92400E]">{statusAReceber(p.tipo)}</span>}</>}
                   {p.formaPagamento === 'dinheiro' && p.trocoPara ? (
                     <><br /><span className="font-semibold text-[#92400E]" data-testid="painel-troco">Troco p/ {brl(p.trocoPara)}{levar > 0 ? ` · levar ${brl(levar)}` : ''}</span></>
                   ) : null}
