@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { Route } from 'lucide-react'
 import { Flutuante } from '@/components/ui/flutuante'
@@ -19,12 +19,14 @@ import { formatarReal } from '@/lib/moeda'
 type Escolha = { tipo: 'entregador'; e: Entregador } | { tipo: 'sem' } | { tipo: 'nexta' }
 interface TrocoFin { pedidoId: string; entregadorId: string; trocoCentavos: number }
 
-export function DespacharNoCard({ pedido, supabase, restauranteId, onDespachado, onErro }: {
+export function DespacharNoCard({ pedido, supabase, restauranteId, onDespachado, onErro, seta }: {
   pedido: Pedido
   supabase: SupabaseClient
   restauranteId: string
   onDespachado: (p: Pedido, entregadorId: string | null) => void
   onErro: (msg: string) => void
+  /** Card novo (13/10): o mesmo menu, aberto pela setinha do card em vez do botão. */
+  seta?: { className: string; children: ReactNode }
 }) {
   const botao = useRef<HTMLButtonElement>(null)
   const [aberto, setAberto] = useState(false)
@@ -98,11 +100,16 @@ export function DespacharNoCard({ pedido, supabase, restauranteId, onDespachado,
   const ITEM = 'flex w-full items-center gap-2.5 rounded-[4px] px-3 py-2 text-left text-[13px] text-text-main hover:bg-page disabled:opacity-50'
   return (
     <>
-      <button ref={botao} type="button" onClick={() => setAberto((v) => !v)} aria-haspopup="menu" aria-expanded={aberto}
+      {seta ? (
+        <button ref={botao} type="button" onClick={() => setAberto((v) => !v)} aria-haspopup="menu" aria-expanded={aberto}
+          aria-label={`Despachar o pedido #${pedido.numero}`} title="Despachar" className={seta.className} data-testid="card-despachar">
+          {seta.children}
+        </button>
+      ) : <button ref={botao} type="button" onClick={() => setAberto((v) => !v)} aria-haspopup="menu" aria-expanded={aberto}
         className="flex min-h-[40px] w-full items-center justify-center gap-1.5 rounded-menuzia bg-[var(--adm-azul,#0b78d0)] px-2 text-[11px] font-semibold uppercase tracking-wide text-white hover:brightness-110 lg:min-h-0 lg:py-2"
         data-testid="card-despachar">
         <Route className="h-4 w-4" aria-hidden /> Despachar
-      </button>
+      </button>}
       <Flutuante ancora={botao} aberto={aberto} onFechar={fechar} alinhar="inicio" largura={280} testid={`despachar-menu-${pedido.numero}`} rotulo={`Despachar o pedido #${pedido.numero}`} className="p-1.5">
         {troco ? (
           <div className="space-y-2 p-1.5" data-testid="despachar-troco">

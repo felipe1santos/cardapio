@@ -1410,3 +1410,10 @@ details.ti-tec[open] > summary .ti-chev { transform: rotate(180deg); }
 /* Regra 6 (item 58, 2026-10-07): peso máximo 600 em todo o sistema. O navegador usa 700 ("bolder")
    em b/strong/th. O Despacho de rotas fica como está (regra 4); o papel impresso não passa por aqui. */
 :where(b, strong, th):not([data-despacho-rotas] *) { font-weight: 600; }
+
+/* Card novo do Kanban (13/10, "Novidades em teste"): pedido que acabou de chegar pisca em verde até ser aceito. */
+@keyframes kanban-novo-pisca {
+  0%, 100% { background-color: #C9EFD7; }
+  50% { background-color: #9FDDB6; }
+}
+.card-kanban-novo { animation: kanban-novo-pisca 1.1s ease-in-out infinite; }
