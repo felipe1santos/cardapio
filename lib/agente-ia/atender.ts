@@ -15,7 +15,7 @@ import { carregarCardapioIa, resumoDoCardapio } from './cardapio'
 import { blocosDoSistema, mensagensDoHistorico, MAX_HISTORICO, type MensagemHistorico } from './prompt'
 import { conversarComIa } from './agente'
 import { conversaIa, executarFerramenta, fecharMontagem, FERRAMENTAS, opcoesDaLoja, type EfeitosFerramentas } from './ferramentas'
-import { descreverRascunho, rascunhoParaCarrinho, rascunhoValido, responderPeloRascunho } from './rascunho'
+import { descreverRascunho, itemListadoPelaIa, mesclarDoIa, proximaPergunta, rascunhoParaCarrinho, rascunhoValido, responderPeloRascunho } from './rascunho'
 import { confirmouPedido, criarPedidoDaConversa } from './pedido'
 import { MAX_RESPOSTAS_IA, MODO_IA_SEM_MENSAGEM_MS, pedidoFinalizado } from './gatilho'
 import { limparTom } from './tom'
@@ -186,6 +186,18 @@ export async function atenderComIa(admin: SupabaseClient, e: EntradaAtender): Pr
     chamarModelo: (pedido, timeoutMs) => chamarClaude(admin, { loja: e.restauranteId, conversa: e.conversaId, tetoLojaUsd: teto }, pedido, { timeoutMs }),
   })
   if (!r.ok) return { ok: false, motivo: r.motivo, custoMicroUsd: r.custoMicroUsd }
+
+  // A IA listou os adicionais ela mesma em vez de anotar (teste real 12/10): o servidor anota o item e faz a pergunta.
+  const listado = !efeitos.pedido && !efeitos.resumo && !efeitos.pergunta && !efeitos.mensagens?.length ? itemListadoPelaIa(r.texto, cardapio) : null
+  if (listado && !rascunho?.itens.some((l) => l.itemId === listado.id)) {
+    const itens = [...(rascunho?.itens ?? []).map((l) => ({ item_id: l.itemId, quantidade: l.quantidade })), { item_id: listado.id, quantidade: 1 }]
+    const m = mesclarDoIa(rascunho, { itens }, cardapio, agora.toISOString())
+    const p = m.ok ? proximaPergunta(m.rascunho, cardapio, lojaOp) : null
+    if (m.ok && p) {
+      await admin.from('whatsapp_conversas').update({ ia_rascunho: m.rascunho }).eq('id', e.conversaId).eq('restaurante_id', e.restauranteId)
+      efeitos.pergunta = p.texto
+    }
+  }
 
   // Mensagens ao cliente: o que é dinheiro (resumo, confirmação, Pix) é texto do SERVIDOR, não da IA.
   const mensagens = efeitos.pedido ? await mensagensDoPedidoCriado(admin, e, efeitos.pedido) : mensagensDaResposta(efeitos, r.texto)

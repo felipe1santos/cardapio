@@ -406,3 +406,21 @@ export function descreverRascunho(r: Rascunho, cardapio: CardapioIa, loja: Opcoe
     p ? `o sistema está esperando: ${p.campo === 'grupo' ? `opções de ${p.grupo}` : p.campo}` : 'tudo escolhido',
   ].filter(Boolean).join(' · ')
 }
+
+/**
+ * A IA listou, ela mesma, as opções de um item (uma por linha) em vez de chamar montar_pedido (teste real 12/10: copiou
+ * a lista do histórico). Devolve o item — com o nome citado no texto e 2+ opções dele em linhas próprias — para o
+ * servidor assumir a pergunta. Puro.
+ */
+export function itemListadoPelaIa(texto: string, cardapio: CardapioIa): ItemIa | null {
+  const linhas = (texto ?? '').split('\n').map((l) => norm(l.replace(/`[^`]*`/g, ''))).filter(Boolean)
+  const tudo = ` ${norm(texto)} `
+  let melhor: { item: ItemIa; n: number } | null = null
+  for (const item of cardapio.itens) {
+    if (!item.grupos.length || !tudo.includes(` ${norm(item.nome)} `)) continue
+    const nomes = new Set(item.grupos.flatMap((g) => g.opcoes.map((o) => norm(o.nome))))
+    const n = linhas.filter((l) => nomes.has(l)).length
+    if (n >= 2 && (!melhor || n > melhor.n)) melhor = { item, n }
+  }
+  return melhor?.item ?? null
+}

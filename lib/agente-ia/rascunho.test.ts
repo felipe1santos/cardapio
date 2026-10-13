@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  interpretarEscolhas, mesclarDoIa, novoRascunho, perguntaValor, proximaPergunta, rascunhoParaCarrinho, responderPeloRascunho, valorParcial,
+  interpretarEscolhas, itemListadoPelaIa, mesclarDoIa, novoRascunho, perguntaValor, proximaPergunta, rascunhoParaCarrinho, responderPeloRascunho, valorParcial,
   type Rascunho,
 } from './rascunho'
 import type { CardapioIa, ItemIa } from './cardapio'
@@ -129,5 +129,15 @@ describe('valor parcial e carrinho final', () => {
     const r: Rascunho = { ...comAcai(), pagamento: 'pix', itens: [{ itemId: acai.id, quantidade: 1, escolhas: { Frutas: ['uva'], adicionais: ['banana'] }, respondidos: [] }] }
     const c = rascunhoParaCarrinho(r, cardapio, { ...loja, aceitaEntrega: false }, 'Felipe')
     expect(c).toMatchObject({ tipo: 'retirada', pagamento: 'pix', nomeCliente: 'Felipe', itens: [{ itemId: acai.id, quantidade: 1, complementos: ['banana', 'uva'] }] })
+  })
+})
+
+describe('a IA listou os adicionais ela mesma (teste real 12/10): o servidor assume a pergunta', () => {
+  it('reconhece o item cujas opções vieram uma por linha', () => {
+    const t = 'Achei o *Acai grandao* por `R$ 32,00`, disponível.\n\nEle é obrigatório escolher de *4 a 10* adicionais:\n🍌 Banana\n🥛 Leite em pó\n🥛 Leite ninho\n🍫 Sucrilhos\n\nQuais adicionais você quer?'
+    expect(itemListadoPelaIa(t, cardapio)?.id).toBe(acai.id)
+  })
+  it('texto sem lista de opções: nada', () => {
+    expect(itemListadoPelaIa('O *Açaí grandão* custa `R$ 32,00`. Quer pedir?', cardapio)).toBeNull()
   })
 })
