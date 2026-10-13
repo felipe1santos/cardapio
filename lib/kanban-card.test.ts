@@ -56,15 +56,15 @@ describe('logo da origem (ponta direita), do campo de origem que já existe', ()
   })
 })
 
-describe('itens: card de altura fixa, sempre 2 linhas (pedido do dono 13/10)', () => {
+describe('itens: no máximo 2 linhas (ajuste do dono 13/10 v2)', () => {
   const um = [{ quantidade: 2, nome: 'Smash Duplo' }], dois = [...um, { quantidade: 1, nome: 'Batata' }], tres = [...dois, { quantidade: 1, nome: 'Coca' }]
   it('1 ou 2 itens: mostra todos', () => {
     expect(itensDoCard(um)).toEqual({ linhas: um, resto: 0 })
     expect(itensDoCard(dois)).toEqual({ linhas: dois, resto: 0 })
   })
-  it('3 ou mais: o 1º item e "+N itens" (o resto só abrindo o pedido)', () => {
-    expect(itensDoCard(tres)).toEqual({ linhas: um, resto: 2 })
-    expect(itensDoCard([...tres, { quantidade: 3, nome: 'Água' }])).toEqual({ linhas: um, resto: 3 })
+  it('mais de 2: os 2 primeiros e o resto ("+N" na linha do 2º)', () => {
+    expect(itensDoCard(tres)).toEqual({ linhas: dois, resto: 1 })
+    expect(itensDoCard([...tres, { quantidade: 1, nome: 'Pudim' }, { quantidade: 3, nome: 'Água' }])).toEqual({ linhas: dois, resto: 3 })
   })
 })
 

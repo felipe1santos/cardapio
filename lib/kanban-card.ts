@@ -71,13 +71,9 @@ export function logoDaOrigem(p: PedidoCard): LogoOrigem {
   return { arquivo: '/origens/menuzia.png', rotulo: 'Cardápio' }
 }
 
-/**
- * Itens da linha 2 (card de altura fixa, pedido do dono 13/10): sempre 2 linhas. Até 2 itens mostra todos; com 3 ou mais,
- * o 1º item e "+N itens" — o resto só abrindo o pedido.
- */
+/** Itens do corpo do card (ajuste do dono 13/10 v2): no máximo 2 linhas; com mais, os 2 primeiros e o resto ("+N" na linha do 2º). */
 export function itensDoCard<T extends { quantidade: number; nome: string }>(itens: T[]): { linhas: T[]; resto: number } {
-  if (itens.length <= 2) return { linhas: itens, resto: 0 }
-  return { linhas: itens.slice(0, 1), resto: itens.length - 1 }
+  return { linhas: itens.slice(0, 2), resto: Math.max(0, itens.length - 2) }
 }
 
 export type AcaoCard = 'aceitar' | 'pronto' | 'entregue' | 'saiu' | 'despachar'

@@ -12,7 +12,8 @@ import { iconesDoTipo, itensDoCard, logoDaOrigem, pagamentoDoCard, type AcaoCard
 /**
  * Card novo do Kanban (13/10/2026, só "Novidades em teste"; modelo aprovado pelo dono). SÓ visual: abrir o painel,
  * aceitar, pronto, despachar, entregue, tempo real e alarme continuam nas mesmas funções da página.
- *  - Linha 1: nº · CLIENTE · NOVO … ícones do tipo · tempo.   Linha 2: itens … valor + pagamento · logo da origem.
+ *  - Cabeçalho: nº · CLIENTE · NOVO … ícones do tipo · tempo.
+ *  - Corpo (v2, 13/10): itens (máx. 2 linhas, "+N" na linha do 2º) · [pagamento] valor · logo — altura fixa, centralizado.
  *  - Setinha no canto direito (aparece ao passar o mouse; sempre visível no toque) = botão de etapa do card antigo.
  *  - Clicar em qualquer outro lugar abre o painel do pedido.
  */
@@ -85,8 +86,8 @@ export function EtiquetaPagamento({ pedido, novo }: { pedido: Pedido; novo?: boo
     // eslint-disable-next-line @next/next/no-img-element -- logo local do Mercado Pago
     : <img src="/origens/mercado-pago.svg" alt="" className="h-[13px] w-[13px]" />
   return (
-    <span className={`card-kanban-pagamento inline-flex min-w-0 max-w-[170px] items-center gap-[5px] whitespace-nowrap border px-[6px] py-[1px] text-[11px] font-semibold leading-[16px] text-[#166534] ${novo ? 'border-[#8FD0A8] bg-transparent' : 'border-[#BFE5CC] bg-[#E7F6EC]'}`} title={pg.texto} data-testid="card-pagamento">
-      <span className="flex-shrink-0">{icone}</span><span className="min-w-0 truncate">{pg.texto}</span>
+    <span className={`card-kanban-pagamento inline-flex min-w-0 max-w-[150px] items-center gap-[5px] border px-[6px] py-[1px] text-[11px] font-semibold leading-[14px] text-[#166534] ${novo ? 'border-[#8FD0A8] bg-transparent' : 'border-[#BFE5CC] bg-[#E7F6EC]'}`} title={pg.texto} data-testid="card-pagamento">
+      <span className="flex-shrink-0">{icone}</span><span className="line-clamp-2 min-w-0 break-words">{pg.texto}</span>
     </span>
   )
 }
@@ -134,7 +135,7 @@ export function CardPedidoKanban({
       onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); abrir() } }}
       style={FONTE_CARD}
       className={[
-        'card-kanban group relative h-[100px] cursor-pointer select-none overflow-hidden rounded-none px-[14px] pb-[10px] pt-[6px] outline-none transition-[box-shadow] [@media(hover:none)]:pr-[28px]',
+        'card-kanban group relative cursor-pointer select-none overflow-hidden rounded-none px-[14px] pb-[10px] pt-[6px] outline-none transition-[box-shadow] [@media(hover:none)]:pr-[28px]',
         novo
           ? 'card-kanban-novo border border-[#1F9D55] bg-[#C9EFD7] shadow-[inset_0_0_0_1px_#1F9D55,0_8px_20px_rgba(21,128,61,.22),0_2px_4px_rgba(21,128,61,.12)]'
           : 'border border-[#D1D5DB] bg-[#F3F4F6] shadow-[0_8px_20px_rgba(17,24,39,.10),0_2px_4px_rgba(17,24,39,.06)]',
@@ -161,22 +162,26 @@ export function CardPedidoKanban({
         </span>
       </div>
       <div className={`mb-[8px] mt-[4px] h-px ${novo ? 'bg-[#9ED8B4]' : 'bg-[#E2E4E8]'}`} />
-      {/* Linha 2: sempre 2 linhas de itens (até 2 itens; com mais, o 1º e "+N itens" — o resto abrindo o pedido) */}
-      <div className="flex h-[42px] items-center gap-[12px]">
+      {/* Corpo: altura fixa (a de 2 itens), as 3 áreas centralizadas na vertical */}
+      <div className="flex h-[40px] items-center gap-[12px]">
+        {/* 1) Itens: no máximo 2 linhas; com mais, "+N" pequeno na linha do 2º (todos no painel do pedido) */}
         <ul className="min-w-0 flex-1 space-y-[2px] text-[14px] leading-[19px]" data-testid="card-itens">
-          {linhas.map((l) => (
-            <li key={l.id} className="truncate"><b className="font-bold tabular-nums">{l.quantidade}x</b> {nomeLimpo(l.nome)}</li>
+          {linhas.map((l, i) => (
+            <li key={l.id} className="flex min-w-0 items-baseline gap-[6px]">
+              <span className="min-w-0 truncate"><b className="font-bold tabular-nums">{l.quantidade}x</b> {nomeLimpo(l.nome)}</span>
+              {i === linhas.length - 1 && resto > 0 && (
+                <span className="flex-shrink-0 whitespace-nowrap text-[12px] font-semibold text-[#6B7280]" data-testid="card-mais-itens">+{resto} {resto === 1 ? 'item' : 'itens'}</span>
+              )}
+            </li>
           ))}
-          {resto > 0 && <li className="text-[13px] font-semibold opacity-75">+{resto} {resto === 1 ? 'item' : 'itens'}</li>}
         </ul>
-        {/* Valor + pagamento + logo (em card estreito o logo diminui e a etiqueta corta com "…": app/globals.css) */}
-        <div className="flex flex-shrink-0 items-center gap-[12px]">
-          <div className="flex min-w-0 flex-col items-end gap-[4px]">
-            <span className="text-[15px] font-bold tabular-nums text-[#0B4A2A]" data-testid="card-preco">{formatarReal(p.total)}</span>
-            <EtiquetaPagamento pedido={p} novo={novo} />
-          </div>
-          <LogoOrigemPedido pedido={p} />
+        {/* 2) Pagamento à esquerda do valor, na mesma linha */}
+        <div className="flex flex-shrink-0 items-center gap-[8px]">
+          <EtiquetaPagamento pedido={p} novo={novo} />
+          <span className="whitespace-nowrap text-[15px] font-bold tabular-nums text-[#0B4A2A]" data-testid="card-preco">{formatarReal(p.total)}</span>
         </div>
+        {/* 3) Logo da origem, tamanho fixo */}
+        <LogoOrigemPedido pedido={p} />
       </div>
       {/* Setinha de avançar (o botão de etapa de antes) */}
       {a && seta && (
