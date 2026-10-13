@@ -53,3 +53,11 @@ Prints: `docs/kanban/cards-novos.png` (quadro), `painel-novo.png` (painel do ped
 
 - Regra dos 600 de peso: o modelo pede negrito. A exceção vale só para `components/pedidos/card-pedido-kanban.tsx` (anotada em `lib/peso-fonte.test.ts`); o resto do painel segue a regra.
 - Para liberar para todas as lojas: trocar a condição `useEstadoSessao()?.novidades === true` em `app/admin/pedidos/page.tsx` (variável `cardsNovos`).
+
+## Ajuste: altura fixa (pedido do dono, 13/10 madrugada — 934c65c, f6ab890)
+
+- Todo card tem **100 px de altura**, igual em todas as colunas, com o painel aberto ou fechado.
+- Itens: com **1 ou 2 itens** mostra todos; com **3 ou mais**, o 1º item e "+N itens" (ex.: 5 itens → "2x Item 4" e "+4 itens"). O resto só aparece abrindo o pedido (painel grande à direita).
+- Nada quebra linha: o nome encurta com "…" e a etiqueta de pagamento também (texto inteiro ao passar o mouse).
+- **Card estreito** (painel aberto): o card mede a própria largura e, quando fica estreito, o logo diminui e a etiqueta NOVO some (o verde piscando já mostra que é novo). Assim o nome e o tempo cabem.
+- E2E de novo na Menuzia: **27/27 ok**. Inclui as checagens novas: mesma altura com o painel fechado e aberto; "+4 itens"; logo, tempo e nome dentro do card em coluna estreita. Pedidos de teste #367–#386 fechados como "Não entregue".
