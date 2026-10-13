@@ -274,7 +274,8 @@ export function PainelPedido({
 
       {/* Rodapé fixo */}
       {/* lg: espaço à direita para o botão flutuante de atendimento não cobrir o Cancelar. */}
-      <div className="space-y-2 border-t border-border p-3 lg:pr-[82px]">
+      {/* Visual novo: espaço embaixo para o botão flutuante "Despachar" não cobrir o Cancelar. */}
+      <div className={`space-y-2 border-t border-border p-3 lg:pr-[82px] ${visualNovo ? 'lg:pb-[76px]' : ''}`}>
         <button type="button" onClick={onReimprimir} disabled={reimpEstado === 'enviando' || reimpEstado === 'ok'}
           className={`flex h-[44px] w-full items-center justify-center gap-2 ${botao} bg-text-main px-4 text-[13px] font-semibold text-white hover:bg-black disabled:opacity-60`} data-testid="painel-reimprimir">
           <PrinterCheck className="h-4 w-4" /> {reimpEstado === 'enviando' ? 'Enviando…' : reimpEstado === 'ok' ? 'Enviado p/ impressora' : 'Reimprimir pedido'}

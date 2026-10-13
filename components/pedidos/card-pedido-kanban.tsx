@@ -85,7 +85,7 @@ export function EtiquetaPagamento({ pedido, novo }: { pedido: Pedido; novo?: boo
     // eslint-disable-next-line @next/next/no-img-element -- logo local do Mercado Pago
     : <img src="/origens/mercado-pago.svg" alt="" className="h-[13px] w-[13px]" />
   return (
-    <span className={`inline-flex items-center gap-[5px] whitespace-nowrap border px-[6px] py-[1px] text-[11px] font-semibold leading-[16px] text-[#166534] ${novo ? 'border-[#8FD0A8] bg-transparent' : 'border-[#BFE5CC] bg-[#E7F6EC]'}`} data-testid="card-pagamento">
+    <span className={`inline-flex max-w-full items-center gap-[5px] border px-[6px] py-[1px] text-right text-[11px] font-semibold leading-[16px] text-[#166534] ${novo ? 'border-[#8FD0A8] bg-transparent' : 'border-[#BFE5CC] bg-[#E7F6EC]'}`} data-testid="card-pagamento">
       {icone} {pg.icone === 'mercado_pago' ? <span>{pg.texto}</span> : pg.texto}
     </span>
   )
@@ -170,8 +170,8 @@ export function CardPedidoKanban({
           {resto > 0 && <li className="text-[13px] font-semibold opacity-75">+{resto} {resto === 1 ? 'item' : 'itens'}</li>}
         </ul>
         {/* Valor + pagamento + logo: em coluna estreita descem para baixo dos itens, alinhados à direita. */}
-        <div className="ml-auto flex flex-shrink-0 items-center gap-[12px]">
-          <div className="flex flex-col items-end gap-[4px]">
+        <div className="ml-auto flex min-w-0 max-w-full items-center gap-[12px]">
+          <div className="flex min-w-0 flex-col items-end gap-[4px]">
             <span className="text-[15px] font-bold tabular-nums text-[#0B4A2A]" data-testid="card-preco">{formatarReal(p.total)}</span>
             <EtiquetaPagamento pedido={p} novo={novo} />
           </div>
