@@ -85,8 +85,8 @@ export function EtiquetaPagamento({ pedido, novo }: { pedido: Pedido; novo?: boo
     // eslint-disable-next-line @next/next/no-img-element -- logo local do Mercado Pago
     : <img src="/origens/mercado-pago.svg" alt="" className="h-[13px] w-[13px]" />
   return (
-    <span className={`inline-flex max-w-full items-center gap-[5px] border px-[6px] py-[1px] text-right text-[11px] font-semibold leading-[16px] text-[#166534] ${novo ? 'border-[#8FD0A8] bg-transparent' : 'border-[#BFE5CC] bg-[#E7F6EC]'}`} data-testid="card-pagamento">
-      {icone} {pg.icone === 'mercado_pago' ? <span>{pg.texto}</span> : pg.texto}
+    <span className={`card-kanban-pagamento inline-flex min-w-0 max-w-[170px] items-center gap-[5px] whitespace-nowrap border px-[6px] py-[1px] text-[11px] font-semibold leading-[16px] text-[#166534] ${novo ? 'border-[#8FD0A8] bg-transparent' : 'border-[#BFE5CC] bg-[#E7F6EC]'}`} title={pg.texto} data-testid="card-pagamento">
+      <span className="flex-shrink-0">{icone}</span><span className="min-w-0 truncate">{pg.texto}</span>
     </span>
   )
 }
@@ -134,7 +134,7 @@ export function CardPedidoKanban({
       onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); abrir() } }}
       style={FONTE_CARD}
       className={[
-        'group relative cursor-pointer select-none rounded-none px-[14px] pb-[10px] pt-[6px] outline-none transition-[box-shadow] [@media(hover:none)]:pr-[28px]',
+        'card-kanban group relative h-[100px] cursor-pointer select-none overflow-hidden rounded-none px-[14px] pb-[10px] pt-[6px] outline-none transition-[box-shadow] [@media(hover:none)]:pr-[28px]',
         novo
           ? 'card-kanban-novo border border-[#1F9D55] bg-[#C9EFD7] shadow-[inset_0_0_0_1px_#1F9D55,0_8px_20px_rgba(21,128,61,.22),0_2px_4px_rgba(21,128,61,.12)]'
           : 'border border-[#D1D5DB] bg-[#F3F4F6] shadow-[0_8px_20px_rgba(17,24,39,.10),0_2px_4px_rgba(17,24,39,.06)]',
@@ -143,10 +143,10 @@ export function CardPedidoKanban({
         corTexto,
       ].join(' ')}
     >
-      {/* Linha 1 (quebra só em coluna estreita: o nome guarda ao menos 72 px) */}
-      <div className="flex min-h-[28px] flex-wrap items-center gap-x-[8px] gap-y-[2px]">
+      {/* Linha 1 (altura fixa: o nome é que encurta com "…") */}
+      <div className="flex h-[28px] items-center gap-[8px]">
         <EtiquetaNumero numero={p.numero} />
-        <span className="min-w-0 flex-1 basis-[72px] truncate text-[16px] font-bold uppercase leading-[20px]" title={p.clienteNome || undefined}>{p.clienteNome || 'Cliente'}</span>
+        <span className="min-w-0 flex-1 truncate text-[16px] font-bold uppercase leading-[20px]" title={p.clienteNome || undefined}>{p.clienteNome || 'Cliente'}</span>
         {novo && <span className="flex-shrink-0 bg-[#15803D] px-[6px] text-[11px] font-bold uppercase leading-[18px] tracking-wide text-white" data-testid="card-novo">Novo</span>}
         {p.agendadoPara && (
           <span className="flex-shrink-0 border border-[#0369A1] px-[5px] text-[11px] font-semibold leading-[16px] text-[#0369A1]">
@@ -161,16 +161,16 @@ export function CardPedidoKanban({
         </span>
       </div>
       <div className={`mb-[8px] mt-[4px] h-px ${novo ? 'bg-[#9ED8B4]' : 'bg-[#E2E4E8]'}`} />
-      {/* Linha 2 */}
-      <div className="flex flex-wrap items-center gap-x-[12px] gap-y-[6px]">
-        <ul className="min-w-0 flex-1 basis-[120px] space-y-[2px] text-[14px] leading-[19px]" data-testid="card-itens">
+      {/* Linha 2: sempre 2 linhas de itens (até 2 itens; com mais, o 1º e "+N itens" — o resto abrindo o pedido) */}
+      <div className="flex h-[42px] items-center gap-[12px]">
+        <ul className="min-w-0 flex-1 space-y-[2px] text-[14px] leading-[19px]" data-testid="card-itens">
           {linhas.map((l) => (
             <li key={l.id} className="truncate"><b className="font-bold tabular-nums">{l.quantidade}x</b> {nomeLimpo(l.nome)}</li>
           ))}
           {resto > 0 && <li className="text-[13px] font-semibold opacity-75">+{resto} {resto === 1 ? 'item' : 'itens'}</li>}
         </ul>
-        {/* Valor + pagamento + logo: em coluna estreita descem para baixo dos itens, alinhados à direita. */}
-        <div className="ml-auto flex min-w-0 max-w-full items-center gap-[12px]">
+        {/* Valor + pagamento + logo (em card estreito o logo diminui e a etiqueta corta com "…": app/globals.css) */}
+        <div className="flex flex-shrink-0 items-center gap-[12px]">
           <div className="flex min-w-0 flex-col items-end gap-[4px]">
             <span className="text-[15px] font-bold tabular-nums text-[#0B4A2A]" data-testid="card-preco">{formatarReal(p.total)}</span>
             <EtiquetaPagamento pedido={p} novo={novo} />

@@ -1417,3 +1417,9 @@ details.ti-tec[open] > summary .ti-chev { transform: rotate(180deg); }
   50% { background-color: #9FDDB6; }
 }
 .card-kanban-novo { animation: kanban-novo-pisca 1.1s ease-in-out infinite; }
+/* Card novo de altura fixa (13/10): mede a própria largura; estreito (painel aberto) → logo menor e etiqueta mais curta. */
+.card-kanban { container-type: inline-size; }
+@container (max-width: 320px) {
+  .card-kanban [data-testid="card-origem"] { width: 28px !important; height: 28px !important; }
+  .card-kanban .card-kanban-pagamento { max-width: 96px; }
+}
