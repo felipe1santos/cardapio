@@ -1422,6 +1422,9 @@ details.ti-tec[open] > summary .ti-chev { transform: rotate(180deg); }
 @container (max-width: 320px) {
   .card-kanban [data-testid="card-origem"] { width: 28px !important; height: 28px !important; }
   .card-kanban .card-kanban-pagamento { max-width: 96px; }
+  /* Estreito: a etiqueta vai para baixo do valor, numa linha só (os itens precisam do espaço). */
+  .card-kanban .card-kanban-valor { flex-direction: column-reverse; align-items: flex-end; gap: 2px; }
+  .card-kanban .card-kanban-pagamento .line-clamp-2 { -webkit-line-clamp: 1; }
   /* O fundo verde já diz que é novo: sem a etiqueta, o nome e o tempo cabem. */
   .card-kanban [data-testid="card-novo"] { display: none; }
 }

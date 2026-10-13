@@ -176,7 +176,7 @@ export function CardPedidoKanban({
           ))}
         </ul>
         {/* 2) Pagamento à esquerda do valor, na mesma linha */}
-        <div className="flex flex-shrink-0 items-center gap-[8px]">
+        <div className="card-kanban-valor flex flex-shrink-0 items-center gap-[8px]">
           <EtiquetaPagamento pedido={p} novo={novo} />
           <span className="whitespace-nowrap text-[15px] font-bold tabular-nums text-[#0B4A2A]" data-testid="card-preco">{formatarReal(p.total)}</span>
         </div>
