@@ -20,8 +20,6 @@ async function contexto() {
     return { erro: NextResponse.json({ error: 'Sem permissão' }, { status: 403 }) }
   }
   const admin = getAdminSupabase()
-  const { data: loja } = await admin.from('restaurantes').select('novidades_teste').eq('id', sessao.restauranteId).maybeSingle()
-  if (!loja?.novidades_teste) return { erro: NextResponse.json({ error: 'KDS em teste nesta loja' }, { status: 403 }) }
   return { sessao, admin }
 }
 

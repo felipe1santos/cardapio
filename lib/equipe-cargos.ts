@@ -55,11 +55,10 @@ const MODELO_DO_CARGO: Record<Exclude<Cargo, 'dono' | 'personalizado'>, Acessos>
 }
 
 /**
- * Perfis prontos com o KDS (12/10): só nas lojas com "Novidades em teste" — sem a chave, os de antes (lojas reais iguais).
- * Cozinha = só o KDS (entra direto nele); Caixa = PDV, Painel de Pedidos e Mesas; Garçom = Mesas e Comandas.
+ * Perfis com o KDS (12/10): Cozinha = só o KDS em TODAS as lojas desde 13/10 (MODELOS); o Caixa novo (PDV, Painel de
+ * Pedidos e Mesas) continua só com "Novidades em teste".
  */
 const MODELO_DO_CARGO_KDS: Partial<Record<Cargo, Acessos>> = {
-  cozinha: { areas: ['kds'], sensiveis: [] },
   caixa: { areas: ['pedidos', 'pdv', 'mesas'], sensiveis: ['desconto', 'taxa', 'fechar_caixa'] },
 }
 
@@ -97,7 +96,6 @@ const PERMISSAO_DA_AREA: Record<Area, Permissao> = {
   pedidos: 'pedidos.delivery.ver',
   pdv: 'balcao.abrir',
   mesas: 'comanda.ver',
-  cozinha: 'cozinha.gerenciar',
   kds: 'pedidos.delivery.ver',
   logistica: 'logistica.operar',
   cardapio: 'cardapio.editar',
@@ -198,8 +196,7 @@ export const GRUPOS_PERMISSOES: { titulo: string; itens: ItemPermissao[]; soComF
       { tipo: 'area', chave: 'pedidos', rotulo: rotArea('pedidos'), descricao: 'Ver e mover os pedidos do delivery no Kanban.' },
       { tipo: 'area', chave: 'pdv', rotulo: rotArea('pdv'), descricao: 'Abrir o balcão e lançar vendas.' },
       { tipo: 'area', chave: 'mesas', rotulo: rotArea('mesas'), descricao: 'Abrir mesas, lançar itens e ver a conta.' },
-      { tipo: 'area', chave: 'cozinha', rotulo: rotArea('cozinha'), descricao: 'Configurar as estações e telas de preparo.' },
-      { tipo: 'area', chave: 'kds', rotulo: rotArea('kds'), descricao: 'Fila, preparo e pronto dos pedidos na tela da cozinha (em teste).' },
+      { tipo: 'area', chave: 'kds', rotulo: rotArea('kds'), descricao: 'Fila, preparo e pronto dos pedidos na tela da cozinha.' },
       { tipo: 'area', chave: 'logistica', rotulo: rotArea('logistica'), descricao: 'Despachar entregas e o caixa do entregador.' },
     ],
   },

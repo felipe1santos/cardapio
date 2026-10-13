@@ -2,8 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 /**
  * Ficha de preparo (0119): ingredientes, passos e tempo estimado de um item do cardápio.
- * Gestão grava pela sessão (RLS dono/gerente); a cozinha lê pelo servidor com o token da
- * estação (ver /api/cozinha/[token]/ficha/[itemId]).
+ * Gestão grava pela sessão (RLS dono/gerente); o KDS lê pelo servidor (/api/admin/kds).
  */
 export interface IngredienteFicha { nome: string; quantidade: string }
 export interface PassoFicha { texto: string; fotoUrl?: string | null }

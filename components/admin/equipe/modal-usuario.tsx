@@ -158,8 +158,8 @@ export function ModalUsuario({
 
   const termo = busca.trim().toLowerCase()
   const grupos = useMemo(
-    () => GRUPOS_PERMISSOES.filter((g) => !g.soComFinanceiro || financeiroAtivo).map((g) => ({ ...g, itens: g.itens.filter((i) => (novidades || i.chave !== 'kds') && (!termo || `${i.rotulo} ${i.descricao} ${g.titulo}`.toLowerCase().includes(termo))) })).filter((g) => g.itens.length),
-    [termo, financeiroAtivo, novidades],
+    () => GRUPOS_PERMISSOES.filter((g) => !g.soComFinanceiro || financeiroAtivo).map((g) => ({ ...g, itens: g.itens.filter((i) => (!termo || `${i.rotulo} ${i.descricao} ${g.titulo}`.toLowerCase().includes(termo))) })).filter((g) => g.itens.length),
+    [termo, financeiroAtivo],
   )
 
   const marcarGrupo = (itens: ItemPermissao[], ligar: boolean) => {

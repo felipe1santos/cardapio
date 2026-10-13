@@ -60,7 +60,6 @@ export const PERMISSOES = [
   'comanda.pre_conta',
   // Impressão
   'impressao.configurar',
-  'cozinha.gerenciar',
   // Retaguarda
   'clientes.ver',
   'dashboard.faturamento',
@@ -151,8 +150,6 @@ const MATRIZ: Record<Permissao, readonly Papel[]> = {
 
   // Computadores, impressoras, funções, teste e histórico de impressão.
   'impressao.configurar': ['dono', 'gerente'],
-  // Estações da cozinha (links/QR das telas de preparo). Mesma RLS de `estacoes` (0066).
-  'cozinha.gerenciar': ['dono', 'gerente'],
 
   // Base de clientes é do delivery: telefone e endereço não são assunto do salão.
   'clientes.ver': ['dono', 'gerente', 'atendente'],

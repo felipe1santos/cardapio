@@ -106,8 +106,8 @@ describe('perfis prontos com o KDS (12/10, só com "Novidades em teste")', () =>
     expect(modeloDoCargo('caixa', { novidades: true })?.areas.sort()).toEqual(['mesas', 'pdv', 'pedidos'])
     expect(modeloDoCargo('garcom', { novidades: true })?.areas).toEqual(['mesas'])
   })
-  it('sem "Novidades em teste" nada muda (lojas reais)', () => {
-    expect(modeloDoCargo('cozinha')?.areas).toEqual(['pedidos'])
+  it('13/10: Cozinha = só o KDS em todas as lojas (a Cozinha antiga saiu); o Caixa novo segue só com "Novidades em teste"', () => {
+    expect(modeloDoCargo('cozinha')?.areas).toEqual(['kds'])
     expect(modeloDoCargo('caixa')?.areas).toContain('clientes')
   })
   it('usuário com o perfil novo continua reconhecido pelo cargo', () => {

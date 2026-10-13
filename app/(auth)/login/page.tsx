@@ -9,6 +9,7 @@ const ERROR_MESSAGES: Record<string, string> = {
 const NOTICE_MESSAGES: Record<string, string> = {
   'cadastro-concluido': 'Cadastro concluído! Faça login com seu usuário e senha.',
   'senha-alterada': 'Senha alterada! Faça login com a nova senha.',
+  kds: 'A tela da cozinha agora é o KDS. Entre com o usuário da cozinha (a loja cria em Equipe › cargo Cozinha).',
 }
 
 export default async function LoginPage({

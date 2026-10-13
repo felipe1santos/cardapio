@@ -15,8 +15,8 @@ export const HREF_IMPRESSAO = '/admin/ajustes/impressao'
 /** Abas que mudaram de lugar → para onde vão (com e sem as novidades). */
 export function abasMovidas(novidades: boolean): Record<string, string> {
   return novidades
-    ? { impressao: HREF_IMPRESSAO, cozinha: '/admin/cozinha', modelos: '/admin/campanhas?aba=modelos', notificacoes: '/admin/campanhas?aba=notificacoes' }
-    : { impressao: '/admin/impressao', cozinha: '/admin/cozinha' }
+    ? { impressao: HREF_IMPRESSAO, cozinha: '/admin/kds', modelos: '/admin/campanhas?aba=modelos', notificacoes: '/admin/campanhas?aba=notificacoes' }
+    : { impressao: '/admin/impressao', cozinha: '/admin/kds' }
 }
 
 /** A lista de sempre (antes de 10/10). */

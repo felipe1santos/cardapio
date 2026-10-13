@@ -18,8 +18,7 @@ const PAGINAS: [prefixo: string, permissao: Permissao][] = [
   ['/admin/pdv', 'pedidos.balcao.criar'],
   // Ver o salão e a conta: garçom e caixa. Cada ação confere a sua permissão por dentro.
   ['/admin/mesas', 'comanda.ver'],
-  ['/admin/cozinha', 'cozinha.gerenciar'],
-  // KDS (prévia, 12/10): quem vê o Kanban vê a tela da cozinha. A página confere "Novidades em teste".
+  // KDS (prévia, 12/10): quem vê o Kanban vê a tela da cozinha. Todas as lojas desde 13/10 (a Cozinha antiga saiu).
   ['/admin/kds', 'pedidos.delivery.ver'],
   ['/admin/equipe', 'equipe.gerenciar'],
   ['/admin/auditoria', 'auditoria.ver'],

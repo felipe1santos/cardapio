@@ -23,7 +23,7 @@ interface RouteMapProps {
   className?: string
   /** Onde a loja fica: o mapa abre nela e volta para ela se a rota não sair (antes: Fortaleza fixo). */
   loja?: LojaDoMapa
-  /** Token da cozinha/motoboy para /api/mapa/rota (sem sessão do painel). */
+  /** Token do motoboy para /api/mapa/rota (sem sessão do painel). */
   token?: string | null
 }
 
@@ -64,7 +64,7 @@ const rotasPedidas = new Map<string, string | null>()
  * máximo 1 vez por minuto para o mesmo conjunto de paradas.
  */
 export function RouteMap({ apiKey, origin, stops, emptyMessage, className, loja, token }: RouteMapProps) {
-  // Motoboy/cozinha por token: o aviso de mapa carregado (contador de custo) identifica a loja. Setter idempotente.
+  // Motoboy por token: o aviso de mapa carregado (contador de custo) identifica a loja. Setter idempotente.
   definirTokenDoMapa(token)
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<google.maps.Map | null>(null)

@@ -22,7 +22,6 @@ import {
 import { formatarReal } from '@/lib/moeda'
 import { NovoMotoboy } from '@/components/pedidos/novo-motoboy'
 import { useCoordenadasPedidos } from '@/lib/mapa/cliente'
-import { definirTokenDoMapa } from '@/lib/maps/loader'
 
 /**
  * Valor sentinela do "entregador" Nexta na seleção. O Nexta ocupa o mesmo lugar de um
@@ -94,31 +93,20 @@ function corPino(p: Pedido, marcado: boolean): string {
   return '#DC2626' // vermelho = cancelado/não entregue
 }
 
-/** Fonte de dados/ações injetável — usada pelo despacho da cozinha (token), sem RLS de admin. */
-export interface RotaDataSource {
-  fetch: () => Promise<{ rotas: Pedido[]; entregadores: Entregador[] }>
-  /** Devolve os pedidos que saíram; o aviso ao cliente já foi feito no servidor. */
-  despachar: (ids: string[], entregadorId: string) => Promise<string[]>
-  /** Token da estação (cozinha) para /api/mapa/* — sem sessão do painel. */
-  token?: string
-}
-
 interface RotaPanelProps {
   apiKey?: string
   onClose: () => void
   /** Admin: lê/escreve direto pelo supabase (RLS por tenant) + realtime. */
   supabase?: SupabaseClient
   restauranteId?: string
-  /** Cozinha (token): injeta dados/ações via API autenticada por token + polling. */
-  dataSource?: RotaDataSource
 }
 
 /**
- * Despacho de rotas. Envolvido em memo (export abaixo): a página do Kanban/cozinha re-renderiza a cada segundo
+ * Despacho de rotas. Envolvido em memo (export abaixo): a página do Kanban re-renderiza a cada segundo
  * (relógio dos cards) e isso NÃO pode re-renderizar o painel nem os mapas — foi esse o loop que fez ~20 mil
- * geocodes em 03–09/10 (docs/REGRAS-DE-CUSTO.md). Quem usa passa onClose e dataSource estáveis.
+ * geocodes em 03–09/10 (docs/REGRAS-DE-CUSTO.md). Quem usa passa onClose estável.
  */
-function RotaPanelBase({ supabase, restauranteId, apiKey, onClose, dataSource }: RotaPanelProps) {
+function RotaPanelBase({ supabase, restauranteId, apiKey, onClose }: RotaPanelProps) {
   const [todos, setTodos] = useState<Pedido[]>([])
   const [pedidos, setPedidos] = useState<Pedido[]>([])
   const [drivers, setDrivers] = useState<Entregador[]>([])
@@ -143,12 +131,8 @@ function RotaPanelBase({ supabase, restauranteId, apiKey, onClose, dataSource }:
   /** Pedidos que falharam no último despacho em lote — ficam marcados, com aviso no card. */
   const [falhasNexta, setFalhasNexta] = useState<Set<string>>(new Set())
 
-  /**
-   * O Nexta só existe no painel admin. A cozinha abre este mesmo componente autenticada
-   * por token (via `dataSource`), sem sessão de admin — as rotas /api/admin/nexta/*
-   * responderiam 401.
-   */
-  const modoAdmin = Boolean(supabase && restauranteId && !dataSource)
+  /** O Nexta só existe no painel admin (sessão da loja). */
+  const modoAdmin = Boolean(supabase && restauranteId)
 
   // Onde a loja fica (Ajustes): o mapa abre nela e enquadra loja + pedidos (antes abria em Fortaleza).
   const [lojaMapa, setLojaMapa] = useState<RotaMapLoja | null | 'carregando'>(supabase && restauranteId ? 'carregando' : null)
@@ -184,18 +168,14 @@ function RotaPanelBase({ supabase, restauranteId, apiKey, onClose, dataSource }:
     try {
       let rotas: Pedido[]
       let entregadores: Entregador[]
-      if (dataSource) {
-        const r = await dataSource.fetch()
-        rotas = r.rotas
-        entregadores = r.entregadores
-      } else {
+      {
         const desde = new Date(Date.now() - JANELA_HORAS * 3600 * 1000).toISOString()
         ;[rotas, entregadores] = await Promise.all([
           listarPedidosRotas(supabase!, restauranteId!, desde),
           listarEntregadores(supabase!, restauranteId!),
         ])
       }
-      if (supabase && restauranteId && !dataSource) {
+      if (supabase && restauranteId) {
         // Falha aqui não pode derrubar o painel de rotas inteiro — o Nexta é acessório.
         const entregas = await listarNextaEntregas(supabase, restauranteId, new Date(Date.now() - JANELA_HORAS * 3600 * 1000).toISOString()).catch(() => [])
         setNextaEntregas(entregas)
@@ -221,7 +201,7 @@ function RotaPanelBase({ supabase, restauranteId, apiKey, onClose, dataSource }:
     } catch {
       setError('Não foi possível carregar os pedidos prontos.')
     }
-  }, [supabase, restauranteId, dataSource])
+  }, [supabase, restauranteId])
 
   useEffect(() => {
     refetch()
@@ -236,9 +216,6 @@ function RotaPanelBase({ supabase, restauranteId, apiKey, onClose, dataSource }:
         supabase.removeChannel(channel)
       }
     }
-    // Cozinha (token): sem realtime — poll.
-    const i = setInterval(refetch, 7000)
-    return () => clearInterval(i)
   }, [supabase, restauranteId, refetch])
 
   const porId = useMemo(() => new Map(pedidos.map((p) => [p.id, p])), [pedidos])
@@ -326,10 +303,7 @@ function RotaPanelBase({ supabase, restauranteId, apiKey, onClose, dataSource }:
   // Coordenadas pelo servidor (/api/mapa/coordenadas, gravadas no pedido): só os ids que ainda não vieram,
   // e só quando o conjunto muda. O navegador nunca geocodifica (docs/REGRAS-DE-CUSTO.md).
   const idsNoMapa = useMemo(() => [...visiveis.map((p) => p.id), ...locPedidos.map((p) => p.id)], [visiveis, locPedidos])
-  // Cozinha por token: o aviso de mapa carregado (contador de custo) identifica a loja pelo token. Setter idempotente,
-  // chamado no render porque o efeito do mapa (filho) roda antes dos efeitos deste componente.
-  definirTokenDoMapa(dataSource?.token)
-  const coords = useCoordenadasPedidos(idsNoMapa, dataSource?.token)
+  const coords = useCoordenadasPedidos(idsNoMapa)
 
   const stops = useMemo(() => visiveis.map((p) => {
     const c = coords.get(p.id) ?? null
@@ -443,8 +417,7 @@ function RotaPanelBase({ supabase, restauranteId, apiKey, onClose, dataSource }:
         await despacharPeloNexta(ids)
       } else {
         let feitos: string[]
-        if (dataSource) feitos = await dataSource.despachar(ids, motoboy!.id)
-        else {
+        {
           feitos = await atribuirEntregadorEmLote(supabase!, ids, motoboy!.id)
           for (const id of feitos) notificarPedido(id, 'em_rota')
         }
@@ -513,7 +486,7 @@ function RotaPanelBase({ supabase, restauranteId, apiKey, onClose, dataSource }:
                 })}
               </div>
               {/* Item 61 (exceção autorizada ao "não mexer no Despacho"): só este botão. */}
-              {!dataSource && (
+              {(
                 <button type="button" onClick={() => setNovoMotoboy(true)} data-testid="despacho-novo-motoboy"
                   className="inline-flex h-[30px] flex-shrink-0 items-center gap-1 whitespace-nowrap rounded-menuzia bg-[#0570AE] px-2.5 text-[11px] font-semibold uppercase tracking-wide text-white hover:bg-[#04598B]">
                   + Motoboy
@@ -882,7 +855,7 @@ function RotaPanelBase({ supabase, restauranteId, apiKey, onClose, dataSource }:
             </div>
             <div className="flex-1 p-4.5">
               {locDriver.localizacao ? (
-                <RouteMap apiKey={MAPS_KEY} origin={locOrigem} stops={locStops} loja={lojaMapa} token={dataSource?.token} className="h-full w-full" />
+                <RouteMap apiKey={MAPS_KEY} origin={locOrigem} stops={locStops} loja={lojaMapa} className="h-full w-full" />
               ) : (
                 <div className="flex h-full items-center justify-center rounded-menuzia border border-dashed border-border p-8 text-center text-sm text-text-subtle">
                   Localização ainda não disponível. O motoboy precisa abrir o link de acesso e permitir a localização no celular.

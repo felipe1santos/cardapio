@@ -62,7 +62,8 @@ function Kds() {
   const [aviso, setAviso] = useState<string | null>(null)
   const liberaMin = useRef(30)
   const seq = useRef(0)
-  const liberado = demo !== undefined || sessao?.novidades === true
+  // KDS em todas as lojas desde 13/10 (a Cozinha antiga por QR saiu).
+  const liberado = true
 
   useEffect(() => {
     setPrefs(lerPrefs())

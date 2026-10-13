@@ -72,6 +72,7 @@ describe('"Novidades em teste" desligada (0178): tudo como antes', () => {
   it('Ajustes de sempre: Modelos, Notificações do app e Robô (sem Impressão nem Agente)', () => {
     expect(abasDoAjustes({ podeAjustes: true, podeImpressao: true, agenteLiberado: true, novidades: false }).map((a) => a.id))
       .toEqual(['loja', 'entrega', 'mesas', 'qrcode', 'conta', 'mensagens', 'modelos', 'notificacoes', 'robo'])
-    expect(abasMovidas(false)).toEqual({ impressao: '/admin/impressao', cozinha: '/admin/cozinha' })
+    // A aba antiga "Cozinha" leva ao KDS (a Cozinha antiga saiu em 13/10).
+    expect(abasMovidas(false)).toEqual({ impressao: '/admin/impressao', cozinha: '/admin/kds' })
   })
 })

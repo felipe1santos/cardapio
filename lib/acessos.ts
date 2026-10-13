@@ -14,8 +14,7 @@ export const AREAS = [
   { chave: 'pedidos', rotulo: 'Painel de Pedidos', href: '/admin/pedidos', prefixos: ['/admin/pedidos', '/api/admin/pedidos'] },
   { chave: 'pdv', rotulo: 'PDV', href: '/admin/pdv', prefixos: ['/admin/pdv', '/api/admin/pdv', '/api/admin/balcao', '/api/admin/comandas'] },
   { chave: 'mesas', rotulo: 'Mesas e Comandas', href: '/admin/mesas', prefixos: ['/admin/mesas', '/api/admin/mesas'] },
-  { chave: 'cozinha', rotulo: 'Cozinha', href: '/admin/cozinha', prefixos: ['/admin/cozinha'] },
-  // KDS único (12/10; a tela só abre com "Novidades em teste").
+  // KDS único: a tela da cozinha (todas as lojas desde 13/10, quando a Cozinha antiga por QR saiu).
   { chave: 'kds', rotulo: 'KDS (tela da cozinha)', href: '/admin/kds', prefixos: ['/admin/kds', '/api/admin/kds'] },
   { chave: 'logistica', rotulo: 'Pedidos (finalizados e entregadores)', href: '/admin/lista-pedidos', prefixos: ['/admin/lista-pedidos', '/admin/logistica', '/api/admin/caixa', '/api/admin/entregadores'] },
   { chave: 'cardapio', rotulo: 'Cardápio', href: '/admin/cardapio', prefixos: ['/admin/cardapio', '/api/admin/cardapio'] },
@@ -118,8 +117,8 @@ export function primeiraTela(acessos: Acessos | null): string | null {
 export const MODELOS: { chave: string; rotulo: string; papel: string; acessos: Acessos }[] = [
   { chave: 'garcom', rotulo: 'Garçom', papel: 'garcom', acessos: { areas: ['mesas'], sensiveis: [] } },
   { chave: 'caixa', rotulo: 'Caixa', papel: 'atendente', acessos: { areas: ['pedidos', 'pdv', 'mesas', 'clientes'], sensiveis: ['desconto', 'taxa', 'fechar_caixa'] } },
-  // A tela de preparo é o link da estação (sem login); no painel, a cozinha acompanha o Kanban.
-  { chave: 'cozinha', rotulo: 'Cozinha', papel: 'atendente', acessos: { areas: ['pedidos'], sensiveis: [] } },
+  // Cozinha = só o KDS (ao entrar, cai direto nele).
+  { chave: 'cozinha', rotulo: 'Cozinha', papel: 'atendente', acessos: { areas: ['kds'], sensiveis: [] } },
   { chave: 'entregador', rotulo: 'Entregador / Logística', papel: 'logistica', acessos: { areas: ['pedidos', 'logistica'], sensiveis: ['fechar_caixa'] } },
   { chave: 'gerente', rotulo: 'Gerente', papel: 'gerente', acessos: { areas: AREAS.map((a) => a.chave).filter((a) => a !== 'equipe'), sensiveis: SENSIVEIS.map((s) => s.chave) } },
 ]
@@ -132,12 +131,12 @@ export function resumoAcessos(papel: string, acessos: Acessos | null): string {
   if (modelo) return modelo.rotulo
   const base = MODELOS.find((m) => m.papel === papel)
   if (base) {
-    const extras = acessos.areas.filter((a) => !base.acessos.areas.includes(a)).map((a) => AREAS.find((x) => x.chave === a)!.rotulo)
+    const extras = acessos.areas.filter((a) => !base.acessos.areas.includes(a)).map((a) => AREAS.find((x) => x.chave === a)?.rotulo).filter(Boolean)
     const menos = base.acessos.areas.filter((a) => !acessos.areas.includes(a)).length
     if (extras.length && !menos) return `${base.rotulo} + ${extras.join(', ')}`
   }
   if (!acessos.areas.length) return 'Sem acesso a telas'
-  return acessos.areas.map((a) => AREAS.find((x) => x.chave === a)!.rotulo).join(', ')
+  return acessos.areas.map((a) => AREAS.find((x) => x.chave === a)?.rotulo).filter(Boolean).join(', ')
 }
 
 /**
