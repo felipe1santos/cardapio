@@ -152,6 +152,8 @@ export async function executarFerramenta(ctx: ContextoFerramentas, efeitos: Efei
                 })),
               } : {}),
             })),
+            // 12/10 (teste real): a IA listava os adicionais ela mesma e o servidor não assumia as perguntas.
+            ...(achados.some((i) => i.grupos.length) ? { aviso: 'Cliente quer um destes? Chame montar_pedido AGORA com o item_id (complementos só os que ele JÁ disse). O SISTEMA mostra as opções e pergunta. NÃO liste opções/adicionais nem pergunte complementos você mesmo.' } : {}),
             ...(pizza ? { pizza: { tamanhos: pizza.tamanhos.map((t) => `${t.nome} (até ${t.maxSabores} sabores)`), bordas: pizza.bordas.map((b) => (b.preco > 0 ? `${b.nome} (+${brl(b.preco)})` : b.nome)), massas: pizza.massas.map((m) => m.nome) } } : {}),
           }),
         }
