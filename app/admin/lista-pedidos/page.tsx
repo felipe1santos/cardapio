@@ -43,6 +43,8 @@ import { rotuloForma } from '@/lib/pdv-pagamento'
 import { PainelPedido } from '@/components/pedidos/painel-pedido'
 import { solicitarReimpressao } from '@/lib/queries/impressao'
 import { useCoordenadasPedidos } from '@/lib/mapa/cliente'
+import { useEstadoSessao } from '@/lib/sessao-cliente'
+import { EmRotaNovo, FinalizadosNovo, ListaEntregadoresNovo, ResumoNovo } from '@/components/logistica/pedidos-novo'
 
 type Tab = 'pedidos' | 'entregadores'
 type Periodo = 'hoje' | 'ontem' | '7dias' | 'personalizado'
@@ -387,6 +389,8 @@ function CampoEntregador({ rotulo, obrigatorio, dica, children }: { rotulo: stri
  */
 export default function PedidosFinalizadosPage() {
   const supabase = useMemo(() => getBrowserSupabase(), [])
+  // Visual novo (14/10): só nas lojas com "Novidades em teste"; as funções são as mesmas (components/logistica/pedidos-novo).
+  const novo = useEstadoSessao()?.novidades === true
   const [restauranteId, setRestauranteId] = useState<string | null>(null)
   // Onde a loja fica: o mapa do entregador abre nela (antes: Fortaleza fixo até a rota chegar).
   const [lojaMapa, setLojaMapa] = useState<LojaDoMapa>('carregando')
@@ -897,7 +901,8 @@ export default function PedidosFinalizadosPage() {
           </div>
         )}
 
-        {resumoVisivel && (
+        {resumoVisivel && novo && <ResumoNovo concluidos={concluidos} emRota={inRoute.length} comNexta={comNexta.length} drivers={drivers} />}
+        {resumoVisivel && !novo && (
           <div className="grid flex-shrink-0 grid-cols-1 gap-3 sm:grid-cols-3" data-testid="indicadores-pedidos">
             <CartaoNumero
               icone={ICONES.concluido}
@@ -972,7 +977,21 @@ export default function PedidosFinalizadosPage() {
         <DinheiroComMotoboys compacto />
         <div className="flex flex-col">
           {/* Entregadores */}
-          {tab === 'entregadores' && (
+          {tab === 'entregadores' && novo && (
+            <ListaEntregadoresNovo
+              drivers={drivers}
+              emRota={inRoute}
+              agora={Date.now()}
+              statusMudando={statusMudando}
+              onStatus={mudarStatus}
+              onPerfil={setProfileDriverId}
+              onLocalizacao={setLocationDriverId}
+              onAcesso={setLinkDriver}
+              onNovo={abrirNovoEntregador}
+              onFechamento={openClosing}
+            />
+          )}
+          {tab === 'entregadores' && !novo && (
           <section className="flex flex-col rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white">
             <CabecalhoSecao
               icone={<Users className="h-4 w-4" strokeWidth={2.2} />}
@@ -1027,7 +1046,7 @@ export default function PedidosFinalizadosPage() {
             {tab === 'pedidos' && (
             <div className="flex flex-col gap-4" data-testid="aba-pedidos">
             <div className="flex flex-col gap-4" data-testid="em-rota-agora">
-            {comNexta.length === 0 && inRoute.length === 0 && (
+            {!novo && comNexta.length === 0 && inRoute.length === 0 && (
               <div className="rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white">
                 <CabecalhoSecao icone={<Capacete className="h-4 w-4" strokeWidth={2.2} />} tom="roxo" titulo="Em rota agora" contador={0} descricao="Nenhum pedido na rua. Despache pelo Painel de Pedidos (botão Despachar ou no próprio card)." />
               </div>
@@ -1165,7 +1184,18 @@ export default function PedidosFinalizadosPage() {
               </div>
             )}
 
-            {inRoute.length > 0 && (
+            {novo && (
+              <EmRotaNovo
+                pedidos={inRoute}
+                drivers={drivers}
+                agora={Date.now()}
+                nexta={(id) => nextaPorPedido.get(id)}
+                onEntregue={deliver}
+                onNaoEntregue={naoEntregue}
+                onMapa={setLocationDriverId}
+              />
+            )}
+            {!novo && inRoute.length > 0 && (
             <div className="rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white">
               <CabecalhoSecao
                 fixo
@@ -1237,6 +1267,26 @@ export default function PedidosFinalizadosPage() {
             </div>
             )}
             </div>
+            {novo && (
+              <FinalizadosNovo
+                lista={lista}
+                filtrados={concluidosFiltrados}
+                carregando={carregandoLista}
+                semDatas={periodo === 'personalizado' && !intervalo}
+                detalheId={detalhe?.id ?? null}
+                onAbrir={(o) => setDetalhe(detalhe?.id === o.id ? null : o)}
+                nomeMotoboy={(o) => (o.entregadorId ? driverName(o.entregadorId) : o.entregadorNome ?? '—')}
+                filtros={{
+                  periodo, setPeriodo, rotulos: ROTULO_PERIODO,
+                  de: periodoDe, setDe: setPeriodoDe, ate: periodoAte, setAte: setPeriodoAte,
+                  busca: filtroBusca, setBusca: setFiltroBusca,
+                  status: filtroStatus, setStatus: setFiltroStatus,
+                  min: filtroValorMin, setMin: setFiltroValorMin, max: filtroValorMax, setMax: setFiltroValorMax,
+                  ativos: filtrosAtivos, limpar: limparFiltros,
+                }}
+              />
+            )}
+            {!novo && (
             <div className="flex flex-col rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white" data-testid="pedidos-finalizados">
               <CabecalhoSecao
                 icone={<ClipboardCheck className="h-4 w-4" strokeWidth={2.2} />}
@@ -1330,6 +1380,7 @@ export default function PedidosFinalizadosPage() {
                 })}
               </div>
             </div>
+            )}
             </div>
             )}
           </section>

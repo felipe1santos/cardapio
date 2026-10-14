@@ -140,6 +140,8 @@ export interface Entregador {
   desativado?: boolean
   /** 0136: tem login do app do motoboy. */
   temLogin?: boolean
+  /** Último sinal do app (heartbeat) — o "visto há X" da tela Pedidos. */
+  ultimoAcessoEm?: string | null
 }
 
 interface PedidoRow {
@@ -547,6 +549,7 @@ export async function listarEntregadores(supabase: SupabaseClient, restauranteId
     placa: d.placa ?? '',
     desativado: !!(d as { desativado_em?: string | null }).desativado_em,
     temLogin: !!(d as { usuario_id?: string | null }).usuario_id,
+    ultimoAcessoEm: d.ultimo_acesso_em ?? null,
   }))
 }
 
