@@ -194,7 +194,8 @@ const PEDIR_FORTE = [
   // "quero fazer um peiddo" (erro de digitação, teste do Felipe 12/10): "fazer um/uma" já diz que é pedido.
   'quero fazer um', 'quero fazer uma', 'queria fazer um', 'queria fazer uma', 'gostaria de fazer um', 'gostaria de fazer uma', 'vou fazer um pedido',
 ].map((e) => e.split(' '))
-const PEDIR_FRACO = ['quero', 'queria', 'vou querer', 'me ve', 'me manda', 'manda', 'gostaria de', 'gostaria', 'traz', 'me traz'].map((e) => e.split(' '))
+const PELA_CONVERSA = new Set(['aqui', 'whats', 'whatsapp', 'zap', 'zapzap', 'wpp', 'conversa'])
+const PEDIR_FRACO =['quero', 'queria', 'vou querer', 'me ve', 'me manda', 'manda', 'gostaria de', 'gostaria', 'traz', 'me traz'].map((e) => e.split(' '))
 const DEPOIS_DO_FRACO = new Set(['um', 'uma', 'uns', 'umas', 'dois', 'duas', 'tres', 'quatro', 'cinco', 'seis', 'meia', 'mais', 'o', 'a', 'os', 'as', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10'])
 const COISAS_DO_ROBO = new Set(['cardapio', 'menu', 'link', 'site', 'pix', 'chave', 'endereco', 'localizacao', 'horario', 'taxa', 'numero', 'telefone', 'contato', 'status', 'nome', 'senha', 'codigo'])
 
@@ -231,7 +232,8 @@ export function classificar(texto: string | null, extras?: PalavrasExtras): Clas
       if (assunto === 'status_pedido' && PEDIR_ANTES_DO_STATUS.some((e) => contem(palavras, e, tolerante))) return pedir(false)
       if (assunto === 'entrega') {
         if (PEDIR_SEM_LINK.some((e) => contem(palavras, e, tolerante))) return pedir(true)
-        if (PEDIR_FORTE.some((e) => contem(palavras, e, tolerante))) return pedir(false)
+        // "quero fazer um pedido POR AQUI / pelo whats" (14/10): já disse que é pela conversa — a IA atende, sem o link.
+        if (PEDIR_FORTE.some((e) => contem(palavras, e, tolerante))) return pedir(palavras.some((p) => PELA_CONVERSA.has(p)))
       }
       if (assunto === 'cardapio' && !tolerante && pedidoFraco(palavras)) return pedir(false)
       if (listaDo(assunto, extras).some((e) => contem(palavras, e, tolerante))) return r(assunto)

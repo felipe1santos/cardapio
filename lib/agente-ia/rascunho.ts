@@ -148,6 +148,11 @@ function regras(g: GrupoIa) {
   }
 }
 const itemDe = (c: CardapioIa, id: string) => c.itens.find((i) => i.id === id)
+/**
+ * Nomes dos grupos do item, sem repetir: o rascunho guarda as escolhas pelo NOME do grupo e o cadastro pode ter dois grupos
+ * com o mesmo nome (Mega Burguer da Menuzia: dois "ADICIONAIS GERAL", um vazio) — o bacon saía duas vezes (#410, 14/10).
+ */
+const gruposPorNome = (item: ItemIa) => [...new Set(item.grupos.map((g) => g.nome))]
 const opcoesEmLinhas = (ops: { nome: string; preco: number }[], comPreco: boolean) => ops.map((o) => linhaComplemento(o.nome, comPreco ? o.preco : 0)).join('\n')
 
 function textoObrigatorio(item: ItemIa, g: GrupoIa, min: number, max: number): string {
@@ -244,7 +249,7 @@ function adicionarItem(r: Rascunho, novo: { item: ItemIa; quantidade: number }, 
 }
 
 function linhaDoItem(l: LinhaRascunho, item: ItemIa): string {
-  const nomes = item.grupos.flatMap((g) => l.escolhas[g.nome] ?? [])
+  const nomes = gruposPorNome(item).flatMap((g) => l.escolhas[g] ?? [])
   return `*${l.quantidade > 1 ? `${l.quantidade}x ` : ''}${item.nome}*${nomes.length ? ` com ${nomes.map((n) => `\`${cap(n)}\``).join(' ')}` : ''}`
 }
 
@@ -300,7 +305,10 @@ export function valorParcial(r: Rascunho, cardapio: CardapioIa): number {
     const item = itemDe(cardapio, l.itemId)
     if (!item) continue
     let unit = l.tamanho ? (item.tamanhos.find((t) => norm(t.nome) === norm(l.tamanho!))?.preco ?? item.preco) : item.preco
-    for (const g of item.grupos) for (const n of l.escolhas[g.nome] ?? []) unit += g.opcoes.find((o) => norm(o.nome) === norm(n))?.preco ?? 0
+    for (const g of gruposPorNome(item)) {
+      const opcoes = item.grupos.filter((x) => x.nome === g).flatMap((x) => x.opcoes)
+      for (const n of l.escolhas[g] ?? []) unit += opcoes.find((o) => norm(o.nome) === norm(n))?.preco ?? 0
+    }
     total += unit * l.quantidade
   }
   return centavos(total)
@@ -354,7 +362,8 @@ function aplicarDireto(r: Rascunho, p: Pergunta, texto: string, cardapio: Cardap
   if (p.campo === 'grupo') {
     const l = r.itens[p.linha]
     const item = itemDe(cardapio, l.itemId)
-    const g = item?.grupos.find((x) => x.nome === p.grupo)
+    // Grupo com opções (o cadastro pode ter outro grupo vazio com o mesmo nome, 14/10).
+    const g = item?.grupos.find((x) => x.nome === p.grupo && regras(x).opcoes.length > 0)
     if (!item || !g) return null
     const { opcoes, min, max } = regras(g)
     const sel = interpretarEscolhas(texto, opcoes.map((o) => o.nome))
@@ -558,7 +567,7 @@ export function rascunhoParaCarrinho(r: Rascunho, cardapio: CardapioIa, loja: Op
   return {
     itens: r.itens.map((l) => {
       const item = itemDe(cardapio, l.itemId)
-      const complementos = item ? item.grupos.flatMap((g) => l.escolhas[g.nome] ?? []) : Object.values(l.escolhas).flat()
+      const complementos = item ? gruposPorNome(item).flatMap((g) => l.escolhas[g] ?? []) : Object.values(l.escolhas).flat()
       return {
         itemId: l.itemId, quantidade: l.quantidade, observacao: l.observacao ?? '', complementos,
         ...(l.tamanho ? { tamanho: l.tamanho } : {}), ...(l.sabores?.length ? { sabores: l.sabores } : {}), ...(l.borda ? { borda: l.borda } : {}), ...(l.massa ? { massa: l.massa } : {}),

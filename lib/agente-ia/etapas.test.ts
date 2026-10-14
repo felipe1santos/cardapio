@@ -4,7 +4,7 @@
  * endereço → pagamento → troco → resumo.
  */
 import { describe, expect, it } from 'vitest'
-import { interpretarEscolhas, itemDoTexto, montarOferta, novoRascunho, proximaPergunta, responderPeloRascunho, type Rascunho } from './rascunho'
+import { interpretarEscolhas, itemDoTexto, mesclarDoIa, montarOferta, novoRascunho, proximaPergunta, rascunhoParaCarrinho, responderPeloRascunho, valorParcial, type Rascunho } from './rascunho'
 import { modoIaAtivo, rotaDaMensagem } from './gatilho'
 import { emojiDoItem } from '@/lib/mensageria/formato'
 import type { CardapioIa, ItemIa } from './cardapio'
@@ -135,6 +135,23 @@ describe('etapas 3–5 — entrega, pagamento, troco, adiantar e trocar de ideia
   it('"fica quanto?" em qualquer etapa: valor parcial e continua de onde parou', () => {
     const r = responder(responder(comMega(), 'bacon').rascunho, 'fica quanto?')
     expect(r.mensagens).toEqual(['Até agora fica `R$ 26,00` (sem a taxa de entrega).\n\nVai querer mais alguma coisa ou é só isso?'])
+  })
+})
+
+describe('grupos com o mesmo nome (cadastro da Menuzia: dois "ADICIONAIS GERAL", um vazio) — teste real #410', () => {
+  const duplo: ItemIa = { ...mega, grupos: [{ nome: 'ADICIONAIS GERAL', obrigatorio: false, min: 0, max: 0, opcoes: [] }, { ...mega.grupos[0], nome: 'ADICIONAIS GERAL' }] }
+  const c2: CardapioIa = { ...cardapio, itens: [duplo, coca, guarana, batata] }
+  it('bacon escolhido uma vez entra UMA vez no carrinho e no valor', () => {
+    const r = responderPeloRascunho(comMega(), ['bacon'], c2, loja)!
+    const fim: Rascunho = { ...r.rascunho, soIsso: true, oferta: { tipo: 'bebida', ids: [], respondida: true }, tipo: 'retirada', pagamento: 'pix' }
+    expect(rascunhoParaCarrinho(fim, c2, loja, 'Felipe')!.itens[0].complementos).toEqual(['Bacon gratinado'])
+    expect(valorParcial(fim, c2)).toBe(26)
+    expect(r.mensagens[0]).toBe('Anotado ✍️:\n*Mega Burguer* com `Bacon gratinado`\n\nVai querer mais alguma coisa ou é só isso?')
+  })
+  it('a IA anotando pelo montar_pedido também não duplica', () => {
+    const m = mesclarDoIa(null, { itens: [{ item_id: mega.id, quantidade: 1, complementos: ['bacon gratinado'] }] }, c2, EM)
+    expect(m.ok && Object.values(m.rascunho.itens[0].escolhas).flat()).toEqual(['Bacon gratinado'])
+    expect(m.ok && rascunhoParaCarrinho({ ...m.rascunho, soIsso: true, tipo: 'retirada', pagamento: 'pix' }, c2, loja, 'F')!.itens[0].complementos).toEqual(['Bacon gratinado'])
   })
 })
 
