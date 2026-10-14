@@ -1,16 +1,20 @@
 /**
  * Agente de IA — pedido EM ANDAMENTO guardado pelo servidor (12/10/2026, teste do Felipe 19:36). Puro.
  *
- * O servidor pergunta o que falta, UMA coisa por mensagem e nesta ordem: complementos obrigatórios → extras pagos →
- * entrega ou retirada → endereço → pagamento → troco. Os textos das perguntas são do servidor (formato fixo, sem número
+ * O servidor pergunta o que falta, UMA coisa por mensagem e nesta ordem (14/10): por item, complementos obrigatórios →
+ * extras pagos → "mais alguma coisa ou é só isso?" (repete a cada item) → peça também (1x por pedido) → entrega ou
+ * retirada → endereço → pagamento → troco. Item pedido no meio ("quero uma coca também") entra em QUALQUER etapa e
+ * reabre o "é só isso?"; o que o cliente adianta (entrega, pix, troco) é aproveitado. Os textos das perguntas são do servidor (formato fixo, sem número
  * na frente). As respostas simples ("1 234", "1,2,3,4", "todos", nomes, "nenhuma", "retirada", "pix", "troco pra 50",
  * "fica quanto?") são entendidas AQUI, sem IA; mínimo/máximo de cada grupo é conferido aqui (a IA aceitava 3 num grupo de
  * mínimo 4). O que não for entendido (endereço, mudança, dúvida) vai para a IA, que anota pelo montar_pedido.
  */
-import { brl, emojiDoItem, linhaComplemento } from '@/lib/mensageria/formato'
+import { brl, emojiDoItem, linhaComplemento, linhaItem } from '@/lib/mensageria/formato'
 import { maximoDoGrupo, minimoDoGrupo } from '@/lib/opcoes-item'
 import type { FormaPagamento } from '@/lib/queries/pedidos'
-import type { CardapioIa, GrupoIa, ItemIa } from './cardapio'
+import { normalizarNomeItem, type CardapioIa, type GrupoIa, type ItemIa } from './cardapio'
+import { parecida } from './gatilho'
+import { tipoDoItem } from './peca-tambem'
 import type { Carrinho, EnderecoCarrinho } from './pedido'
 
 export const RASCUNHO_VALIDADE_MS = 2 * 3600_000
@@ -37,12 +41,18 @@ export interface Rascunho {
   pagamento?: FormaPagamento
   trocoPara?: number | null
   trocoRespondido?: boolean
+  /** Cliente disse "é só isso" (fim da etapa de itens). Item novo volta para false. */
+  soIsso?: boolean
+  /** "Peça também" deste pedido, oferecido UMA vez: os itens oferecidos e se o cliente já respondeu. */
+  oferta?: { tipo: 'bebida' | 'acompanhamento'; ids: string[]; respondida: boolean }
 }
+/** Dados do banco para escolher o "peça também" (vendas dos últimos 60 dias e order bumps cadastrados, em ordem). */
+export interface ExtrasEtapas { vendas?: Map<string, number>; bumps?: string[] }
 export interface OpcoesLoja { aceitaEntrega: boolean; aceitaRetirada: boolean; pix: boolean }
 
 export type Pergunta =
   | { campo: 'grupo'; linha: number; grupo: string; texto: string; textoEmSeguida: string }
-  | { campo: 'tipo' | 'endereco' | 'pagamento' | 'troco'; texto: string; textoEmSeguida: string }
+  | { campo: 'mais' | 'oferta' | 'tipo' | 'endereco' | 'pagamento' | 'troco'; texto: string; textoEmSeguida: string }
 
 export const novoRascunho = (em: string): Rascunho => ({ em, itens: [] })
 
@@ -87,7 +97,12 @@ export function interpretarEscolhas(texto: string, nomes: string[]): number[] | 
     if (/^\d+$/.test(tok)) {
       const nums = nomes.length < 10 ? [...tok].map(Number) : [Number(tok)]
       for (const n of nums) { if (n < 1 || n > nomes.length) return null; idx.add(n - 1) }
-    } else if (!ENCHIMENTO.has(tok)) return null
+    } else if (!ENCHIMENTO.has(tok) && !PALAVRAS_PEDIDO.has(tok)) {
+      // Uma palavra de UMA opção ("bacon" → "Bacon gratinado", "cheddar" → "Cheedar"), tolerante a 1 letra.
+      const donas = tok.length >= 4 ? ordem.filter(({ n }) => n.split(' ').some((w) => parecida(tok, w))) : []
+      if (donas.length !== 1) return null
+      idx.add(donas[0].i)
+    }
   }
   return idx.size ? [...idx].sort((a, b) => a - b) : null
 }
@@ -142,11 +157,90 @@ function textoObrigatorio(item: ItemIa, g: GrupoIa, min: number, max: number): s
   return `*${item.nome}* \`${brl(item.preco)}\`${e ? ` ${e}` : ''}\n${frase} (obrigatório):\n\n${opcoesEmLinhas(regras(g).opcoes, true)}\n\n_Pode responder com os nomes._`
 }
 
-function textoExtras(g: GrupoIa, max: number): string {
+/** Extras pagos em frase natural (14/10): o nome do grupo é interno da loja ("adicionais geral") e não aparece. */
+function textoExtras(item: ItemIa, g: GrupoIa, max: number): string {
   const ops = regras(g).opcoes
   const precos = new Set(ops.map((o) => o.preco))
   const comum = precos.size === 1 && ops[0].preco > 0 ? ops[0].preco : null
-  return `Quer adicionar ${g.nome.toLowerCase()}? (${comum ? `\`+${brl(comum)}\` cada, ` : ''}até ${max})\n\n${opcoesEmLinhas(ops, comum === null)}\n\n_Se não quiser, é só dizer "nenhuma"._`
+  return `Quer turbinar seu *${item.nome}*? Adicionais ${comum ? `\`+${brl(comum)}\` cada, ` : ''}até ${max}:\n\n${opcoesEmLinhas(ops, comum === null)}\n\n_Se não quiser, é só dizer "nenhuma"._`
+}
+
+/** "Peça também": bebida (obrigatória quando a loja tem e o pedido não) ou acompanhamentos. null = nada a oferecer. */
+function textoOferta(o: NonNullable<Rascunho['oferta']>, cardapio: CardapioIa): string | null {
+  const itens = o.ids.map((id) => itemDe(cardapio, id)).filter((i): i is ItemIa => !!i && i.situacao === 'disponivel')
+  if (!itens.length) return null
+  const linhas = itens.map((i) => linhaItem(1, i.nome, i.preco).replace('*1x ', '*')).join('\n')
+  return `${o.tipo === 'bebida' ? 'Vai querer uma bebida? 🥤' : 'Que tal acompanhar? 😋'}\n\n${linhas}\n\n_Se não quiser, é só dizer "não"._`
+}
+
+/**
+ * Escolhe o "peça também" quando o cliente diz "é só isso" (puro): loja com bebida e pedido sem bebida → até 4 bebidas
+ * (mais vendidas primeiro); senão até 2 acompanhamentos (order bump cadastrado primeiro, depois os mais vendidos).
+ * Nada para oferecer → já vem respondida.
+ */
+export function montarOferta(r: Rascunho, cardapio: CardapioIa, extras: ExtrasEtapas): NonNullable<Rascunho['oferta']> {
+  const noPedido = new Set(r.itens.map((l) => l.itemId))
+  const vendas = extras.vendas ?? new Map<string, number>()
+  const disp = cardapio.itens.filter((i) => i.situacao === 'disponivel' && i.preco > 0 && !noPedido.has(i.id))
+  const porVenda = (a: ItemIa, b: ItemIa) => (vendas.get(b.id) ?? 0) - (vendas.get(a.id) ?? 0) || a.posicao - b.posicao
+  const lojaTemBebida = cardapio.itens.some((i) => i.situacao === 'disponivel' && tipoDoItem(i) === 'bebida')
+  const pedidoTemBebida = r.itens.some((l) => { const i = itemDe(cardapio, l.itemId); return !!i && tipoDoItem(i) === 'bebida' })
+  if (lojaTemBebida && !pedidoTemBebida) {
+    const ids = disp.filter((i) => tipoDoItem(i) === 'bebida').sort(porVenda).slice(0, 4).map((i) => i.id)
+    if (ids.length) return { tipo: 'bebida', ids, respondida: false }
+  }
+  const cadastrados = (extras.bumps ?? []).map((id) => disp.find((i) => i.id === id)).filter((i): i is ItemIa => !!i && tipoDoItem(i) !== 'bebida')
+  const outros = disp.filter((i) => tipoDoItem(i) === 'acompanhamento' && !cadastrados.includes(i)).sort(porVenda)
+  const ids = [...cadastrados, ...outros].slice(0, 2).map((i) => i.id)
+  return { tipo: 'acompanhamento', ids, respondida: ids.length === 0 }
+}
+
+// ── Item citado no meio do pedido ─────────────────────────────────────────────────────────────────────────────────
+
+/** Palavras de pedido que não fazem parte do nome do item. */
+const PALAVRAS_PEDIDO = new Set(['quero', 'queria', 'manda', 'mande', 'coloca', 'coloque', 'adiciona', 'adicionar', 'add', 'acrescenta', 'bota', 'poe',
+  'tambem', 'tbm', 'tb', 'mais', 'e', 'me', 've', 'pode', 'por', 'favor', 'pfv', 'pf', 'ai', 'o', 'a', 'os', 'as', 'de', 'do', 'da', 'com', 'pra',
+  'para', 'mim', 'eu', 'vou', 'querer', 'tem', 'outro', 'outra', 'mesmo', 'ok', 'entao', 'agora', 'ainda'])
+const NUMERO_PALAVRA: Record<string, number> = { um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5 }
+/** Palavra que diz que o cliente está pedindo algo (fora das perguntas de item, o nome sozinho não basta). */
+const INTENCAO_ITEM = /\b(quero|queria|manda|mande|coloca|coloque|adiciona|adicionar|add|acrescenta|bota|tambem|tbm|tb|mais|vou querer)\b/
+
+/**
+ * Um item do cardápio citado na mensagem ("quero uma coca lata tbm", "2 batata"), com a quantidade. Só disponível; todas as
+ * palavras que sobram têm de estar no nome (1 letra de tolerância). Dois itens possíveis → null (a IA pergunta qual). Puro.
+ */
+export function itemDoTexto(texto: string, cardapio: CardapioIa): { item: ItemIa; quantidade: number } | null {
+  let quantidade = 1
+  const resto: string[] = []
+  for (const t of normalizarNomeItem(texto).split(' ').filter(Boolean)) {
+    if (!resto.length && /^\d{1,2}$/.test(t) && Number(t) > 0) { quantidade = Number(t); continue }
+    if (!resto.length && t in NUMERO_PALAVRA) { quantidade = NUMERO_PALAVRA[t]; continue }
+    if (PALAVRAS_PEDIDO.has(t) || ENCHIMENTO.has(t)) continue
+    resto.push(t)
+  }
+  if (!resto.length) return null
+  const bate = (t: string, w: string) => parecida(t, w) || (t.length >= 4 && w.startsWith(t))
+  const candidatos = cardapio.itens
+    .filter((i) => i.situacao === 'disponivel')
+    .map((i) => ({ i, w: normalizarNomeItem(i.nome).split(' ').filter(Boolean) }))
+    .filter(({ w }) => resto.every((t) => w.some((x) => bate(t, x))))
+  const inteiros = candidatos.filter(({ w }) => w.every((x) => resto.some((t) => bate(t, x))))
+  const lista = inteiros.length ? inteiros : candidatos
+  return lista.length === 1 ? { item: lista[0].i, quantidade: Math.min(quantidade, 50) } : null
+}
+
+/** Põe o item no pedido (mesmo item sem opções soma a quantidade) e reabre o "é só isso?". */
+function adicionarItem(r: Rascunho, novo: { item: ItemIa; quantidade: number }, cardapio: CardapioIa, loja: OpcoesLoja): Aplicado {
+  const semOpcoes = !novo.item.grupos.some((g) => regras(g).opcoes.length)
+  const igual = semOpcoes ? r.itens.find((l) => l.itemId === novo.item.id) : undefined
+  if (igual) igual.quantidade = Math.min(igual.quantidade + novo.quantidade, 50)
+  else r.itens.push({ itemId: novo.item.id, quantidade: novo.quantidade, escolhas: {}, respondidos: [] })
+  r.soIsso = false
+  const linha = igual ?? r.itens[r.itens.length - 1]
+  // Item com opções: a próxima pergunta já mostra o nome dele (não anota antes de escolher).
+  const p = proximaPergunta(r, cardapio, loja)
+  const anotado = p?.campo === 'grupo' && p.linha === r.itens.indexOf(linha) ? undefined : `Anotado ✍️:\n${linhaDoItem(linha, novo.item)}`
+  return { rascunho: r, anotado }
 }
 
 function linhaDoItem(l: LinhaRascunho, item: ItemIa): string {
@@ -154,6 +248,7 @@ function linhaDoItem(l: LinhaRascunho, item: ItemIa): string {
   return `*${l.quantidade > 1 ? `${l.quantidade}x ` : ''}${item.nome}*${nomes.length ? ` com ${nomes.map((n) => `\`${cap(n)}\``).join(' ')}` : ''}`
 }
 
+const TEXTO_MAIS = 'Vai querer mais alguma coisa ou é só isso?'
 const TEXTO_TIPO = 'Beleza!\nVai ser `Entrega` ou `Retirada no balcão`?'
 const TEXTO_TIPO_EM_SEGUIDA = 'Agora, vai ser `Entrega` ou `Retirada no balcão`?'
 const TEXTO_ENDERECO = 'Me passa o endereço de entrega: rua, número e bairro 📍'
@@ -183,10 +278,13 @@ export function proximaPergunta(r: Rascunho, cardapio: CardapioIa, loja: OpcoesL
         const { opcoes, min, max } = regras(g)
         if (!opcoes.length || max < 1) continue
         if (!extras && min > 0) { const t = textoObrigatorio(item, g, min, max); return { campo: 'grupo', linha: i, grupo: g.nome, texto: t, textoEmSeguida: t } }
-        if (extras && min === 0 && opcoes.some((o) => o.preco > 0)) { const t = textoExtras(g, max); return { campo: 'grupo', linha: i, grupo: g.nome, texto: t, textoEmSeguida: t } }
+        if (extras && min === 0 && opcoes.some((o) => o.preco > 0)) { const t = textoExtras(item, g, max); return { campo: 'grupo', linha: i, grupo: g.nome, texto: t, textoEmSeguida: t } }
       }
     }
   }
+  if (!r.soIsso) return { campo: 'mais', texto: TEXTO_MAIS, textoEmSeguida: TEXTO_MAIS }
+  const oferta = r.oferta && !r.oferta.respondida ? textoOferta(r.oferta, cardapio) : null
+  if (oferta) return { campo: 'oferta', texto: oferta, textoEmSeguida: oferta }
   const tipo = tipoEfetivo(r, loja)
   if (!tipo) return { campo: 'tipo', texto: TEXTO_TIPO, textoEmSeguida: TEXTO_TIPO_EM_SEGUIDA }
   if (tipo === 'entrega' && !enderecoOk(r.endereco)) return { campo: 'endereco', texto: TEXTO_ENDERECO, textoEmSeguida: TEXTO_ENDERECO }
@@ -210,8 +308,49 @@ export function valorParcial(r: Rascunho, cardapio: CardapioIa): number {
 
 interface Aplicado { rascunho: Rascunho; anotado?: string; aviso?: string }
 
-function aplicarResposta(r0: Rascunho, p: Pergunta, texto: string, cardapio: CardapioIa, loja: OpcoesLoja): Aplicado | null {
+const SO_ISSO = /\b(so isso|e so|mais nada|nada mais|pode fechar|fecha o pedido|fechar o pedido|finaliza\w*|so esse|so essa|e isso ai|so isso mesmo)\b|^(nao|n|nada|isso|so|nao obrigad[oa]|ta bom|tudo certo|isso mesmo|e isso|nao quero mais|nao valeu)$/
+const QUER_MAIS = /^(sim|s|quero|quero sim|quero mais|mais|vou querer|claro|tem mais|mais coisa|quero outra coisa)$/
+const SIM = /^(sim|s|quero|quero sim|pode ser|pode|claro|bora|manda|ok|beleza|blz|aceito|uhum)\b/
+
+function aplicarResposta(r0: Rascunho, p: Pergunta, texto: string, cardapio: CardapioIa, loja: OpcoesLoja, extras: ExtrasEtapas): Aplicado | null {
   const r: Rascunho = structuredClone(r0)
+  const n = norm(texto)
+  if (p.campo === 'mais') {
+    if (SO_ISSO.test(n)) {
+      r.soIsso = true
+      if (!r.oferta) r.oferta = montarOferta(r, cardapio, extras)
+      return { rascunho: r }
+    }
+    const novo = itemDoTexto(texto, cardapio)
+    if (novo) return adicionarItem(r, novo, cardapio, loja)
+    if (QUER_MAIS.test(n)) return { rascunho: r, aviso: 'Pode falar o que mais você quer 😊' }
+    return null
+  }
+  if (p.campo === 'oferta' && r.oferta) {
+    const oferecidos = r.oferta.ids.map((id) => itemDe(cardapio, id)).filter((i): i is ItemIa => !!i)
+    let sel = interpretarEscolhas(texto, oferecidos.map((i) => i.nome))
+    if (sel === 'nenhum' || (sel === null && SO_ISSO.test(n))) { r.oferta.respondida = true; return { rascunho: r } }
+    if (sel === null && oferecidos.length === 1 && SIM.test(n)) sel = [0]
+    if (sel) {
+      r.oferta.respondida = true
+      let ultimo: Aplicado = { rascunho: r }
+      for (const i of sel) ultimo = adicionarItem(ultimo.rascunho, { item: oferecidos[i], quantidade: 1 }, cardapio, loja)
+      return ultimo
+    }
+    const novo = itemDoTexto(texto, cardapio)
+    if (novo) { r.oferta.respondida = true; return adicionarItem(r, novo, cardapio, loja) }
+    if (SIM.test(n)) return { rascunho: r, aviso: 'Qual delas? 😊' }
+    return null
+  }
+  const direto = aplicarDireto(r, p, texto, cardapio, loja)
+  if (direto) return direto
+  // Pediu mais um item no meio de outra pergunta ("quero uma coca lata tbm" na hora da entrega): entra no pedido.
+  const novo = INTENCAO_ITEM.test(n) ? itemDoTexto(texto, cardapio) : null
+  return novo ? adicionarItem(r, novo, cardapio, loja) : null
+}
+
+/** Resposta da pergunta atual (opções do item, entrega, pagamento, troco). Muda `r`. */
+function aplicarDireto(r: Rascunho, p: Pergunta, texto: string, cardapio: CardapioIa, loja: OpcoesLoja): Aplicado | null {
   if (p.campo === 'grupo') {
     const l = r.itens[p.linha]
     const item = itemDe(cardapio, l.itemId)
@@ -251,22 +390,60 @@ function aplicarResposta(r0: Rascunho, p: Pergunta, texto: string, cardapio: Car
 }
 
 /**
+ * O cliente adiantou o que ainda não foi perguntado ("é só isso, vou retirar e pago no pix", "dinheiro, troco pra 50"):
+ * entrega/retirada, forma de pagamento e troco que ainda faltam. Muda `r`.
+ */
+function adiantar(r: Rascunho, texto: string, loja: OpcoesLoja) {
+  if (!r.tipo) { const t = tipoDoTexto(texto); if (t && (t === 'entrega' ? loja.aceitaEntrega : loja.aceitaRetirada)) r.tipo = t }
+  if (!r.pagamento) { const f = pagamentoDoTexto(texto, loja.pix); if (f) r.pagamento = f }
+  if (r.pagamento === 'dinheiro' && !r.trocoRespondido && /\btroco\b/.test(norm(texto))) {
+    const t = trocoDoTexto(texto)
+    if (t) { r.trocoPara = t.trocoPara; r.trocoRespondido = true }
+  }
+}
+
+/**
+ * Pedido já completo (resumo mostrado) e o cliente muda de ideia: outra forma de pagamento ("prefiro dinheiro, troco pra
+ * 50"), entrega × retirada ou mais um item. null = não é mudança (vai para a IA, ou para o "sim" do resumo).
+ */
+function mudarDepoisDeCompleto(r0: Rascunho, texto: string, cardapio: CardapioIa, loja: OpcoesLoja): Aplicado | null {
+  const r: Rascunho = structuredClone(r0)
+  const n = norm(texto)
+  const f = pagamentoDoTexto(texto, loja.pix)
+  const t = tipoDoTexto(texto)
+  let mudou = false
+  if (f && f !== r.pagamento) {
+    r.pagamento = f
+    r.trocoPara = null
+    r.trocoRespondido = false
+    if (f === 'dinheiro' && /\btroco\b/.test(n)) { const x = trocoDoTexto(texto); if (x) { r.trocoPara = x.trocoPara; r.trocoRespondido = true } }
+    mudou = true
+  }
+  if (t && t !== tipoEfetivo(r, loja) && (t === 'entrega' ? loja.aceitaEntrega : loja.aceitaRetirada)) { r.tipo = t; mudou = true }
+  if (mudou) return { rascunho: r }
+  const novo = INTENCAO_ITEM.test(n) ? itemDoTexto(texto, cardapio) : null
+  return novo ? adicionarItem(r, novo, cardapio, loja) : null
+}
+
+/**
  * Respostas do cliente desde a última mensagem da loja (várias mensagens seguidas = uma resposta só). null = algo não foi
  * entendido: a IA responde (com o pedido em andamento no contexto).
  */
-export function responderPeloRascunho(r: Rascunho, textos: string[], cardapio: CardapioIa, loja: OpcoesLoja): { rascunho: Rascunho; mensagens: string[]; completo: boolean } | null {
+export function responderPeloRascunho(
+  r: Rascunho, textos: string[], cardapio: CardapioIa, loja: OpcoesLoja, extras: ExtrasEtapas = {},
+): { rascunho: Rascunho; mensagens: string[]; completo: boolean } | null {
   let atual = r
   let pergunta = proximaPergunta(atual, cardapio, loja)
-  if (!pergunta) return null
   let anotado: string | undefined
   let aviso: string | undefined
   let valor = false
   let entendeu = false
   for (const t of textos.map((x) => (x ?? '').trim()).filter(Boolean)) {
     if (perguntaValor(t)) { valor = true; entendeu = true; continue }
-    if (!pergunta) return null
-    const a = aplicarResposta(atual, pergunta, t, cardapio, loja)
+    const a = pergunta ? aplicarResposta(atual, pergunta, t, cardapio, loja, extras) : mudarDepoisDeCompleto(atual, t, cardapio, loja)
     if (!a) return null
+    // Só depois do item terminado: "bacon e entrega" na pergunta dos extras não vira tipo por engano.
+    if (pergunta && pergunta.campo !== 'grupo') adiantar(a.rascunho, t, loja)
     entendeu = true
     atual = a.rascunho
     if (a.anotado) { anotado = a.anotado; aviso = undefined }
@@ -353,6 +530,8 @@ export function mesclarDoIa(r: Rascunho | null, bruto: unknown, cardapio: Cardap
       const massa = txt(i.massa, 80); if (massa) linha.massa = massa
       novas.push(linha)
     }
+    // Item novo pela IA reabre o "mais alguma coisa ou é só isso?".
+    if (novas.some((l) => !base.itens.some((x) => x.itemId === l.itemId)) || novas.length > base.itens.length) base.soIsso = false
     base.itens = novas
   }
   if (b.tipo === 'entrega' || b.tipo === 'retirada') base.tipo = b.tipo

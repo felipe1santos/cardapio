@@ -40,9 +40,29 @@ const EMOJIS: [RegExp, string][] = [
 
 const normalizar = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 
+/**
+ * Palavras para o emoji com erro de digitação do cadastro (14/10: "Cheedar", "Catupiri", "bacom"). Comparação palavra a
+ * palavra, até 1 letra de diferença (2 em palavras de 7+ letras), só para palavras de 5+ letras.
+ */
+const EMOJIS_APROXIMADOS: [string, string][] = [
+  ['cheddar', '🧀'], ['catupiry', '🧀'], ['catupiri', '🧀'], ['requeijao', '🧀'], ['mussarela', '🧀'], ['queijo', '🧀'],
+  ['picles', '🥒'], ['pepino', '🥒'], ['bacon', '🥓'], ['cebola', '🧅'], ['tomate', '🍅'], ['alface', '🥬'], ['frango', '🍗'],
+  ['calabresa', '🍖'], ['batata', '🍟'], ['banana', '🍌'], ['morango', '🍓'], ['chocolate', '🍫'], ['nutella', '🍫'],
+]
+
+function distancia(a: string, b: string): number {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)])
+  for (let j = 1; j <= b.length; j++) d[0][j] = j
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1))
+  return d[a.length][b.length]
+}
+
 export function emojiDoItem(nome: string): string | null {
   const n = normalizar(nome ?? '')
   for (const [re, e] of EMOJIS) if (re.test(n)) return e
+  for (const w of n.split(/[^a-z]+/).filter((x) => x.length >= 5)) {
+    for (const [alvo, e] of EMOJIS_APROXIMADOS) if (distancia(w, alvo) <= (alvo.length >= 7 ? 2 : 1)) return e
+  }
   return null
 }
 

@@ -11,7 +11,7 @@ const ACOMPANHAMENTO = /acompanh|porc|petisc|batata|frit|entrada/i
 const BEBIDA = /bebida|refri|drink|suco|cerveja|agua/i
 const semAcento = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '')
 
-function tipoDoItem(i: ItemIa): 'acompanhamento' | 'bebida' | null {
+export function tipoDoItem(i: ItemIa): 'acompanhamento' | 'bebida' | null {
   const cat = semAcento(i.categoria ?? '')
   if (BEBIDA.test(cat)) return 'bebida'
   if (ACOMPANHAMENTO.test(cat)) return 'acompanhamento'
@@ -41,6 +41,15 @@ export async function vendasPorItem(admin: SupabaseClient, restauranteId: string
   const m = new Map<string, number>()
   for (const r of (data ?? []) as { item_id: string | null; quantidade: number }[]) if (r.item_id) m.set(r.item_id, (m.get(r.item_id) ?? 0) + Number(r.quantidade))
   return m
+}
+
+/** O que o servidor usa para escolher o "peça também" (14/10): vendas de 60 dias e os order bumps ativos, em ordem. */
+export async function extrasDaOferta(admin: SupabaseClient, restauranteId: string): Promise<{ vendas: Map<string, number>; bumps: string[] }> {
+  const [vendas, { data }] = await Promise.all([
+    vendasPorItem(admin, restauranteId).catch(() => new Map<string, number>()),
+    admin.from('order_bumps').select('item_id').eq('restaurante_id', restauranteId).eq('ativo', true).order('posicao', { ascending: true }),
+  ])
+  return { vendas, bumps: ((data ?? []) as { item_id: string }[]).map((b) => b.item_id) }
 }
 
 /** Já ofereceu neste pedido? Vale a oferta feita depois do último pedido criado na conversa e há menos de 3 h. */

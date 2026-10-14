@@ -21,7 +21,7 @@ import { carregarCardapioIa } from '@/lib/agente-ia/cardapio'
 import { categoriasDoCardapio, escolherOpcao, itemEscolhidoNaLista, linkJaEnviado, pedeOpcoes, respondeuSimAoPedido, textoCategorias, textoItensDaCategoria } from './categorias'
 import {
   agenteLigadoNaLoja, atenderComIa, estadoIaDaConversa, historicoDaConversa, iaEsgotadaNaConversa, registrarFalhaIa, registrarRespostaIa,
-  textoLimiteIa, ultimaDoClienteAntes, TEXTO_AUDIO_IA, type ConfigIa,
+  textoLimiteIa, ultimaDoClienteAntes, TEXTO_AUDIO_IA, TEXTO_IA_FALHOU, type ConfigIa,
 } from '@/lib/agente-ia/atender'
 
 export interface ConfigAuto {
@@ -278,9 +278,16 @@ export async function processarMensagemAuto(
   const estadoValido = !!estado.autoEstadoEm && agora.getTime() - Date.parse(estado.autoEstadoEm) < ESTADO_VALIDADE_MS
   const escolhendoItem = estadoValido && !!estado.autoEstado?.startsWith('escolher_item:')
 
+  // Modo IA (pedido em andamento ou conversa com a IA): TODA mensagem é da IA; o robô só age em atendente explícito e
+  // SAIR (rotaDaMensagem). Lido antes do cardápio por categorias, que também é do robô (14/10, teste 19:42).
+  const ctxIa = iaLigada
+    ? await Promise.all([historicoDaConversa(admin, restauranteId, e.conversa_id), estadoIaDaConversa(admin, e.conversa_id), carregarCardapioIa(admin, restauranteId, agora)])
+    : null
+  const emModoIa = !!ctxIa && modoIaAtivo(ctxIa[1], ultimaDoClienteAntes(ctxIa[0], e.mensagem_id ?? ''), agora)
+
   // ── Cardápio pelo robô, SEM IA (12/10): "o que tem?" → categorias numeradas → itens da categoria. Escolheu o item: a IA
   // monta o pedido (abaixo); sem IA, o pedido é pelo link. Tudo do cardápio da loja, só itens disponíveis.
-  if (m.tipo === 'texto') {
+  if (m.tipo === 'texto' && !emModoIa) {
     const texto = m.texto ?? ''
     const escolhendoCategoria = estadoValido && estado.autoEstado === 'escolher_categoria'
     if (pedeOpcoes(texto) || escolhendoCategoria) {
@@ -303,18 +310,13 @@ export async function processarMensagemAuto(
   // conversa, com foto, ou com a conversa em "modo IA". Falhou → o robô padrão responde (nunca sem resposta).
   let iaFalhou = false
   let classif = classificacao
-  if (iaLigada) {
-    const [hist0, estIa, cardapio] = await Promise.all([
-      historicoDaConversa(admin, restauranteId, e.conversa_id),
-      estadoIaDaConversa(admin, e.conversa_id),
-      carregarCardapioIa(admin, restauranteId, agora),
-    ])
+  if (ctxIa) {
+    const [hist0, estIa, cardapio] = ctxIa
     let hist = hist0
     const antes = ultimaDoClienteAntes(hist, e.mensagem_id ?? '')
-    const emModoIa = modoIaAtivo(estIa, antes, agora)
-    // "sim" ao "Quer fazer um pedido?" (12/10): o robô manda o link (1ª vez), não a IA.
+    // "sim" ao "Quer fazer um pedido?" (12/10): o robô manda o link (1ª vez), não a IA. Em modo IA, nunca.
     const ultimaDaLoja = [...hist].reverse().find((h) => h.direcao === 'loja')?.texto ?? null
-    const simAoPedido = m.tipo === 'texto' && respondeuSimAoPedido(m.texto ?? '', ultimaDaLoja) && estado.autoEstado !== 'pedir_link'
+    const simAoPedido = !emModoIa && m.tipo === 'texto' && respondeuSimAoPedido(m.texto ?? '', ultimaDaLoja) && estado.autoEstado !== 'pedir_link'
     if (simAoPedido) classif = { ...classificacao, intencao: 'pedir', assunto: 'outro' }
     const rota = simAoPedido ? 'robo' : escolhendoItem ? 'ia' : iaEsgotadaNaConversa(estIa, antes, agora)
       ? 'robo'
@@ -366,6 +368,11 @@ export async function processarMensagemAuto(
       }
       iaFalhou = true
       await registrarFalhaIa(admin, { restauranteId, conversaId: e.conversa_id, motivo: r.motivo, custoMicroUsd: r.custoMicroUsd })
+      // Em modo IA o robô não assume (era ele que mandava "Nosso pedido é feito online" no meio do pedido).
+      if (emModoIa) {
+        await fila(TEXTO_IA_FALHOU, 0, 'ia')
+        return { respostas, motivo: 'ia_falhou_em_modo_ia' }
+      }
     }
   }
 

@@ -15,7 +15,8 @@ import { carregarCardapioIa, resumoDoCardapio } from './cardapio'
 import { blocosDoSistema, mensagensDoHistorico, MAX_HISTORICO, type MensagemHistorico } from './prompt'
 import { conversarComIa } from './agente'
 import { conversaIa, executarFerramenta, fecharMontagem, FERRAMENTAS, opcoesDaLoja, type EfeitosFerramentas } from './ferramentas'
-import { descreverRascunho, itemListadoPelaIa, mesclarDoIa, proximaPergunta, rascunhoParaCarrinho, rascunhoValido, responderPeloRascunho } from './rascunho'
+import { descreverRascunho, itemListadoPelaIa, mesclarDoIa, proximaPergunta, rascunhoParaCarrinho, rascunhoValido, responderPeloRascunho, type Rascunho } from './rascunho'
+import { extrasDaOferta } from './peca-tambem'
 import { confirmouPedido, criarPedidoDaConversa } from './pedido'
 import { MAX_RESPOSTAS_IA, MODO_IA_SEM_MENSAGEM_MS, pedidoFinalizado } from './gatilho'
 import { limparTom } from './tom'
@@ -29,7 +30,7 @@ export async function agenteLigadoNaLoja(admin: SupabaseClient, restauranteId: s
   return moduloLiberado(admin, restauranteId, 'agente_ia').catch(() => false)
 }
 
-export interface EstadoConversaIa { iaDesde: string | null; iaRespostas: number; iaPedidoEm?: string | null; iaPedidoFinalizado?: boolean }
+export interface EstadoConversaIa { iaDesde: string | null; iaRespostas: number; iaPedidoEm?: string | null; iaPedidoFinalizado?: boolean; pedidoEmAndamento?: boolean }
 export interface LinhaHistorico extends MensagemHistorico { id: string; criadoEm: string }
 
 /** Últimas mensagens da conversa (mais antiga primeiro), a atual incluída. */
@@ -47,15 +48,16 @@ export async function historicoDaConversa(admin: SupabaseClient, restauranteId: 
 }
 
 export async function estadoIaDaConversa(admin: SupabaseClient, conversaId: string): Promise<EstadoConversaIa> {
-  const { data } = await admin.from('whatsapp_conversas').select('ia_desde, ia_respostas, ia_pedido_em, ia_pedido_id').eq('id', conversaId).maybeSingle()
-  const d = (data ?? {}) as { ia_desde?: string | null; ia_respostas?: number | null; ia_pedido_em?: string | null; ia_pedido_id?: string | null }
+  const { data } = await admin.from('whatsapp_conversas').select('ia_desde, ia_respostas, ia_pedido_em, ia_pedido_id, ia_rascunho').eq('id', conversaId).maybeSingle()
+  const d = (data ?? {}) as { ia_desde?: string | null; ia_respostas?: number | null; ia_pedido_em?: string | null; ia_pedido_id?: string | null; ia_rascunho?: Rascunho | null }
+  const pedidoEmAndamento = rascunhoValido(d.ia_rascunho, Date.now(), d.ia_pedido_em ?? null)
   // Pedido da IA entregue/cancelado: os 30 min pós-pedido acabam antes (12/10).
   let iaPedidoFinalizado = false
   if (d.ia_pedido_id && d.ia_pedido_em) {
     const { data: p } = await admin.from('pedidos').select('status, cancelado_motivo').eq('id', d.ia_pedido_id).maybeSingle()
     iaPedidoFinalizado = !!p && pedidoFinalizado(p as { status: string; cancelado_motivo: string | null })
   }
-  return { iaDesde: d.ia_desde ?? null, iaRespostas: Number(d.ia_respostas) || 0, iaPedidoEm: d.ia_pedido_em ?? null, iaPedidoFinalizado }
+  return { iaDesde: d.ia_desde ?? null, iaRespostas: Number(d.ia_respostas) || 0, iaPedidoEm: d.ia_pedido_em ?? null, iaPedidoFinalizado, pedidoEmAndamento }
 }
 
 /** Mensagens do cliente desde a última da loja (várias seguidas = uma resposta só). Puro. */
@@ -164,7 +166,9 @@ export async function atenderComIa(admin: SupabaseClient, e: EntradaAtender): Pr
   // Pedido em andamento (12/10, teste 19:36): respostas simples ("1 234", "nenhuma", "retirada", "pix", "fica quanto?") o
   // SERVIDOR entende e responde, sem IA; confere mínimo/máximo e pergunta o que falta, uma coisa por mensagem.
   if (e.tipo === 'texto' && rascunho) {
-    const r = responderPeloRascunho(rascunho, textosDoClienteDesdeALoja(e.historico), cardapio, lojaOp)
+    // "É só isso" é quando o servidor escolhe o "peça também": só então lê vendas e order bumps.
+    const extras = proximaPergunta(rascunho, cardapio, lojaOp)?.campo === 'mais' ? await extrasDaOferta(admin, e.restauranteId).catch(() => ({})) : {}
+    const r = responderPeloRascunho(rascunho, textosDoClienteDesdeALoja(e.historico), cardapio, lojaOp, extras)
     const nome = (e.nomeWhatsapp ?? '').trim().slice(0, 80)
     const carrinho = r?.completo ? rascunhoParaCarrinho(r.rascunho, cardapio, lojaOp, nome) : null
     if (r && (!r.completo || carrinho?.nomeCliente)) {
@@ -185,7 +189,13 @@ export async function atenderComIa(admin: SupabaseClient, e: EntradaAtender): Pr
     executar: (nome, input) => executarFerramenta(ctx, efeitos, nome, input),
     chamarModelo: (pedido, timeoutMs) => chamarClaude(admin, { loja: e.restauranteId, conversa: e.conversaId, tetoLojaUsd: teto }, pedido, { timeoutMs }),
   })
-  if (!r.ok) return { ok: false, motivo: r.motivo, custoMicroUsd: r.custoMicroUsd }
+  // IA falhou com pedido em andamento (14/10, teste 19:42: "resposta_vazia" e o robô mandou o link): o servidor repete a
+  // pergunta pendente. O pedido continua aqui, nunca vira o link.
+  const repetirPergunta = (motivo: string, custo: number): ResultadoAtender => {
+    const p = rascunho ? proximaPergunta(rascunho, cardapio, lojaOp) : null
+    return p ? { ok: true, mensagens: [textoNaoEntendiNoPedido(p.texto)], efeitos, custoMicroUsd: custo, chamadas: 0, ferramentas: [`repetiu a pergunta (ia: ${motivo})`] } : { ok: false, motivo, custoMicroUsd: custo }
+  }
+  if (!r.ok) return repetirPergunta(r.motivo, r.custoMicroUsd)
 
   // A IA listou os adicionais ela mesma em vez de anotar (teste real 12/10): o servidor anota o item e faz a pergunta.
   const listado = !efeitos.pedido && !efeitos.resumo && !efeitos.pergunta && !efeitos.mensagens?.length ? itemListadoPelaIa(r.texto, cardapio) : null
@@ -201,7 +211,7 @@ export async function atenderComIa(admin: SupabaseClient, e: EntradaAtender): Pr
 
   // Mensagens ao cliente: o que é dinheiro (resumo, confirmação, Pix) é texto do SERVIDOR, não da IA.
   const mensagens = efeitos.pedido ? await mensagensDoPedidoCriado(admin, e, efeitos.pedido) : mensagensDaResposta(efeitos, r.texto)
-  if (!mensagens.length) return { ok: false, motivo: 'resposta_vazia', custoMicroUsd: r.custoMicroUsd }
+  if (!mensagens.length) return repetirPergunta('resposta_vazia', r.custoMicroUsd)
   return { ok: true, mensagens, efeitos, custoMicroUsd: r.custoMicroUsd, chamadas: r.chamadas, ferramentas: r.ferramentas }
 }
 
@@ -293,7 +303,15 @@ export function textoLimiteIa(loja: DadosLojaAuto): string {
   return `*🍽️ Para continuar*, faça seu pedido pelo cardápio: ${loja.link}\n\n> Se precisar, digite *0* para falar com um atendente.`
 }
 
-export const TEXTO_AUDIO_IA = 'Ainda não consigo ouvir áudio, pode me escrever? 🙏'
+/** O servidor não entendeu e a IA não respondeu, no meio do pedido: repete a pergunta pendente. */
+export function textoNaoEntendiNoPedido(pergunta: string): string {
+  return `Não entendi bem 🤔\n\n${pergunta}`
+}
+
+/** Modo IA sem pedido em andamento e a IA falhou: o robô NÃO assume (nada de link no meio da conversa). */
+export const TEXTO_IA_FALHOU = 'Desculpe, não consegui entender 🤔 Pode me dizer de outro jeito?'
+
+export const TEXTO_AUDIO_IA ='Ainda não consigo ouvir áudio, pode me escrever? 🙏'
 
 /** Confirmação da IA quando o aviso automático "Pedido recebido" não sai (padrão de 12/10). */
 export function textoPedidoAnotado(numero: number, total: number): string {

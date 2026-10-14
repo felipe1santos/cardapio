@@ -103,7 +103,7 @@ describe('prompt: regras fixas e histórico', () => {
     expect(REGRAS_AGENTE).toMatch(/frases curtas, com quebra de linha/)
     expect(REGRAS_AGENTE).toMatch(/UMA pergunta por mensagem — nunca duas/)
     // 12/10 (teste 19:36): o sistema faz as perguntas do pedido, nesta ordem; link com o texto do dono.
-    expect(REGRAS_AGENTE).toMatch(/complementos obrigatórios → extras pagos → entrega ou retirada → endereço → pagamento → troco/)
+    expect(REGRAS_AGENTE).toContain('complementos obrigatórios → extras pagos → "mais alguma coisa ou é só isso?" (a cada item) → peça também (bebida ou acompanhamento, uma vez) → entrega ou retirada → endereço (e mostra taxa e tempo) → pagamento → troco → resumo')
     expect(REGRAS_AGENTE).toMatch(/Claro! Aqui está o link do cardápio, com fotos 👇\n\{link\}\n\nPode escolher por lá e, se preferir continuar aqui, é só me falar o que quer 😊/)
     expect(REGRAS_AGENTE).toMatch(/sem dar exemplos de pedido/)
     expect(REGRAS_AGENTE).toMatch(/Se ele JÁ disse o item .* não pergunte de novo/)

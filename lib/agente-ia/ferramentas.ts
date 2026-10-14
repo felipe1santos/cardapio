@@ -7,10 +7,10 @@ import { resolverFrete } from '@/lib/frete'
 import { brl, type DadosLojaAuto } from '@/lib/robo-auto/respostas'
 import { pedidoPorNumero, pedidosAbertosDoTelefone } from '@/lib/robo-auto/motor'
 import { buscarNoCardapio, familiaDaBusca, sugerirParecidos, type CardapioIa } from './cardapio'
-import { bumpJaOferecido, sugestoesPecaTambem, textoPecaTambem, vendasPorItem } from './peca-tambem'
+import { extrasDaOferta } from './peca-tambem'
 import { ACOES_POS_PEDIDO, alterarPedidoFeito } from './pos-pedido'
 import { calcularPedido, criarPedidoDaConversa, type Carrinho, type ContextoPedido } from './pedido'
-import { mesclarDoIa, proximaPergunta, rascunhoParaCarrinho, rascunhoValido, valorParcial, type OpcoesLoja, type Rascunho } from './rascunho'
+import { mesclarDoIa, montarOferta, proximaPergunta, rascunhoParaCarrinho, rascunhoValido, tipoEfetivo, valorParcial, type OpcoesLoja, type Rascunho } from './rascunho'
 
 export const MAX_FERRAMENTAS_POR_RESPOSTA = 4
 
@@ -64,6 +64,7 @@ export const FERRAMENTAS: FerramentaClaude[] = [
         pagamento: { type: 'string', enum: ['pix', 'dinheiro', 'cartao'] },
         troco_para: { type: 'number', description: 'Só para dinheiro: troco para quanto' },
         sem_troco: { type: 'boolean', description: 'Dinheiro sem precisar de troco' },
+        so_isso: { type: 'boolean', description: 'O cliente disse que não quer mais nenhum item ("é só isso")' },
         nome_cliente: { type: 'string' },
       },
       required: [],
@@ -184,14 +185,21 @@ export async function executarFerramenta(ctx: ContextoFerramentas, efeitos: Efei
       }
       case 'montar_pedido': {
         const conv = await conversaIa(ctx)
-        const m = mesclarDoIa(rascunhoValido(conv?.ia_rascunho, Date.now(), conv?.ia_pedido_em ?? null) ? conv!.ia_rascunho : null, input, ctx.cardapio, new Date().toISOString())
+        const anterior = rascunhoValido(conv?.ia_rascunho, Date.now(), conv?.ia_pedido_em ?? null) ? conv!.ia_rascunho! : null
+        const m = mesclarDoIa(anterior, input, ctx.cardapio, new Date().toISOString())
         if (!m.ok) return { conteudo: m.erro, erro: true }
         if (!m.rascunho.itens.length) return { conteudo: 'O pedido está sem itens: mande itens com o item_id de consultar_cardapio.', erro: true }
-        await ctx.admin.from('whatsapp_conversas').update({ ia_rascunho: m.rascunho }).eq('id', ctx.conversaId).eq('restaurante_id', ctx.restauranteId)
         const loja = opcoesDaLoja(ctx.loja)
+        if (input.so_isso === true && !m.rascunho.itens.some((l) => !anterior?.itens.some((x) => x.itemId === l.itemId))) {
+          m.rascunho.soIsso = true
+          if (!m.rascunho.oferta) m.rascunho.oferta = montarOferta(m.rascunho, ctx.cardapio, await extrasDaOferta(ctx.admin, ctx.restauranteId).catch(() => ({})))
+        }
+        // Endereço novo de entrega: taxa e tempo na hora (mesma regra do checkout; cache por endereço). Fora da área: pede outro.
+        const freteAviso = input.endereco && m.rascunho.endereco && tipoEfetivo(m.rascunho, loja) === 'entrega' ? await avisoDeFrete(ctx, m.rascunho) : null
+        await ctx.admin.from('whatsapp_conversas').update({ ia_rascunho: m.rascunho }).eq('id', ctx.conversaId).eq('restaurante_id', ctx.restauranteId)
         const p = proximaPergunta(m.rascunho, ctx.cardapio, loja)
         if (p) {
-          efeitos.pergunta = p.texto
+          efeitos.pergunta = freteAviso ? `${freteAviso}\n\n${p.texto}` : p.texto
           return { conteudo: json({ ok: true, valor_ate_agora: brl(valorParcial(m.rascunho, ctx.cardapio)), aviso: 'O SISTEMA já mandou ao cliente a próxima pergunta (uma só, com as opções). NÃO pergunte nada e não liste opções; no máximo uma frase curta sem pergunta.' }) }
         }
         const nome = (typeof input.nome_cliente === 'string' ? input.nome_cliente.trim().slice(0, 80) : '') || (ctx.nomeWhatsapp ?? '').trim().slice(0, 80)
@@ -225,7 +233,23 @@ export async function executarFerramenta(ctx: ContextoFerramentas, efeitos: Efei
   }
 }
 
-export const opcoesDaLoja = (l: DadosLojaAuto): OpcoesLoja => ({ aceitaEntrega: l.aceitaEntrega, aceitaRetirada: l.aceitaRetirada, pix: !!(l.pixChave || l.pixOnline) })
+/**
+ * Taxa e tempo do endereço que o cliente acabou de passar ("Entrega no *Centro*: taxa `R$ 3,00` · 40 min"). Fora da área:
+ * tira o endereço do pedido (a próxima pergunta volta a ser o endereço) e diz por quê. Muda `r`.
+ */
+async function avisoDeFrete(ctx: ContextoFerramentas, r: Rascunho): Promise<string | null> {
+  const e = r.endereco!
+  const f = await resolverFrete(ctx.admin, ctx.restauranteId, { rua: e.rua, numero: e.numero, bairro: e.bairro, cep: e.cep }).catch(() => null)
+  if (!f) return null
+  if (!f.entregavel) {
+    r.endereco = null
+    return `Esse endereço fica fora da nossa área de entrega 😕${f.motivo ? `\n> ${f.motivo}` : ''}`
+  }
+  const tempo = ctx.loja.tempoEntrega ? ` · ${ctx.loja.tempoEntrega}` : ''
+  return `Entrega no *${e.bairro}*: taxa \`${f.taxa > 0 ? brl(f.taxa) : 'grátis'}\`${tempo} 🛵`
+}
+
+export const opcoesDaLoja =(l: DadosLojaAuto): OpcoesLoja => ({ aceitaEntrega: l.aceitaEntrega, aceitaRetirada: l.aceitaRetirada, pix: !!(l.pixChave || l.pixOnline) })
 
 type ConversaIa = { ia_rascunho?: Rascunho | null; ia_carrinho?: { hash?: string; carrinho?: unknown } | null; ia_resumo_em?: string | null; ia_bump_em?: string | null; ia_pedido_em?: string | null } | null
 
@@ -242,18 +266,7 @@ export async function fecharMontagem(ctx: ContextoFerramentas, efeitos: EfeitosF
   if (salvo?.ia_resumo_em && salvo.ia_carrinho?.hash === resumo.hash) {
     return { conteudo: json({ ok: true, total: brl(resumo.total), aviso: 'Este é o mesmo pedido do resumo que o cliente já recebeu. Se ele confirmou, chame criar_pedido agora; senão, só pergunte se pode confirmar.' }) }
   }
-  // "Peça também" (12/10): UMA vez por pedido, antes do resumo, até 2 sugestões escolhidas pelo servidor.
-  if (!bumpJaOferecido(salvo, Date.now())) {
-    await ctx.admin.from('whatsapp_conversas').update({ ia_bump_em: new Date().toISOString() }).eq('id', ctx.conversaId).eq('restaurante_id', ctx.restauranteId)
-    const sugestoes = sugestoesPecaTambem(ctx.cardapio.itens, carrinho.itens.map((i) => i.itemId), await vendasPorItem(ctx.admin, ctx.restauranteId).catch(() => new Map()))
-    if (sugestoes.length) {
-      efeitos.mensagens = [...(efeitos.mensagens ?? []), textoPecaTambem(sugestoes)]
-      return { conteudo: json({
-        ok: true, peca_tambem: sugestoes.map((s) => ({ item_id: s.id, nome: s.nome, preco: brl(s.preco) })),
-        aviso: 'O SISTEMA ofereceu estas sugestões ao cliente ANTES do resumo. Não escreva nada agora; espere a resposta. Aceitou: chame montar_pedido com a lista completa de itens (com o novo). Recusou: chame montar_pedido sem nada novo.',
-      }) }
-    }
-  }
+  // "Peça também" (14/10): agora é uma etapa do pedido em andamento (rascunho.oferta), antes de entrega/retirada.
   await ctx.admin.from('whatsapp_conversas')
     .update({ ia_carrinho: { carrinho, hash: resumo.hash }, ia_resumo_em: new Date().toISOString() })
     .eq('id', ctx.conversaId).eq('restaurante_id', ctx.restauranteId)

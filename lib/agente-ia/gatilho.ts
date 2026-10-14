@@ -63,9 +63,14 @@ export function pedidoFinalizado(p: { status: string; cancelado_motivo: string |
 }
 
 /** A conversa continua em modo IA? (entrou, não passou de 30 min sem o cliente falar e não estourou 25 respostas) */
-export function modoIaAtivo(c: { iaDesde: string | null; iaRespostas: number; iaPedidoEm?: string | null; iaPedidoFinalizado?: boolean }, ultimaDoClienteAntes: string | null, agora: Date): boolean {
+export function modoIaAtivo(
+  c: { iaDesde: string | null; iaRespostas: number; iaPedidoEm?: string | null; iaPedidoFinalizado?: boolean; pedidoEmAndamento?: boolean },
+  ultimaDoClienteAntes: string | null, agora: Date,
+): boolean {
   if (c.iaPedidoEm && !c.iaPedidoFinalizado && agora.getTime() - Date.parse(c.iaPedidoEm) < POS_PEDIDO_MS) return true
   if (!c.iaDesde || c.iaRespostas >= MAX_RESPOSTAS_IA) return false
+  // Pedido em andamento (rascunho válido, até 2 h): quem pediu pelo WhatsApp termina pelo WhatsApp (14/10).
+  if (c.pedidoEmAndamento) return true
   const ref = ultimaDoClienteAntes && Date.parse(ultimaDoClienteAntes) > Date.parse(c.iaDesde) ? ultimaDoClienteAntes : c.iaDesde
   return agora.getTime() - Date.parse(ref) < MODO_IA_SEM_MENSAGEM_MS
 }
@@ -79,7 +84,8 @@ export function nomesDoCardapio(itens: { id: string; nome: string }[]): NomeItem
     .filter((i) => i.palavras.length > 1 || (i.palavras[0]?.length ?? 0) >= 4)
 }
 
-function parecida(a: string, b: string): boolean {
+/** Mesma palavra com até 1 letra trocada, a mais ou a menos (palavras de 5+ letras). */
+export function parecida(a: string, b: string): boolean {
   if (a === b) return true
   if (b.length < 5 || Math.abs(a.length - b.length) > 1) return false
   let dif = 0

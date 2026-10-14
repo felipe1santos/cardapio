@@ -48,7 +48,7 @@ describe('uma pergunta por mensagem, na ordem: obrigatórios → extras → entr
   it('"1 234" aceita os 4, anota e manda os extras em OUTRA mensagem', () => {
     const r = responderPeloRascunho(comAcai(), ['1 234'], cardapio, loja)!
     expect(r.mensagens[0]).toBe('Anotado ✍️:\n*Açaí grandão* com `Banana` `Leite em po` `Leite ninho` `Sucrilhos`')
-    expect(r.mensagens[1]).toBe('Quer adicionar frutas? (`+R$ 2,00` cada, até 3)\n\n🍌 Banana\n🍎 Maca\n🍐 Pera\n🍇 Uva\n🍋 Limao\nPaimito\n\n_Se não quiser, é só dizer "nenhuma"._')
+    expect(r.mensagens[1]).toBe('Quer turbinar seu *Açaí grandão*? Adicionais `+R$ 2,00` cada, até 3:\n\n🍌 Banana\n🍎 Maca\n🍐 Pera\n🍇 Uva\n🍋 Limao\nPaimito\n\n_Se não quiser, é só dizer "nenhuma"._')
     expect(r.completo).toBe(false)
   })
   it('só 3 num grupo de mínimo 4: o servidor recusa e pede o que falta; depois completa', () => {
@@ -65,7 +65,7 @@ describe('uma pergunta por mensagem, na ordem: obrigatórios → extras → entr
   it('"nenhuma" nos extras + "fica quanto" (duas mensagens): UMA resposta com anotado, valor parcial e a próxima pergunta', () => {
     const passo1 = responderPeloRascunho(comAcai(), ['1 234'], cardapio, loja)!
     const r = responderPeloRascunho(passo1.rascunho, ['Nenhum fruta extra...', 'Fica quanto'], cardapio, loja)!
-    expect(r.mensagens).toEqual(['Anotado ✍️:\n*Açaí grandão* com `Banana` `Leite em po` `Leite ninho` `Sucrilhos`\n\nAté agora fica `R$ 32,00` (sem a taxa de entrega).\n\nAgora, vai ser `Entrega` ou `Retirada no balcão`?'])
+    expect(r.mensagens).toEqual(['Anotado ✍️:\n*Açaí grandão* com `Banana` `Leite em po` `Leite ninho` `Sucrilhos`\n\nAté agora fica `R$ 32,00` (sem a taxa de entrega).\n\nVai querer mais alguma coisa ou é só isso?'])
   })
   it('só "fica quanto?": valor parcial e repete a pergunta', () => {
     const r = responderPeloRascunho(comAcai(), ['fica quanto?'], cardapio, loja)!
@@ -73,7 +73,7 @@ describe('uma pergunta por mensagem, na ordem: obrigatórios → extras → entr
     expect(r.mensagens[1]).toContain('Escolha 4 opções de adicionais')
   })
   it('entrega → endereço (IA) ; retirada → pagamento em lista ; dinheiro → troco ; completo', () => {
-    const base: Rascunho = { ...comAcai(), itens: [{ itemId: acai.id, quantidade: 1, escolhas: { adicionais: ['banana', 'leite em po', 'leite ninho', 'sucrilhos'] }, respondidos: ['adicionais', 'Frutas'] }] }
+    const base: Rascunho = { ...comAcai(), soIsso: true, oferta: { tipo: 'bebida', ids: [], respondida: true }, itens: [{ itemId: acai.id, quantidade: 1, escolhas: { adicionais: ['banana', 'leite em po', 'leite ninho', 'sucrilhos'] }, respondidos: ['adicionais', 'Frutas'] }] }
     expect(proximaPergunta(base, cardapio, loja)!.texto).toBe('Beleza!\nVai ser `Entrega` ou `Retirada no balcão`?')
     const ent = responderPeloRascunho(base, ['entrega'], cardapio, loja)!
     expect(ent.mensagens).toEqual(['Me passa o endereço de entrega: rua, número e bairro 📍'])
@@ -90,7 +90,7 @@ describe('uma pergunta por mensagem, na ordem: obrigatórios → extras → entr
     expect(pix.mensagens).toEqual([])
   })
   it('"prefiro pagar na entrega" não é uma forma clara: vai para a IA', () => {
-    const r: Rascunho = { ...comAcai(), tipo: 'retirada', itens: [{ itemId: acai.id, quantidade: 1, escolhas: { adicionais: ['banana', 'leite em po', 'leite ninho', 'sucrilhos'] }, respondidos: ['adicionais', 'Frutas'] }] }
+    const r: Rascunho = { ...comAcai(), soIsso: true, tipo: 'retirada', itens: [{ itemId: acai.id, quantidade: 1, escolhas: { adicionais: ['banana', 'leite em po', 'leite ninho', 'sucrilhos'] }, respondidos: ['adicionais', 'Frutas'] }] }
     expect(responderPeloRascunho(r, ['prefiro pagar na entrega'], cardapio, loja)).toBeNull()
   })
 })
