@@ -320,8 +320,8 @@ export function PainelPedidoV3({
         )}
       </div>
 
-      {/* Rodapé fixo. lg: espaço à direita para o botão do atendimento e embaixo para o "Despachar" flutuante. */}
-      <footer className="flex-shrink-0 space-y-[8px] border-t border-[#E5E7EB] bg-white p-[12px] lg:pb-[76px] lg:pr-[82px]">
+      {/* Rodapé fixo, botão principal na largura toda. lg: espaço embaixo para o "Despachar" flutuante (canto inferior direito). */}
+      <footer className="flex-shrink-0 space-y-[8px] border-t border-[#E5E7EB] bg-white p-[12px] lg:pb-[76px]">
         {acao && principalConteudo && (acao === 'despachar' && renderDespachar
           ? renderDespachar({ className: principalClasse, children: principalConteudo })
           : <button type="button" onClick={onAcao} className={principalClasse} data-testid="painel-acao" data-acao={acao}>{principalConteudo}</button>)}

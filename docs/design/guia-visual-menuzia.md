@@ -80,3 +80,22 @@ vermelho. 12px/600, sem caixa alta, `whitespace-nowrap` (nunca botão em 2 linha
 - Sem rolagem horizontal a 390px.
 - Novidade visual entra atrás de "Novidades em teste" (`useEstadoSessao()?.novidades`) e as funções chegam por props
   — a tela antiga continua igual para as outras lojas.
+
+## 6. Tokens da central do WhatsApp (Kanban v3, 15/10/2026)
+
+Extraídos de `components/atendimento/central.tsx` e guardados em `components/ui/tokens-central.ts` (classes prontas +
+`COR` em hex). Base do Kanban v3 (`components/pedidos/card-pedido-v3.tsx` e `painel-pedido-v3.tsx`).
+
+| Token | Valor | Origem na central |
+|---|---|---|
+| Fonte | Mulish (`var(--font-painel)`), a do painel — a central não define outra | herdada |
+| Selo verde (`SELO_VERDE`) | fundo #ECFDF5, texto #047857, pílula, 11,5px/600, px 8 / py 2 | "Robô ativo" |
+| Selo azul (`SELO_AZUL`) | fundo #DBEAFE, texto #1D4ED8 | "Em atendimento" |
+| Selo âmbar / vermelho / cinza | #FEF3C7/#92400E · #FEF2F2/#B91C1C · #F3F4F6/#4B5563 | "Aguardando atendente", aviso de erro, "Robô" |
+| Botão primário (`BOTAO_VERDE`) | #047857 (hover #065F46), cantos 8px, 12,5px/600 | "Resolvido" |
+| Botão azul / contorno | #0688D4 (hover #0570AE) · branco com borda #D1D5DB | "Assumir" · "Encerrar" |
+| Destaque novo (`DESTAQUE_NOVO`) | fundo #FEF3C7 (forte #FDE68A), borda #FCD34D, faixa à esquerda #F59E0B | conversa pedindo atendente |
+| Atraso (`ATRASO`) | texto #B91C1C sobre #FEF2F2 | faixa de erro |
+| Raios | 8px botão/campo, 10px cartão/balão, 12px janela; pílula em selo | janela, balões, botões |
+
+No Kanban v3 o card e o painel usam negrito (700/800) por pedido do modelo — exceção anotada em `lib/peso-fonte.test.ts`.
