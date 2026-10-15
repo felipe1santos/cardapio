@@ -17,6 +17,7 @@ import { caminhoPermitidoCompleto, normalizarAcessos, type Acessos } from '@/lib
 import { useAvisarPedido, useNotificacoesPedidos } from '@/components/admin/notificacoes-pedidos'
 import { FichaDaLoja } from '@/components/admin/ficha-loja'
 import { IndicadorSalvar } from '@/components/admin/indicador-salvar'
+import { BarraCarregamento } from '@/components/admin/barra-carregamento'
 import { AprovacaoGlobal } from '@/components/admin/aprovacao-global'
 import { AvisoNovaImpressao } from '@/components/admin/aviso-nova-impressao'
 import { AlertasImpressao } from '@/components/admin/alertas-impressao'
@@ -383,6 +384,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {restauranteId && papel && pode(papel, 'whatsapp.atender') && !focusMode && !/^\/admin\/(pdv|mesas)(\/|$)/.test(pathname) && <LancadorAtendimento restauranteId={restauranteId} />}
       </div>
       </div>
+      {/* Barra azul no topo enquanto a tela carrega (no lugar do "Carregando…" no meio). */}
+      <BarraCarregamento />
       {/* "Salvando… / Salvo" no centro da tela para toda gravação feita pelo usuário. */}
       <IndicadorSalvar />
       {/* PIN de outra pessoa quando o servidor pede (estorno, cancelamento depois da cozinha). Depois do indicador: embrulha o fetch dele. */}
@@ -408,6 +411,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           onResolver={(href) => {
             dispensarAlerta()
             router.push(href)
+            // Já na mesma tela (ex.: em Ajustes indo para outra seção), a página não remonta: ela ouve este aviso.
+            window.dispatchEvent(new CustomEvent('menuzia:ir-para', { detail: href }))
           }}
         />
       )}

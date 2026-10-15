@@ -38,6 +38,7 @@ import { MenuAcoesCelular } from '@/components/ui/menu-acoes-celular'
 import { AvisoCaixa } from '@/components/financeiro/aviso-caixa'
 import { useEstadoSessao } from '@/lib/sessao-cliente'
 import { itensNaOrdemDoCardapio } from '@/lib/ordem-cardapio'
+import { CarregandoPagina } from '@/components/admin/barra-carregamento'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -917,12 +918,7 @@ export default function PdvPage() {
 
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center bg-page">
-        <div className="text-center">
-          <div className="mx-auto mb-3 h-7 w-7 animate-spin rounded-full border-[3px] border-border border-t-primary" />
-          <p className="text-[13px] text-text-subtle">Carregando PDV…</p>
-        </div>
-      </div>
+      <CarregandoPagina className="h-full bg-page" />
     )
   }
 

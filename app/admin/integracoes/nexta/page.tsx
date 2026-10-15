@@ -11,6 +11,7 @@ import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { motivoRejeicaoTexto, nextaEntregaAtiva, nextaEventoTexto, nextaEventoTom } from '@/lib/nexta-eventos'
 import { listarNextaEntregasDetalhadas, type NextaConfigPublica, type NextaEntregaDetalhada } from '@/lib/queries/nexta'
 import { formatarReal } from '@/lib/moeda'
+import { CarregandoPagina } from '@/components/admin/barra-carregamento'
 
 // Mesma string de NEXTA_BASE_URL em lib/nexta.ts (server-only, não importável no client).
 // É fixa para todas as lojas e não editável — mostrada só para conferência.
@@ -379,7 +380,7 @@ export default function IntegracaoNextaPage() {
     return (
       <>
         <TopBar title="Integrações" breadcrumb="Integrações › Nexta Delivery" />
-        <div className="flex flex-1 items-center justify-center p-5 text-sm text-text-subtle">Carregando integração…</div>
+        <CarregandoPagina />
       </>
     )
   }

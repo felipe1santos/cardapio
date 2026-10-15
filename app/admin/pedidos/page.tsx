@@ -76,6 +76,7 @@ import { CartaoNumero } from '@/components/admin/cartao-numero'
 import { ICONES } from '@/lib/icones-painel'
 import { pedidoLiberado, textoAgendado } from '@/lib/agendamento'
 import { avisoSemMotoboy } from '@/lib/motoboy/aviso'
+import { CarregandoPagina } from '@/components/admin/barra-carregamento'
 
 function inicioDoDiaISO() {
   const d = new Date()
@@ -963,7 +964,7 @@ export default function PedidosPage() {
     return (
       <>
         {topBar}
-        <div className="flex flex-1 items-center justify-center p-5 text-sm text-text-subtle">Carregando pedidos…</div>
+        <CarregandoPagina />
       </>
     )
   }

@@ -74,6 +74,7 @@ import { ToggleSwitch } from '@/components/admin/campos-ajustes'
 import { resumoAgenda } from '@/lib/promocao-agenda'
 import { FotosDoItem } from '@/components/admin/cardapio/fotos-item'
 import { juntarFotos, separarFotos } from '@/lib/fotos-item'
+import { CarregandoPagina } from '@/components/admin/barra-carregamento'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -1591,7 +1592,7 @@ export default function CardapioPage() {
     return (
       <>
         <TopBar title="Gestor de Cardápio" breadcrumb="Cardápio" />
-        <div className="flex flex-1 items-center justify-center p-5 text-sm text-text-subtle">Carregando cardápio…</div>
+        <CarregandoPagina />
       </>
     )
   }

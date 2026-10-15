@@ -89,7 +89,7 @@ export function AgendamentoAjustes({ restauranteId }: { restauranteId: string })
 
   return (
     // Card no kit dos Ajustes (2026-10-06): ícone, título 16/600 e frase de ajuda.
-    <section className="fin-card min-w-0 xl:col-span-2" data-testid="ajustes-agendamento">
+    <section className="fin-card min-w-0" data-testid="ajustes-agendamento">
       <div className="flex items-start gap-3 border-b border-[#E4E7EA] px-5 py-4">
         <span aria-hidden className="mt-[1px] flex h-[34px] w-[34px] flex-shrink-0 items-center justify-center rounded-[8px] bg-[#E1EDF7] text-[#0868A6]">
           <CalendarClock className="h-[18px] w-[18px]" />

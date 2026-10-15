@@ -45,6 +45,7 @@ import { solicitarReimpressao } from '@/lib/queries/impressao'
 import { useCoordenadasPedidos } from '@/lib/mapa/cliente'
 import { useEstadoSessao } from '@/lib/sessao-cliente'
 import { EmRotaNovo, FinalizadosNovo, ListaEntregadoresNovo, ResumoNovo } from '@/components/logistica/pedidos-novo'
+import { CarregandoPagina } from '@/components/admin/barra-carregamento'
 
 type Tab = 'pedidos' | 'entregadores'
 type Periodo = 'hoje' | 'ontem' | '7dias' | 'personalizado'
@@ -867,7 +868,7 @@ export default function PedidosFinalizadosPage() {
     return (
       <>
         <TopBar title="Pedidos" breadcrumb="Pedidos finalizados e entregadores" />
-        <div className="flex flex-1 items-center justify-center p-5 text-sm text-text-subtle">Carregando pedidos…</div>
+        <CarregandoPagina />
       </>
     )
   }

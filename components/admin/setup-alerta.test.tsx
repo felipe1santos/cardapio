@@ -32,8 +32,8 @@ describe('SetupAlerta', () => {
     render(<SetupAlerta pendencias={[critica, atencao]} onDispensar={vi.fn()} onResolver={vi.fn()} />)
     expect(screen.getByText('Nenhum item disponível no cardápio')).toBeInTheDocument()
     expect(screen.getByText('Loja sem logotipo')).toBeInTheDocument()
-    expect(screen.getByText('Crítico')).toBeInTheDocument()
-    expect(screen.getByText('Atenção')).toBeInTheDocument()
+    expect(screen.getByText('Impede pedidos')).toBeInTheDocument()
+    expect(screen.getByText('Para melhorar')).toBeInTheDocument()
   })
 
   it('avisa que o pedido pode travar quando há pendência crítica', () => {
@@ -44,7 +44,7 @@ describe('SetupAlerta', () => {
   it('muda o tom quando só há avisos', () => {
     render(<SetupAlerta pendencias={[atencao]} onDispensar={vi.fn()} onResolver={vi.fn()} />)
     expect(screen.getByText(/mais completa/i)).toBeInTheDocument()
-    expect(screen.queryByText('Crítico')).not.toBeInTheDocument()
+    expect(screen.queryByText('Impede pedidos')).not.toBeInTheDocument()
   })
 
   it('"OK, entendi" dispensa o modal', async () => {
@@ -61,10 +61,10 @@ describe('SetupAlerta', () => {
     expect(onResolver).toHaveBeenCalledWith('/admin/cardapio')
   })
 
-  it('cada pendência tem seu próprio atalho para a seção que a resolve', async () => {
+  it('cada pendência leva à seção exata que a resolve (aba e seção)', async () => {
     const onResolver = vi.fn()
     render(<SetupAlerta pendencias={[critica, atencao]} onDispensar={vi.fn()} onResolver={onResolver} />)
-    await userEvent.click(screen.getAllByTestId('pendencia-resolver').find((b) => /Ajustes/.test(b.textContent ?? ''))!)
-    expect(onResolver).toHaveBeenCalledWith('/admin/ajustes')
+    await userEvent.click(screen.getAllByTestId('pendencia-resolver').find((b) => /Ajustes › Logo/.test(b.textContent ?? ''))!)
+    expect(onResolver).toHaveBeenCalledWith('/admin/ajustes?secao=logo')
   })
 })

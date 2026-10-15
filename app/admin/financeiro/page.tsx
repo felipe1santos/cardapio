@@ -18,6 +18,7 @@ import { SecaoRegras } from '@/components/financeiro/regras'
 import { PassoPin } from '@/components/financeiro/passo-pin'
 import { ControleCaixa } from '@/components/financeiro/controle-caixa'
 import { Card, FIN_BTN, FIN_COR, SeloMeta } from '@/components/graficos/kit-meta'
+import { CarregandoPagina } from '@/components/admin/barra-carregamento'
 
 /**
  * Financeiro (0132). Só existe com o módulo ligado na loja (o servidor responde 404 sem a flag).
@@ -102,7 +103,7 @@ export default function FinanceiroPage() {
       {erro ? (
         <div className="fin-meta fin-fundo flex-1 p-5"><p className="text-[14px]" style={{ color: FIN_COR.texto2 }} data-testid="fin-erro">{erro}</p></div>
       ) : !acoes ? (
-        <div className="fin-meta fin-fundo flex-1 p-5"><p className="text-[14px]" style={{ color: FIN_COR.texto2 }}>Carregando…</p></div>
+        <CarregandoPagina className="fin-meta fin-fundo" />
       ) : (
         <div className="fin-meta flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row" data-financeiro-raiz>
           <SubmenuVertical itens={itens} ativo={secao} onSelecionar={setSecao} titulo="Seções do financeiro" />

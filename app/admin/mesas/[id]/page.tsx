@@ -44,6 +44,7 @@ import { BotaoTelaCheia } from '@/components/ui/tela-cheia'
 import { MenuAcoesCelular } from '@/components/ui/menu-acoes-celular'
 import { TelaPdv, saindoDaPilha } from '@/components/pdv/tela-pdv'
 import { itensNaOrdemDoCardapio } from '@/lib/ordem-cardapio'
+import { CarregandoPagina } from '@/components/admin/barra-carregamento'
 
 /**
  * Painel do garçom para uma mesa.
@@ -497,7 +498,7 @@ export default function MesaDetalhePage() {
     return (
       <>
         <TopBar title="Mesa" breadcrumb="Mesas e Comandas" />
-        <div className="p-5 text-[13px] text-text-subtle">Carregando…</div>
+        <CarregandoPagina />
       </>
     )
   }

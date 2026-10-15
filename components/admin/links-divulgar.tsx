@@ -7,7 +7,8 @@
  */
 import { useEffect, useMemo, useState } from 'react'
 import QRCode from 'qrcode'
-import { Check, Copy, Download } from 'lucide-react'
+import { Check, Copy, Download, Link2 } from 'lucide-react'
+import { ModalCentral } from '@/components/ui/flutuante'
 import { linksParaDivulgar, PASSOS_GOOGLE, type LinkDivulgar } from '@/lib/links-divulgar'
 
 const GRUPOS: { canal: LinkDivulgar['canal']; titulo: string }[] = [
@@ -36,6 +37,34 @@ function LinhaLink({ l }: { l: LinkDivulgar }) {
   )
 }
 
+/**
+ * O que fica no Perfil da loja (15/10): só o resumo e um botão. A lista inteira (que esticava o
+ * card por mais de 1500 px) abre numa janela.
+ */
+export function CartaoLinksDivulgar({ baseCardapio, slug }: { baseCardapio: string; slug: string }) {
+  const [aberto, setAberto] = useState(false)
+  const total = useMemo(() => linksParaDivulgar(baseCardapio).length, [baseCardapio])
+  return (
+    <>
+      <div className="flex flex-wrap gap-1.5" aria-hidden>
+        {GRUPOS.map((g) => (
+          <span key={g.canal} className="rounded-full bg-[#F3F4F6] px-2.5 py-1 text-[11.5px] font-medium text-[#4B5563]">
+            {g.titulo.replace(/ \(.*\)$/, '')}
+          </span>
+        ))}
+      </div>
+      <button type="button" onClick={() => setAberto(true)} data-testid="abrir-links-divulgar"
+        className="inline-flex h-[36px] w-full items-center justify-center gap-2 rounded-[6px] border border-[#0688D4] bg-white px-3 text-[12.5px] font-semibold text-[#0688D4] hover:bg-[#F0F8FD]">
+        <Link2 className="h-4 w-4" /> Ver os {total} links
+      </button>
+      <ModalCentral aberto={aberto} onFechar={() => setAberto(false)} titulo="Links para divulgar" largura={640} testid="modal-links-divulgar"
+        subtitulo="Um link para cada canal. Pedido que chegar por eles aparece com a origem certa no card e no Dashboard.">
+        <LinksParaDivulgar baseCardapio={baseCardapio} slug={slug} />
+      </ModalCentral>
+    </>
+  )
+}
+
 export function LinksParaDivulgar({ baseCardapio, slug }: { baseCardapio: string; slug: string }) {
   const links = useMemo(() => linksParaDivulgar(baseCardapio), [baseCardapio])
   const panfleto = links.find((l) => l.canal === 'qrcode')!
@@ -57,7 +86,7 @@ export function LinksParaDivulgar({ baseCardapio, slug }: { baseCardapio: string
   }
 
   return (
-    <div className="space-y-4" data-testid="links-divulgar">
+    <div className="space-y-4 p-4 sm:p-5" data-testid="links-divulgar">
       {GRUPOS.map((g) => (
         <div key={g.canal} className="space-y-2">
           <p className="text-[12px] font-semibold uppercase tracking-wide text-[#6B7280]">{g.titulo}</p>

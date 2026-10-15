@@ -680,6 +680,14 @@ html:has(.vitrine-sem-zoom) {
 .animate-indicador-check {
   animation: indicador-check 320ms ease-out 60ms both;
 }
+/* Seção de Ajustes aberta por um aviso da loja: contorno azul que some devagar. */
+@keyframes secao-destaque {
+  0%, 45% { box-shadow: 0 0 0 3px rgba(6, 136, 212, 0.55); }
+  100% { box-shadow: 0 0 0 3px rgba(6, 136, 212, 0); }
+}
+.secao-destaque {
+  animation: secao-destaque 2s ease-out both;
+}
 @media (prefers-reduced-motion: reduce) {
   .animate-indicador-entrada,
   .animate-indicador-check {

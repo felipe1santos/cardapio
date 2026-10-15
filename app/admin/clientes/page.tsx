@@ -14,6 +14,7 @@ import {
 import { MenuCsv } from '@/components/admin/clientes/menu-csv'
 import { PilhaToasts, useToasts } from '@/components/admin/toasts'
 import { normalizarAcessos, podeClientesCsv } from '@/lib/acessos'
+import { CarregandoPagina } from '@/components/admin/barra-carregamento'
 
 const DIAS_SEMANA = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
 
@@ -116,7 +117,7 @@ export default function ClientesPage() {
     return (
       <>
         <TopBar title="Base de Clientes" breadcrumb="Clientes" />
-        <div className="flex flex-1 items-center justify-center p-5 text-sm text-text-subtle">Carregando clientes…</div>
+        <CarregandoPagina />
       </>
     )
   }
