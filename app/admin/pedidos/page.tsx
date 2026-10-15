@@ -42,9 +42,8 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { RotaPanel } from '@/components/pedidos/rota-panel'
 import { DespacharNoCard } from '@/components/pedidos/despachar-card'
-import { CardPedidoV3 } from '@/components/pedidos/card-pedido-v3'
-import { PainelPedidoV3 } from '@/components/pedidos/painel-pedido-v3'
-import { acaoV3, type AcaoV3 } from '@/lib/kanban-v3'
+import { CardPedidoKanban } from '@/components/pedidos/card-pedido-kanban'
+import { acaoDoCard } from '@/lib/kanban-card'
 import { useEstadoSessao } from '@/lib/sessao-cliente'
 import { CancelarPedidoModal } from '@/components/pedidos/cancelar-modal'
 import { getBrowserSupabase } from '@/lib/supabase/client'
@@ -670,21 +669,6 @@ export default function PedidosPage() {
     await moverPara(p, proximoStatusKanban(p.status, p.tipo, fluxo.usaLogistica))
   }
 
-  // Kanban v3 ("Novidades em teste"): a seta do card e o botão principal do painel chamam as MESMAS funções de hoje.
-  // Em trânsito, "Confirmar entrega" só existe quando o card antigo já tinha o "Entregue" (loja sem Logística).
-  function acaoV3De(o: Pedido): AcaoV3 | null {
-    const a = acaoV3(o, { despacho: usaDespachoDeRotas(fluxo), concluirEmRota: !fluxo.usaLogistica })
-    return a === 'despachar' && !restauranteId ? null : a
-  }
-  function executarV3(o: Pedido, a: AcaoV3 | null) {
-    if (a === 'saiu') return void saiuSemEntregador(o)
-    if (a === 'confirmar') return void moverPara(o, 'entregue')
-    void avancar(o)
-  }
-  const despacharV3 = (o: Pedido) => (restauranteId
-    ? (gatilho: { className: string; children: React.ReactNode }) => <DespacharNoCard seta={gatilho} pedido={o} supabase={supabase} restauranteId={restauranteId} onDespachado={aoDespachar} onErro={setError} />
-    : undefined)
-
   // Mantém a ref apontando pro avancar mais recente — os timers de aceite
   // automático chamam via ref para não prender um closure com estado velho.
   useEffect(() => {
@@ -987,9 +971,7 @@ export default function PedidosPage() {
 
   const prontosEntrega = orders.filter((o) => o.status === 'pronto' && o.tipo === 'entrega' && !o.entregadorId).length
   return (
-    // Kanban v3 (Menuzia): a tela inteira do Kanban em 90% (pedido do dono, 15/10), só aqui — as outras telas não mudam.
-    // Sem o v3, `contents` deixa o layout exatamente como antes.
-    <div className={cardsNovos ? 'flex min-h-0 flex-1 flex-col' : 'contents'} style={cardsNovos ? { zoom: 0.9 } : undefined} data-kanban-zoom={cardsNovos ? '90' : undefined}>
+    <>
       {!focusMode && topBar}
       {focusMode && (
         <button type="button" onClick={() => void toggleFocus()} className="fixed right-3 top-3 z-30 inline-flex h-[36px] items-center gap-1.5 rounded-[4px] bg-[#E0F2FE] px-3 text-[13px] font-semibold text-[#0369A1] shadow hover:brightness-95" data-testid="sair-tela-cheia-kanban">
@@ -1059,7 +1041,7 @@ export default function PedidosPage() {
                   </div>
                   <span className="rounded-full bg-white/25 px-2 py-0.5 text-[11px] font-semibold text-white">{colOrders.length}</span>
                 </div>
-                <div className={`flex-1 ${cardsNovos ? 'space-y-[12px] px-[16px] py-[12px]' : 'space-y-3 p-3'} overflow-y-auto max-lg:overflow-visible ${comRotas ? 'pb-20' : ''}`}>
+                <div className={`flex-1 ${cardsNovos ? 'space-y-[14px]' : 'space-y-3'} overflow-y-auto p-3 max-lg:overflow-visible ${comRotas ? 'pb-20' : ''}`}>
                   {colOrders.map((order) => {
                     const idadeMs = now - new Date(order.criadoEm).getTime()
                     const corTempo = { ok: 'text-price-text', atencao: 'text-[#B45309]', atraso: 'text-danger' }[corTempoPedido(idadeMs)]
@@ -1073,9 +1055,9 @@ export default function PedidosPage() {
                     const abrir = () => setDetail(selecionado ? null : order)
                     if (cardsNovos) {
                       const novo = order.status === 'recebido' && !order.preparandoNotificado
-                      const acao = acaoV3De(order)
+                      const acao = acaoDoCard(order, usaDespachoDeRotas(fluxo))
                       return (
-                        <CardPedidoV3
+                        <CardPedidoKanban
                           key={order.id}
                           pedido={order}
                           agora={now}
@@ -1083,9 +1065,9 @@ export default function PedidosPage() {
                           novo={novo}
                           somBloqueado={novo && alarme.somAtivo && alarme.bloqueado}
                           onAbrir={abrir}
-                          acao={acao}
-                          onAcao={() => executarV3(order, acao)}
-                          renderDespachar={despacharV3(order)}
+                          acao={acao === 'despachar' && !restauranteId ? null : acao}
+                          onAcao={() => (acao === 'saiu' ? saiuSemEntregador(order) : avancar(order))}
+                          renderDespachar={restauranteId ? (seta) => <DespacharNoCard seta={seta} pedido={order} supabase={supabase} restauranteId={restauranteId} onDespachado={aoDespachar} onErro={setError} /> : undefined}
                         />
                       )
                     }
@@ -1209,11 +1191,9 @@ export default function PedidosPage() {
                 <h3 className="text-sm font-semibold">Entregas & concluídos</h3>
                 <span className="rounded-full bg-page px-2 py-0.5 text-[11px] font-semibold text-text-subtle">{transit.length + concluded.length}</span>
               </div>
-              <div className={`flex-1 space-y-4 overflow-y-auto max-lg:overflow-visible ${cardsNovos ? "px-[16px] py-[12px]" : "p-3"}`}>
+              <div className="flex-1 space-y-4 overflow-y-auto p-3 max-lg:overflow-visible">
                 <SubSecao titulo="Em trânsito" cor="text-status-preparing" vazio="Ninguém em rota">
-                  {transit.map((o) => cardsNovos ? (
-                    <CardPedidoV3 key={o.id} pedido={o} agora={now} selecionado={detail?.id === o.id} novo={false} somBloqueado={false} onAbrir={() => setDetail(o)} acao={acaoV3De(o)} onAcao={() => executarV3(o, acaoV3De(o))} />
-                  ) : (
+                  {transit.map((o) => (
                     <FluxoCard
                       key={o.id}
                       order={o}
@@ -1224,9 +1204,7 @@ export default function PedidosPage() {
                   ))}
                 </SubSecao>
                 <SubSecao titulo="Concluídos" cor="text-price-text" vazio="Nada concluído hoje">
-                  {concluded.filter((o) => o.status === 'entregue').map((o) => cardsNovos ? (
-                    <CardPedidoV3 key={o.id} pedido={o} agora={now} selecionado={detail?.id === o.id} novo={false} somBloqueado={false} onAbrir={() => setDetail(o)} acao={null} onAcao={() => {}} />
-                  ) : (
+                  {concluded.filter((o) => o.status === 'entregue').map((o) => (
                     <FluxoCard
                       key={o.id}
                       order={o}
@@ -1238,9 +1216,7 @@ export default function PedidosPage() {
                   ))}
                 </SubSecao>
                 <SubSecao titulo="Não concluídos" cor="text-danger" vazio="Nenhum recusado hoje">
-                  {concluded.filter((o) => o.status === 'cancelado').map((o) => cardsNovos ? (
-                    <CardPedidoV3 key={o.id} pedido={o} agora={now} selecionado={detail?.id === o.id} novo={false} somBloqueado={false} onAbrir={() => setDetail(o)} acao={null} onAcao={() => {}} />
-                  ) : (
+                  {concluded.filter((o) => o.status === 'cancelado').map((o) => (
                     <FluxoCard key={o.id} order={o} tone="failed" onClick={() => setDetail(o)} />
                   ))}
                 </SubSecao>
@@ -1249,25 +1225,7 @@ export default function PedidosPage() {
           )}
         </div>
       </div>
-      {detail && cardsNovos && (
-        <PainelPedidoV3
-          pedido={detail}
-          agora={now}
-          onFechar={fecharPainel}
-          editandoPag={editandoPag}
-          setEditandoPag={setEditandoPag}
-          onPagamentoAlterado={() => { if (restauranteId) refetch(restauranteId) }}
-          reimpEstado={reimpEstado}
-          onReimprimir={() => reimprimir(detail)}
-          onCancelar={() => pedirCancelamento(detail)}
-          acao={acaoV3De(detail)}
-          onAcao={() => executarV3(detail, acaoV3De(detail))}
-          renderDespachar={despacharV3(detail)}
-          supabase={supabase}
-          restauranteId={restauranteId}
-        />
-      )}
-      {detail && !cardsNovos && (
+      {detail && (
         <PainelPedido
           pedido={detail}
           agora={now}
@@ -1286,7 +1244,7 @@ export default function PedidosPage() {
       {/* Item 58: "Despachar" fixo no canto inferior direito (vários de uma vez, no Despacho de rotas). */}
       {comRotas && (
         <button type="button" onClick={() => setRotaOpen(true)}
-          className={`fixed bottom-4 ${detail && cardsNovos ? 'right-4 lg:right-[496px]' : 'right-4'} z-30 inline-flex h-[52px] items-center gap-2 rounded-[8px] bg-[var(--adm-azul,#0b78d0)] px-5 text-[15px] font-semibold text-white shadow-[0_8px_24px_rgba(11,120,208,0.35)] hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0688D4]`}
+          className="fixed bottom-4 right-4 z-30 inline-flex h-[52px] items-center gap-2 rounded-[8px] bg-[var(--adm-azul,#0b78d0)] px-5 text-[15px] font-semibold text-white shadow-[0_8px_24px_rgba(11,120,208,0.35)] hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0688D4]"
           aria-label={`Despachar – ${prontosEntrega} pronto(s) para entrega`} data-testid="kanban-despachar">
           <Route className="h-5 w-5" aria-hidden /> Despachar
           <span className="grid h-[24px] min-w-[24px] place-items-center rounded-full bg-white px-1.5 text-[12.5px] font-semibold text-[#075EA8]" data-testid="kanban-despachar-contador">{prontosEntrega}</span>
@@ -1308,6 +1266,6 @@ export default function PedidosPage() {
           onCancelado={aoCancelar}
         />
       )}
-    </div>
+    </>
   )
 }
