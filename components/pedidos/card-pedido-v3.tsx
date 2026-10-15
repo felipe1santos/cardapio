@@ -124,7 +124,7 @@ export function CardPedidoV3({
       style={FONTE_CENTRAL}
       className={[
         // Card fino (15/10, pedido do dono): 2 linhas de conteúdo e o logo da origem centralizado na altura toda.
-        'group relative flex h-[92px] cursor-pointer select-none flex-col justify-center rounded-[10px] border py-[10px] pl-[14px] pr-[16px] text-[#111827] outline-none transition-shadow duration-150',
+        'group relative flex h-[92px] cursor-pointer select-none flex-col rounded-[10px] border py-[10px] pl-[14px] pr-[16px] text-[#111827] outline-none transition-shadow duration-150',
         novo
           ? 'border-[#FCD34D] bg-[#FDE68A] shadow-[0_6px_18px_rgba(245,158,11,.28)] hover:shadow-[0_10px_24px_rgba(245,158,11,.36)]'
           : 'border-[#E5E7EB] bg-white shadow-[0_1px_3px_rgba(17,24,39,.08)] hover:shadow-[0_8px_20px_rgba(17,24,39,.14)]',
@@ -166,7 +166,7 @@ export function CardPedidoV3({
                   <span className={`flex-shrink-0 whitespace-nowrap text-[11.5px] font-semibold ${novo ? 'text-[#B45309]' : 'text-[#6B7280]'}`} data-testid="card-mais-itens">+{resto} {resto === 1 ? 'item' : 'itens'}</span>
                 )}
                 {ultima && (
-                  <span className="ml-auto flex min-w-0 flex-shrink items-center gap-[8px] pl-[4px]">
+                  <span className="ml-auto flex flex-shrink-0 items-center gap-[8px] pl-[4px]">
                     {/* Só o ícone da forma de pagamento (texto inteiro no tooltip e no painel), à esquerda do valor */}
                     <span className={`${SELO_POR_TOM[pg.tom]} flex-shrink-0 px-[5px]`} title={pg.texto} aria-label={pg.texto} role="img" data-testid="card-pagamento" data-texto={pg.texto}>{pg.emoji}</span>
                     <span className="flex-shrink-0 whitespace-nowrap text-[15.5px] font-extrabold tabular-nums" data-testid="card-preco">{formatarReal(p.total)}</span>
