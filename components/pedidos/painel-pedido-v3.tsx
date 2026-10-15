@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { AlertTriangle, ArrowLeft, ArrowRight, Bike, Check, ChevronDown, Copy, MapPin, MessageCircle, Phone, PrinterCheck, Route, X } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, ArrowRight, Bike, Check, ChevronDown, Copy, MapPin, MessageCircle, PrinterCheck, Route, X } from 'lucide-react'
 import type { Pedido } from '@/lib/queries/pedidos'
 import { EditorPagamento } from '@/components/pedidos/editor-pagamento'
 import { etapasDoPedido } from '@/components/pedidos/painel-pedido'
@@ -25,17 +25,8 @@ import { BOTAO_AZUL, BOTAO_CONTORNO, BOTAO_PERIGO, BOTAO_VERDE, FONTE_CENTRAL, S
  */
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const hora = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null)
-const CARTAO = 'rounded-[10px] border border-[#E5E7EB] bg-white p-[14px]'
-const TITULO = 'mb-[10px] text-[11.5px] font-bold uppercase tracking-wide text-[#6B7280]'
+const CARTAO = 'rounded-[10px] border border-[#E5E7EB] bg-white px-[12px] py-[10px]'
 
-function Cartao({ titulo, children, testid, acao }: { titulo: ReactNode; children: ReactNode; testid?: string; acao?: ReactNode }) {
-  return (
-    <section className={CARTAO} data-testid={testid}>
-      <div className="flex items-center justify-between gap-2"><h3 className={TITULO}>{titulo}</h3>{acao}</div>
-      {children}
-    </section>
-  )
-}
 
 function BarraEtapas({ pedido }: { pedido: Pedido }) {
   const etapas = etapasDoPedido(pedido)
@@ -67,13 +58,6 @@ function Etiqueta({ texto, preco }: { texto: string; preco?: number }) {
   )
 }
 
-function Obs({ texto, testid }: { texto: string; testid: string }) {
-  return (
-    <div className="mt-[8px] flex items-start gap-[6px] rounded-[8px] border border-[#FCD34D] bg-[#FEF3C7] px-[10px] py-[7px] text-[13px] font-bold text-[#92400E]" data-testid={testid}>
-      <AlertTriangle className="mt-[2px] h-[15px] w-[15px] flex-shrink-0" aria-hidden /> <span>{texto}</span>
-    </div>
-  )
-}
 
 /** "Nº pedido do cliente": quantos pedidos (não cancelados) este telefone fez na loja até este. Uma contagem só, por pedido aberto. */
 function useNumeroDoCliente(supabase: SupabaseClient | null, restauranteId: string | null, telefone: string, criadoEm: string): number | null {
@@ -144,10 +128,16 @@ export function PainelPedidoV3({
     void navigator.clipboard?.writeText(enderecoTexto).then(() => { setCopiado(true); window.setTimeout(() => setCopiado(false), 1600) }).catch(() => {})
   }
 
-  const principalClasse = `${acao === 'despachar' ? BOTAO_AZUL : BOTAO_VERDE} h-[46px] w-full text-[14px]`
+  // Observações juntas, em vermelho, logo no topo: é o que a cozinha não pode deixar passar.
+  const observacoes = [
+    ...p.itens.filter((l) => l.observacao?.trim()).map((l) => ({ onde: `${l.quantidade}x ${nomeLimpo(l.nome)}`, texto: l.observacao.trim() })),
+    ...(p.observacao?.trim() ? [{ onde: 'Pedido', texto: p.observacao.trim() }] : []),
+  ]
+  const principalClasse = `${acao === 'despachar' ? BOTAO_AZUL : BOTAO_VERDE} h-[40px] min-w-0 flex-1 px-[12px] text-[13.5px]`
   const principalConteudo = acao ? (
-    <>{acao === 'despachar' && <Route className="h-[18px] w-[18px]" aria-hidden />}{rotuloDaAcao(acao)}<ArrowRight className="h-[18px] w-[18px]" aria-hidden /></>
+    <>{acao === 'despachar' && <Route className="h-[17px] w-[17px] flex-shrink-0" aria-hidden />}<span className="truncate">{rotuloDaAcao(acao)}</span><ArrowRight className="h-[17px] w-[17px] flex-shrink-0" aria-hidden /></>
   ) : null
+  const tituloLinha = 'text-[11px] font-bold uppercase tracking-wide text-[#6B7280]'
 
   return (
     <aside
@@ -157,162 +147,177 @@ export function PainelPedidoV3({
       data-testid="painel-pedido"
       aria-label={`Pedido #${p.numero}`}
     >
-      {/* Cabeçalho fixo */}
-      <header className="flex-shrink-0 border-b border-[#E5E7EB] bg-white px-[16px] pb-[12px] pt-[14px]">
-        <div className="flex items-start gap-[10px]">
-          <button type="button" onClick={onFechar} className="-ml-1 flex h-[40px] items-center gap-1 rounded-[8px] px-2 text-[14px] font-semibold text-[#0688D4] hover:bg-[#EFF6FF] lg:hidden" data-testid="painel-voltar">
+      {/* Cabeçalho fixo: nº + nome, tags numa linha só, horário e etapas */}
+      <header className="flex-shrink-0 border-b border-[#E5E7EB] bg-white px-[16px] pb-[10px] pt-[12px]">
+        <div className="flex items-center gap-[10px]">
+          <button type="button" onClick={onFechar} className="-ml-1 flex h-[36px] items-center gap-1 rounded-[8px] px-2 text-[14px] font-semibold text-[#0688D4] hover:bg-[#EFF6FF] lg:hidden" data-testid="painel-voltar">
             <ArrowLeft className="h-5 w-5" aria-hidden /> Voltar
           </button>
-          <div className="min-w-0 flex-1" data-testid="painel-cabecalho-novo">
-            <div className="flex min-w-0 items-center gap-[8px]">
-              <EtiquetaNumeroV3 numero={p.numero} grande />
-              <h2 className="min-w-0 truncate text-[19px] font-extrabold leading-tight" title={p.clienteNome || undefined}>{p.clienteNome || 'Cliente'}</h2>
-            </div>
-            <div className="mt-[8px] flex flex-wrap items-center gap-[6px]">
-              <SeloTexto classe={SELO_VERDE} emoji={selos.tipo.emoji} texto={selos.tipo.texto} />
-              {selos.azul && <SeloTexto classe={SELO_AZUL} emoji={selos.azul.emoji} texto={selos.azul.texto} />}
-              <SeloTexto classe={SELO_CINZA} texto={logoDaOrigem(p).rotulo} titulo={`Origem: ${logoDaOrigem(p).rotulo}${p.origemCampanha ? ` · ${p.origemCampanha}` : ''}`} testid="painel-origem" />
-            </div>
-            <p className="mt-[6px] text-[13px] font-semibold text-[#4B5563]" data-testid="painel-horario">
-              Feito às {hora(p.criadoEm)} · há {tempoV3(agora - new Date(p.criadoEm).getTime())}
-              {p.agendadoPara && <span className="text-[#1D4ED8]"> · agendado para {textoAgendado(p.agendadoPara)}</span>}
-            </p>
+          <div className="flex min-w-0 flex-1 items-center gap-[8px]" data-testid="painel-cabecalho-novo">
+            <EtiquetaNumeroV3 numero={p.numero} grande />
+            <h2 className="min-w-0 truncate text-[18px] font-extrabold leading-tight" title={p.clienteNome || undefined}>{p.clienteNome || 'Cliente'}</h2>
           </div>
-          <LogoOrigemV3 pedido={p} tamanho={42} />
-          <button type="button" onClick={onFechar} aria-label="Fechar o painel" className="flex h-[38px] w-[38px] flex-shrink-0 items-center justify-center rounded-[8px] border border-[#D1D5DB] bg-white text-[#4B5563] hover:border-[#0688D4] hover:text-[#0688D4] max-lg:hidden" data-testid="painel-fechar">
-            <X className="h-[18px] w-[18px]" aria-hidden />
+          <LogoOrigemV3 pedido={p} tamanho={30} />
+          <button type="button" onClick={onFechar} aria-label="Fechar o painel" className="flex h-[34px] w-[34px] flex-shrink-0 items-center justify-center rounded-[8px] border border-[#D1D5DB] bg-white text-[#4B5563] hover:border-[#0688D4] hover:text-[#0688D4] max-lg:hidden" data-testid="painel-fechar">
+            <X className="h-[17px] w-[17px]" aria-hidden />
           </button>
         </div>
-        <div className="mt-[12px]"><BarraEtapas pedido={p} /></div>
+        <div className="mt-[8px] flex min-w-0 flex-nowrap items-center gap-[6px] overflow-hidden" data-testid="painel-tags">
+          <SeloTexto classe={`${SELO_VERDE} flex-shrink-0`} emoji={selos.tipo.emoji} texto={selos.tipo.texto} />
+          {selos.azul && <SeloTexto classe={`${SELO_AZUL} flex-shrink`} emoji={selos.azul.emoji} texto={selos.azul.texto} />}
+          <SeloTexto classe={`${SELO_CINZA} flex-shrink`} texto={logoDaOrigem(p).rotulo} titulo={`Origem: ${logoDaOrigem(p).rotulo}${p.origemCampanha ? ` · ${p.origemCampanha}` : ''}`} testid="painel-origem" />
+          <span className="ml-auto flex-shrink-0 whitespace-nowrap text-[12.5px] font-semibold text-[#4B5563]" data-testid="painel-horario">
+            Feito às {hora(p.criadoEm)} · há {tempoV3(agora - new Date(p.criadoEm).getTime())}
+          </span>
+        </div>
+        {p.agendadoPara && <p className="mt-[4px] text-[12.5px] font-semibold text-[#1D4ED8]">Agendado para {textoAgendado(p.agendadoPara)}</p>}
+        <div className="mt-[10px]"><BarraEtapas pedido={p} /></div>
       </header>
 
-      {/* Conteúdo rolável */}
-      <div className="min-h-0 flex-1 space-y-[12px] overflow-y-auto px-[14px] py-[14px] text-[14px]">
+      {/* Conteúdo: o essencial cabe sem rolar; rola só em pedido muito grande */}
+      <div className="min-h-0 flex-1 space-y-[10px] overflow-y-auto px-[12px] py-[12px] text-[13.5px]">
         {p.status === 'cancelado' && (
-          <div className="rounded-[10px] border border-[#FECACA] bg-[#FEF2F2] p-[12px] text-[14px]" data-testid="painel-cancelado">
+          <div className="rounded-[10px] border border-[#FECACA] bg-[#FEF2F2] px-[12px] py-[10px]" data-testid="painel-cancelado">
             <div className="font-bold text-[#B91C1C]">Pedido cancelado · {rotuloMotivo(p.canceladoMotivo)}</div>
-            {p.canceladoObservacao && <div className="mt-1 text-[#1F2937]">{p.canceladoObservacao}</div>}
-            {p.canceladoPor && <div className="mt-1 text-[12.5px] text-[#6B7280]">por {p.canceladoPor}</div>}
+            {p.canceladoObservacao && <div className="mt-[2px] text-[#1F2937]">{p.canceladoObservacao}</div>}
+            {p.canceladoPor && <div className="mt-[2px] text-[12px] text-[#6B7280]">por {p.canceladoPor}</div>}
           </div>
         )}
 
-        {/* a) Itens */}
-        <Cartao titulo={`Itens · ${qtdItens}`} testid="painel-itens">
-          <ul className="divide-y divide-[#F3F4F6]">
+        {/* Observações em vermelho */}
+        {observacoes.length > 0 && (
+          <section className="rounded-[10px] border border-[#FECACA] bg-[#FEF2F2] px-[12px] py-[10px] text-[#B91C1C]" data-testid="painel-observacoes">
+            <p className="flex items-center gap-[6px] text-[11.5px] font-extrabold uppercase tracking-wide"><AlertTriangle className="h-[15px] w-[15px]" aria-hidden /> Observações</p>
+            <ul className="mt-[4px] space-y-[2px]">
+              {observacoes.map((o, i) => (
+                <li key={i} className="text-[13.5px] leading-[19px]" data-testid={o.onde === 'Pedido' ? 'painel-obs-pedido' : 'painel-obs-item'}>
+                  <span className="font-extrabold">{o.onde}:</span> <span className="font-semibold">{o.texto}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {/* Cliente | Entrega lado a lado */}
+        <div className="grid grid-cols-2 gap-[10px]">
+          <section className={`${CARTAO} flex min-w-0 flex-col`} data-testid="painel-cliente">
+            <p className={tituloLinha}>Cliente</p>
+            <div className="mt-[6px] flex min-w-0 items-center gap-[8px]">
+              <span className="flex h-[32px] w-[32px] flex-shrink-0 items-center justify-center rounded-full bg-[#DBEAFE] text-[12px] font-extrabold text-[#1D4ED8]" aria-hidden>{iniciais(p.clienteNome)}</span>
+              <div className="min-w-0">
+                <p className="truncate font-bold leading-[18px]" title={p.clienteNome}>{p.clienteNome || '—'}</p>
+                {p.clienteTelefone && <a href={`tel:${p.clienteTelefone.replace(/\D/g, '')}`} className="block truncate text-[12.5px] font-semibold text-[#0688D4] hover:underline" data-testid="painel-telefone">{mascararTelefoneBR(p.clienteTelefone)}</a>}
+              </div>
+            </div>
+            <p className="mt-[4px] text-[12px] text-[#6B7280]">
+              {nCliente !== null && <span data-testid="painel-n-cliente">{nCliente}º pedido do cliente</span>}
+              {!p.telefoneVerificado && p.origem !== 'pdv' && <span className="ml-[4px] font-semibold text-[#B91C1C]" title="Telefone não confirmado por WhatsApp" data-testid="painel-nao-verificado">· não verificado</span>}
+            </p>
+            {linhaLanc && <p className="mt-[2px] truncate text-[12px] text-[#4B5563]" title={linhaLanc} data-testid="detalhes-lancamento">{linhaLanc}</p>}
+            {p.clienteTelefone && (
+              <button type="button" onClick={conversar} className={`${BOTAO_VERDE} mt-auto h-[32px] w-full text-[12.5px]`} style={{ marginTop: 8 }} data-testid="painel-conversar">
+                <MessageCircle className="h-[14px] w-[14px]" aria-hidden /> Conversar
+              </button>
+            )}
+          </section>
+
+          {entrega ? (
+            <section className={`${CARTAO} flex min-w-0 flex-col`} data-testid="painel-entrega">
+              <p className={tituloLinha}>Entrega</p>
+              <div className="mt-[6px] min-w-0" data-testid="painel-endereco">
+                <p className="font-bold leading-[18px]">{p.enderecoRua}, {p.enderecoNumero}</p>
+                {p.enderecoComplemento && <p className="text-[12.5px] text-[#4B5563]">{p.enderecoComplemento}</p>}
+                <p className="text-[12.5px] text-[#4B5563]">{[p.enderecoBairro, p.enderecoCidade].filter(Boolean).join(' · ')}</p>
+                {p.enderecoReferencia && <p className="text-[12.5px] text-[#4B5563]">Ref.: {p.enderecoReferencia}</p>}
+              </div>
+              <p className="mt-[4px] flex items-center gap-[4px] text-[12.5px]" data-testid="painel-motoboy">
+                <Bike className="h-[14px] w-[14px] text-[#6B7280]" aria-hidden />
+                <span className={p.entregadorNome ? 'font-bold' : 'text-[#6B7280]'}>{p.entregadorNome ?? 'Motoboy ainda não definido'}</span>
+              </p>
+              {p.status === 'em_rota' && p.etapas?.emRota && <p className="text-[12px] font-semibold text-[#1D4ED8]">Saiu às {hora(p.etapas.emRota)} · há {tempoV3(agora - new Date(p.etapas.emRota).getTime())}</p>}
+              <div className="mt-auto grid grid-cols-2 gap-[6px]" style={{ marginTop: 8 }}>
+                <a href={linkDoMapa(p)} target="_blank" rel="noopener noreferrer" className={`${BOTAO_CONTORNO} h-[32px] text-[12px]`} data-testid="painel-mapa"><MapPin className="h-[14px] w-[14px]" aria-hidden /> Mapa</a>
+                <button type="button" onClick={copiar} className={`${BOTAO_CONTORNO} h-[32px] text-[12px]`} data-testid="painel-copiar-endereco">
+                  {copiado ? <><Check className="h-[14px] w-[14px]" aria-hidden /> Copiado</> : <><Copy className="h-[14px] w-[14px]" aria-hidden /> Copiar</>}
+                </button>
+              </div>
+            </section>
+          ) : (
+            <section className={`${CARTAO} min-w-0`} data-testid="painel-entrega">
+              <p className={tituloLinha}>{selos.tipo.texto}</p>
+              <p className="mt-[6px] font-bold">{selos.tipo.emoji} {p.canal === 'mesa' ? 'Servir na mesa' : p.canal === 'balcao' ? 'Entregar no balcão' : 'Cliente retira na loja'}</p>
+              {p.comandaSenha ? <p className="text-[12.5px] text-[#4B5563]">Senha {p.comandaSenha}</p> : null}
+            </section>
+          )}
+        </div>
+
+        {/* Itens */}
+        <section className={CARTAO} data-testid="painel-itens">
+          <p className={tituloLinha}>Itens · {qtdItens}</p>
+          <ul className="mt-[6px] divide-y divide-[#F3F4F6]">
             {p.itens.map((l) => {
               const extras = [l.tamanhoNome, l.saborNome, l.bordaNome, l.massaNome].filter(Boolean)
               return (
-                <li key={l.id} className="py-[10px] first:pt-0">
-                  <div className="flex items-start gap-[10px]">
-                    <span className="flex h-[26px] min-w-[26px] flex-shrink-0 items-center justify-center rounded-[6px] bg-[#F3F4F6] px-[4px] text-[13px] font-extrabold tabular-nums">{l.quantidade}</span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-[10px]">
-                        <span className="min-w-0 pt-[3px] text-[14.5px] font-bold leading-[19px]">{nomeLimpo(l.nome)}</span>
-                        <span className="flex-shrink-0 pt-[3px] font-bold tabular-nums">{brl(l.precoUnitario * l.quantidade)}</span>
-                      </div>
-                      {extras.length > 0 && <div className="mt-[2px] text-[12.5px] text-[#6B7280]">{extras.join(' · ')}</div>}
-                      {l.complementos.length > 0 && (
-                        <div className="mt-[6px] flex flex-wrap gap-[4px]">
-                          {l.complementos.map((c, i) => <Etiqueta key={`${c.nome}-${i}`} texto={c.nome} preco={c.preco} />)}
-                        </div>
-                      )}
-                      {l.observacao && <Obs texto={`Obs.: ${l.observacao}`} testid="painel-obs-item" />}
-                    </div>
+                <li key={l.id} className="py-[7px] first:pt-0 last:pb-0">
+                  <div className="flex items-center gap-[8px]">
+                    <span className="flex h-[22px] min-w-[22px] flex-shrink-0 items-center justify-center rounded-[6px] bg-[#F3F4F6] px-[4px] text-[12.5px] font-extrabold tabular-nums">{l.quantidade}</span>
+                    <span className="min-w-0 flex-1 truncate font-bold" title={nomeLimpo(l.nome)}>{nomeLimpo(l.nome)}</span>
+                    <span className="flex-shrink-0 font-bold tabular-nums">{brl(l.precoUnitario * l.quantidade)}</span>
                   </div>
+                  {(extras.length > 0 || l.complementos.length > 0) && (
+                    <div className="mt-[4px] flex flex-wrap gap-[4px] pl-[30px]">
+                      {extras.map((x) => <span key={x} className="rounded-[6px] bg-[#F9FAFB] px-[6px] text-[12px] leading-[18px] text-[#4B5563]">{x}</span>)}
+                      {l.complementos.map((c, i) => <Etiqueta key={`${c.nome}-${i}`} texto={c.nome} preco={c.preco} />)}
+                    </div>
+                  )}
                 </li>
               )
             })}
           </ul>
-          {p.observacao && <Obs texto={`Observação do pedido: ${p.observacao}`} testid="painel-obs-pedido" />}
-          <div className="mt-[10px] space-y-[4px] border-t border-dashed border-[#D1D5DB] pt-[10px] text-[13.5px]">
-            <div className="flex justify-between text-[#4B5563]"><span>Subtotal</span><span className="tabular-nums">{brl(p.subtotal)}</span></div>
-            {p.taxaEntrega > 0 && <div className="flex justify-between text-[#4B5563]"><span>Taxa de entrega</span><span className="tabular-nums">{brl(p.taxaEntrega)}</span></div>}
-            {p.desconto > 0 && <div className="flex justify-between text-[#047857]"><span>Descontos</span><span className="tabular-nums">−{brl(p.desconto)}</span></div>}
-            <div className="flex items-baseline justify-between pt-[4px]"><span className="text-[15px] font-bold">Total</span><span className="text-[22px] font-extrabold tabular-nums" data-testid="painel-total">{brl(p.total)}</span></div>
+          <div className="mt-[8px] flex flex-wrap items-baseline justify-between gap-x-[12px] border-t border-dashed border-[#D1D5DB] pt-[8px] text-[12.5px] text-[#4B5563]">
+            <span>Subtotal <b className="font-bold tabular-nums text-[#111827]">{brl(p.subtotal)}</b></span>
+            {p.taxaEntrega > 0 && <span>Taxa <b className="font-bold tabular-nums text-[#111827]">{brl(p.taxaEntrega)}</b></span>}
+            {p.desconto > 0 && <span className="text-[#047857]">Desconto <b className="font-bold tabular-nums">−{brl(p.desconto)}</b></span>}
+            <span className="ml-auto text-[13px] font-bold text-[#111827]">Total <span className="text-[20px] font-extrabold tabular-nums" data-testid="painel-total">{brl(p.total)}</span></span>
           </div>
-        </Cartao>
+        </section>
 
-        {/* b) Pagamento */}
-        <Cartao titulo="Pagamento">
+        {/* Pagamento */}
+        <section className={CARTAO} data-testid="painel-pagamento">
           <div className="flex flex-wrap items-center gap-[6px]" data-testid="detalhes-pagamento">
+            <span className={`${tituloLinha} mr-[4px]`}>Pagamento</span>
             {p.canal === 'mesa'
               ? <SeloTexto classe={SELO_VERDE} emoji="🧾" texto="No fechamento da conta" />
               : <>
                   <SeloTexto classe={SELO_POR_TOM[pg.tom]} emoji={pg.emoji} texto={pg.texto.replace(/ · troco p\/.*$/, '')} testid="painel-forma" />
                   <SeloTexto classe={SELO_POR_TOM[sit.tom]} texto={sit.texto} testid="painel-situacao" />
                 </>}
+            {p.canal !== 'mesa' && p.status !== 'cancelado' && !editandoPag && (
+              <button type="button" onClick={() => setEditandoPag(true)} data-testid="detalhes-alterar-pagamento" className="ml-auto text-[12.5px] font-semibold text-[#0688D4] hover:underline">Alterar</button>
+            )}
           </div>
           {p.canal !== 'mesa' && p.formaPagamento === 'dinheiro' && p.trocoPara && !p.pago ? (
-            <div className="mt-[10px] grid grid-cols-2 gap-[8px]" data-testid="painel-troco">
-              <div className="rounded-[8px] bg-[#F9FAFB] px-[10px] py-[8px]"><div className="text-[11.5px] font-semibold text-[#6B7280]">Cliente paga com</div><div className="text-[16px] font-extrabold tabular-nums">{brl(p.trocoPara)}</div></div>
-              <div className="rounded-[8px] bg-[#FEF3C7] px-[10px] py-[8px]"><div className="text-[11.5px] font-semibold text-[#92400E]">Levar de troco</div><div className="text-[16px] font-extrabold tabular-nums text-[#92400E]" data-testid="painel-troco-levar">{brl(levar)}</div></div>
+            <div className="mt-[8px] grid grid-cols-2 gap-[8px]" data-testid="painel-troco">
+              <div className="rounded-[8px] bg-[#F9FAFB] px-[10px] py-[6px]"><div className="text-[11.5px] font-semibold text-[#6B7280]">Cliente paga com</div><div className="text-[15px] font-extrabold tabular-nums">{brl(p.trocoPara)}</div></div>
+              <div className="rounded-[8px] bg-[#FEF3C7] px-[10px] py-[6px]"><div className="text-[11.5px] font-semibold text-[#92400E]">Levar de troco</div><div className="text-[15px] font-extrabold tabular-nums text-[#92400E]" data-testid="painel-troco-levar">{brl(levar)}</div></div>
             </div>
           ) : null}
           {/* A hora exata do pagamento fica em pagamentos_online, que o navegador não lê (só o servidor): sem hora inventada. */}
-          {p.pagamentoOnline && p.pago && <p className="mt-[8px] text-[12.5px] text-[#4B5563]" data-testid="painel-pago-as">Pago no app · confirmado pelo Mercado Pago</p>}
-          {p.canal !== 'mesa' && p.status !== 'cancelado' && (editandoPag
-            ? <div className="mt-[10px]"><EditorPagamento pedidoId={p.id} p={p} onCancelar={() => setEditandoPag(false)} onFeito={() => { setEditandoPag(false); onPagamentoAlterado() }} /></div>
-            : <button type="button" onClick={() => setEditandoPag(true)} data-testid="detalhes-alterar-pagamento" className="mt-[10px] text-[13px] font-semibold text-[#0688D4] hover:underline">Alterar pagamento</button>)}
-        </Cartao>
+          {p.pagamentoOnline && p.pago && <p className="mt-[6px] text-[12px] text-[#4B5563]" data-testid="painel-pago-as">Pago no app · confirmado pelo Mercado Pago</p>}
+          {editandoPag && <div className="mt-[8px]"><EditorPagamento pedidoId={p.id} p={p} onCancelar={() => setEditandoPag(false)} onFeito={() => { setEditandoPag(false); onPagamentoAlterado() }} /></div>}
+        </section>
 
-        {/* c) Entrega */}
-        {entrega && (
-          <Cartao titulo="Entrega" testid="painel-entrega">
-            <div data-testid="painel-endereco">
-              <p className="text-[14.5px] font-bold">{p.enderecoRua}, {p.enderecoNumero}{p.enderecoComplemento ? ` · ${p.enderecoComplemento}` : ''}</p>
-              <p className="text-[13px] text-[#4B5563]">{[p.enderecoBairro, p.enderecoCidade, p.enderecoCep].filter(Boolean).join(' · ')}</p>
-              {p.enderecoReferencia && <p className="mt-[2px] text-[13px] text-[#4B5563]">Referência: {p.enderecoReferencia}</p>}
-            </div>
-            {p.status === 'em_rota' && p.etapas?.emRota && (
-              <div className="mt-[8px]"><SeloTexto classe={SELO_AZUL} emoji="⏱️" texto={`Saiu às ${hora(p.etapas.emRota)} · há ${tempoV3(agora - new Date(p.etapas.emRota).getTime())}`} /></div>
-            )}
-            <div className="mt-[10px] grid grid-cols-2 gap-[8px]">
-              <a href={linkDoMapa(p)} target="_blank" rel="noopener noreferrer" className={`${BOTAO_CONTORNO} h-[36px] text-[12.5px]`} data-testid="painel-mapa"><MapPin className="h-[15px] w-[15px]" aria-hidden /> Abrir no mapa</a>
-              <button type="button" onClick={copiar} className={`${BOTAO_CONTORNO} h-[36px] text-[12.5px]`} data-testid="painel-copiar-endereco">
-                {copiado ? <><Check className="h-[15px] w-[15px]" aria-hidden /> Copiado</> : <><Copy className="h-[15px] w-[15px]" aria-hidden /> Copiar endereço</>}
-              </button>
-            </div>
-            <div className="mt-[10px] flex items-center justify-between gap-[8px] border-t border-[#F3F4F6] pt-[10px] text-[13.5px]" data-testid="painel-motoboy">
-              <span className="inline-flex items-center gap-[6px] text-[#4B5563]"><Bike className="h-[16px] w-[16px]" aria-hidden /> Motoboy</span>
-              <span className={p.entregadorNome ? 'font-bold' : 'text-[#6B7280]'}>{p.entregadorNome ?? 'ainda não definido'}</span>
-            </div>
-          </Cartao>
-        )}
-
-        {/* d) Cliente */}
-        <Cartao titulo="Cliente" testid="painel-cliente">
-          <div className="flex items-center gap-[12px]">
-            <span className="flex h-[42px] w-[42px] flex-shrink-0 items-center justify-center rounded-full bg-[#DBEAFE] text-[14px] font-extrabold text-[#1D4ED8]" aria-hidden>{iniciais(p.clienteNome)}</span>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[14.5px] font-bold">{p.clienteNome || '—'}</p>
-              {p.clienteTelefone && (
-                <p className="flex flex-wrap items-center gap-[6px] text-[13px] text-[#4B5563]">
-                  <a href={`tel:${p.clienteTelefone.replace(/\D/g, '')}`} className="inline-flex items-center gap-[4px] font-semibold text-[#0688D4] hover:underline" data-testid="painel-telefone"><Phone className="h-[13px] w-[13px]" aria-hidden /> {mascararTelefoneBR(p.clienteTelefone)}</a>
-                  {!p.telefoneVerificado && p.origem !== 'pdv' && <span className="rounded-full bg-[#FEF2F2] px-[6px] text-[11px] font-semibold text-[#B91C1C]" title="Telefone não confirmado por WhatsApp" data-testid="painel-nao-verificado">não verificado</span>}
-                </p>
-              )}
-              {nCliente !== null && <p className="text-[12.5px] text-[#6B7280]" data-testid="painel-n-cliente">{nCliente === 1 ? '1º pedido do cliente' : `${nCliente}º pedido do cliente`}</p>}
-            </div>
-            {p.clienteTelefone && (
-              <button type="button" onClick={conversar} className={`${BOTAO_VERDE} h-[36px] px-[12px] text-[12.5px]`} data-testid="painel-conversar">
-                <MessageCircle className="h-[15px] w-[15px]" aria-hidden /> Conversar
-              </button>
-            )}
-          </div>
-          {linhaLanc && <p className="mt-[10px] text-[13px] text-[#4B5563]" data-testid="detalhes-lancamento">Lançamento: <span className="font-semibold text-[#111827]">{linhaLanc}</span></p>}
-        </Cartao>
-
-        {/* e) Histórico (recolhido) */}
+        {/* Histórico (recolhido) */}
         {eventos.length > 0 && (
-          <section className={CARTAO} data-testid="painel-historico">
+          <section className="rounded-[10px] border border-[#E5E7EB] bg-white px-[14px] py-[8px]" data-testid="painel-historico">
             <button type="button" onClick={() => setHistorico((v) => !v)} aria-expanded={historico} className="flex w-full items-center justify-between text-left">
-              <span className={`${TITULO} mb-0`}>Histórico</span>
+              <span className={tituloLinha}>Histórico</span>
               <ChevronDown className={`h-[16px] w-[16px] text-[#6B7280] transition-transform ${historico ? 'rotate-180' : ''}`} aria-hidden />
             </button>
             {historico && (
-              <ul className="mt-[10px] space-y-[6px] text-[13px]">
+              <ul className="mt-[8px] space-y-[4px] text-[12.5px]">
                 {eventos.map((ev, i) => (
-                  <li key={i} className="flex gap-[10px]"><span className="w-[42px] flex-shrink-0 tabular-nums text-[#6B7280]">{hora(ev.quando) ?? '—'}</span><span>{ev.texto}</span></li>
+                  <li key={i} className="flex gap-[10px]"><span className="w-[40px] flex-shrink-0 tabular-nums text-[#6B7280]">{hora(ev.quando) ?? '—'}</span><span>{ev.texto}</span></li>
                 ))}
               </ul>
             )}
@@ -320,23 +325,23 @@ export function PainelPedidoV3({
         )}
       </div>
 
-      {/* Rodapé fixo, botão principal na largura toda. lg: espaço embaixo para o "Despachar" flutuante (canto inferior direito). */}
-      <footer className="flex-shrink-0 space-y-[8px] border-t border-[#E5E7EB] bg-white p-[12px] lg:pb-[76px]">
-        {acao && principalConteudo && (acao === 'despachar' && renderDespachar
-          ? renderDespachar({ className: principalClasse, children: principalConteudo })
-          : <button type="button" onClick={onAcao} className={principalClasse} data-testid="painel-acao" data-acao={acao}>{principalConteudo}</button>)}
-        <div className="grid grid-cols-2 gap-[8px]">
-          <button type="button" onClick={onReimprimir} disabled={reimpEstado === 'enviando' || reimpEstado === 'ok'} className={`${BOTAO_CONTORNO} h-[38px] text-[12.5px] ${podeCancelar(p.status) ? '' : 'col-span-2'}`} data-testid="painel-reimprimir">
+      {/* Rodapé fixo: todas as ações numa linha só */}
+      <footer className="flex-shrink-0 border-t border-[#E5E7EB] bg-white p-[12px]">
+        <div className="flex items-center gap-[8px]">
+          {acao && principalConteudo && (acao === 'despachar' && renderDespachar
+            ? renderDespachar({ className: principalClasse, children: principalConteudo })
+            : <button type="button" onClick={onAcao} className={principalClasse} data-testid="painel-acao" data-acao={acao}>{principalConteudo}</button>)}
+          <button type="button" onClick={onReimprimir} disabled={reimpEstado === 'enviando' || reimpEstado === 'ok'} className={`${BOTAO_CONTORNO} h-[40px] px-[12px] text-[12.5px] ${acao ? 'flex-shrink-0' : 'flex-1'}`} data-testid="painel-reimprimir">
             <PrinterCheck className="h-[15px] w-[15px]" aria-hidden /> {reimpEstado === 'enviando' ? 'Enviando…' : reimpEstado === 'ok' ? 'Enviado' : 'Reimprimir'}
           </button>
           {podeCancelar(p.status) && (
-            <button type="button" onClick={onCancelar} className={`${BOTAO_PERIGO} h-[38px] text-[12.5px]`} data-testid="painel-cancelar">
-              <X className="h-[15px] w-[15px]" aria-hidden /> Cancelar pedido
+            <button type="button" onClick={onCancelar} className={`${BOTAO_PERIGO} h-[40px] flex-shrink-0 px-[12px] text-[12.5px]`} data-testid="painel-cancelar">
+              <X className="h-[15px] w-[15px]" aria-hidden /> Cancelar
             </button>
           )}
         </div>
-        {reimpEstado === 'ok' && <p className="text-center text-[12px] text-[#6B7280]">Sai na próxima varredura do Assistente (impressão automática precisa estar ligada).</p>}
-        {reimpEstado === 'erro' && <p className="text-center text-[12px] text-[#B91C1C]">Não foi possível solicitar a reimpressão. Tente de novo.</p>}
+        {reimpEstado === 'ok' && <p className="mt-[6px] text-center text-[12px] text-[#6B7280]">Sai na próxima varredura do Assistente (impressão automática precisa estar ligada).</p>}
+        {reimpEstado === 'erro' && <p className="mt-[6px] text-center text-[12px] text-[#B91C1C]">Não foi possível solicitar a reimpressão. Tente de novo.</p>}
       </footer>
     </aside>
   )

@@ -987,7 +987,9 @@ export default function PedidosPage() {
 
   const prontosEntrega = orders.filter((o) => o.status === 'pronto' && o.tipo === 'entrega' && !o.entregadorId).length
   return (
-    <>
+    // Kanban v3 (Menuzia): a tela inteira do Kanban em 90% (pedido do dono, 15/10), só aqui — as outras telas não mudam.
+    // Sem o v3, `contents` deixa o layout exatamente como antes.
+    <div className={cardsNovos ? 'flex min-h-0 flex-1 flex-col' : 'contents'} style={cardsNovos ? { zoom: 0.9 } : undefined} data-kanban-zoom={cardsNovos ? '90' : undefined}>
       {!focusMode && topBar}
       {focusMode && (
         <button type="button" onClick={() => void toggleFocus()} className="fixed right-3 top-3 z-30 inline-flex h-[36px] items-center gap-1.5 rounded-[4px] bg-[#E0F2FE] px-3 text-[13px] font-semibold text-[#0369A1] shadow hover:brightness-95" data-testid="sair-tela-cheia-kanban">
@@ -1284,7 +1286,7 @@ export default function PedidosPage() {
       {/* Item 58: "Despachar" fixo no canto inferior direito (vários de uma vez, no Despacho de rotas). */}
       {comRotas && (
         <button type="button" onClick={() => setRotaOpen(true)}
-          className="fixed bottom-4 right-4 z-30 inline-flex h-[52px] items-center gap-2 rounded-[8px] bg-[var(--adm-azul,#0b78d0)] px-5 text-[15px] font-semibold text-white shadow-[0_8px_24px_rgba(11,120,208,0.35)] hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0688D4]"
+          className={`fixed bottom-4 ${detail && cardsNovos ? 'right-4 lg:right-[496px]' : 'right-4'} z-30 inline-flex h-[52px] items-center gap-2 rounded-[8px] bg-[var(--adm-azul,#0b78d0)] px-5 text-[15px] font-semibold text-white shadow-[0_8px_24px_rgba(11,120,208,0.35)] hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0688D4]`}
           aria-label={`Despachar – ${prontosEntrega} pronto(s) para entrega`} data-testid="kanban-despachar">
           <Route className="h-5 w-5" aria-hidden /> Despachar
           <span className="grid h-[24px] min-w-[24px] place-items-center rounded-full bg-white px-1.5 text-[12.5px] font-semibold text-[#075EA8]" data-testid="kanban-despachar-contador">{prontosEntrega}</span>
@@ -1306,6 +1308,6 @@ export default function PedidosPage() {
           onCancelado={aoCancelar}
         />
       )}
-    </>
+    </div>
   )
 }
