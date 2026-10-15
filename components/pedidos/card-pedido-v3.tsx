@@ -124,7 +124,7 @@ export function CardPedidoV3({
       style={FONTE_CENTRAL}
       className={[
         // Card fino (15/10, pedido do dono): 2 linhas de conteúdo e o logo da origem centralizado na altura toda.
-        'group relative flex h-[92px] cursor-pointer select-none items-center gap-[12px] rounded-[10px] border py-[10px] pl-[14px] pr-[16px] text-[#111827] outline-none transition-shadow duration-150',
+        'group relative flex h-[92px] cursor-pointer select-none flex-col justify-center rounded-[10px] border py-[10px] pl-[14px] pr-[16px] text-[#111827] outline-none transition-shadow duration-150',
         novo
           ? 'border-[#FCD34D] bg-[#FDE68A] shadow-[0_6px_18px_rgba(245,158,11,.28)] hover:shadow-[0_10px_24px_rgba(245,158,11,.36)]'
           : 'border-[#E5E7EB] bg-white shadow-[0_1px_3px_rgba(17,24,39,.08)] hover:shadow-[0_8px_20px_rgba(17,24,39,.14)]',
@@ -134,11 +134,11 @@ export function CardPedidoV3({
     >
       {novo && <span aria-hidden className="absolute inset-y-[-1px] left-[-1px] w-[5px] rounded-l-[10px] bg-[#F59E0B]" />}
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-col">
         {/* 1) nº · NOME · tipo (ícone) · NOVO · tempo */}
         <div className="flex h-[22px] min-w-0 items-center gap-[8px]">
           <EtiquetaNumeroV3 numero={p.numero} />
-          <span className="min-w-0 truncate text-[15px] font-extrabold leading-[20px]" title={p.clienteNome || undefined}>{p.clienteNome || 'Cliente'}</span>
+          <span className="min-w-[36px] truncate text-[15px] font-extrabold leading-[20px]" title={p.clienteNome || undefined}>{p.clienteNome || 'Cliente'}</span>
           <span className="inline-flex flex-shrink-0 items-center gap-[4px] text-[15px] leading-none" data-testid="card-tipo">
             <span role="img" aria-label={selos.tipo.texto} title={selos.tipo.texto} data-testid="card-selo-tipo" data-tipo={selos.tipo.texto}>{selos.tipo.emoji}</span>
             {p.origemCanal === 'whatsapp_ia' && <span role="img" aria-label="Anotado no WhatsApp" title="Anotado no WhatsApp" data-testid="card-selo-azul">✍️</span>}
@@ -156,7 +156,7 @@ export function CardPedidoV3({
         </div>
 
         {/* 2) itens (até 2); na linha do último: "+N", pagamento e valor à direita */}
-        <ul className="mt-[6px] space-y-[2px] text-[13.5px] leading-[20px]" data-testid="card-itens">
+        <ul className="mt-[6px] space-y-[2px] pr-[42px] text-[13.5px] leading-[20px]" data-testid="card-itens">
           {linhas.map((l, i) => {
             const ultima = i === linhas.length - 1
             return (
@@ -167,7 +167,8 @@ export function CardPedidoV3({
                 )}
                 {ultima && (
                   <span className="ml-auto flex min-w-0 flex-shrink items-center gap-[8px] pl-[4px]">
-                    <SeloTexto classe={`${SELO_POR_TOM[pg.tom]} max-w-[150px]`} emoji={pg.emoji} texto={pg.texto} testid="card-pagamento" />
+                    {/* Só o ícone da forma de pagamento (texto inteiro no tooltip e no painel), à esquerda do valor */}
+                    <span className={`${SELO_POR_TOM[pg.tom]} flex-shrink-0 px-[5px]`} title={pg.texto} aria-label={pg.texto} role="img" data-testid="card-pagamento" data-texto={pg.texto}>{pg.emoji}</span>
                     <span className="flex-shrink-0 whitespace-nowrap text-[15.5px] font-extrabold tabular-nums" data-testid="card-preco">{formatarReal(p.total)}</span>
                   </span>
                 )}
@@ -177,8 +178,8 @@ export function CardPedidoV3({
         </ul>
       </div>
 
-      {/* Logo da origem: sem fundo, centralizado na altura do card inteiro */}
-      <LogoOrigemV3 pedido={p} />
+      {/* Logo da origem: sem fundo, centralizado na altura do card inteiro, fora do fluxo (não tira espaço do nome) */}
+      <span className="pointer-events-none absolute right-[16px] top-1/2 flex -translate-y-1/2"><LogoOrigemV3 pedido={p} tamanho={28} /></span>
 
       {/* Seta da etapa (não abre o painel) */}
       {acao && seta && (
