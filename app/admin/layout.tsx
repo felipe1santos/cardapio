@@ -118,6 +118,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [fichaAberta, setFichaAberta] = useState(false)
   // Módulo pago com cadeado (0176): a janela "Quero liberar".
   const [moduloAberto, setModuloAberto] = useState<Modulo | null>(null)
+  // "Conversar" do painel do pedido (Kanban v3): abre a central do WhatsApp no telefone do cliente.
+  const [conversa, setConversa] = useState<{ telefone: string; n: number } | null>(null)
+  useEffect(() => {
+    const ouvir = (e: Event) => {
+      // A busca da central é "contém": sem o 55, acha a conversa com ou sem o código do país.
+      const telefone = String((e as CustomEvent<{ telefone?: string }>).detail?.telefone ?? '').replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, '')
+      if (telefone) setConversa({ telefone, n: Date.now() })
+    }
+    window.addEventListener('menuzia:abrir-conversa', ouvir)
+    return () => window.removeEventListener('menuzia:abrir-conversa', ouvir)
+  }, [])
 
   // Navegou: a gaveta fecha. Sem isto, no celular o menu ficaria cobrindo a tela que o
   // toque acabou de abrir.
@@ -381,7 +392,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <main className="flex min-w-0 flex-1 flex-col overflow-hidden">{children}</main>
         {/* Central de atendimento do WhatsApp: só o botão (leve); o painel vem sob demanda. Fora do PDV, Mesas, Comandas
             e Balcão — lá ele cobria a barra de ações. */}
-        {restauranteId && papel && pode(papel, 'whatsapp.atender') && !focusMode && !/^\/admin\/(pdv|mesas)(\/|$)/.test(pathname) && <LancadorAtendimento restauranteId={restauranteId} />}
+        {/* Kanban v3: o "Conversar" do painel do pedido monta a central também em tela cheia (sem o botão flutuante). */}
+        {restauranteId && papel && pode(papel, 'whatsapp.atender') && (conversa || (!focusMode && !/^\/admin\/(pdv|mesas)(\/|$)/.test(pathname))) && (
+          <LancadorAtendimento restauranteId={restauranteId} conversa={conversa} onConversaFechada={() => setConversa(null)}
+            esconderBotao={focusMode || /^\/admin\/(pdv|mesas)(\/|$)/.test(pathname)} />
+        )}
       </div>
       </div>
       {/* Barra azul no topo enquanto a tela carrega (no lugar do "Carregando…" no meio). */}

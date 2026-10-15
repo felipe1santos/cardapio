@@ -41,7 +41,14 @@ function tocarAviso() {
   }
 }
 
-export function LancadorAtendimento({ restauranteId }: { restauranteId: string }) {
+export function LancadorAtendimento({ restauranteId, conversa, onConversaFechada, esconderBotao = false }: {
+  restauranteId: string
+  /** "Conversar" do painel do pedido: abre a central já buscando este telefone (n muda a cada clique). */
+  conversa?: { telefone: string; n: number } | null
+  onConversaFechada?: () => void
+  /** Tela onde o botão flutuante não aparece (Kanban em tela cheia, PDV): só a central aberta pelo "Conversar". */
+  esconderBotao?: boolean
+}) {
   // Absoluto no contêiner do conteúdo (app/admin/layout.tsx); acima da barra de gestos do celular.
   const canto = 'left-4 bottom-[calc(16px+env(safe-area-inset-bottom))]'
   const supabase = useMemo(() => getBrowserSupabase(), [])
@@ -116,6 +123,12 @@ export function LancadorAtendimento({ restauranteId }: { restauranteId: string }
   }, [total])
   useEffect(() => () => { document.title = document.title.replace(/^\(\d+\) /, '') }, [])
 
+  useEffect(() => {
+    if (!conversa) return
+    void abrir()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversa?.n])
+
   async function abrir() {
     setAberto(true)
     setMinimizado(false)
@@ -130,7 +143,7 @@ export function LancadorAtendimento({ restauranteId }: { restauranteId: string }
   }
 
   if (!resumo) return null
-  const botaoVisivel = !aberto || minimizado
+  const botaoVisivel = (!aberto || minimizado) && !esconderBotao
 
   return (
     <>
@@ -166,9 +179,11 @@ export function LancadorAtendimento({ restauranteId }: { restauranteId: string }
           onSom={alternarSom}
           oculto={minimizado}
           onMinimizar={() => { setMinimizado(true); void contar() }}
-          onFechar={() => { setAberto(false); setMinimizado(false); void contar() }}
+          onFechar={() => { setAberto(false); setMinimizado(false); void contar(); onConversaFechada?.() }}
           onMudou={agendar}
-          filtroInicial={pedindo === 0 && resumo.aguardando > 0 ? 'aguardando' : 'todas'}
+          key={conversa ? `conversa-${conversa.n}` : 'central'}
+          filtroInicial={conversa ? 'todas' : pedindo === 0 && resumo.aguardando > 0 ? 'aguardando' : 'todas'}
+          buscaInicial={conversa?.telefone}
         />
       )}
     </>

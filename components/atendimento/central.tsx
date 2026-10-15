@@ -28,6 +28,8 @@ export interface PropsCentral {
   onMudou: () => void
   /** Abre em "Aguardando" quando há alguém esperando; senão, em "Todas". */
   filtroInicial?: Filtro
+  /** "Conversar" do painel do pedido (Kanban v3): já abre buscando este telefone e entra na conversa se achar só uma. */
+  buscaInicial?: string
 }
 
 export type Filtro = 'aguardando' | 'humano' | 'todas'
@@ -74,13 +76,13 @@ async function chamar<T>(url: string, init?: RequestInit): Promise<{ ok: boolean
   }
 }
 
-export function CentralAtendimento({ restauranteId, som, onSom, onFechar, onMinimizar, oculto, onMudou, filtroInicial = 'aguardando' }: PropsCentral) {
+export function CentralAtendimento({ restauranteId, som, onSom, onFechar, onMinimizar, oculto, onMudou, filtroInicial = 'aguardando', buscaInicial }: PropsCentral) {
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [maximizado, setMaximizado] = useState(false)
   const [filtro, setFiltro] = useState<Filtro>(filtroInicial)
   const [tagFiltro, setTagFiltro] = useState<string | null>(null)
-  const [busca, setBusca] = useState('')
-  const [buscaAtiva, setBuscaAtiva] = useState('')
+  const [busca, setBusca] = useState(buscaInicial ?? '')
+  const [buscaAtiva, setBuscaAtiva] = useState(buscaInicial ?? '')
   const [conversas, setConversas] = useState<ConversaCentral[]>([])
   const [proximo, setProximo] = useState<string | null>(null)
   const [carregandoLista, setCarregandoLista] = useState(true)
@@ -115,6 +117,14 @@ export function CentralAtendimento({ restauranteId, som, onSom, onFechar, onMini
     setProximo(r.dados.proximo)
   }, [filtro, tagFiltro, buscaAtiva])
   useEffect(() => { void carregarLista() }, [carregarLista])
+
+  // Veio do "Conversar" do pedido: a primeira lista com a busca do telefone abre a conversa, se for uma só.
+  const abriuDaBusca = useRef(false)
+  useEffect(() => {
+    if (!buscaInicial || abriuDaBusca.current || carregandoLista || buscaAtiva !== buscaInicial) return
+    abriuDaBusca.current = true
+    if (conversas.length === 1) setSelecionada(conversas[0].id)
+  }, [buscaInicial, buscaAtiva, carregandoLista, conversas])
 
   // Tempo real da LISTA (só com o painel aberto): qualquer mudança nas conversas da loja
   // recarrega a primeira página, com folga para juntar rajadas.
