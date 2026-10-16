@@ -188,7 +188,7 @@ if (!servidor) {
     ok('lucro líquido avisa a sobra incluída', /sobra de caixa/.test(await dono.p.getByTestId('dash-lucro-inclui-diferencas').innerText()))
     if (PRINTS) await dono.p.screenshot({ path: join(PRINTS, 'mesma-base-dashboard-desktop.png'), fullPage: true })
     await dono.p.goto(`${BASE}/admin/financeiro?secao=contas`, { waitUntil: 'networkidle' })
-    await dono.p.getByTestId('contas-aba-dre').click()
+    await dono.p.getByTestId('contas-secao').selectOption('dre')
     await dono.p.getByTestId('dre-atalho-hoje').click().catch(() => {})
     const temDre = await dono.p.getByTestId('dre-diferencas-caixa').waitFor({ timeout: 8000 }).then(() => true).catch(() => false)
     ok('DRE na tela: linha "(±) Diferenças de caixa"', temDre && /Diferenças de caixa/.test(await dono.p.getByTestId('dre-diferencas-caixa').innerText()))

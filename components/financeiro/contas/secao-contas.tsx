@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Download, Paperclip, Plus } from 'lucide-react'
-import { CartaoNumero } from '@/components/admin/cartao-numero'
+import { BalaoInfo } from '@/components/admin/balao-info'
+import { BarraFiltros, CAMPO_FILTRO, LinhaResumos, Segmentado, SeletorSecao, type OpcaoSecao } from '@/components/ui/topo-compacto'
 import { PilhaToasts, useToasts } from '@/components/admin/toasts'
 import { ICONES } from '@/lib/icones-painel'
 import { formatarCentavos } from '@/lib/financeiro/centavos'
 import { FORMAS_CONTA, ROTULO_FORMA_CONTA, type FormaConta } from '@/lib/financeiro/contas-regras'
 import { AprovacaoPin, CampoDinheiro, Janela, type AprovacaoDada, type PedidoRemoto } from '../apoio'
-import { BOTAO, Chip, PainelLateral, Selo } from '../ui/blocos'
+import { BOTAO, PainelLateral, Selo } from '../ui/blocos'
 import { SecaoDre } from './dre'
 import { SecaoCompras, type InsumoLeve } from './compras'
 import { SecaoCadastros } from './cadastros'
@@ -42,7 +43,8 @@ const chave = () => `ui-${crypto.randomUUID()}`
 const SELO: Record<Conta['statusExibido'], [string, string]> = {
   a_pagar: ['#0A78BE', 'Em aberto'], vencido: ['#D93616', 'Vencida'], pago: ['#006B4E', 'Paga'], cancelado: ['#465A69', 'Cancelada'],
 }
-const rotuloStatus = (k: Conta) => (k.statusExibido === 'pago' ? (k.tipo === 'pagar' ? 'Paga' : 'Recebida') : SELO[k.statusExibido][1])
+const DICA_EMPRESA = 'Conta da empresa (movimento): soma do que entrou e saiu pela conta da empresa DENTRO do sistema (sangrias, contas pagas e recebidas, fundo de troco). Não é o saldo do banco.'
+const rotuloStatus =(k: Conta) => (k.statusExibido === 'pago' ? (k.tipo === 'pagar' ? 'Paga' : 'Recebida') : SELO[k.statusExibido][1])
 
 async function pedir(url: string, metodo: string, corpo?: unknown) {
   const r = await fetch(url, { method: metodo, headers: corpo ? { 'Content-Type': 'application/json' } : undefined, body: corpo ? JSON.stringify(corpo) : undefined })
@@ -94,7 +96,8 @@ export function SecaoContas() {
     toast('ok', 'Arquivo anexado.'); void carregar()
   }
 
-  const abas: [Aba, string][] = [['pagar', 'A pagar'], ['receber', 'A receber'], ['compras', 'Compras de insumos'], ...(d?.pode.dre ? [['dre', 'DRE'] as [Aba, string]] : []), ['cadastros', 'Categorias e fornecedores']]
+  const abas: OpcaoSecao<Aba>[] = [{ id: 'pagar', rotulo: 'A pagar' }, { id: 'receber', rotulo: 'A receber' }, { id: 'compras', rotulo: 'Compras de insumos' }, ...(d?.pode.dre ? [{ id: 'dre' as const, rotulo: 'DRE' }] : []), { id: 'cadastros', rotulo: 'Categorias e fornecedores' }]
+  const seletor = <SeletorSecao valor={aba} onMudar={setAba} rotulo="Parte de Contas e DRE" testid="contas-secao" opcoes={abas} />
   const acoes = (k: Conta) => (
     <span className="flex flex-wrap items-center justify-end gap-1.5">
       {k.status === 'a_pagar' && d?.pode.pagar && <button type="button" className="inline-flex h-[32px] items-center rounded-[4px] bg-[#006B4E] px-2.5 text-[13px] font-semibold text-white hover:brightness-110" onClick={() => setBaixa(k)} data-testid="conta-baixar">{k.tipo === 'pagar' ? 'Pagar' : 'Receber'}</button>}
@@ -113,47 +116,39 @@ export function SecaoContas() {
 
   return (
     <div className="flex flex-col gap-3" data-testid="secao-contas">
-      <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 [scrollbar-width:none]" role="tablist">
-        {abas.map(([id, r]) => <Chip key={id} ativo={aba === id} onClick={() => setAba(id)} testid={`contas-aba-${id}`}>{r}</Chip>)}
-      </div>
       {erro && <p role="alert" className="fin-card border-l-[3px] !border-l-[#D93616] px-4 py-2.5 text-[14px] font-medium text-[#D93616]" data-testid="contas-erro">{erro}</p>}
+      {!d && <LinhaResumos direita={seletor} />}
 
       {(aba === 'pagar' || aba === 'receber') && d && (
         <>
-          <div className="grid grid-cols-1 gap-2.5 min-[400px]:grid-cols-2 lg:grid-cols-4" data-testid="contas-resumo">
-            {aba === 'pagar' ? (
-              <>
-                <CartaoNumero icone={ICONES.dinheiro} tom="azul" rotulo="A pagar em aberto" valor={<span data-testid="resumo-a-pagar">{brl(d.resumo.aPagarCentavos)}</span>} />
-                <CartaoNumero icone={ICONES.aviso} tom="vermelho" rotulo={`Vencidas (${d.resumo.vencidas})`} valor={<span data-testid="resumo-vencido">{brl(d.resumo.vencidoCentavos)}</span>} />
-                <CartaoNumero icone={ICONES.calendario} tom="ambar" rotulo="Vence hoje" valor={brl(d.resumo.venceHojeCentavos)} />
-              </>
-            ) : (
-              <>
-                <CartaoNumero icone={ICONES.dinheiro} tom="verde" rotulo="A receber em aberto" valor={<span data-testid="resumo-a-receber">{brl(d.resumo.aReceberCentavos)}</span>} />
-                <CartaoNumero icone={ICONES.loja} tom="cinza" rotulo="Caixa (gaveta)" valor={d.saldos.caixaAberto ? brl(d.saldos.gavetaCentavos) : 'Fechado'} />
-                <div className="hidden lg:block" />
-              </>
+          <LinhaResumos testid="contas-resumo" direita={seletor} itens={aba === 'pagar' ? [
+            { rotulo: 'A pagar', valor: <span data-testid="resumo-a-pagar">{brl(d.resumo.aPagarCentavos)}</span>, icone: ICONES.dinheiro, tom: 'azul', dica: 'A pagar em aberto' },
+            { rotulo: `Vencidas (${d.resumo.vencidas})`, valor: <span data-testid="resumo-vencido">{brl(d.resumo.vencidoCentavos)}</span>, icone: ICONES.aviso, tom: 'vermelho', destaque: d.resumo.vencidas > 0 },
+            { rotulo: 'Vence hoje', valor: brl(d.resumo.venceHojeCentavos), icone: ICONES.calendario, tom: 'ambar', destaque: d.resumo.venceHojeCentavos > 0 },
+            { rotulo: 'Empresa', valor: <span data-testid="resumo-empresa">{brl(d.saldos.empresaCentavos)}</span>, icone: ICONES.cartao, tom: 'roxo', dica: DICA_EMPRESA },
+          ] : [
+            { rotulo: 'A receber', valor: <span data-testid="resumo-a-receber">{brl(d.resumo.aReceberCentavos)}</span>, icone: ICONES.dinheiro, tom: 'verde', dica: 'A receber em aberto' },
+            { rotulo: 'Caixa (gaveta)', valor: d.saldos.caixaAberto ? brl(d.saldos.gavetaCentavos) : 'Fechado', icone: ICONES.loja, tom: 'cinza' },
+            { rotulo: 'Empresa', valor: <span data-testid="resumo-empresa">{brl(d.saldos.empresaCentavos)}</span>, icone: ICONES.cartao, tom: 'roxo', dica: DICA_EMPRESA },
+          ]}>
+            {aba === 'receber' && (
+              <BalaoInfo titulo="O que entra aqui">
+                <span data-testid="aviso-vendas">As vendas do sistema (vitrine, PDV, mesas, entregas) já entram sozinhas no caixa. Aqui vão só entradas de fora: repasse do iFood, aporte do sócio, venda avulsa feita fora do sistema.</span>
+              </BalaoInfo>
             )}
-            <CartaoNumero icone={ICONES.cartao} tom="roxo" rotulo="Conta da empresa (movimento)" valor={<span data-testid="resumo-empresa" title="Soma do que entrou e saiu pela conta da empresa DENTRO do sistema (sangrias, contas pagas e recebidas, fundo de troco). Não é o saldo do banco.">{brl(d.saldos.empresaCentavos)}</span>} />
-          </div>
-          {aba === 'receber' && (
-            <p className="fin-card border-l-[3px] !border-l-[#CBD2D9] px-4 py-2.5 text-[13px] text-[#1C2B33]" data-testid="aviso-vendas">
-              As vendas do sistema (vitrine, PDV, mesas, entregas) já entram sozinhas no caixa. Aqui vão só entradas de fora: repasse do iFood, aporte do sócio, venda avulsa feita fora do sistema.
-            </p>
-          )}
-          <div className="flex flex-wrap items-center gap-2">
-            {([['abertas', 'Em aberto'], ['vencidas', 'Vencidas'], ['pagas', aba === 'pagar' ? 'Pagas' : 'Recebidas'], ['canceladas', 'Canceladas'], ['todas', 'Todas']] as [Situacao, string][]).map(([id, r]) => (
-              <Chip key={id} ativo={situacao === id} onClick={() => setSituacao(id)} testid={`contas-situacao-${id}`}>{r}</Chip>
-            ))}
-            <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar" className="h-[38px] w-full max-w-[220px] rounded-[4px] border border-border px-2.5 text-[13px]" data-testid="contas-busca" />
-            <span className="ml-auto flex gap-2">
-              {d.pode.exportar && <button type="button" className={BOTAO.neutro} onClick={() => void exportar()} data-testid="contas-csv"><Download className="h-4 w-4" /> CSV</button>}
-              {d.pode.lancar && <button type="button" className={BOTAO.primario} onClick={() => setForm({ conta: null, tipo })} data-testid="conta-nova"><Plus className="h-4 w-4" /> {aba === 'pagar' ? 'Nova conta a pagar' : 'Nova entrada'}</button>}
-            </span>
-          </div>
+          </LinhaResumos>
+          <BarraFiltros acoes={<>
+            {d.pode.exportar && <button type="button" className={BOTAO.neutro} onClick={() => void exportar()} data-testid="contas-csv"><Download className="h-4 w-4" /> CSV</button>}
+            {d.pode.lancar && <button type="button" className={BOTAO.primario} onClick={() => setForm({ conta: null, tipo })} data-testid="conta-nova"><Plus className="h-4 w-4" /> {aba === 'pagar' ? 'Nova conta a pagar' : 'Nova entrada'}</button>}
+          </>}>
+            <Segmentado rotulo="Situação" valor={situacao} onMudar={setSituacao} testidPrefixo="contas-situacao-"
+              opcoes={[{ id: 'abertas', rotulo: 'Em aberto' }, { id: 'vencidas', rotulo: 'Vencidas' }, { id: 'pagas', rotulo: aba === 'pagar' ? 'Pagas' : 'Recebidas' }, { id: 'canceladas', rotulo: 'Canceladas' }, { id: 'todas', rotulo: 'Todas' }]} />
+            <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar" aria-label="Buscar conta" className={`${CAMPO_FILTRO} w-[200px] max-md:w-full`} data-testid="contas-busca" />
+          </BarraFiltros>
 
+          {/* A tabela usa a altura que sobra e rola por dentro, com o cabeçalho fixo. */}
           <div className="hidden overflow-hidden fin-card md:block">
-            <div className="max-h-[calc(100dvh-380px)] min-h-[180px] overflow-auto">
+            <div className="max-h-[calc(100dvh-196px)] min-h-[240px] overflow-auto">
               <table className="w-full border-separate border-spacing-0 text-[13px]" data-testid="contas-tabela">
                 <thead className="sticky top-0 z-[2] bg-[#F5F7F9] text-left text-[12.5px] font-semibold text-text-subtle">
                   <tr className="[&>th]:border-b [&>th]:border-border">
@@ -204,9 +199,9 @@ export function SecaoContas() {
         </>
       )}
 
-      {aba === 'compras' && d && <SecaoCompras insumos={d.insumos} fornecedores={d.fornecedores} podeLancar={d.pode.lancar} podePagar={d.pode.pagar} podeVerCusto={d.pode.insumos} caixaAberto={d.saldos.caixaAberto} toast={toast} onMudou={carregar} />}
-      {aba === 'dre' && d?.pode.dre && <SecaoDre />}
-      {aba === 'cadastros' && d && <SecaoCadastros categorias={d.categorias} fornecedores={d.fornecedores} podeEditar={d.pode.lancar} toast={toast} onMudou={carregar} />}
+      {aba === 'compras' && d && <SecaoCompras insumos={d.insumos} fornecedores={d.fornecedores} podeLancar={d.pode.lancar} podePagar={d.pode.pagar} podeVerCusto={d.pode.insumos} caixaAberto={d.saldos.caixaAberto} toast={toast} onMudou={carregar} seletor={seletor} />}
+      {aba === 'dre' && d?.pode.dre && <SecaoDre seletor={seletor} />}
+      {aba === 'cadastros' && d && <SecaoCadastros categorias={d.categorias} fornecedores={d.fornecedores} podeEditar={d.pode.lancar} toast={toast} onMudou={carregar} seletor={seletor} />}
 
       {form && d && <FormConta conta={form.conta} tipo={form.tipo} categorias={d.categorias.filter((c) => c.tipo === form.tipo && (c.ativo || c.id === form.conta?.categoria_id))} fornecedores={d.fornecedores.filter((f) => f.ativo || f.id === form.conta?.fornecedor_id)} onFechar={() => setForm(null)} onSalvou={() => { setForm(null); void carregar() }} toast={toast} />}
       {baixa && d && <BaixaConta conta={baixa} caixaAberto={d.saldos.caixaAberto} onFechar={() => setBaixa(null)} onFeito={() => { setBaixa(null); void carregar() }} toast={toast} />}

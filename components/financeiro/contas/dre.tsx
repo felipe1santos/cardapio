@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { formatarCentavos } from '@/lib/financeiro/centavos'
 import { ATALHOS, periodoDoAtalho, type Atalho } from '@/lib/financeiro/fluxo-regras'
 import type { Dre } from '@/lib/financeiro/contas-regras'
-import { Chip } from '../ui/blocos'
+import { LinhaResumos, Segmentado } from '@/components/ui/topo-compacto'
 
 /**
  * DRE simplificado (Fase 5b): faturamento do livro-caixa − CMV guardado na venda − despesas por categoria
@@ -22,7 +22,7 @@ const pct = (v: number | null) => (v === null ? '—' : `${v > 0 ? '+' : ''}${v.
 const dataBR = (d: string) => d.split('-').reverse().join('/')
 const dataHora = (iso: string | null) => (iso ? new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—')
 
-export function SecaoDre() {
+export function SecaoDre({ seletor }: { seletor?: React.ReactNode }) {
   const [atalho, setAtalho] = useState<Atalho>('mes')
   const [r, setR] = useState<Resposta | null>(null)
   const [erro, setErro] = useState<string | null>(null)
@@ -52,18 +52,20 @@ export function SecaoDre() {
 
   return (
     <div className="flex flex-col gap-3" data-testid="secao-dre">
-      <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 [scrollbar-width:none]">
-        {ATALHOS.map((a) => <Chip key={a.id} ativo={atalho === a.id} onClick={() => setAtalho(a.id)} testid={`dre-atalho-${a.id}`}>{a.rotulo}</Chip>)}
-      </div>
-      {erro && <p role="alert" className="fin-card border-l-[3px] !border-l-[#D93616] px-4 py-2.5 text-[14px] font-medium text-[#D93616]">{erro}</p>}
-      {r && (
-        <>
+      <LinhaResumos direita={seletor}>
+        <Segmentado rotulo="Período" valor={atalho} onMudar={setAtalho} testidPrefixo="dre-atalho-" opcoes={ATALHOS.map((a) => ({ id: a.id, rotulo: a.rotulo }))} />
+        {r && (
           <p className="text-[12.5px] text-text-subtle">
             {dataBR(r.periodo.de)} a {dataBR(r.periodo.ate)} · comparado com {dataBR(r.anterior.de)} a {dataBR(r.anterior.ate)}
           </p>
-          <div className="overflow-x-auto fin-card">
+        )}
+      </LinhaResumos>
+      {erro && <p role="alert" className="fin-card border-l-[3px] !border-l-[#D93616] px-4 py-2.5 text-[14px] font-medium text-[#D93616]">{erro}</p>}
+      {r && (
+        <>
+          <div className="max-h-[calc(100dvh-160px)] min-h-[240px] overflow-auto fin-card">
             <table className="w-full min-w-[520px] border-separate border-spacing-0 text-[13px]" data-testid="dre-tabela">
-              <thead className="bg-[#F5F7F9] text-left text-[12.5px] font-semibold text-text-subtle">
+              <thead className="sticky top-0 z-[2] bg-[#F5F7F9] text-left text-[12.5px] font-semibold text-text-subtle">
                 <tr className="[&>th]:border-b [&>th]:border-border"><th className="px-3 py-2.5" /><th className="px-3 py-2.5 text-right">Período</th><th className="px-3 py-2.5 text-right">% do fat.</th><th className="px-3 py-2.5 text-right">Anterior</th><th className="px-3 py-2.5 text-right">Variação</th></tr>
               </thead>
               <tbody>

@@ -2,20 +2,20 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { Columns3, Download, FileText, Filter, X } from 'lucide-react'
-import { CartaoNumero } from '@/components/admin/cartao-numero'
+import { BarChart3, ChevronDown, Columns3, Download, FileText, Filter, X } from 'lucide-react'
 import { PilhaToasts, useToasts } from '@/components/admin/toasts'
 import { Flutuante } from '@/components/ui/flutuante'
 import { ICONES } from '@/lib/icones-painel'
 import {
   ATALHOS, COLUNAS, COLUNAS_PADRAO, COR_SITUACAO, FORMAS, ORIGENS, ROTULO_SITUACAO, SITUACOES, atalhoDoPeriodo, avisoMeiaNoite, corDiferenca, dataBR,
-  filtrosParaQuery, lerFiltros, periodoDoAtalho, temFiltroAlemDoPeriodo, type ColunaFluxo, type FiltrosFluxo, type LinhaFluxo, type Somavel,
+  filtrosParaQuery, lerFiltros, periodoDoAtalho, temFiltroAlemDoPeriodo, type Atalho, type ColunaFluxo, type FiltrosFluxo, type LinhaFluxo, type Somavel,
 } from '@/lib/financeiro/fluxo-regras'
 import { formatarCentavos } from '@/lib/financeiro/centavos'
 import { BOTAO, Chip, PainelLateral, RaizImpressao, Selo, imprimirDocumento } from '../ui/blocos'
 import { ExtratoTurno } from './extrato-turno'
 import { DocumentoFluxo, type DadosImpressao } from './documento'
-import { CabecalhoSecao, Card, FIN_COR } from '@/components/graficos/kit-meta'
+import { Card, FIN_COR } from '@/components/graficos/kit-meta'
+import { BarraFiltros, CAMPO_FILTRO, LinhaResumos } from '@/components/ui/topo-compacto'
 import { GraficoFinanceiro } from '@/components/graficos/grafico'
 
 /**
@@ -76,6 +76,9 @@ export function FluxoCaixa({ usuarioId }: { usuarioId: string }) {
   const [carregando, setCarregando] = useState(false)
   const [filtrosAbertos, setFiltrosAbertos] = useState(false)
   const [colunasAbertas, setColunasAbertas] = useState(false)
+  // Computador: o painel de filtros fica fechado até o botão "Filtros" (abre sozinho se o link já trouxer filtro).
+  const [filtrosNaTela, setFiltrosNaTela] = useState(() => temFiltroAlemDoPeriodo(filtros))
+  const [graficoAberto, setGraficoAberto] = useState(false)
   const [impressao, setImpressao] = useState<DadosImpressao | null>(null)
   const [exportando, setExportando] = useState<string | null>(null)
   const botaoColunas = useRef<HTMLButtonElement>(null)
@@ -149,6 +152,7 @@ export function FluxoCaixa({ usuarioId }: { usuarioId: string }) {
   }
 
   const atalho = atalhoDoPeriodo(filtros.de, filtros.ate)
+  const nFiltros = filtros.origens.length + filtros.formas.length + filtros.situacoes.length + (filtros.operador ? 1 : 0) + (filtros.motoboy ? 1 : 0) + (filtros.produto ? 1 : 0)
   const t = dados?.totais
   const totalPaginas = dados ? Math.max(1, Math.ceil(dados.total / dados.porPagina)) : 1
   const op = dados?.opcoes
@@ -186,41 +190,57 @@ export function FluxoCaixa({ usuarioId }: { usuarioId: string }) {
   )
 
   return (
-    <div className="flex flex-col gap-4" data-testid="fluxo-caixa">
-      <CabecalhoSecao grande titulo="Fluxo de caixa" subtitulo="Cada turno do caixa: o que foi vendido, recebido e a diferença no fechamento. Toque num turno para ver o extrato." />
-      {/* Período + ações */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="-mx-1 flex min-w-0 max-w-full gap-1.5 overflow-x-auto px-1 py-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="group" aria-label="Período">
-          {ATALHOS.map((a) => (
-            <Chip key={a.id} ativo={atalho === a.id} onClick={() => aplicar(periodoDoAtalho(a.id))} testid={`periodo-${a.id}`}>{a.rotulo}</Chip>
-          ))}
-        </div>
-        <div className="flex items-center gap-1.5 text-[13px]">
-          <input type="date" value={filtros.de} max={filtros.ate} onChange={(e) => e.target.value && aplicar({ de: e.target.value })} aria-label="De" className="h-[34px] fin-card px-2" data-testid="periodo-de" />
+    <div className="flex flex-col gap-3" data-testid="fluxo-caixa">
+      {/* Linha 1: totais do período (todos os turnos, não só a página) em pílulas. */}
+      <LinhaResumos testid="fluxo-totais" itens={[
+        { rotulo: 'Vendido', valor: <span data-testid="total-vendido">{brl(t?.vendido)}</span>, icone: ICONES.subindo, tom: 'verde' },
+        { rotulo: 'Recebido', valor: <span data-testid="total-recebido">{brl(t?.recebido)}</span>, icone: ICONES.dinheiro, tom: 'verde' },
+        { rotulo: 'Dinheiro', valor: <span data-testid="total-dinheiro">{brl(t?.dinheiro)}</span>, icone: ICONES.dinheiro, tom: 'laranja' },
+        { rotulo: 'Pix a conferir', valor: <span data-testid="total-pix-conferir">{brl(t?.pixAConferir)}</span>, icone: ICONES.relogio, tom: 'ambar', destaque: (t?.pixAConferir ?? 0) > 0 },
+        { rotulo: 'Cartão', valor: <span data-testid="total-cartao">{brl(t?.cartao)}</span>, icone: ICONES.cartao, tom: 'azul' },
+        { rotulo: 'Diferenças', valor: <span data-testid="total-diferenca">{brl(t?.diferenca)}</span>, icone: ICONES.aviso, tom: (t?.diferenca ?? 0) === 0 ? 'cinza' : 'vermelho', destaque: (t?.diferenca ?? 0) !== 0, dica: 'Diferenças de caixa nos fechamentos' },
+      ]} />
+      {/* Linha 2: período, filtros e ações. */}
+      <BarraFiltros acoes={<>
+        <button type="button" className={`${BOTAO.neutro} max-md:hidden ${graficoAberto ? '!border-[#0A78BE] !text-[#0868A6]' : ''}`} onClick={() => setGraficoAberto((v) => !v)} aria-pressed={graficoAberto}
+          aria-label="Gráfico recebido por turno" title={graficoAberto ? 'Esconder o gráfico' : 'Mostrar o gráfico (recebido por turno)'} data-testid="fluxo-mostrar-grafico">
+          <BarChart3 className="h-4 w-4" />
+        </button>
+        <button type="button" ref={botaoColunas} className={`${BOTAO.neutro} max-md:hidden`} onClick={() => setColunasAbertas((v) => !v)} aria-expanded={colunasAbertas}
+          aria-label="Colunas da tabela" title="Escolher as colunas da tabela" data-testid="fluxo-colunas">
+          <Columns3 className="h-4 w-4" />
+        </button>
+        {dados?.podeExportar && (
+          <>
+            <button type="button" className={BOTAO.neutro} disabled={!!exportando} onClick={() => void exportar('csv')} data-testid="exportar-csv"><Download className="h-4 w-4" /> CSV</button>
+            <button type="button" className={BOTAO.neutro} disabled={!!exportando} onClick={() => void exportar('pdf')} data-testid="exportar-pdf"><FileText className="h-4 w-4" /> PDF</button>
+          </>
+        )}
+      </>}>
+        <label className="relative inline-flex flex-shrink-0 items-center">
+          <span className="sr-only">Período</span>
+          <select value={atalho ?? ''} onChange={(e) => e.target.value && aplicar(periodoDoAtalho(e.target.value as Atalho))} className={`${CAMPO_FILTRO} appearance-none pr-[30px] font-semibold`} data-testid="periodo-atalho">
+            {!atalho && <option value="">Personalizado</option>}
+            {ATALHOS.map((a) => <option key={a.id} value={a.id}>{a.rotulo}</option>)}
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-[8px] h-[15px] w-[15px] text-text-subtle" aria-hidden="true" />
+        </label>
+        <span className="flex items-center gap-1.5 text-[13px]">
+          <input type="date" value={filtros.de} max={filtros.ate} onChange={(e) => e.target.value && aplicar({ de: e.target.value })} aria-label="De" className={CAMPO_FILTRO} data-testid="periodo-de" />
           <span className="text-text-subtle">a</span>
-          <input type="date" value={filtros.ate} min={filtros.de} onChange={(e) => e.target.value && aplicar({ ate: e.target.value })} aria-label="Até" className="h-[34px] fin-card px-2" data-testid="periodo-ate" />
-        </div>
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <button type="button" className={`${BOTAO.neutro} lg:hidden`} onClick={() => setFiltrosAbertos(true)} data-testid="abrir-filtros">
-            <Filter className="h-4 w-4" /> Filtros{temFiltroAlemDoPeriodo(filtros) ? ' •' : ''}
-          </button>
-          <button type="button" ref={botaoColunas} className={`${BOTAO.neutro} max-md:hidden`} onClick={() => setColunasAbertas((v) => !v)} aria-expanded={colunasAbertas} data-testid="fluxo-colunas">
-            <Columns3 className="h-4 w-4" /> Colunas
-          </button>
-          {dados?.podeExportar && (
-            <>
-              <button type="button" className={BOTAO.neutro} disabled={!!exportando} onClick={() => void exportar('csv')} data-testid="exportar-csv"><Download className="h-4 w-4" /> CSV</button>
-              <button type="button" className={BOTAO.neutro} disabled={!!exportando} onClick={() => void exportar('pdf')} data-testid="exportar-pdf"><FileText className="h-4 w-4" /> PDF</button>
-            </>
-          )}
-        </div>
-      </div>
+          <input type="date" value={filtros.ate} min={filtros.de} onChange={(e) => e.target.value && aplicar({ ate: e.target.value })} aria-label="Até" className={CAMPO_FILTRO} data-testid="periodo-ate" />
+        </span>
+        <button type="button" className={`${BOTAO.neutro} max-lg:hidden ${filtrosNaTela ? '!border-[#0A78BE] !text-[#0868A6]' : ''}`} onClick={() => setFiltrosNaTela((v) => !v)} aria-expanded={filtrosNaTela} data-testid="abrir-filtros-tela">
+          <Filter className="h-4 w-4" /> Filtros{nFiltros ? ` (${nFiltros})` : ''}
+        </button>
+        <button type="button" className={`${BOTAO.neutro} lg:hidden`} onClick={() => setFiltrosAbertos(true)} data-testid="abrir-filtros">
+          <Filter className="h-4 w-4" /> Filtros{nFiltros ? ` (${nFiltros})` : ''}
+        </button>
+        {nFiltros > 0 && <button type="button" onClick={limpar} className="rounded-[6px] px-2 py-1 text-[13px] font-semibold text-[#D93616] hover:bg-[#FCEBE7]" data-testid="limpar-filtros"><X className="mr-1 inline h-3.5 w-3.5" />Limpar filtros</button>}
+      </BarraFiltros>
 
-      {/* Filtros: na tela no computador; tela cheia no celular */}
-      <div className="fin-card hidden p-5 lg:block">
-        {painelFiltros}
-        {temFiltroAlemDoPeriodo(filtros) && <button type="button" onClick={limpar} className="mt-3 rounded-[6px] px-2 py-1 text-[13px] font-semibold text-[#D93616] hover:bg-[#FCEBE7]" data-testid="limpar-filtros"><X className="mr-1 inline h-3.5 w-3.5" />Limpar filtros</button>}
-      </div>
+      {/* Filtros: abrem na tela no computador (botão "Filtros"); tela cheia no celular */}
+      {filtrosNaTela && <div className="fin-card hidden p-4 lg:block">{painelFiltros}</div>}
       {filtrosAbertos && (
         <PainelLateral titulo="Filtros" onFechar={() => setFiltrosAbertos(false)} largura={520} testid="painel-filtros"
           acoes={<>
@@ -241,18 +261,8 @@ export function FluxoCaixa({ usuarioId }: { usuarioId: string }) {
 
       {erro && <p role="alert" className="fin-card border-l-[3px] !border-l-[#D93616] px-4 py-2.5 text-[14px] font-medium text-[#D93616]">{erro}</p>}
 
-      {/* Totais do período (todos os turnos, não só a página) */}
-      <div className="grid grid-cols-1 gap-2.5 min-[400px]:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6" data-testid="fluxo-totais">
-        <CartaoNumero icone={ICONES.subindo} tom="verde" rotulo="Vendido" valor={<span data-testid="total-vendido">{brl(t?.vendido)}</span>} />
-        <CartaoNumero icone={ICONES.dinheiro} tom="verde" rotulo="Recebido" valor={<span data-testid="total-recebido">{brl(t?.recebido)}</span>} />
-        <CartaoNumero icone={ICONES.dinheiro} tom="laranja" rotulo="Dinheiro" valor={<span data-testid="total-dinheiro">{brl(t?.dinheiro)}</span>} />
-        <CartaoNumero icone={ICONES.relogio} tom="ambar" rotulo="Pix a conferir" valor={<span data-testid="total-pix-conferir">{brl(t?.pixAConferir)}</span>} />
-        <CartaoNumero icone={ICONES.cartao} tom="azul" rotulo="Cartão" valor={<span data-testid="total-cartao">{brl(t?.cartao)}</span>} />
-        <CartaoNumero icone={ICONES.aviso} tom={(t?.diferenca ?? 0) === 0 ? 'cinza' : 'vermelho'} rotulo="Diferenças de caixa" valor={<span data-testid="total-diferenca">{brl(t?.diferenca)}</span>} />
-      </div>
-
-      {/* Barras por turno (recebido) + linha da diferença — o gráfico único da Meta. */}
-      {dados && dados.linhas.some((l) => l.turnoId) && (() => {
+      {/* Barras por turno (recebido) + linha da diferença — o gráfico único da Meta. Abre pelo botão "Gráfico". */}
+      {graficoAberto && dados && dados.linhas.some((l) => l.turnoId) && (() => {
         const turnos = dados.linhas.filter((l) => l.turnoId).slice().reverse()
         return (
           <Card testid="fluxo-grafico-turnos" titulo="Recebido por turno" subtitulo="Barras: quanto cada turno recebeu. Linha: a diferença no fechamento (zero é o ideal).">
@@ -270,7 +280,7 @@ export function FluxoCaixa({ usuarioId }: { usuarioId: string }) {
 
       {/* Computador: tabela */}
       <div className="fin-card hidden overflow-hidden md:block">
-        <div className="max-h-[calc(100dvh-380px)] min-h-[200px] overflow-auto">
+        <div className="max-h-[calc(100dvh-226px)] min-h-[240px] overflow-auto">
           <table className="w-full border-separate border-spacing-0 text-[13px]" data-testid="fluxo-tabela">
             <thead className="sticky top-0 z-[2] bg-[#F5F7F9] text-left text-[12px] font-semibold text-text-subtle">
               <tr className="[&>th]:border-b [&>th]:border-border">

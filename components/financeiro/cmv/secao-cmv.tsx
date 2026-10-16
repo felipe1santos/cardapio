@@ -2,16 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Download } from 'lucide-react'
-import { CartaoNumero } from '@/components/admin/cartao-numero'
 import { PilhaToasts, useToasts } from '@/components/admin/toasts'
 import { ICONES } from '@/lib/icones-painel'
 import { formatarCentavos } from '@/lib/financeiro/centavos'
 import { ARREDONDAMENTOS, type Arredondamento } from '@/lib/financeiro/cmv-regras'
 import { ATALHOS, periodoDoAtalho } from '@/lib/financeiro/fluxo-regras'
-import { BOTAO, Chip, PainelLateral, Selo } from '../ui/blocos'
+import { BOTAO, PainelLateral, Selo } from '../ui/blocos'
 import { FichaCusto, type AlvoFicha } from './ficha-custo'
 import { SecaoInsumos, type InsumoCompleto } from './insumos'
-import { CabecalhoSecao, Card } from '@/components/graficos/kit-meta'
+import { Card } from '@/components/graficos/kit-meta'
+import { BarraFiltros, CAMPO_FILTRO, LinhaResumos, Segmentado, SeletorSecao, type OpcaoSecao } from '@/components/ui/topo-compacto'
 import { GraficoFinanceiro, Medidor } from '@/components/graficos/grafico'
 
 /**
@@ -31,6 +31,7 @@ interface Dados {
   categorias: { id: string; nome: string }[]; pode: { editar: boolean; aplicarPreco: boolean; exportar: boolean }
 }
 type Aba = 'precos' | 'insumos' | 'vendas' | 'config'
+const ABAS: OpcaoSecao<Aba>[] = [{ id: 'precos', rotulo: 'Precificação' }, { id: 'insumos', rotulo: 'Insumos' }, { id: 'vendas', rotulo: 'CMV das vendas' }, { id: 'config', rotulo: 'Margens e preço' }]
 type Ordem = 'nome' | 'margem' | 'lucro' | 'custo' | 'preco'
 
 const brl = (c: number | null | undefined) => (c === null || c === undefined ? '—' : formatarCentavos(c))
@@ -78,45 +79,38 @@ export function SecaoCmv() {
 
   const abrirFicha = (l: Linha) => setFicha({ tipo: l.alvo.tipo, id: l.alvo.id, tamanhoId: l.alvo.tamanhoId, titulo: `${l.nome}${l.variante ? ` · ${l.variante}` : ''}`, precoCentavos: l.precoCentavos })
   const corMargem = (l: Linha) => (l.margemPct === null ? '#465A69' : l.margemBaixa ? '#D93616' : '#006B4E')
+  const seletor = <SeletorSecao valor={aba} onMudar={setAba} rotulo="Parte da Precificação / CMV" testid="cmv-secao" opcoes={ABAS} />
 
   return (
-    <div className="flex flex-col gap-4" data-testid="secao-cmv">
-      <CabecalhoSecao grande titulo="Precificação e CMV" subtitulo="Custo de cada produto pela ficha, margem contra a meta e o preço sugerido. O preço só muda quando você confirma." />
-      <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 [scrollbar-width:none]" role="tablist">
-        {([['precos', 'Precificação'], ['insumos', 'Insumos'], ['vendas', 'CMV das vendas'], ['config', 'Margens e preço']] as [Aba, string][]).map(([id, r]) => (
-          <Chip key={id} ativo={aba === id} onClick={() => setAba(id)} testid={`cmv-aba-${id}`}>{r}</Chip>
-        ))}
-      </div>
+    <div className="flex flex-col gap-3" data-testid="secao-cmv">
       {erro && <p role="alert" className="fin-card border-l-[3px] !border-l-[#D93616] px-4 py-2.5 text-[14px] font-medium text-[#D93616]" data-testid="cmv-erro">{erro}</p>}
+      {!d && aba !== 'vendas' && <LinhaResumos direita={seletor} />}
 
       {aba === 'precos' && d && (
         <>
-          <div className="grid grid-cols-1 gap-2.5 min-[400px]:grid-cols-2 lg:grid-cols-4" data-testid="cmv-resumo">
-            <CartaoNumero icone={ICONES.concluido} tom="verde" rotulo="Com ficha de custo" valor={<span data-testid="cmv-com-ficha">{d.resumo.comFicha}</span>} />
-            <CartaoNumero icone={ICONES.aviso} tom="ambar" rotulo="Sem ficha" valor={<span data-testid="cmv-sem-ficha">{d.resumo.semFicha}</span>} />
-            <CartaoNumero icone={ICONES.subindo} tom="azul" rotulo="Margem média" valor={<span data-testid="cmv-margem-media">{pct(d.resumo.margemMediaPct)}</span>} />
-            <CartaoNumero icone={ICONES.caindo} tom="vermelho" rotulo={`Margem baixa (< ${d.config.margemBaixaPct}%)`} valor={<span data-testid="cmv-margem-baixa">{d.resumo.margemBaixa}</span>} />
-          </div>
-          <MargensPorProduto linhas={d.linhas} alvo={d.config.margemAlvoPct} baixa={d.config.margemBaixaPct} media={d.resumo.margemMediaPct} />
-          <div className="flex flex-wrap items-center gap-2">
-            <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar produto" className="h-[38px] w-full max-w-[260px] fin-card px-3 text-[14px] hover:border-[#9AA6B1]" data-testid="cmv-busca" />
-            <select value={categoria} onChange={(e) => setCategoria(e.target.value)} className="h-[38px] rounded-[4px] border border-border bg-white px-2 text-[13px]" data-testid="cmv-categoria">
+          <LinhaResumos testid="cmv-resumo" direita={seletor} itens={[
+            { rotulo: 'Com ficha', valor: <span data-testid="cmv-com-ficha">{d.resumo.comFicha}</span>, icone: ICONES.concluido, tom: 'verde' },
+            // "Sem ficha" e "Margem baixa" também são os filtros rápidos: tocar no número filtra a tabela.
+            { rotulo: 'Sem ficha', valor: <span data-testid="cmv-sem-ficha">{d.resumo.semFicha}</span>, icone: ICONES.aviso, tom: 'ambar', destaque: d.resumo.semFicha > 0, testid: 'cmv-filtro-sem-ficha', filtro: { ativo: soSemFicha, onClick: () => setSoSemFicha((v) => !v) } },
+            { rotulo: 'Margem média', valor: <span data-testid="cmv-margem-media">{pct(d.resumo.margemMediaPct)}</span>, icone: ICONES.subindo, tom: 'azul' },
+            { rotulo: `Margem baixa (< ${d.config.margemBaixaPct}%)`, valor: <span data-testid="cmv-margem-baixa">{d.resumo.margemBaixa}</span>, icone: ICONES.caindo, tom: 'vermelho', destaque: d.resumo.margemBaixa > 0, testid: 'cmv-filtro-margem-baixa', filtro: { ativo: soMargemBaixa, onClick: () => setSoMargemBaixa((v) => !v) } },
+          ]} />
+          <BarraFiltros acoes={d.pode.exportar && <button type="button" className={BOTAO.neutro} onClick={() => void exportar()} data-testid="cmv-csv"><Download className="h-4 w-4" /> CSV</button>}>
+            <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar produto" aria-label="Buscar produto" className={`${CAMPO_FILTRO} w-[180px] max-md:w-full`} data-testid="cmv-busca" />
+            <select value={categoria} onChange={(e) => setCategoria(e.target.value)} className={CAMPO_FILTRO} data-testid="cmv-categoria" aria-label="Categoria">
               <option value="">Todas as categorias</option>{d.categorias.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
             </select>
-            <select value={status} onChange={(e) => setStatus(e.target.value)} className="h-[38px] rounded-[4px] border border-border bg-white px-2 text-[13px]" data-testid="cmv-status">
+            <select value={status} onChange={(e) => setStatus(e.target.value)} className={CAMPO_FILTRO} data-testid="cmv-status" aria-label="Status">
               <option value="">Todos os status</option><option value="disponivel">Ativos</option><option value="pausado">Pausados</option><option value="esgotado">Esgotados</option>
             </select>
-            <Chip ativo={soSemFicha} onClick={() => setSoSemFicha((v) => !v)} testid="cmv-filtro-sem-ficha">Sem ficha</Chip>
-            <Chip ativo={soMargemBaixa} onClick={() => setSoMargemBaixa((v) => !v)} testid="cmv-filtro-margem-baixa">Margem baixa</Chip>
-            <select value={ordem} onChange={(e) => setOrdem(e.target.value as Ordem)} className="h-[38px] rounded-[4px] border border-border bg-white px-2 text-[13px]" data-testid="cmv-ordem" aria-label="Ordenar">
+            <select value={ordem} onChange={(e) => setOrdem(e.target.value as Ordem)} className={CAMPO_FILTRO} data-testid="cmv-ordem" aria-label="Ordenar">
               <option value="margem">Menor margem primeiro</option><option value="lucro">Maior lucro</option><option value="custo">Maior custo</option><option value="preco">Maior preço</option><option value="nome">Nome</option>
             </select>
-            {d.pode.exportar && <button type="button" className={`${BOTAO.neutro} ml-auto`} onClick={() => void exportar()} data-testid="cmv-csv"><Download className="h-4 w-4" /> CSV</button>}
-          </div>
+          </BarraFiltros>
 
-          {/* Computador */}
+          {/* Computador: a tabela usa a altura que sobra e rola por dentro, com o cabeçalho fixo. */}
           <div className="fin-card hidden overflow-hidden md:block">
-            <div className="max-h-[calc(100dvh-360px)] min-h-[200px] overflow-auto">
+            <div className="max-h-[calc(100dvh-196px)] min-h-[240px] overflow-auto">
               <table className="w-full border-separate border-spacing-0 text-[13px]" data-testid="cmv-tabela">
                 <thead className="sticky top-0 z-[2] bg-[#F5F7F9] text-left text-[12px] font-semibold text-text-subtle">
                   <tr className="[&>th]:border-b [&>th]:border-border">
@@ -167,12 +161,19 @@ export function SecaoCmv() {
               </button>
             ))}
           </div>
+          {/* O gráfico vem depois da tabela (16/10): a tabela é o principal da tela. */}
+          <MargensPorProduto linhas={d.linhas} alvo={d.config.margemAlvoPct} baixa={d.config.margemBaixaPct} media={d.resumo.margemMediaPct} />
         </>
       )}
 
-      {aba === 'insumos' && d && <SecaoInsumos insumos={insumos} podeEditar={d.pode.editar} onMudou={() => void carregar()} toast={toast} />}
-      {aba === 'vendas' && <CmvVendas />}
-      {aba === 'config' && d && <ConfigCmv d={d} onSalvou={() => void carregar()} toast={toast} />}
+      {aba === 'insumos' && d && <SecaoInsumos insumos={insumos} podeEditar={d.pode.editar} onMudou={() => void carregar()} toast={toast} seletor={seletor} />}
+      {aba === 'vendas' && <CmvVendas seletor={seletor} />}
+      {aba === 'config' && d && (
+        <>
+          <LinhaResumos direita={seletor}><p className="text-[13px] text-text-subtle">Margem-alvo, aviso de margem baixa, custos variáveis e arredondamento do preço sugerido.</p></LinhaResumos>
+          <ConfigCmv d={d} onSalvou={() => void carregar()} toast={toast} />
+        </>
+      )}
 
       {ficha && d && <FichaCusto alvo={ficha} insumos={insumos} podeEditar={d.pode.editar} onFechar={() => setFicha(null)} onSalvou={() => void carregar()} toast={toast} />}
       {aplicar && <AplicarPreco l={aplicar} onFechar={() => setAplicar(null)} onAplicou={() => { setAplicar(null); void carregar() }} toast={toast} />}
@@ -237,7 +238,7 @@ function AplicarPreco({ l, onFechar, onAplicou, toast }: { l: Linha; onFechar: (
   )
 }
 
-function CmvVendas() {
+function CmvVendas({ seletor }: { seletor: React.ReactNode }) {
   const [periodo, setPeriodo] = useState(periodoDoAtalho('30d'))
   const [v, setV] = useState<Record<string, number | null> | null>(null)
   useEffect(() => {
@@ -246,15 +247,17 @@ function CmvVendas() {
     return () => { vivo = false }
   }, [periodo])
   return (
-    <div className="flex flex-col gap-4" data-testid="cmv-vendas">
-      <div className="flex flex-wrap gap-1.5">{ATALHOS.map((a) => <Chip key={a.id} ativo={periodoDoAtalho(a.id).de === periodo.de && periodoDoAtalho(a.id).ate === periodo.ate} onClick={() => setPeriodo(periodoDoAtalho(a.id))}>{a.rotulo}</Chip>)}</div>
-      <div className="grid grid-cols-1 gap-2.5 min-[400px]:grid-cols-2 lg:grid-cols-4">
-        <CartaoNumero icone={ICONES.dinheiro} tom="verde" rotulo="Vendido (com custo registrado)" valor={<span data-testid="vendas-vendido">{brl(v?.vendidoComCustoCentavos as number)}</span>} />
-        <CartaoNumero icone={ICONES.cartao} tom="laranja" rotulo="CMV (custo guardado)" valor={<span data-testid="vendas-cmv">{brl(v?.cmvCentavos as number)}</span>} />
-        <CartaoNumero icone={ICONES.subindo} tom="azul" rotulo="CMV % (vendas com custo)" valor={<span data-testid="vendas-cmv-pct">{pct((v?.cmvPct as number) ?? null)}</span>} />
-        <CartaoNumero icone={ICONES.aviso} tom="ambar" rotulo="Vendas sem custo registrado" valor={<span data-testid="vendas-sem-custo">{v?.semCustoRegistrado ?? '—'}</span>} />
-      </div>
-      {typeof v?.cmvAviso === 'string' && <p className="text-[13px] font-semibold" style={{ color: '#B45309' }} data-testid="vendas-cmv-aviso">{v.cmvAviso as string}</p>}
+    <div className="flex flex-col gap-3" data-testid="cmv-vendas">
+      <LinhaResumos direita={seletor} itens={[
+        { rotulo: 'Vendido (com custo)', valor: <span data-testid="vendas-vendido">{brl(v?.vendidoComCustoCentavos as number)}</span>, icone: ICONES.dinheiro, tom: 'verde' },
+        { rotulo: 'CMV (custo guardado)', valor: <span data-testid="vendas-cmv">{brl(v?.cmvCentavos as number)}</span>, icone: ICONES.cartao, tom: 'laranja' },
+        { rotulo: 'CMV %', valor: <span data-testid="vendas-cmv-pct">{pct((v?.cmvPct as number) ?? null)}</span>, icone: ICONES.subindo, tom: 'azul', dica: 'CMV sobre as vendas com custo registrado' },
+        { rotulo: 'Vendas sem custo', valor: <span data-testid="vendas-sem-custo">{v?.semCustoRegistrado ?? '—'}</span>, icone: ICONES.aviso, tom: 'ambar', destaque: Number(v?.semCustoRegistrado ?? 0) > 0 },
+      ]} />
+      <BarraFiltros>
+        <Segmentado rotulo="Período" valor={ATALHOS.find((a) => periodoDoAtalho(a.id).de === periodo.de && periodoDoAtalho(a.id).ate === periodo.ate)?.id ?? null} onMudar={(id) => setPeriodo(periodoDoAtalho(id))} opcoes={ATALHOS.map((a) => ({ id: a.id, rotulo: a.rotulo }))} />
+        {typeof v?.cmvAviso === 'string' && <p className="text-[13px] font-semibold" style={{ color: '#B45309' }} data-testid="vendas-cmv-aviso">{v.cmvAviso as string}</p>}
+      </BarraFiltros>
       {typeof v?.cmvPct === 'number' && (
         <Card titulo="CMV das vendas no período" subtitulo="Quanto do vendido (com custo registrado) foi custo do produto.">
           <Medidor valor={Math.min(100, v.cmvPct as number)} alerta={(v.cmvPct as number) > 35} rotulo="Referência <= 35%" texto={pct(v.cmvPct as number)} testid="vendas-medidor" />

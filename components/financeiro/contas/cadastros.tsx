@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import { BOTAO, Selo } from '../ui/blocos'
+import { LinhaResumos } from '@/components/ui/topo-compacto'
 import { Janela } from '../apoio'
 import type { Categoria, Fornecedor } from './secao-contas'
 
@@ -20,7 +21,7 @@ async function salvar(corpo: Record<string, unknown>) {
   return { ok: r.ok, erro: j.error as string | undefined }
 }
 
-export function SecaoCadastros({ categorias, fornecedores, podeEditar, toast, onMudou }: { categorias: Categoria[]; fornecedores: Fornecedor[]; podeEditar: boolean; toast: Toast; onMudou: () => void }) {
+export function SecaoCadastros({ categorias, fornecedores, podeEditar, toast, onMudou, seletor }: { categorias: Categoria[]; fornecedores: Fornecedor[]; podeEditar: boolean; toast: Toast; onMudou: () => void; seletor?: React.ReactNode }) {
   const [cat, setCat] = useState<Partial<Categoria> | null>(null)
   const [forn, setForn] = useState<Partial<Fornecedor> | null>(null)
 
@@ -36,6 +37,8 @@ export function SecaoCadastros({ categorias, fornecedores, podeEditar, toast, on
   const bloco = 'fin-card'
   const linha = 'flex items-center justify-between gap-2 border-b border-border px-3 py-2 text-[13px] last:border-b-0'
   return (
+    <div className="flex flex-col gap-3">
+    <LinhaResumos direita={seletor}><p className="text-[12.5px] text-text-subtle">Plano de contas (categorias de entrada e saída) e fornecedores.</p></LinhaResumos>
     <div className="grid gap-3 lg:grid-cols-2" data-testid="secao-cadastros">
       <section className={bloco}>
         <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
@@ -79,6 +82,7 @@ export function SecaoCadastros({ categorias, fornecedores, podeEditar, toast, on
 
       {cat && <FormCategoria inicial={cat} onFechar={() => setCat(null)} onSalvou={() => { setCat(null); onMudou() }} toast={toast} />}
       {forn && <FormFornecedor inicial={forn} onFechar={() => setForn(null)} onSalvou={() => { setForn(null); onMudou() }} toast={toast} />}
+    </div>
     </div>
   )
 }

@@ -6,6 +6,7 @@ import { formatarCentavos, paraCentavos } from '@/lib/financeiro/centavos'
 import { FORMAS_CONTA, ROTULO_FORMA_CONTA, type FormaConta } from '@/lib/financeiro/contas-regras'
 import { AprovacaoPin, Janela, type AprovacaoDada, type PedidoRemoto } from '../apoio'
 import { BOTAO, PainelLateral, Selo } from '../ui/blocos'
+import { LinhaResumos } from '@/components/ui/topo-compacto'
 import type { Fornecedor } from './secao-contas'
 
 /**
@@ -25,8 +26,10 @@ const ROT = 'mb-[4px] block text-[12.5px] font-semibold text-text-subtle'
 const ROT_PAG: Record<Compra['pagamento'], string> = { a_prazo: 'A prazo (conta a pagar)', caixa: 'Dinheiro do caixa', empresa: 'Paga pela empresa' }
 const brl = (c: number | null | undefined) => (c == null ? '—' : formatarCentavos(c))
 
-export function SecaoCompras({ insumos, fornecedores, podeLancar, podePagar, podeVerCusto, caixaAberto, toast, onMudou }: {
+export function SecaoCompras({ insumos, fornecedores, podeLancar, podePagar, podeVerCusto, caixaAberto, toast, onMudou, seletor }: {
   insumos: InsumoLeve[]; fornecedores: Fornecedor[]; podeLancar: boolean; podePagar: boolean; podeVerCusto: boolean; caixaAberto: boolean; toast: Toast; onMudou: () => void
+  /** Lista suspensa da sub-seção (vai na ponta direita da linha de cima). */
+  seletor?: React.ReactNode
 }) {
   const [compras, setCompras] = useState<Compra[] | null>(null)
   const [nova, setNova] = useState(false)
@@ -49,10 +52,9 @@ export function SecaoCompras({ insumos, fornecedores, podeLancar, podePagar, pod
 
   return (
     <div className="flex flex-col gap-3" data-testid="secao-compras">
-      <div className="flex flex-wrap items-center gap-2">
+      <LinhaResumos direita={<>{podeLancar && <button type="button" className={BOTAO.primario} onClick={() => setNova(true)} data-testid="compra-nova"><Plus className="h-4 w-4" /> Nova compra</button>}{seletor}</>}>
         <p className="text-[12.5px] text-text-subtle">Cada compra atualiza o custo dos insumos (com histórico) e o CMV dos produtos que usam esses insumos.</p>
-        {podeLancar && <button type="button" className={`${BOTAO.primario} ml-auto`} onClick={() => setNova(true)} data-testid="compra-nova"><Plus className="h-4 w-4" /> Nova compra</button>}
-      </div>
+      </LinhaResumos>
       {compras === null ? <p className="text-[13px] text-text-subtle">Carregando…</p> : compras.length === 0 ? (
         <p className="fin-card px-4 py-8 text-center text-[13px] text-text-subtle">Nenhuma compra lançada.</p>
       ) : (

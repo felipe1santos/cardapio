@@ -361,6 +361,7 @@ try {
     await tela.keyboard.press('Escape')
     await tela.reload({ waitUntil: 'networkidle' }); await tela.getByTestId('fluxo-tabela').waitFor()
     ok('coluna escolhida continua depois de recarregar (preferência do usuário)', await tela.locator('[data-testid="fluxo-tabela"] th', { hasText: 'Sangrias' }).isVisible())
+    await tela.getByTestId('abrir-filtros-tela').click() // o painel de filtros abre pelo botão (topo compacto, 16/10)
     await tela.getByTestId('filtro-forma-pix').click()
     await tela.waitForURL(/forma=pix/)
     ok('filtro reflete na URL', tela.url().includes('forma=pix'))

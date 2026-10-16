@@ -5,6 +5,7 @@ import { History, Plus, Trash2 } from 'lucide-react'
 import { formatarCentavos } from '@/lib/financeiro/centavos'
 import { UNIDADES_COMPRA, conversaoPadrao, type UnidadeCompra } from '@/lib/financeiro/cmv-regras'
 import { BOTAO, PainelLateral, Selo } from '../ui/blocos'
+import { CAMPO_FILTRO, LinhaResumos } from '@/components/ui/topo-compacto'
 
 /** Cadastro de insumos: compra → unidade base, aproveitamento, sub-receita e histórico de custos (append-only). */
 export interface InsumoCompleto {
@@ -23,7 +24,7 @@ export function custoUnitarioTexto(i: Pick<InsumoCompleto, 'custoPorBase' | 'uni
 const CAMPO = 'h-[40px] w-full rounded-[4px] border border-border bg-white px-2.5 text-[14px] outline-none focus:border-primary'
 const ROTULO = 'mb-1 block text-[12.5px] font-semibold text-text-subtle'
 
-export function SecaoInsumos({ insumos, podeEditar, onMudou, toast }: { insumos: InsumoCompleto[]; podeEditar: boolean; onMudou: () => void; toast: (tom: 'ok' | 'erro', t: string) => void }) {
+export function SecaoInsumos({ insumos, podeEditar, onMudou, toast, seletor }: { insumos: InsumoCompleto[]; podeEditar: boolean; onMudou: () => void; toast: (tom: 'ok' | 'erro', t: string) => void; seletor?: React.ReactNode }) {
   const [editando, setEditando] = useState<InsumoCompleto | 'novo' | null>(null)
   const [historico, setHistorico] = useState<{ nome: string; linhas: Record<string, unknown>[] } | null>(null)
   const [busca, setBusca] = useState('')
@@ -43,10 +44,9 @@ export function SecaoInsumos({ insumos, podeEditar, onMudou, toast }: { insumos:
 
   return (
     <div className="flex flex-col gap-3" data-testid="secao-insumos">
-      <div className="flex flex-wrap items-center gap-2">
-        <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar insumo" className={`${CAMPO} max-w-[300px]`} data-testid="insumos-busca" />
-        {podeEditar && <button type="button" className={`${BOTAO.primario} ml-auto`} onClick={() => setEditando('novo')} data-testid="insumo-novo"><Plus className="h-4 w-4" /> Novo insumo</button>}
-      </div>
+      <LinhaResumos direita={<>{podeEditar && <button type="button" className={BOTAO.primario} onClick={() => setEditando('novo')} data-testid="insumo-novo"><Plus className="h-4 w-4" /> Novo insumo</button>}{seletor}</>}>
+        <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar insumo" aria-label="Buscar insumo" className={`${CAMPO_FILTRO} w-[260px] max-md:w-full`} data-testid="insumos-busca" />
+      </LinhaResumos>
       <div className="flex flex-col divide-y divide-border overflow-hidden fin-card" data-testid="insumos-lista">
         {lista.length === 0 && <p className="px-4 py-8 text-center text-[13px] text-text-subtle">Nenhum insumo. Cadastre o que você compra (carne, pão, embalagem…).</p>}
         {lista.map((i) => (
