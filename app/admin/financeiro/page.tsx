@@ -18,6 +18,8 @@ import { PassoPin } from '@/components/financeiro/passo-pin'
 import { ControleCaixa } from '@/components/financeiro/controle-caixa'
 import { Card, FIN_BTN, FIN_COR, SeloMeta } from '@/components/graficos/kit-meta'
 import { CarregandoPagina } from '@/components/admin/barra-carregamento'
+import { LinhaResumos, SeletorSecao } from '@/components/ui/topo-compacto'
+import { ICONES } from '@/lib/icones-painel'
 
 /**
  * Financeiro (0132). Só existe com o módulo ligado na loja (o servidor responde 404 sem a flag).
@@ -130,6 +132,7 @@ function AuditoriaAlertas() {
   const [dados, setDados] = useState<{ alertas: Alerta[]; sessoes: Sessao[]; aprovacoes: Aprovacao[] } | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [verificando, setVerificando] = useState(false)
+  const [parte, setParte] = useState<'alertas' | 'acessos' | 'aprovacoes'>('alertas')
   const [resultado, setResultado] = useState<{ ok: boolean; problemas: { tabela: string; registro: string; motivo: string }[]; verificadoEm: string } | null>(null)
 
   const carregar = useCallback(async () => {
@@ -164,10 +167,19 @@ function AuditoriaAlertas() {
     <>
       {erro && <p role="alert" className="text-[14px] font-medium" style={{ color: FIN_COR.vermelho }}>{erro}</p>}
 
-      <Card testid="fin-integridade" titulo="Integridade dos registros"
-        subtitulo="Confere a corrente de assinaturas do caixa e da auditoria. Qualquer registro alterado ou apagado aparece aqui."
-        acoes={<button type="button" onClick={() => void verificar()} disabled={verificando} data-testid="fin-verificar" className={FIN_BTN.primario}>{verificando ? 'Verificando…' : 'Verificar integridade'}</button>}>
-        {resultado ? (
+      {/* Topo compacto (16/10): números + "Verificar integridade" + seletor (Alertas / Acessos / Aprovações). */}
+      <LinhaResumos testid="fin-integridade" itens={dados ? [
+        { rotulo: 'Alertas novos', valor: naoLidos, icone: ICONES.aviso, tom: 'vermelho', destaque: naoLidos > 0 },
+        { rotulo: 'Acessos', valor: dados.sessoes.length, icone: ICONES.perfil, tom: 'azul' },
+        { rotulo: 'Aprovações por PIN', valor: dados.aprovacoes.length, icone: ICONES.cadeado, tom: 'verde' },
+      ] : []} direita={<>
+        <button type="button" onClick={() => void verificar()} disabled={verificando} data-testid="fin-verificar" className={FIN_BTN.contorno}
+          title="Confere a corrente de assinaturas do caixa e da auditoria. Qualquer registro alterado ou apagado aparece aqui.">{verificando ? 'Verificando…' : 'Verificar integridade'}</button>
+        <SeletorSecao valor={parte} onMudar={setParte} rotulo="Parte da auditoria" testid="auditoria-secao"
+          opcoes={[{ id: 'alertas', rotulo: 'Alertas' }, { id: 'acessos', rotulo: 'Acessos recentes' }, { id: 'aprovacoes', rotulo: 'Aprovações por PIN' }]} />
+      </>} />
+      {resultado && (
+        <div className="fin-card px-4 py-3">
           <div className="border-l-[3px] pl-3 text-[14px]" style={{ borderLeftColor: resultado.ok ? '#4DBBA6' : '#D93616', color: resultado.ok ? FIN_COR.verde : FIN_COR.vermelho }} data-testid="fin-integridade-resultado">
             {resultado.ok ? `Tudo íntegro (verificado em ${dataHora(resultado.verificadoEm)}).` : (
               <>
@@ -178,10 +190,10 @@ function AuditoriaAlertas() {
               </>
             )}
           </div>
-        ) : undefined}
-      </Card>
+        </div>
+      )}
 
-      <Card testid="fin-alertas" semPadding
+      {parte === 'alertas' && <Card testid="fin-alertas" semPadding
         titulo={<>Alertas {naoLidos > 0 && <span className="ml-1 align-middle"><SeloMeta tom="vermelho">{naoLidos} novo(s)</SeloMeta></span>}</>}
         subtitulo="O que o sistema vigia no caixa, nos motoboys e nas ações sensíveis. Os graves também vão para o WhatsApp do dono.">
         {!dados ? vazio('Carregando…')
@@ -207,9 +219,9 @@ function AuditoriaAlertas() {
               ))}
             </ul>
           )}
-      </Card>
+      </Card>}
 
-      <Card testid="fin-sessoes" semPadding titulo="Acessos recentes" subtitulo="Quem entrou no painel, de qual aparelho e quando foi visto pela última vez.">
+      {parte === 'acessos' && <Card testid="fin-sessoes" semPadding titulo="Acessos recentes" subtitulo="Quem entrou no painel, de qual aparelho e quando foi visto pela última vez.">
         {!dados ? null : dados.sessoes.length === 0 ? vazio('Nenhum acesso registrado ainda.') : (
           <div className="mt-2 overflow-x-auto border-t border-border">
             <table className="w-full text-left text-[13px]">
@@ -230,9 +242,9 @@ function AuditoriaAlertas() {
             </table>
           </div>
         )}
-      </Card>
+      </Card>}
 
-      <Card testid="fin-aprovacoes" semPadding titulo="Aprovações por PIN" subtitulo="Ações acima do limite que um gerente ou o dono liberou com o próprio PIN.">
+      {parte === 'aprovacoes' && <Card testid="fin-aprovacoes" semPadding titulo="Aprovações por PIN" subtitulo="Ações acima do limite que um gerente ou o dono liberou com o próprio PIN.">
         {!dados ? null : dados.aprovacoes.length === 0 ? vazio('Nenhuma aprovação ainda.') : (
           <ul className="mt-2 divide-y divide-border border-t border-border">
             {dados.aprovacoes.map((a) => (
@@ -244,7 +256,7 @@ function AuditoriaAlertas() {
             ))}
           </ul>
         )}
-      </Card>
+      </Card>}
     </>
   )
 }

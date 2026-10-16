@@ -4,7 +4,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { formatarCentavos } from '@/lib/financeiro/centavos'
 import { ATALHOS, periodoDoAtalho, type Atalho } from '@/lib/financeiro/fluxo-regras'
 import { METRICAS, ROTULO_METRICA, type Metrica } from '@/lib/financeiro/risco-regras'
-import { Chip, Selo } from '../ui/blocos'
+import { Selo } from '../ui/blocos'
+import { BalaoInfo } from '@/components/admin/balao-info'
+import { BarraFiltros, Segmentado } from '@/components/ui/topo-compacto'
 
 /**
  * Financeiro › Risco por funcionário (Fase 6). Cancelamentos, descontos, estornos, reimpressões, divergências e
@@ -43,14 +45,18 @@ export function SecaoRisco() {
 
   return (
     <div className="flex flex-col gap-3" data-testid="secao-risco">
-      <div className="flex flex-wrap gap-1.5">{ATALHOS.map((a) => <Chip key={a.id} ativo={atalho === a.id} onClick={() => setAtalho(a.id)} testid={`risco-atalho-${a.id}`}>{a.rotulo}</Chip>)}</div>
-      <p className="text-[12.5px] text-text-subtle">Destaque em vermelho: pelo menos 3 no período e mais que o dobro do “normal” da equipe (a mediana). É um sinal para conferir na Auditoria — não uma acusação.</p>
+      <BarraFiltros>
+        <Segmentado rotulo="Período" valor={atalho} onMudar={setAtalho} testidPrefixo="risco-atalho-" opcoes={ATALHOS.map((a) => ({ id: a.id, rotulo: a.rotulo }))} />
+        <span className="inline-flex items-center gap-1 text-[12.5px] text-text-subtle">Vermelho = sinal para conferir
+          <BalaoInfo titulo="Destaque em vermelho">Pelo menos 3 no período e mais que o dobro do “normal” da equipe (a mediana). É um sinal para conferir na Auditoria — não uma acusação.</BalaoInfo>
+        </span>
+      </BarraFiltros>
       {erro && <p role="alert" className="fin-card border-l-[3px] !border-l-[#D93616] px-4 py-2.5 text-[14px] font-medium text-[#D93616]">{erro}</p>}
       {d && (
         <>
-          <div className="hidden overflow-x-auto fin-card md:block">
+          <div className="hidden max-h-[calc(100dvh-160px)] overflow-auto fin-card md:block">
             <table className="w-full border-separate border-spacing-0 text-[13px]" data-testid="risco-tabela">
-              <thead className="bg-[#F5F7F9] text-left text-[12.5px] font-semibold text-text-subtle">
+              <thead className="sticky top-0 z-[2] bg-[#F5F7F9] text-left text-[12.5px] font-semibold text-text-subtle">
                 <tr className="[&>th]:border-b [&>th]:border-border">
                   <th className="px-3 py-2.5">Funcionário</th>
                   {METRICAS.map((k) => <th key={k} className="px-3 py-2.5 text-right">{ROTULO_METRICA[k]}<span className="block font-normal normal-case">normal: {d.medianas[k]}</span></th>)}

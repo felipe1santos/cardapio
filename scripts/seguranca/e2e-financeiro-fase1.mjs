@@ -262,6 +262,7 @@ try {
   await pd.getByTestId('fin-integridade-resultado').waitFor({ timeout: 8000 })
   ok('verificar integridade pela tela', /íntegro/.test(await pd.getByTestId('fin-integridade-resultado').innerText()))
   await foto(pd, '04-financeiro-auditoria')
+  await pd.getByTestId('auditoria-secao').selectOption('acessos') // topo compacto (16/10): uma parte por vez
   ok('acessos recentes listados', (await pd.getByTestId('fin-sessoes').innerText()).includes(`Gerente ${SUF}`))
   const cel = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'pt-BR', storageState: await dono.ctx.storageState() })
   const pc = await cel.newPage(); await pc.goto(`${BASE}/admin/financeiro?secao=auditoria`, { waitUntil: 'networkidle' })

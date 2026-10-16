@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { formatarCentavos, paraCentavos } from '@/lib/financeiro/centavos'
+import { BalaoInfo } from '@/components/admin/balao-info'
 import { BOTAO } from './ui/blocos'
 
 /**
@@ -76,12 +77,16 @@ export function SecaoRegras() {
   )
   return (
     <div className="flex flex-col gap-3" data-testid="secao-regras">
-      <div className="fin-card border-l-[3px] !border-l-[#D47B04] px-4 py-2.5 text-[13px] text-[#1C2B33]">
-        <b>Regras de PIN no fechamento (provisórias):</b> diferença até a tolerância → justificativa; acima → PIN · motoboy sem acerto → PIN ·
-        entregue e não pago → PIN · Pix a conferir → fecha e vai para a lista do dono · mesa/comanda aberta → passa para o próximo turno com justificativa (PIN acima do limite) ·
-        maquininha com diferença → justificativa (PIN acima da tolerância). O dono não precisa de PIN.
+      {/* Topo compacto (16/10): as regras de PIN ficam no "i"; o formulário sobe. */}
+      <div className="flex flex-wrap items-center gap-2 text-[13px] text-[#1C2B33]">
+        <span className="inline-flex items-center gap-1 font-semibold">Regras de PIN no fechamento (provisórias)
+          <BalaoInfo titulo="Regras de PIN no fechamento">
+            Diferença até a tolerância → justificativa; acima → PIN · motoboy sem acerto → PIN · entregue e não pago → PIN · Pix a conferir → fecha e vai para a lista do dono ·
+            mesa/comanda aberta → passa para o próximo turno com justificativa (PIN acima do limite) · maquininha com diferença → justificativa (PIN acima da tolerância). O dono não precisa de PIN.
+          </BalaoInfo>
+        </span>
+        <span className="text-[12.5px] text-text-subtle">Tolerância atual: {formatarCentavos(Number(cfg.toleranciaFechamentoCentavos ?? 200))}.{!podeEditar ? ' Só o dono muda estas regras.' : ''}</span>
       </div>
-      {!podeEditar && <p className="text-[12.5px] text-text-subtle">Só o dono muda estas regras.</p>}
       <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
         {DINHEIRO.map(([k, r, a]) => campo(k, r, a, true))}
         {NUMEROS.map(([k, r, a]) => campo(k, r, a, false))}
@@ -92,7 +97,6 @@ export function SecaoRegras() {
           {msg && <span className={`text-[13px] font-semibold ${msg.tom === 'ok' ? 'text-[#006B4E]' : 'text-[#D93616]'}`} data-testid="regras-msg">{msg.t}</span>}
         </div>
       )}
-      <p className="text-[12px] text-text-subtle">Tolerância atual: {formatarCentavos(Number(cfg.toleranciaFechamentoCentavos ?? 200))}.</p>
     </div>
   )
 }

@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { CampoDinheiro, Janela, botao, brl } from './apoio'
+import { BalaoInfo } from '@/components/admin/balao-info'
+import { Segmentado } from '@/components/ui/topo-compacto'
 
 /**
  * Financeiro › Acerto de Motoboys e Conferir Pix (Fase 3). A tela pede; o servidor calcula e decide.
@@ -53,22 +55,19 @@ export function SecaoMotoboys() {
     <>
       {aviso && <p className="fin-card border-l-[3px] !border-l-[#4DBBA6] px-4 py-2.5 text-[14px] font-semibold text-[#006B4E]" data-testid="motoboys-aviso">{aviso}</p>}
       <section className={cartao} data-testid="motoboys-modo">
-        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-          <div>
-            <p className="text-[13px] font-semibold text-text-main">Troco do motoboy: {e.modo.modo === 'pedido' ? 'por pedido' : `fundo fixo (${brl(e.modo.fundoPadraoCentavos)})`}</p>
-            <p className="text-[12px] text-text-subtle">{e.modo.modo === 'pedido' ? 'No despacho de um pedido em dinheiro, o troco sai da gaveta para o motoboy (valor editável).' : 'No início do turno, o motoboy recebe o fundo; complemente quando faltar.'}
-              {e.modo.proximo && <b className="text-[#8A4B00]"> Muda para {e.modo.proximo === 'pedido' ? '"por pedido"' : '"fundo fixo"'} no próximo caixa.</b>}</p>
-          </div>
+        {/* Uma linha só (16/10): modo do troco + troca rápida; a explicação fica no "i". */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2">
+          <p className="text-[13px] font-semibold text-text-main">Troco do motoboy{gestor ? '' : `: ${e.modo.modo === 'pedido' ? 'por pedido' : `fundo fixo (${brl(e.modo.fundoPadraoCentavos)})`}`}</p>
           {gestor && (
-            <div className="flex gap-2">
-              {(['pedido', 'fundo'] as const).map((m) => (
-                <button key={m} type="button" className={e.modo.modo === m ? botao.primario : botao.secundario} data-testid={`modo-${m}`}
-                  onClick={async () => { const r = await post('/api/admin/financeiro/motoboys', { acao: 'modo', modo: m }); setAviso(r.s === 200 ? (r.j.imediato ? 'Modo trocado.' : 'Vale a partir do próximo caixa (há motoboy com dinheiro).') : String(r.j.error)); void carregar() }}>
-                  {m === 'pedido' ? 'Por pedido' : 'Fundo fixo'}
-                </button>
-              ))}
-            </div>
+            <Segmentado rotulo="Troco do motoboy" valor={e.modo.modo} testidPrefixo="modo-"
+              opcoes={[{ id: 'pedido', rotulo: 'Por pedido' }, { id: 'fundo', rotulo: e.modo.modo === 'fundo' ? `Fundo fixo (${brl(e.modo.fundoPadraoCentavos)})` : 'Fundo fixo' }]}
+              onMudar={async (m) => { if (m === e.modo.modo) return; const r = await post('/api/admin/financeiro/motoboys', { acao: 'modo', modo: m }); setAviso(r.s === 200 ? (r.j.imediato ? 'Modo trocado.' : 'Vale a partir do próximo caixa (há motoboy com dinheiro).') : String(r.j.error)); void carregar() }} />
           )}
+          {e.modo.proximo && <b className="text-[12.5px] text-[#8A4B00]">Muda para {e.modo.proximo === 'pedido' ? '"por pedido"' : '"fundo fixo"'} no próximo caixa.</b>}
+          <BalaoInfo titulo="Troco do motoboy">
+            <b>Por pedido:</b> no despacho de um pedido em dinheiro, o troco sai da gaveta para o motoboy (valor editável).<br />
+            <b>Fundo fixo:</b> no início do turno, o motoboy recebe o fundo; complemente quando faltar.
+          </BalaoInfo>
         </div>
       </section>
 

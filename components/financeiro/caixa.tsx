@@ -4,7 +4,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAtualizacaoAutomatica } from './usar-atualizacao'
 import { AprovacaoPin, CampoDinheiro, Janela, botao, brl, type AprovacaoDada, type PedidoRemoto } from './apoio'
 import { DESCRICAO_MOVIMENTO, MOVIMENTOS, ROTULO_MOVIMENTO, tempoAberto, type Movimento } from '@/lib/financeiro/caixa-regras'
-import { BotaoGaveta, Card, FIN_COR, Kpi, SeloMeta, ValorSinal } from '@/components/graficos/kit-meta'
+import { BotaoGaveta, Card, FIN_COR, SeloMeta, ValorSinal } from '@/components/graficos/kit-meta'
+import { LinhaResumos } from '@/components/ui/topo-compacto'
+import { ICONES } from '@/lib/icones-painel'
 import { GraficoFinanceiro } from '@/components/graficos/grafico'
 import { lerControleCaixa } from './ler-controle-caixa'
 
@@ -98,7 +100,7 @@ export function SecaoCaixa({ modo }: { modo: 'caixa' | 'movimentacoes' }) {
     <>
       {/* Situação do caixa */}
       <section className="fin-card border-l-[3px]" style={{ borderLeftColor: t ? '#4DBBA6' : '#D93616' }} data-testid="caixa-situacao">
-        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
           {t ? (
             <div className="min-w-0">
               <p className="flex items-center gap-2 text-[18px] font-semibold text-text-main">
@@ -122,10 +124,12 @@ export function SecaoCaixa({ modo }: { modo: 'caixa' | 'movimentacoes' }) {
           </div>
         </div>
         {t && e.veValores && e.saldos && (
-          <div className="grid grid-cols-1 gap-3 px-5 pb-5 min-[400px]:grid-cols-2 lg:grid-cols-4" data-testid="caixa-saldos">
-            {(['gaveta', 'cartao', 'pix_conferir', 'a_receber'] as const).map((k) => (
-              <Kpi key={k} rotulo={k === 'gaveta' ? 'Dinheiro na gaveta' : ROTULO_CARTEIRA[k]} valor={brl(e.saldos![k] ?? 0)} />
-            ))}
+          <div className="border-t border-[#E4E7EA] px-5 py-1.5" data-testid="caixa-saldos">
+            <LinhaResumos itens={(['gaveta', 'cartao', 'pix_conferir', 'a_receber'] as const).map((k) => ({
+              rotulo: k === 'gaveta' ? 'Dinheiro na gaveta' : ROTULO_CARTEIRA[k], valor: brl(e.saldos![k] ?? 0),
+              icone: k === 'gaveta' ? ICONES.dinheiro : k === 'cartao' ? ICONES.cartao : k === 'pix_conferir' ? ICONES.relogio : ICONES.calendario,
+              tom: k === 'gaveta' ? 'verde' : k === 'cartao' ? 'azul' : k === 'pix_conferir' ? 'ambar' : 'cinza',
+            }))} />
           </div>
         )}
         {t && !e.veValores && (
@@ -135,25 +139,19 @@ export function SecaoCaixa({ modo }: { modo: 'caixa' | 'movimentacoes' }) {
 
       {/* Movimentos manuais */}
       {t && (pode('sangria') || pode('despesa')) && (
-        <Card titulo="Movimentar a gaveta" subtitulo={`Saídas acima de ${brl(e.limiteSaidaCentavos)} precisam do PIN de um gerente (não do seu).`}>
-          <div className="flex flex-wrap gap-2.5">
-            {MOVIMENTOS.filter((m) => pode(m === 'despesa' ? 'despesa' : 'sangria')).map((m) => (
-              <BotaoGaveta key={m} tipo={m} rotulo={ROTULO_MOVIMENTO[m]} onClick={() => setJanela(m)} testid={`mov-${m}`} />
-            ))}
-          </div>
-        </Card>
+        <Card titulo="Movimentar a gaveta" subtitulo={`Saídas acima de ${brl(e.limiteSaidaCentavos)} precisam do PIN de um gerente (não do seu).`}
+          acoes={MOVIMENTOS.filter((m) => pode(m === 'despesa' ? 'despesa' : 'sangria')).map((m) => (
+            <BotaoGaveta key={m} tipo={m} rotulo={ROTULO_MOVIMENTO[m]} onClick={() => setJanela(m)} testid={`mov-${m}`} />
+          ))} />
       )}
-
-      {/* Entradas por hora do turno (gráfico de barras da Meta) — só para quem vê valores. */}
-      {t && e.veValores && e.extrato?.length ? <EntradasPorHora abertoEm={t.aberto_em} linhas={e.extrato} /> : null}
 
       {/* Extrato do turno */}
       {t && (
         <Card testid="caixa-extrato" semPadding titulo={e.veValores ? 'Lançamentos do caixa' : 'Movimentos do caixa'} subtitulo="Tudo o que entrou e saiu neste turno, com quem fez.">
           {!e.extrato?.length ? <p className="px-5 pb-4 text-[14px] text-text-subtle">Nada lançado ainda.</p> : (
-            <div className="mt-2 overflow-x-auto border-t border-[#E4E7EA]">
+            <div className="mt-2 max-h-[calc(100dvh-200px)] overflow-auto border-t border-[#E4E7EA]">
               <table className="w-full text-left text-[13px]">
-                <thead>
+                <thead className="sticky top-0 z-[2] bg-[#F5F7F9]">
                   <tr><th className="px-5 py-2.5">Quando</th><th className="px-4 py-2.5">O quê</th><th className="px-4 py-2.5">Onde</th><th className="px-4 py-2.5 text-right">Valor</th><th className="px-4 py-2.5">Quem</th></tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -173,6 +171,9 @@ export function SecaoCaixa({ modo }: { modo: 'caixa' | 'movimentacoes' }) {
         </Card>
       )}
 
+      {/* Entradas por hora do turno (gráfico de barras da Meta) — só para quem vê valores; depois do extrato (16/10). */}
+      {t && e.veValores && e.extrato?.length ? <EntradasPorHora abertoEm={t.aberto_em} linhas={e.extrato} /> : null}
+
       {/* Último fechamento */}
       {modo === 'caixa' && e.ultimoFechado && <UltimoFechado f={e.ultimoFechado} podeReabrir={!t && pode('caixa_reabrir')} onReabrir={() => setJanela('reabrir')} />}
 
@@ -188,17 +189,20 @@ function UltimoFechado({ f, podeReabrir, onReabrir }: { f: Fechado; podeReabrir:
   const dif = f.diferenca_centavos ?? 0
   return (
     <section className="fin-card" data-testid="caixa-ultimo">
-      <div className="flex flex-wrap items-center justify-between gap-2 px-5 pt-4">
-        <h2 className="text-[16px] font-semibold text-text-main">Último fechamento · {hora(f.fechado_em)} por {f.fechado_por_nome ?? '—'}</h2>
+      <div className="flex flex-wrap items-center justify-between gap-2 px-5 pt-3">
+        <h2 className="text-[15px] font-semibold text-text-main">Último fechamento · {hora(f.fechado_em)} por {f.fechado_por_nome ?? '—'}</h2>
         <div className="flex gap-2">
           <button type="button" className={botao.secundario} onClick={() => window.open(`/admin/financeiro/caixa/${f.id}`, '_blank')} data-testid="caixa-relatorio">Relatório</button>
           {podeReabrir && <button type="button" className={botao.secundario} onClick={onReabrir} data-testid="caixa-reabrir">Reabrir</button>}
         </div>
       </div>
-      <div className="grid grid-cols-1 gap-3 px-5 pb-5 pt-3 min-[400px]:grid-cols-2 lg:grid-cols-4">
-        {[['Esperado (dinheiro)', brl(f.esperado_dinheiro_centavos)], ['Contado (dinheiro)', brl(f.contado_dinheiro_centavos)], ['Diferença', brl(dif)], ['Cartão (contado)', brl(f.contado_cartao_centavos)]].map(([r, v], i) => (
-          <Kpi key={r} rotulo={r} valor={<span style={{ color: i === 2 && dif !== 0 ? (dif < 0 ? FIN_COR.vermelho : FIN_COR.atencaoTexto) : undefined }}>{v}</span>} />
-        ))}
+      <div className="px-5 pb-2 pt-1">
+        <LinhaResumos itens={[
+          { rotulo: 'Esperado (dinheiro)', valor: brl(f.esperado_dinheiro_centavos), icone: ICONES.dinheiro, tom: 'cinza' },
+          { rotulo: 'Contado (dinheiro)', valor: brl(f.contado_dinheiro_centavos), icone: ICONES.dinheiro, tom: 'verde' },
+          { rotulo: 'Diferença', valor: <span style={{ color: dif !== 0 ? (dif < 0 ? FIN_COR.vermelho : FIN_COR.atencaoTexto) : undefined }}>{brl(dif)}</span>, icone: ICONES.aviso, tom: dif === 0 ? 'cinza' : 'vermelho' },
+          { rotulo: 'Cartão (contado)', valor: brl(f.contado_cartao_centavos), icone: ICONES.cartao, tom: 'azul' },
+        ]} />
       </div>
       {(f.justificativa || f.fechamento_aprovado_por_nome) && (
         <p className="border-t border-[#E4E7EA] px-5 py-2.5 text-[13px] text-text-subtle">{f.justificativa}{f.fechamento_aprovado_por_nome ? ` · aprovado por ${f.fechamento_aprovado_por_nome}` : ''}</p>

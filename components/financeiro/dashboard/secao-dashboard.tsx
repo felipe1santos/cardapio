@@ -6,9 +6,9 @@ import { AlertTriangle, ArrowUpFromLine, Bike, CheckCircle2, ChefHat, Clock, Cre
 import { formatarCentavos } from '@/lib/financeiro/centavos'
 import { ATALHOS, periodoDoAtalho, type Atalho } from '@/lib/financeiro/fluxo-regras'
 import { periodoAnterior, variacaoPct } from '@/lib/financeiro/contas-regras'
-import { Chip } from '../ui/blocos'
 import { CORES_GRAFICO, GraficoFinanceiro, Medidor, dataCurta } from '@/components/graficos/grafico'
-import { Aviso, CabecalhoSecao, Card, Destaque, FIN_COR, FiltroPeriodo, Kpi } from '@/components/graficos/kit-meta'
+import { BarraFiltros, Segmentado } from '@/components/ui/topo-compacto'
+import { Aviso, Card, Destaque, FIN_COR, FiltroPeriodo, Kpi } from '@/components/graficos/kit-meta'
 
 /**
  * Financeiro › Dashboard (Fase 6). Números do livro-caixa e do custo guardado na venda; o gráfico usa o
@@ -84,20 +84,16 @@ export function SecaoDashboard() {
   const icone = (I: typeof Wallet) => <I className="h-[15px] w-[15px]" strokeWidth={2} />
 
   return (
-    <div className="flex flex-col gap-4" data-testid="secao-dashboard-fin">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <CabecalhoSecao grande titulo="Dashboard financeiro" subtitulo="Tudo do livro-caixa e do custo guardado na venda. Variação comparada com o período anterior de mesmo tamanho." />
-        <div className="flex flex-wrap items-center gap-2">
-          <FiltroPeriodo atalhos={ATALHOS} ativo={atalho} onSelecionar={setAtalho} testidPrefixo="dash-atalho" />
-          <div className="flex gap-1">
-            {([['dia', 'Dia'], ['semana', 'Semana'], ['mes', 'Mês']] as const).map(([g, r]) => <Chip key={g} ativo={grupo === g} onClick={() => setGrupo(g)} testid={`dash-grupo-${g}`}>{r}</Chip>)}
-          </div>
-        </div>
-      </div>
+    <div className="flex flex-col gap-3" data-testid="secao-dashboard-fin">
+      <BarraFiltros>
+        <FiltroPeriodo atalhos={ATALHOS} ativo={atalho} onSelecionar={setAtalho} testidPrefixo="dash-atalho" />
+        <Segmentado rotulo="Agrupar o gráfico por" valor={grupo} onMudar={setGrupo} testidPrefixo="dash-grupo-" opcoes={[{ id: 'dia', rotulo: 'Dia' }, { id: 'semana', rotulo: 'Semana' }, { id: 'mes', rotulo: 'Mês' }]} />
+        <p className="text-[12.5px] text-text-subtle max-xl:hidden">Livro-caixa e custo guardado na venda · variação contra o período anterior de mesmo tamanho</p>
+      </BarraFiltros>
       {erro && <Aviso tipo="erro">{erro}</Aviso>}
       {c && d && (
         <>
-          <div className="grid grid-cols-1 gap-3 min-[400px]:grid-cols-2 lg:grid-cols-4" data-testid="dash-cards">
+          <div className="grid grid-cols-1 gap-3 min-[400px]:grid-cols-2 lg:grid-cols-4 min-[1700px]:grid-cols-6" data-testid="dash-cards">
             <Kpi icone={icone(Wallet)} rotulo="Faturamento bruto" variacao={v('faturamentoBrutoCentavos')} valor={<span data-testid="dash-faturamento" data-valor={c.faturamentoBrutoCentavos}>{brl(c.faturamentoBrutoCentavos)}</span>} />
             {c.cmvCentavos !== null && <Kpi icone={icone(ChefHat)} rotulo="CMV (custo vendido)" inverso variacao={v('cmvCentavos')} valor={<span data-testid="dash-cmv" data-valor={c.cmvCentavos}>{brl(c.cmvCentavos)}</span>} />}
             {c.lucroBrutoCentavos !== null && <Kpi icone={icone(TrendingUp)} rotulo="Lucro bruto" variacao={v('lucroBrutoCentavos')} valor={<span data-testid="dash-lucro-bruto" data-valor={c.lucroBrutoCentavos}>{brl(c.lucroBrutoCentavos)}</span>} />}

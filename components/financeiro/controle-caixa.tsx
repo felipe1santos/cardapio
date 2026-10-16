@@ -58,10 +58,10 @@ export function ControleCaixa() {
 
   if (e.ativo) {
     return (
-      <section className="fin-card flex flex-col gap-3 border-l-[3px] p-4 sm:flex-row sm:items-center sm:justify-between" style={{ borderLeftColor: '#4DBBA6' }} data-testid="controle-caixa-ativo">
-        <div>
-          <p className="flex items-center gap-2 text-[15px] font-semibold" style={{ color: FIN_COR.texto }}>Controle de caixa ativo <SeloMeta tom="verde">Nível 2</SeloMeta></p>
-          <p className="mt-1 text-[13px]" style={{ color: FIN_COR.texto2 }}>
+      <section className="fin-card flex flex-col gap-2 border-l-[3px] px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between" style={{ borderLeftColor: '#4DBBA6' }} data-testid="controle-caixa-ativo">
+        <div className="min-w-0">
+          <p className="flex items-center gap-2 text-[14px] font-semibold" style={{ color: FIN_COR.texto }}>Controle de caixa ativo <SeloMeta tom="verde">Nível 2</SeloMeta></p>
+          <p className="text-[12.5px]" style={{ color: FIN_COR.texto2 }}>
             Abrir e fechar o caixa é obrigatório, com contagem às cegas.{e.ativadoEm ? ` Ativado por ${e.ativadoPorNome ?? '—'} em ${quando(e.ativadoEm)}.` : ''}
           </p>
           {erro && <p className="mt-1 text-[13px] text-danger">{erro}</p>}
@@ -80,11 +80,11 @@ export function ControleCaixa() {
 
   const obrigatoriosOk = e.passos.filter((p) => p.obrigatorio && p.id !== 'fundo').every((p) => p.ok)
   return (
-    <section className="fin-card border-l-[3px] p-4" style={{ borderLeftColor: '#1877F2' }} data-testid="controle-caixa-nivel1">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="flex items-center gap-2 text-[15px] font-semibold" style={{ color: FIN_COR.texto }}>Caixa automático <SeloMeta tom="azul">Nível 1</SeloMeta></p>
-          <p className="mt-1 text-[13px]" style={{ color: FIN_COR.texto2 }}>
+    <section className="fin-card border-l-[3px] px-4 py-2.5" style={{ borderLeftColor: '#1877F2' }} data-testid="controle-caixa-nivel1">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className="flex items-center gap-2 text-[14px] font-semibold" style={{ color: FIN_COR.texto }}>Caixa automático <SeloMeta tom="azul">Nível 1</SeloMeta></p>
+          <p className="text-[12.5px]" style={{ color: FIN_COR.texto2 }}>
             As vendas entram sozinhas no caixa do dia; ninguém precisa abrir nem fechar. PDV, mesas e delivery vendem como antes.{' '}
             <Link href="/admin/financeiro/guia#niveis" className="font-semibold underline">Os dois níveis</Link>
           </p>
