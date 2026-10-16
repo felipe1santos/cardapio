@@ -99,3 +99,28 @@ Extraídos de `components/atendimento/central.tsx` e guardados em `components/ui
 | Raios | 8px botão/campo, 10px cartão/balão, 12px janela; pílula em selo | janela, balões, botões |
 
 No Kanban v3 o card e o painel usam negrito (700/800) por pedido do modelo — exceção anotada em `lib/peso-fonte.test.ts`.
+
+## 7. Topo compacto (16/10/2026)
+
+Meta: o topo ocupa no máximo ~20–25% da altura (1366×768) e o conteúdo principal (tabela, lista) o resto. Peças em
+`components/ui/topo-compacto.tsx` e `components/layout/caminho-topo.tsx`; relatório em
+`docs/relatorios/2026-10-16-compactar-topo.md`.
+
+- **Caminho na barra do topo** — `TopBar secao={{ nome, ajuda }}` mostra "Financeiro › Contas e DRE (i)": o nome da
+  seção em 15px cinza e o "i" que leva à ajuda. A tela **não repete** o título dentro da página nem põe frase de
+  explicação no topo (a explicação vai para o "i").
+- **Aviso que pede ação** — `TopBar aviso={<AvisoTopo …/>}`: faixa baixa (34px) entre o caminho e a impressora, no
+  amarelo da conversa que pede atendente na central (fundo #FEF3C7, borda #FCD34D, faixa à esquerda #F59E0B, texto
+  #92400E), texto curto + um botão pequeno + "i" com a explicação. No celular desce para uma faixa fina abaixo da barra.
+  Se o aviso não tiver nada a mostrar, a faixa some sozinha.
+- **No máximo 2 linhas antes da tabela:**
+  - **Linha 1 — `LinhaResumos`**: números em pílulas de 30px (ícone 14px na cor do tom + rótulo cinza + valor
+    `tabular-nums`; o valor ganha a cor do tom só quando pede atenção, ex. vencidas > 0). À direita, **`SeletorSecao`**
+    (lista suspensa nativa) no lugar da fileira de abas.
+  - **Linha 2 — `BarraFiltros`**: `Segmentado` (situação/período, 32px), busca e listas com `CAMPO_FILTRO` (34px) à
+    esquerda; CSV e o botão principal à direita.
+- **Tabela** — rola por dentro com o cabeçalho fixo e usa a altura que sobra (`max-h-[calc(100dvh-196px)]`).
+  Gráfico e painel de filtros grandes ficam atrás de um botão ("Gráfico", "Filtros (n)") ou depois da tabela.
+- **Nada some**: toda aba vira opção do seletor; todo filtro e botão continua na linha 2 (no máximo 1 clique a mais).
+- **Foco** — `FOCO_GUIA` (anel azul a 40%) nas abas, chips, segmentado e seletor, no lugar do anel forte do tema.
+- No toque (abaixo de `lg`) os controles crescem para 44px.

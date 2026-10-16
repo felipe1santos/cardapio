@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { ArrowLeft, X } from 'lucide-react'
 import { FIN_BTN, FIN_COR } from '@/components/graficos/kit-meta'
+import { FOCO_GUIA } from '@/components/ui/topo-compacto'
 
 /**
  * Peças reaproveitáveis do Financeiro (Fase 4; visual "estilo Meta" no item 4b, 2026-10-04): selo, chip de
@@ -24,7 +25,7 @@ export function Selo({ cor, children, testid }: { cor: string; children: React.R
 export function Chip({ ativo, onClick, children, testid }: { ativo: boolean; onClick: () => void; children: React.ReactNode; testid?: string }) {
   return (
     <button type="button" onClick={onClick} aria-pressed={ativo} data-testid={testid}
-      className={`flex h-[34px] flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[6px] border px-3 text-[13px] font-semibold transition-colors duration-150 ${ativo ? 'border-transparent bg-[#E1EDF7] text-[#0868A6]' : 'border-[#CBD2D9] bg-white text-[#1C2B33] hover:bg-[#F5F6F7] active:bg-[#E4E7EA]'}`}>
+      className={`flex h-[32px] flex-shrink-0 max-lg:h-[44px] ${FOCO_GUIA} items-center gap-1.5 whitespace-nowrap rounded-[6px] border px-3 text-[13px] font-semibold transition-colors duration-150 ${ativo ? 'border-transparent bg-[#E1EDF7] text-[#0868A6]' : 'border-[#CBD2D9] bg-white text-[#1C2B33] hover:bg-[#F5F6F7] active:bg-[#E4E7EA]'}`}>
       {children}
     </button>
   )

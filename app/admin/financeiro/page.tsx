@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import { Suspense, useCallback, useEffect, useState } from 'react'
 import { TopBar } from '@/components/layout/topbar'
 import { SubmenuVertical, type ItemSubmenu } from '@/components/admin/submenu-vertical'
@@ -99,7 +98,9 @@ export default function FinanceiroPage() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <TopBar title="Financeiro" breadcrumb="Caixa, acertos, custos e auditoria" />
+      <TopBar title="Financeiro" breadcrumb="Caixa, acertos, custos e auditoria"
+        secao={acoes && atual ? { nome: atual.label, ajuda: { href: `/admin/financeiro/guia#${ANCORA_GUIA[atual.id]}`, rotulo: `Como usar: ${atual.label} (guia do Financeiro)`, testid: 'fin-guia-i' } } : undefined}
+        aviso={acoes ? <PassoPin papel={papel} /> : undefined} />
       {erro ? (
         <div className="fin-meta fin-fundo flex-1 p-5"><p className="text-[14px]" style={{ color: FIN_COR.texto2 }} data-testid="fin-erro">{erro}</p></div>
       ) : !acoes ? (
@@ -107,15 +108,8 @@ export default function FinanceiroPage() {
       ) : (
         <div className="fin-meta flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row" data-financeiro-raiz>
           <SubmenuVertical itens={itens} ativo={secao} onSelecionar={setSecao} titulo="Seções do financeiro" />
-          <div className="flex min-w-0 flex-1 flex-col space-y-4 overflow-y-auto p-4 sm:p-5 lg:p-6" data-financeiro-area>
-            <PassoPin papel={papel} />
-            {atual && (
-              <div className="flex items-center gap-2" data-testid="fin-titulo-secao">
-                <h1 className="text-[18px] font-semibold" style={{ color: FIN_COR.texto }}>{atual.label}</h1>
-                <Link href={`/admin/financeiro/guia#${ANCORA_GUIA[atual.id]}`} aria-label={`Guia: ${atual.label}`} title="Como usar esta tela (guia do Financeiro)" data-testid="fin-guia-i"
-                  className="grid h-[24px] w-[24px] place-items-center rounded-full border text-[13px] font-semibold italic leading-none hover:bg-[#F5F6F7]" style={{ color: '#0B5CAD', borderColor: '#BFD7F2' }}>i</Link>
-              </div>
-            )}
+          {/* Topo compacto (16/10): o nome da seção e o aviso do PIN moram na barra do topo; aqui só o conteúdo. */}
+          <div className="flex min-w-0 flex-1 flex-col space-y-3 overflow-y-auto p-[16px]" data-financeiro-area>
             {secao === 'fluxo' && acoes.includes('financeiro') ? (
               <Suspense fallback={<p className="text-[14px]" style={{ color: FIN_COR.texto2 }}>Carregando…</p>}><FluxoCaixa usuarioId={usuarioId} /></Suspense>
             ) : secao === 'cmv' && acoes.includes('custos_ver') ? <SecaoCmv /> : secao === 'contas' && acoes.includes('contas_pagar') ? <SecaoContas /> : secao === 'dashboard' && acoes.includes('financeiro') ? <SecaoDashboard /> : secao === 'risco' && acoes.includes('auditoria_ver') ? <SecaoRisco /> : secao === 'regras' && acoes.includes('financeiro') ? <SecaoRegras /> : secao === 'motoboys' ? <SecaoMotoboys /> : secao === 'pix' ? <SecaoPix /> : (secao === 'caixa' || secao === 'movimentacoes') ? (

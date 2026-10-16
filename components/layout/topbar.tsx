@@ -5,6 +5,7 @@ import { ArrowLeft } from 'lucide-react'
 import { MenuLateralContext } from './menu-lateral-contexto'
 import { ICONES } from '@/lib/icones-painel'
 import { AcoesTopo } from '@/components/admin/acoes-topo'
+import { CaminhoTopo, type AjudaCaminho } from './caminho-topo'
 
 export interface TopBarProps {
   title: string
@@ -24,6 +25,13 @@ export interface TopBarProps {
   voltar?: { rotulo: string; onClick: () => void }
   /** Celular (abaixo de 768 px): substitui `right` — ex.: tela cheia + menu ⋮ com as ações. */
   celular?: React.ReactNode
+  /** Seção dentro do módulo: vira o caminho "Título › Seção (i)" no lugar do título sozinho. */
+  secao?: { nome: string; ajuda?: AjudaCaminho }
+  /**
+   * Aviso baixo que pede ação (ex.: AvisoTopo do PIN), entre o título e os botões do sistema. No celular desce para
+   * uma faixa fina logo abaixo da barra. Se o componente não renderizar nada, a faixa some (`empty:hidden`).
+   */
+  aviso?: React.ReactNode
 }
 
 /**
@@ -32,7 +40,7 @@ export interface TopBarProps {
  * não cabe é a tela que cede: o título encolhe (reticências) e, no celular, as ações da tela
  * descem para uma segunda linha.
  */
-export function TopBar({ title, breadcrumb, right, voltar, controles, sistema, semTitulo, celular }: TopBarProps) {
+export function TopBar({ title, breadcrumb, right, voltar, controles, sistema, semTitulo, celular, secao, aviso }: TopBarProps) {
   // Abaixo de `lg` a sidebar é gaveta, e é a barra de topo que a abre. O contexto evita
   // passar a função por todas as telas do painel só para chegar aqui.
   const menu = useContext(MenuLateralContext)
@@ -68,7 +76,9 @@ export function TopBar({ title, breadcrumb, right, voltar, controles, sistema, s
         {/* Título da referência: uma linha só, 19,2px em peso 500. O caminho
             ("Visão geral › Desempenho") fica só para o leitor de tela. */}
         <div className={semTitulo ? 'sr-only' : 'min-w-0'}>
-          <h1 className="truncate text-[19.2px] font-medium leading-tight text-[var(--adm-texto,#1f2937)]">{title}</h1>
+          {secao ? <CaminhoTopo titulo={title} secao={secao.nome} ajuda={secao.ajuda} /> : (
+            <h1 className="truncate text-[19.2px] font-medium leading-tight text-[var(--adm-texto,#1f2937)]">{title}</h1>
+          )}
           <span className="sr-only">{breadcrumb}</span>
         </div>
         {controles && (
@@ -80,6 +90,11 @@ export function TopBar({ title, breadcrumb, right, voltar, controles, sistema, s
           </div>
         )}
       </div>
+      {aviso && (
+        <div className="order-4 flex min-w-0 basis-full md:min-w-[280px] empty:hidden md:order-2 md:max-w-[520px] md:flex-shrink md:basis-auto" data-testid="topo-aviso">
+          {aviso}
+        </div>
+      )}
       {right && (
         <div className={`order-3 flex min-w-0 basis-full flex-wrap items-center justify-end gap-1.5 md:order-2 md:basis-auto md:flex-shrink-0 md:flex-nowrap md:gap-2 ${celular ? 'max-md:hidden' : ''}`} data-testid="topo-acoes">
           {right}
