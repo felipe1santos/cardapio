@@ -8,7 +8,7 @@
  */
 import { ClipboardCheck, KeyRound, MapPin, Pencil, Phone, Plus, Search, Users, Wallet } from 'lucide-react'
 import type { Entregador, Pedido, StatusEntregador } from '@/lib/queries/pedidos'
-import { contarOnline, statusReal, type TipoStatusReal } from '@/lib/motoboy/status-real'
+import { statusReal, type TipoStatusReal } from '@/lib/motoboy/status-real'
 import { pedidoParado, tempoParado } from '@/lib/pedido-parado'
 import { rotuloForma } from '@/lib/pdv-pagamento'
 import { formatarReal as brl } from '@/lib/moeda'
@@ -87,31 +87,6 @@ function Avatar({ nome, fotoUrl, tamanho, ponto }: { nome: string; fotoUrl: stri
 }
 
 /* ── Resumo do topo ─────────────────────────────────────────────────────── */
-
-function CartaoResumo({ rotulo, valor, sufixo, detalhe, testid }: { rotulo: string; valor: React.ReactNode; sufixo?: string; detalhe: React.ReactNode; testid: string }) {
-  return (
-    <div className={`${CARTAO} flex min-w-0 flex-col gap-[2px] px-[16px] py-[12px] max-sm:px-[12px]`} data-testid={testid}>
-      <p className="truncate text-[12px] font-medium text-[var(--adm-texto-medio)]" title={rotulo}>{rotulo}</p>
-      <p className="whitespace-nowrap text-[26px] font-semibold leading-[30px] tabular-nums text-[var(--adm-texto)] max-sm:text-[22px] max-sm:leading-[28px]">
-        {valor}
-        {sufixo && <span className="ml-[4px] text-[14px] font-medium text-[var(--adm-texto-suave)]">{sufixo}</span>}
-      </p>
-      <p className="truncate text-[12px] text-[var(--adm-texto-suave)]">{detalhe}</p>
-    </div>
-  )
-}
-
-export function ResumoNovo({ concluidos, emRota, comNexta, drivers }: { concluidos: Pedido[]; emRota: number; comNexta: number; drivers: Entregador[] }) {
-  const entregues = concluidos.filter((o) => o.status === 'entregue')
-  const { online, total } = contarOnline(drivers)
-  return (
-    <div className="grid flex-shrink-0 grid-cols-3 gap-[12px] max-sm:gap-[8px]" data-testid="indicadores-pedidos">
-      <CartaoResumo testid="resumo-entregues" rotulo="Entregues hoje" valor={entregues.length} detalhe={brl(entregues.reduce((s, o) => s + o.total, 0))} />
-      <CartaoResumo testid="resumo-em-rota" rotulo="Em rota agora" valor={emRota + comNexta} detalhe={comNexta ? `${comNexta} com o Nexta` : emRota ? 'seus motoboys' : 'ninguém na rua'} />
-      <CartaoResumo testid="resumo-online" rotulo="Online agora" valor={online} sufixo={`de ${total}`} detalhe="app aberto" />
-    </div>
-  )
-}
 
 /* ── Aba Entregadores ───────────────────────────────────────────────────── */
 
@@ -316,13 +291,7 @@ export function FinalizadosNovo({ lista, filtrados, carregando, semDatas, filtro
   const hora = (o: Pedido) => fmt.format(new Date((o.status === 'entregue' ? o.etapas?.entregue : null) ?? o.atualizadoEm))
   return (
     <section className={CARTAO} data-testid="pedidos-finalizados">
-      <CabecalhoCartao
-        icone={<ClipboardCheck className="h-[16px] w-[16px]" />}
-        titulo="Pedidos finalizados"
-        contador={f.ativos ? filtrados.length : lista.length}
-        descricao={f.ativos ? `${filtrados.length} de ${lista.length} com os filtros` : `entregues, retirados e cancelados · ${f.rotulos[f.periodo].toLowerCase()}`}
-      />
-      {/* Filtros numa barra só (os mesmos de antes). */}
+      {/* Topo compacto (16/10): sem o cabeçalho "Pedidos finalizados" (a aba já diz); a contagem fica no fim da barra. */}
       <div className="flex flex-wrap items-center gap-[8px] border-b border-[var(--adm-borda)] bg-[var(--adm-superficie-2)] px-[16px] py-[8px]" data-testid="barra-filtros">
         <select value={f.periodo} onChange={(e) => f.setPeriodo(e.target.value as PeriodoLista)} aria-label="Período" data-testid="filtro-periodo" className={CAMPO}>
           {(Object.keys(f.rotulos) as PeriodoLista[]).map((p) => <option key={p} value={p}>{f.rotulos[p]}</option>)}
@@ -343,6 +312,10 @@ export function FinalizadosNovo({ lista, filtrados, carregando, semDatas, filtro
         <input value={f.min} onChange={(e) => f.setMin(e.target.value)} placeholder="Valor mín." aria-label="Valor mínimo" inputMode="decimal" autoComplete="off" className={`${CAMPO} w-[96px] max-sm:w-[80px]`} />
         <input value={f.max} onChange={(e) => f.setMax(e.target.value)} placeholder="Valor máx." aria-label="Valor máximo" inputMode="decimal" autoComplete="off" className={`${CAMPO} w-[96px] max-sm:w-[80px]`} />
         {f.ativos && <button type="button" onClick={f.limpar} className="h-[36px] px-[4px] text-[12px] font-semibold text-[var(--adm-azul)] hover:underline max-lg:h-[44px]" data-testid="limpar-filtros">Limpar filtros</button>}
+        <span className="ml-auto inline-flex items-center gap-[6px] whitespace-nowrap text-[12px] text-[var(--adm-texto-suave)]" data-testid="finalizados-contagem">
+          <ClipboardCheck className="h-[14px] w-[14px]" aria-hidden="true" />
+          {f.ativos ? `${filtrados.length} de ${lista.length} com os filtros` : `${lista.length} · entregues, retirados e cancelados · ${f.rotulos[f.periodo].toLowerCase()}`}
+        </span>
       </div>
 
       {carregando && <p className="px-[16px] py-[12px] text-[13px] text-[var(--adm-texto-suave)]" aria-live="polite">Carregando…</p>}

@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowDown, ArrowLeft, ArrowUp, ChevronLeft, ChevronRight, ExternalLink, LogOut, MoreVertical, Plus, Search, Users, X } from 'lucide-react'
-import { CartaoNumero } from '@/components/admin/cartao-numero'
+import { LinhaResumos } from '@/components/ui/topo-compacto'
 import { PilhaToasts, useToasts } from '@/components/admin/toasts'
 import { Flutuante } from '@/components/ui/flutuante'
 import { ICONES } from '@/lib/icones-painel'
@@ -229,13 +229,16 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis, usoI
 
       <main className="mx-auto max-w-[1400px] px-3 py-4 sm:px-6 sm:py-6">
         {/* Resumo: só lojas (contas principais e pré-cadastros); valores somados por loja. */}
-        <div className="mb-4 grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-3 xl:grid-cols-6" data-testid="resumo-plataforma">
-          <CartaoNumero icone={ICONES.loja} tom="cinza" rotulo="Cadastros (lojas)" valor={<span data-testid="resumo-cadastros">{num(resumo.cadastros)}</span>} />
-          <CartaoNumero icone={ICONES.concluido} tom="verde" rotulo="Ativos" valor={<span data-testid="resumo-ativos">{num(resumo.ativos)}</span>} />
-          <CartaoNumero icone={ICONES.relogio} tom="ambar" rotulo="Aguardando 1º acesso" valor={<span data-testid="resumo-pendentes">{num(resumo.pendentes)}</span>} />
-          <CartaoNumero icone={ICONES.dinheiro} tom="verde" rotulo="Faturamento (entregue)" valor={<span data-testid="resumo-faturamento">{brl(resumo.faturamento)}</span>} />
-          <CartaoNumero icone={ICONES.pedidos} tom="azul" rotulo="Pedidos entregues" valor={<span data-testid="resumo-pedidos">{num(resumo.pedidos)}</span>} />
-          <CartaoNumero icone={ICONES.ticket} tom="roxo" rotulo="Ticket médio" valor={<span data-testid="resumo-ticket">{brl(resumo.ticket)}</span>} />
+        {/* Topo compacto (16/10): os 6 números numa linha só. */}
+        <div className="mb-3" data-testid="resumo-plataforma">
+          <LinhaResumos itens={[
+            { rotulo: 'Cadastros (lojas)', valor: <span data-testid="resumo-cadastros">{num(resumo.cadastros)}</span>, icone: ICONES.loja, tom: 'cinza' },
+            { rotulo: 'Ativos', valor: <span data-testid="resumo-ativos">{num(resumo.ativos)}</span>, icone: ICONES.concluido, tom: 'verde' },
+            { rotulo: 'Aguardando 1º acesso', valor: <span data-testid="resumo-pendentes">{num(resumo.pendentes)}</span>, icone: ICONES.relogio, tom: 'ambar', destaque: resumo.pendentes > 0 },
+            { rotulo: 'Faturamento (entregue)', valor: <span data-testid="resumo-faturamento">{brl(resumo.faturamento)}</span>, icone: ICONES.dinheiro, tom: 'verde' },
+            { rotulo: 'Pedidos entregues', valor: <span data-testid="resumo-pedidos">{num(resumo.pedidos)}</span>, icone: ICONES.pedidos, tom: 'azul' },
+            { rotulo: 'Ticket médio', valor: <span data-testid="resumo-ticket">{brl(resumo.ticket)}</span>, icone: ICONES.ticket, tom: 'roxo' },
+          ]} />
         </div>
 
         {/* APIs pagas (guarda de custo, 10/10): uso de hoje, bloqueios, loops e 7 dias. */}

@@ -1892,12 +1892,14 @@ export default function CardapioPage() {
                         <td className="border-b border-border px-3.5 py-3">
                           <div className="flex items-center gap-3">
                             <ItemThumb item={item} />
-                            <div>
+                            {/* min-w-0 + flex-1: o texto usa a largura da coluna; a descrição fica em até 2 linhas
+                                (antes encolhia até a palavra mais longa e quebrava palavra por palavra — 16/10). */}
+                            <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-1.5">
                                 <BotaoFavorito item={item} salvando={favoritoSalvandoId === item.id} desabilitado={!podeEditarCatalogo} onAlternar={() => alternarFavorito(item)} />
                                 <span className="text-[13px] font-semibold">{item.nome}</span>
                               </div>
-                              <div className="mt-0.5 text-[11px] text-text-subtle">{descricaoEmTextoPuro(item.descricao)}</div>
+                              <div className="mt-0.5 line-clamp-2 break-words text-[11px] text-text-subtle" title={descricaoEmTextoPuro(item.descricao) || undefined}>{descricaoEmTextoPuro(item.descricao)}</div>
                               {/* Mesmo alerta da grade: a tabela é a visão padrão no
                                   desktop, e é nela que o lojista passa o olho. */}
                               {(() => {

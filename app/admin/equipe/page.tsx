@@ -243,9 +243,9 @@ export default function EquipePage() {
             </div>
 
             {visiveis.length > 0 && (
-              <div className="hidden overflow-x-auto rounded-[6px] border border-[#e5e7eb] bg-white lg:block">
+              <div className="hidden max-h-[calc(100dvh-140px)] overflow-auto rounded-[6px] border border-[#e5e7eb] bg-white lg:block">
                 <table className="w-full min-w-[860px] text-left text-[13px]">
-                  <thead className="border-b border-[#e5e7eb] bg-[#f9fafb] text-[11.5px] font-semibold text-[#5b6472]">
+                  <thead className="sticky top-0 z-[2] border-b border-[#e5e7eb] bg-[#f9fafb] text-[11.5px] font-semibold text-[#5b6472]">
                     <tr>
                       <th className="px-4 py-3">Nome</th>
                       <th className="px-4 py-3">Login</th>

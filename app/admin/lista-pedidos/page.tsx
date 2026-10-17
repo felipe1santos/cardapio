@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRealtimeComFallback } from '@/lib/realtime-fallback'
-import { Bike, Clock, Users, ClipboardCheck, Phone, User, MapPin, Plus, Wallet, Zap, RefreshCw, Volume2, VolumeX, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react'
+import { Bike, Users, ClipboardCheck, Phone, User, MapPin, Plus, Wallet, Zap, RefreshCw, Volume2, VolumeX, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react'
 import { Capacete } from '@/components/icones/capacete'
 import { avisoDePedidosParados, pedidoParado, tempoParado } from '@/lib/pedido-parado'
 import { TopBar } from '@/components/layout/topbar'
-import { CartaoNumero, TONS_PAINEL, type TomPainel } from '@/components/admin/cartao-numero'
+import { TONS_PAINEL, type TomPainel } from '@/components/admin/cartao-numero'
 import { ICONES } from '@/lib/icones-painel'
 import { mascararTelefoneBR, telefoneCompleto } from '@/lib/telefone'
 import { Button } from '@/components/ui/button'
@@ -44,8 +44,10 @@ import { PainelPedido } from '@/components/pedidos/painel-pedido'
 import { solicitarReimpressao } from '@/lib/queries/impressao'
 import { useCoordenadasPedidos } from '@/lib/mapa/cliente'
 import { useEstadoSessao } from '@/lib/sessao-cliente'
-import { EmRotaNovo, FinalizadosNovo, ListaEntregadoresNovo, ResumoNovo } from '@/components/logistica/pedidos-novo'
+import { EmRotaNovo, FinalizadosNovo, ListaEntregadoresNovo } from '@/components/logistica/pedidos-novo'
 import { CarregandoPagina } from '@/components/admin/barra-carregamento'
+import { contarOnline } from '@/lib/motoboy/status-real'
+import { AvisoTopo, LinhaResumos } from '@/components/ui/topo-compacto'
 
 type Tab = 'pedidos' | 'entregadores'
 type Periodo = 'hoje' | 'ontem' | '7dias' | 'personalizado'
@@ -873,14 +875,18 @@ export default function PedidosFinalizadosPage() {
     )
   }
 
+  const entreguesHoje = concluidos.filter((o) => o.status === 'entregue')
+  const onlineAgora = contarOnline(drivers)
   return (
     <>
-      <TopBar title="Pedidos" breadcrumb="Pedidos finalizados e entregadores" />
+      {/* Topo compacto (16/10): o aviso de pedido parado vai para a barra do topo (texto inteiro no "i"). */}
+      <TopBar title="Pedidos" breadcrumb="Pedidos finalizados e entregadores"
+        aviso={avisoParados ? <AvisoTopo testid="aviso-pedidos-parados" texto={avisoParados} info={{ titulo: 'Pedido parado', conteudo: avisoParados }} /> : undefined} />
 
       <div className="flex min-h-0 flex-1">
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto p-5">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
         {semEntregador && (
-          <div className="flex flex-shrink-0 flex-wrap items-center gap-2 rounded-[6px] border-[0.8px] border-[#fcd34d] bg-warn-bg px-3.5 py-2.5 text-[12.8px] text-[#92400E]" data-testid="aviso-sem-entregador">
+          <div className="flex flex-shrink-0 flex-wrap items-center gap-2 rounded-[6px] border-[0.8px] border-[#fcd34d] bg-warn-bg px-3 py-1.5 text-[12.5px] text-[#92400E]" data-testid="aviso-sem-entregador">
             <Bike className="h-4 w-4 flex-shrink-0" /> A loja entrega <b>sem entregador</b>: o pedido sai pelo Painel de Pedidos (“Saiu p/ entrega”). Para voltar a usar entregadores: Painel de Pedidos › ⋯.
           </div>
         )}
@@ -895,39 +901,6 @@ export default function PedidosFinalizadosPage() {
 
         {/* Entrega que ninguém fechou fica aqui para sempre e some do acompanhamento do
             cliente. O sistema não encerra nada sozinho — cobra (lib/pedido-parado.ts). */}
-        {avisoParados && (
-          <div role="status" className="flex flex-shrink-0 items-start gap-2 rounded-[6px] border-[0.8px] border-[#fcd34d] bg-warn-bg px-3.5 py-2.5 text-[12.8px] font-medium text-[var(--adm-laranja)]">
-            <Clock className="mt-[1px] h-4 w-4 flex-shrink-0" strokeWidth={2.2} />
-            <span>{avisoParados}</span>
-          </div>
-        )}
-
-        {resumoVisivel && novo && <ResumoNovo concluidos={concluidos} emRota={inRoute.length} comNexta={comNexta.length} drivers={drivers} />}
-        {resumoVisivel && !novo && (
-          <div className="grid flex-shrink-0 grid-cols-1 gap-3 sm:grid-cols-3" data-testid="indicadores-pedidos">
-            <CartaoNumero
-              icone={ICONES.concluido}
-              tom="verde"
-              rotulo="Entregues hoje"
-              valor={concluidos.filter((o) => o.status === 'entregue').length}
-              detalhe={brl(concluidos.filter((o) => o.status === 'entregue').reduce((s, o) => s + o.total, 0))}
-            />
-            <CartaoNumero
-              icone={ICONES.logistica}
-              tom="roxo"
-              rotulo="Em rota agora"
-              valor={inRoute.length + comNexta.length}
-              detalhe={comNexta.length ? `${comNexta.length} com o Nexta` : 'com seus entregadores'}
-            />
-            <CartaoNumero
-              icone={ICONES.entregador}
-              tom="azul"
-              rotulo="Entregadores disponíveis"
-              valor={available.length}
-              detalhe={`de ${drivers.length} cadastrado${drivers.length === 1 ? '' : 's'}`}
-            />
-          </div>
-        )}
 
         {/* Abas em linha, sublinhado na cor de marca — o mesmo desenho das tabelas
             do Dashboard, sem o bloco vermelho de antes. */}
@@ -963,7 +936,19 @@ export default function PedidosFinalizadosPage() {
               )
             })}
           </div>
-          <div className="mb-1.5 flex flex-shrink-0 items-center gap-2">
+          <div className="mb-1.5 flex min-w-0 flex-shrink items-center gap-2">
+          {/* Resumo numa linha ao lado das abas (16/10; antes eram 3 cartões grandes). */}
+          {resumoVisivel && (
+            <div className="min-w-0 max-md:hidden" data-testid="indicadores-pedidos">
+              <LinhaResumos itens={[
+                { rotulo: 'Entregues hoje', valor: <>{entreguesHoje.length} <span className="font-normal text-[var(--adm-texto-suave)]">· {brl(entreguesHoje.reduce((s, o) => s + o.total, 0))}</span></>, icone: ICONES.concluido, tom: 'verde', testid: 'resumo-entregues' },
+                { rotulo: 'Em rota agora', valor: inRoute.length + comNexta.length, icone: ICONES.logistica, tom: 'roxo', testid: 'resumo-em-rota', dica: comNexta.length ? `${comNexta.length} com o Nexta` : 'com seus entregadores' },
+                novo
+                  ? { rotulo: 'Online agora', valor: <>{onlineAgora.online} <span className="font-normal text-[var(--adm-texto-suave)]">de {onlineAgora.total}</span></>, icone: ICONES.entregador, tom: 'azul', testid: 'resumo-online', dica: 'com o app aberto' }
+                  : { rotulo: 'Entregadores disponíveis', valor: <>{available.length} <span className="font-normal text-[var(--adm-texto-suave)]">de {drivers.length}</span></>, icone: ICONES.entregador, tom: 'azul' },
+              ]} />
+            </div>
+          )}
           <button
             onClick={alternarResumo}
             className="hidden flex-shrink-0 items-center gap-1 rounded-[4px] px-2 py-1 text-[12px] font-medium text-[var(--adm-texto-suave)] transition-colors hover:bg-[var(--adm-hover)] hover:text-[var(--adm-texto)] sm:inline-flex"
@@ -1289,13 +1274,6 @@ export default function PedidosFinalizadosPage() {
             )}
             {!novo && (
             <div className="flex flex-col rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white" data-testid="pedidos-finalizados">
-              <CabecalhoSecao
-                icone={<ClipboardCheck className="h-4 w-4" strokeWidth={2.2} />}
-                tom="verde"
-                titulo="Pedidos finalizados"
-                contador={filtrosAtivos ? concluidosFiltrados.length : lista.length}
-                descricao={filtrosAtivos ? `${concluidosFiltrados.length} de ${lista.length} com os filtros aplicados` : `Entregues, retirados e cancelados · ${ROTULO_PERIODO[periodo].toLowerCase()}`}
-              />
               <div className="flex flex-shrink-0 flex-wrap items-center gap-2 border-b border-[var(--adm-borda)] px-4 py-3">
                 <select
                   value={periodo}
@@ -1346,6 +1324,11 @@ export default function PedidosFinalizadosPage() {
                     Limpar filtros
                   </button>
                 )}
+                {/* Topo compacto (16/10): a contagem do antigo cabeçalho "Pedidos finalizados" fica no fim da barra. */}
+                <span className="ml-auto inline-flex items-center gap-1.5 whitespace-nowrap text-[12px] text-[var(--adm-texto-suave)]" data-testid="finalizados-contagem">
+                  <ClipboardCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                  {filtrosAtivos ? `${concluidosFiltrados.length} de ${lista.length} com os filtros aplicados` : `${lista.length} · entregues, retirados e cancelados · ${ROTULO_PERIODO[periodo].toLowerCase()}`}
+                </span>
               </div>
               <div className="divide-y divide-[var(--adm-borda)]" data-testid="lista-finalizados">
                 {carregandoLista && <p className="p-4 text-[13px] text-[var(--adm-texto-suave)]">Carregando…</p>}

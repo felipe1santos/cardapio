@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { AlertTriangle, ChevronRight, Lightbulb, Loader2, Plus } from 'lucide-react'
+import { AlertTriangle, ChevronRight, Lightbulb, Loader2 } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { ModalCentral } from '@/components/ui/flutuante'
 import { getBrowserSupabase } from '@/lib/supabase/client'
@@ -279,23 +279,17 @@ export default function IntegracoesPage() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <TopBar title="Integrações" breadcrumb="Integrações" />
+      {/* Topo compacto (16/10): a faixa "Sentiu falta de alguma integração?" virou um botão na barra do topo. */}
+      <TopBar title="Integrações" breadcrumb="Integrações"
+        right={
+          <a href={linkSugestao} target="_blank" rel="noopener noreferrer" data-testid="sugerir-integracao" title="Sentiu falta de alguma integração? Nos conte quais ferramentas você gostaria de ver integradas."
+            className="inline-flex h-9 flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[5px] border border-[#d6dae1] bg-white px-3 text-[12.5px] font-semibold text-[#374151] hover:border-[#0688d4] hover:text-[#0688d4]">
+            <Lightbulb className="h-4 w-4" /> Sugerir integração
+          </a>
+        } />
 
       <div className="flex-1 overflow-y-auto bg-white" style={FONTE_MODELO}>
         <div className="w-full space-y-[32px] px-4 pb-16 pt-5 sm:px-6 lg:px-7" data-testid="pagina-integracoes">
-          {/* Faixa do modelo */}
-          <div className="flex flex-wrap items-center gap-x-[18px] gap-y-3 rounded-[6px] border border-[#5AA9E6] bg-[#EFF7FD] px-[20px] py-[16px]" data-testid="faixa-sugerir">
-            <Lightbulb className="h-[30px] w-[30px] flex-shrink-0 text-[#1F6FB2]" strokeWidth={1.8} />
-            <div className="min-w-0 flex-1">
-              <p className="text-[18px] font-medium leading-[24px] text-[#374151]">Sentiu falta de alguma integração?</p>
-              <p className="mt-[2px] text-[14.5px] leading-[20px] text-[#4B5563]">Nos conte quais ferramentas você gostaria de ver integradas ao nosso sistema.</p>
-            </div>
-            <a href={linkSugestao} target="_blank" rel="noopener noreferrer" data-testid="sugerir-integracao"
-              className="inline-flex flex-shrink-0 items-center gap-[8px] rounded-[6px] bg-[#1F6FB2] px-[16px] py-[9px] text-[15px] font-medium text-white hover:bg-[#195E98] max-sm:w-full max-sm:justify-center">
-              <Plus className="h-[18px] w-[18px]" strokeWidth={2.4} /> Sugerir integração
-            </a>
-          </div>
-
           {carregando ? (
             <div className="grid grid-cols-1 gap-[16px] md:grid-cols-2 xl:grid-cols-3" aria-busy="true">
               {[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className="h-[88px] animate-pulse rounded-[6px] border border-[#E5E7EB] bg-[#F9FAFB]" />)}

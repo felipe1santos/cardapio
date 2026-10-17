@@ -554,24 +554,22 @@ export default function CampanhasPage() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
+      {/* Topo compacto (16/10): caminho com a seção, e Boas práticas / Disparar mensagem na barra do topo
+          (antes ocupavam uma faixa só delas). O "Envio automático" saiu na noite 5. */}
       <TopBar
         title="Campanhas via WhatsApp"
         breadcrumb="Disparos e agendamentos"
-        right={<span className="hidden sm:inline-flex"><Ajuda texto="Campanhas para os clientes da loja pelo WhatsApp, na hora ou agendadas. Mensagens automáticas, modelos e notificações do app ficam em Ajustes." /></span>}
-      />
-
-      {/* Barra de ações: boas práticas e o disparo. (O "Envio automático" saiu: os avisos de status
-          do pedido saem sempre que o WhatsApp da loja está conectado — noite 5.) */}
-      <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-2 border-b border-[var(--adm-borda)] bg-white px-4 py-2.5 sm:px-5">
-        <div className="flex gap-2">
-          <button type="button" onClick={() => setBoasPraticas(true)} className="inline-flex h-9 items-center gap-1.5 rounded-[5px] border border-[#d6dae1] bg-white px-3 text-[12.5px] font-semibold text-[#374151] hover:border-[#0688d4] hover:text-[#0688d4]" data-testid="abrir-boas-praticas">
+        secao={{ nome: ABAS.find((a) => a.id === aba)?.label ?? 'Visão geral' }}
+        right={<>
+          <span className="hidden sm:inline-flex"><Ajuda texto="Campanhas para os clientes da loja pelo WhatsApp, na hora ou agendadas. Mensagens automáticas, modelos e notificações do app ficam em Ajustes." /></span>
+          <button type="button" onClick={() => setBoasPraticas(true)} className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-[5px] border border-[#d6dae1] bg-white px-3 text-[12.5px] font-semibold text-[#374151] hover:border-[#0688d4] hover:text-[#0688d4]" data-testid="abrir-boas-praticas">
             <Lightbulb className="h-4 w-4" /> Boas práticas
           </button>
-          <button type="button" onClick={abrirNovo} className="inline-flex h-9 items-center gap-1.5 rounded-[5px] bg-[#0688d4] px-3.5 text-[12.5px] font-semibold text-white hover:bg-[#0570ae]" data-testid="disparar-mensagem">
+          <button type="button" onClick={abrirNovo} className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-[5px] bg-[#0688d4] px-3.5 text-[12.5px] font-semibold text-white hover:bg-[#0570ae]" data-testid="disparar-mensagem">
             <Send className="h-4 w-4" /> Disparar mensagem
           </button>
-        </div>
-      </div>
+        </>}
+      />
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
         <SubmenuVertical itens={ABAS} ativo={aba} onSelecionar={setAba} titulo="Seções de campanhas" />
