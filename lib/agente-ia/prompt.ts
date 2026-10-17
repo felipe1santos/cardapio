@@ -17,6 +17,8 @@ export interface DadosLojaPrompt {
   tempoEntrega: string | null
   formasPagamento: string
   resumoCardapio: string
+  /** Conhecimento da loja (16/10): respostas que o dono ensinou. Só da loja. */
+  conhecimento?: { pergunta: string; resposta: string }[]
 }
 
 export const REGRAS_AGENTE = `Você é o atendente virtual da loja no WhatsApp. Fala com os clientes da loja, tira dúvidas e anota pedidos.
@@ -82,6 +84,11 @@ export function blocosDoSistema(l: DadosLojaPrompt, dinamico: { agora: string; a
     '',
     'CARDÁPIO (resumo: nome e preço; detalhes, opções e item_id pela ferramenta consultar_cardapio)',
     l.resumoCardapio,
+    ...(l.conhecimento?.length ? [
+      '',
+      'CONHECIMENTO DA LOJA (respostas que o dono ensinou; valem para qualquer jeito de perguntar a mesma coisa. Fora disso, do cardápio e dos dados acima, não invente: diga que vai confirmar com a loja)',
+      ...l.conhecimento.map((k) => `- P: ${k.pergunta}\n  R: ${k.resposta}`),
+    ] : []),
   ].join('\n')
   return [
     { type: 'text', text: REGRAS_AGENTE },

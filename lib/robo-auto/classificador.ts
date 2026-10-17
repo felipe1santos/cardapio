@@ -29,7 +29,8 @@ export const ASSUNTOS: Assunto[] = [
 ]
 
 /** Palavras extras que o dono cadastra (por assunto), já em texto livre. */
-export type PalavrasExtras = Partial<Record<Assunto, string[]>>
+/** `pedir` (16/10): frases de pedido que a loja marcou como "é pedido" — parecida (todas as palavras) vai para a IA. */
+export type PalavrasExtras = Partial<Record<Assunto, string[]>> & { pedir?: string[] }
 
 const ABREVIACOES: Record<string, string> = {
   vc: 'voce', vcs: 'voces', voceis: 'voces', q: 'que', qnto: 'quanto', qto: 'quanto', qnt: 'quanto', qt: 'quanto', quantu: 'quanto',
@@ -285,6 +286,9 @@ export function classificar(texto: string | null, extras?: PalavrasExtras): Clas
   if (!normalizado) return r(bruto.trim() ? 'ok' : 'outro') // só emoji (👍) = ok
   if (ehResumoDaVitrine(bruto, normalizado)) return r('resumo_pedido')
   if (DUVIDA.some((e) => contem(normalizado.split(' '), e, false)) && !normalizado.includes('pedido')) return r('duvida')
+  const tokens = normalizado.split(' ')
+  const pedidoEnsinado = (extras?.pedir ?? []).map((f) => normalizarTexto(f).split(' ').filter(Boolean)).filter((f) => f.length)
+  if (pedidoEnsinado.some((f) => f.every((w) => tokens.some((t) => t === w || (w.length >= 5 && contem([t], [w], true)))))) return { ...r('pedir'), pedidoSemLink: true }
 
   const opcao = opcaoDoMenu(bruto)
   if (opcao !== null) return r(MENU_NUMEROS[opcao], true)

@@ -218,6 +218,7 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis, usoI
           <h1 className="truncate text-[17px] font-semibold text-text-main sm:text-[19px]">Painel da plataforma</h1>
         </div>
         <a href="/superadmin/gasto" className="flex h-[40px] items-center rounded-[4px] border border-border bg-white px-3 text-[12.5px] font-semibold text-text-main hover:border-primary hover:text-primary" data-testid="link-gasto">Gasto por loja</a>
+        <a href="/superadmin/palavras" className="flex h-[40px] items-center rounded-[4px] border border-border bg-white px-3 text-[12.5px] font-semibold text-text-main hover:border-primary hover:text-primary" data-testid="link-palavras">Palavras do robô</a>
         <span className="hidden max-w-[260px] truncate text-[12.5px] text-text-subtle md:inline" title={emailSuperadmin}>{emailSuperadmin}</span>
         <form action={sairAction}>
           <button type="submit" className="flex h-[40px] items-center gap-1.5 rounded-[4px] border border-border bg-white px-3 text-[12.5px] font-semibold text-text-main hover:border-[#B91C1C] hover:text-[#B91C1C]" data-testid="plataforma-sair">

@@ -7,12 +7,14 @@
  * ensina as perguntas que o robô não entendeu. Visual do Ajustes (fin-card).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Bot, Check, GraduationCap, Loader2, MessageSquareText, RotateCcw, Save, Send, Tags } from 'lucide-react'
+import { Bot, Check, Loader2, MessageSquareText, RotateCcw, Save, Send, Tags } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ToggleSwitch } from '@/components/admin/campos-ajustes'
 import { PilhaToasts, useToasts } from '@/components/admin/toasts'
 import { Balao } from '@/components/admin/robo/previa-whatsapp'
 import { BalaoInfo } from '@/components/admin/balao-info'
+import { CartaoNaoEntendidas } from '@/components/admin/robo/revisar-nao-entendidas'
+import { useEstadoSessao } from '@/lib/sessao-cliente'
 
 type Assunto =
   | 'atendente' | 'reclamacao' | 'parar' | 'status_pedido' | 'entrega' | 'pagamento_pix' | 'horario' | 'endereco_retirada' | 'cardapio' | 'saudacao'
@@ -40,7 +42,6 @@ interface Config {
   padrao: { textos: Record<string, string>; rotulos: Record<string, string>; palavras: Record<string, string[]>; campos: string[]; assuntos: Assunto[] }
 }
 interface Rascunho { assuntosDesligados: string[]; textos: Record<string, string>; palavras: Record<string, string>; tempoEntrega: string; pixChave: string; pixTipo: string }
-interface NaoEntendida { id: string; texto: string; exemplo: string | null; vezes: number; ultima_em: string; ensinado_assunto: string | null }
 interface PassoSim { entrada: string; intencao: string; acao: string; respostas: string[] }
 
 const CLASSE_CAMPO = 'w-full rounded-[3px] border border-[#E5E7EB] bg-white px-[10px] py-[8px] text-[14px] text-[#1F2937] outline-none focus:border-[#0688D4]'
@@ -70,7 +71,7 @@ export function PainelAutoatendimento() {
   const [r, setR] = useState<Rascunho | null>(null)
   const [salvando, setSalvando] = useState(false)
   const [ligando, setLigando] = useState(false)
-  const [naoEntendidas, setNaoEntendidas] = useState<NaoEntendida[]>([])
+  const agenteLigado = useEstadoSessao()?.modulos?.agente_ia === true
 
   // `manterTextos`: salvar as outras configurações não apaga um texto que está sendo editado (ele tem o próprio Salvar).
   const carregar = useCallback(async (manterTextos = false) => {
@@ -84,11 +85,7 @@ export function PainelAutoatendimento() {
       setErro(true)
     }
   }, [])
-  const carregarNaoEntendidas = useCallback(async () => {
-    const res = await fetch('/api/admin/whatsapp/autoatendimento/nao-entendidas', { cache: 'no-store' }).catch(() => null)
-    if (res?.ok) setNaoEntendidas((await res.json()).itens ?? [])
-  }, [])
-  useEffect(() => { void carregar(); void carregarNaoEntendidas() }, [carregar, carregarNaoEntendidas])
+  useEffect(() => { void carregar() }, [carregar])
 
   // Textos têm o próprio Salvar (por resposta); a barra de baixo é só das outras configurações.
   const sujo = useMemo(() => !!cfg && !!r && JSON.stringify({ ...rascunhoDe(cfg), textos: null }) !== JSON.stringify({ ...r, textos: null }), [cfg, r])
@@ -195,7 +192,7 @@ export function PainelAutoatendimento() {
               mostrar={mostrar}
             />
 
-            <NaoEntendidasCartao itens={naoEntendidas} assuntos={cfg.padrao.assuntos} onEnsinado={async () => { await carregar(); await carregarNaoEntendidas() }} mostrar={mostrar} />
+            <CartaoNaoEntendidas rotulos={ROTULO_ASSUNTO} assuntos={cfg.padrao.assuntos} agenteLigado={agenteLigado} mostrar={mostrar} onMudou={() => carregar(true)} />
           </div>
 
           <Simulador rascunho={r} />
@@ -334,50 +331,6 @@ function Simulador({ rascunho }: { rascunho: Rascunho }) {
   )
 }
 
-function NaoEntendidasCartao({ itens, assuntos, onEnsinado, mostrar }: {
-  itens: NaoEntendida[]; assuntos: Assunto[]; onEnsinado: () => Promise<void>; mostrar: (tipo: 'ok' | 'erro', texto: string) => void
-}) {
-  const [escolha, setEscolha] = useState<Record<string, string>>({})
-  async function ensinar(id: string) {
-    const assunto = escolha[id]
-    if (!assunto) return
-    const res = await fetch('/api/admin/whatsapp/autoatendimento/nao-entendidas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, assunto }) }).catch(() => null)
-    if (!res?.ok) { mostrar('erro', (await res?.json().catch(() => null))?.error ?? 'Não foi possível ensinar.'); return }
-    mostrar('ok', 'Pronto: o robô aprendeu essa frase.')
-    await onEnsinado()
-  }
-  return (
-    <Cartao className="p-[16px]" data-testid="robo-nao-entendidas">
-      <TituloBloco titulo="Perguntas que o robô não entendeu" info={<InfoNaoEntendidas />} subtitulo="Últimos 30 dias. Escolha o assunto e toque em Ensinar: a frase vira palavra-chave." />
-      {!itens.length ? (
-        <p className="mt-[12px] text-[13px] text-[#6B7280]">Nenhuma pergunta sem resposta por enquanto.</p>
-      ) : (
-        <ul className="mt-[10px] divide-y divide-[#E5E7EB]">
-          {itens.map((it) => (
-            <li key={it.id} className="flex flex-wrap items-center gap-[8px] py-[8px]">
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[14px] text-[#1F2937]">“{it.exemplo || it.texto}”</p>
-                <p className="text-[12px] text-[#6B7280]">{it.vezes}× · {new Date(it.ultima_em).toLocaleDateString('pt-BR')}</p>
-              </div>
-              {it.ensinado_assunto ? (
-                <span className="rounded-full bg-[#DCFCE7] px-[8px] py-[2px] text-[12px] font-semibold text-[#16A34A]">Ensinada: {ROTULO_ASSUNTO[it.ensinado_assunto as Assunto] ?? it.ensinado_assunto}</span>
-              ) : (
-                <>
-                  <select className="rounded-[3px] border border-[#E5E7EB] px-[8px] py-[6px] text-[13px]" value={escolha[it.id] ?? ''} onChange={(e) => setEscolha((s) => ({ ...s, [it.id]: e.target.value }))} aria-label="Assunto">
-                    <option value="">Assunto…</option>
-                    {assuntos.map((a) => <option key={a} value={a}>{ROTULO_ASSUNTO[a]}</option>)}
-                  </select>
-                  <Button variant="outline" disabled={!escolha[it.id]} onClick={() => void ensinar(it.id)}><GraduationCap className="h-[14px] w-[14px]" /> Ensinar</Button>
-                </>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-    </Cartao>
-  )
-}
-
 
 /** Cartão e título no visual de Ajustes (fin-card, títulos #1C2B33). */
 function Cartao({ children, className = '', ...resto }: React.HTMLAttributes<HTMLElement> & { children: React.ReactNode }) {
@@ -430,22 +383,6 @@ function InfoAssuntos() {
   )
 }
 
-function InfoNaoEntendidas() {
-  return (
-    <>
-      <p className="font-semibold text-[#1F2937]">Como ensinar o robô</p>
-      <ol className="mt-[6px] list-decimal space-y-[4px] pl-[18px]">
-        <li>As mensagens que o robô não entendeu aparecem nesta lista.</li>
-        <li>Escolha o assunto que a mensagem quer dizer.</li>
-        <li>Toque em <strong className="font-semibold">Ensinar</strong>: a frase vira palavra-chave daquele assunto.</li>
-      </ol>
-      <p className="mt-[10px] rounded-[3px] bg-[#EDEEF1] px-[10px] py-[8px]">
-        Exemplo: chegou <strong className="font-semibold">“Mano”</strong>. Escolha <strong className="font-semibold">Atendente</strong> e toque em <strong className="font-semibold">Ensinar</strong>. Da próxima vez que alguém escrever “mano”, o robô chama um atendente.
-      </p>
-      <p className="mt-[10px]">Ensine só o que for claro. Erro de digitação que apareceu 1 vez não precisa.</p>
-    </>
-  )
-}
 
 const EXPLICA_CAMPO: Record<string, string> = {
   saudacao: 'Bom dia, Boa tarde ou Boa noite, pelo horário', nome_cliente: 'primeiro nome do cliente no WhatsApp', nome_loja: 'nome da loja',

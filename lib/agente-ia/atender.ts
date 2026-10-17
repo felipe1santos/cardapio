@@ -132,10 +132,12 @@ export function confirmacaoDireta(p: { texto: string; em: string; resumoEm: stri
 
 export async function atenderComIa(admin: SupabaseClient, e: EntradaAtender): Promise<ResultadoAtender> {
   const agora = e.agora ?? new Date()
-  const [cardapio, pix, imagem] = await Promise.all([
+  const [cardapio, pix, imagem, { data: conhecimento }] = await Promise.all([
     carregarCardapioIa(admin, e.restauranteId, agora),
     pixOnlineDaLoja(admin, e.restauranteId).catch(() => ({ ativo: false })),
     e.tipo === 'imagem' ? imagemDoCliente(e.instancia, e.waId) : Promise.resolve(null),
+    // Conhecimento da loja (16/10): o que o dono ensinou na revisão das mensagens não entendidas.
+    admin.from('ia_conhecimento').select('pergunta, resposta').eq('restaurante_id', e.restauranteId).order('criado_em').limit(100),
   ])
   const hora = agora.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'long', hour: '2-digit', minute: '2-digit' })
   const conv = await conversaIa({ admin, conversaId: e.conversaId, restauranteId: e.restauranteId })
@@ -145,6 +147,7 @@ export async function atenderComIa(admin: SupabaseClient, e: EntradaAtender): Pr
     {
       nome: e.loja.nome, link: e.loja.link, endereco: e.loja.endereco, gradeHorario: e.loja.gradeHorario, aceitaEntrega: e.loja.aceitaEntrega,
       aceitaRetirada: e.loja.aceitaRetirada, tempoEntrega: e.loja.tempoEntrega, formasPagamento: formasDePagamento(e.loja), resumoCardapio: resumoDoCardapio(cardapio),
+      conhecimento: (conhecimento ?? []) as { pergunta: string; resposta: string }[],
     },
     { agora: hora, aberta: e.loja.aberta, proximaAbertura: e.loja.proximaAbertura, nomeWhatsapp: e.nomeWhatsapp, pedidoEmAndamento: rascunho ? descreverRascunho(rascunho, cardapio, lojaOp) : null },
   )

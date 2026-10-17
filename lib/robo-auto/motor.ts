@@ -56,6 +56,31 @@ export function palavrasExtras(cfg: Pick<ConfigAuto, 'auto_palavras'>): Palavras
     const l = cfg.auto_palavras?.[a]
     if (Array.isArray(l)) r[a] = l.filter((x) => typeof x === 'string' && x.trim()).slice(0, 100)
   }
+  // Frases de pedido marcadas pela loja ("é pedido", 16/10).
+  const ped = (cfg.auto_palavras as Record<string, unknown> | null | undefined)?.pedir
+  if (Array.isArray(ped)) r.pedir = ped.filter((x): x is string => typeof x === 'string' && !!x.trim()).slice(0, 100)
+  return r
+}
+
+/** Palavras genéricas aprovadas no Super Admin (valem para todas as lojas). Lidas no máximo 1x a cada 5 min por servidor. */
+let globais: { em: number; palavras: PalavrasExtras } | null = null
+export async function palavrasGlobais(admin: SupabaseClient): Promise<PalavrasExtras> {
+  if (globais && Date.now() - globais.em < 5 * 60_000) return globais.palavras
+  const { data, error } = await admin.from('robo_palavras_globais').select('palavra, assunto').eq('status', 'aprovada').limit(1000)
+  const palavras: PalavrasExtras = {}
+  if (!error) for (const x of (data ?? []) as { palavra: string; assunto: string }[]) {
+    if ((ASSUNTOS as string[]).includes(x.assunto)) (palavras[x.assunto as Assunto] ??= []).push(x.palavra)
+  }
+  globais = { em: Date.now(), palavras }
+  return palavras
+}
+
+/** Palavras da loja + globais aprovadas. */
+export async function extrasComGlobais(admin: SupabaseClient, cfg: Pick<ConfigAuto, 'auto_palavras'>): Promise<PalavrasExtras> {
+  const daLoja = palavrasExtras(cfg)
+  const g = await palavrasGlobais(admin).catch(() => ({} as PalavrasExtras))
+  const r: PalavrasExtras = { ...daLoja }
+  for (const a of ASSUNTOS) if (g[a]?.length) r[a] = [...(daLoja[a] ?? []), ...g[a]!]
   return r
 }
 
@@ -157,15 +182,15 @@ export async function pedidoPorNumero(admin: SupabaseClient, restauranteId: stri
   return p ? montarPedido(admin, p, semEntregador) : null
 }
 
-async function registrarNaoEntendida(admin: SupabaseClient, restauranteId: string, normalizado: string, exemplo: string) {
+async function registrarNaoEntendida(admin: SupabaseClient, restauranteId: string, normalizado: string, exemplo: string, contexto: string | null = null) {
   const texto = normalizado.slice(0, 300)
   if (!texto) return
   try {
     const { data } = await admin.from('whatsapp_auto_nao_entendidas').select('id, vezes').eq('restaurante_id', restauranteId).eq('texto', texto).maybeSingle()
     if (data) {
-      await admin.from('whatsapp_auto_nao_entendidas').update({ vezes: Number(data.vezes) + 1, ultima_em: new Date().toISOString() }).eq('id', data.id)
+      await admin.from('whatsapp_auto_nao_entendidas').update({ vezes: Number(data.vezes) + 1, ultima_em: new Date().toISOString(), ...(contexto ? { contexto: contexto.slice(0, 500) } : {}) }).eq('id', data.id)
     } else {
-      await admin.from('whatsapp_auto_nao_entendidas').insert({ restaurante_id: restauranteId, texto, exemplo: exemplo.slice(0, 300) })
+      await admin.from('whatsapp_auto_nao_entendidas').insert({ restaurante_id: restauranteId, texto, exemplo: exemplo.slice(0, 300), contexto: contexto?.slice(0, 500) ?? null })
     }
   } catch {
     /* registro auxiliar: nunca derruba a resposta */
@@ -188,7 +213,7 @@ export async function processarMensagemAuto(
 ): Promise<ResultadoAuto> {
   const { restauranteId, cfg } = ctx
   const telefone = m.telefone ?? '' // o webhook só chama com número (filtra sem_numero antes)
-  const extras = palavrasExtras(cfg)
+  const extras = await extrasComGlobais(admin, cfg)
   const c = m.deMim ? null : m.tipo === 'texto' ? classificar(m.texto, extras) : null
   const intencao = m.deMim ? 'outro' : c ? c.intencao : 'midia'
   const { data: ent, error } = await admin.rpc('whatsapp_auto_entrada', {
@@ -433,7 +458,12 @@ export async function processarMensagemAuto(
   if (!(await aplicar(d.acao, novo, d.silenciar ?? null))) return { respostas: 0, motivo: 'concorrencia' }
   // Pedido de atendente pelo robô: o motivo de um pedido antigo da IA não vale (nem o aviso de 10 min, que é da IA).
   if (d.silenciar === 'atendente') await admin.from('whatsapp_conversas').update({ pediu_atendente_motivo: null }).eq('id', e.conversa_id).then(() => {}, () => {})
-  if (d.naoEntendida && c) await registrarNaoEntendida(admin, restauranteId, c.normalizado, m.texto ?? '')
+  if (d.naoEntendida && c) {
+    // Contexto para a revisão: a mensagem anterior da conversa (do robô ou do cliente).
+    const { data: ant } = await admin.from('whatsapp_mensagens').select('direcao, texto').eq('conversa_id', e.conversa_id).neq('id', e.mensagem_id ?? '').order('criado_em', { ascending: false }).limit(1)
+    const a0 = (ant ?? [])[0] as { direcao: string; texto: string | null } | undefined
+    await registrarNaoEntendida(admin, restauranteId, c.normalizado, m.texto ?? '', a0?.texto ? `${a0.direcao === 'entrada' ? 'Cliente' : 'Loja'}: ${a0.texto}` : null)
+  }
   for (let i = 0; i < r.mensagens.length; i++) await fila(r.mensagens[i], i)
   return { respostas, motivo: d.acao }
 }

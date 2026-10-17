@@ -246,3 +246,20 @@ export async function sairAction() {
   await supabase.auth.signOut()
   redirect('/login')
 }
+
+/**
+ * Palavras do robô sugeridas pelas lojas (16/10/2026): aprovada vale para TODAS as lojas (lib/robo-auto/motor.ts,
+ * palavrasGlobais); recusada some da lista. Nome de produto/bairro nunca chega aqui (fica só na loja).
+ */
+export async function decidirPalavraGlobalAction(id: string, aprovar: boolean): Promise<ResultadoAcao> {
+  const quem = await ensureSuperAdmin()
+  if (!UUID.test(id)) return { ok: false, erro: 'Palavra inválida.' }
+  const admin = getAdminSupabase()
+  const { data, error } = await admin.from('robo_palavras_globais')
+    .update({ status: aprovar ? 'aprovada' : 'recusada', decidido_em: new Date().toISOString(), decidido_por: quem.email })
+    .eq('id', id).select('palavra, assunto').maybeSingle()
+  if (error || !data) return { ok: false, erro: 'Não foi possível salvar.' }
+  await auditarPlataforma(admin, { ator: quem.email, acao: aprovar ? 'plataforma.palavra_aprovada' : 'plataforma.palavra_recusada', dados: { palavra: data.palavra, assunto: data.assunto } })
+  revalidatePath('/superadmin/palavras')
+  return { ok: true, mensagem: aprovar ? `"${data.palavra}" vale para todas as lojas.` : `"${data.palavra}" recusada.` }
+}

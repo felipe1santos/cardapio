@@ -107,7 +107,72 @@ export function AgenteIa() {
           <span className="text-[#6B7280]"> · cerca de {brl(gastoUsd * e.cotacao)} de {brl(e.tetoUsd * e.cotacao)}</span>
         </p>
       </section>
+      <ConhecimentoLoja mostrar={toasts.mostrar} />
       <PilhaToasts {...toasts} />
     </div>
+  )
+}
+
+interface Conhecimento { id: string; pergunta: string; resposta: string }
+
+/**
+ * Conhecimento da loja (16/10/2026): respostas que o dono ensinou (na revisão das mensagens não entendidas ou aqui). O Agente
+ * de IA usa em qualquer jeito de perguntar a mesma coisa; fora disso e do cardápio, não inventa. É só desta loja.
+ */
+function ConhecimentoLoja({ mostrar }: { mostrar: (tipo: 'ok' | 'erro', texto: string) => void }) {
+  const [itens, setItens] = useState<Conhecimento[] | null>(null)
+  const [editando, setEditando] = useState<{ id: string | null; pergunta: string; resposta: string } | null>(null)
+  const carregar = useCallback(async () => {
+    const r = await fetch('/api/admin/agente-ia/conhecimento', { cache: 'no-store' }).catch(() => null)
+    setItens(r?.ok ? ((await r.json()).itens ?? []) : [])
+  }, [])
+  useEffect(() => { void carregar() }, [carregar])
+  async function salvar() {
+    if (!editando) return
+    const r = await fetch('/api/admin/agente-ia/conhecimento', { method: editando.id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editando) }).catch(() => null)
+    if (!r?.ok) { mostrar('erro', (await r?.json().catch(() => null))?.error ?? 'Não foi possível salvar.'); return }
+    setEditando(null); mostrar('ok', 'Salvo.'); void carregar()
+  }
+  async function apagar(id: string) {
+    const r = await fetch('/api/admin/agente-ia/conhecimento', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }).catch(() => null)
+    if (!r?.ok) { mostrar('erro', 'Não foi possível apagar.'); return }
+    void carregar()
+  }
+  const campo = 'mt-[4px] block w-full rounded-[6px] border border-[#D1D5DB] px-[10px] py-[8px] text-[14px] focus:border-[#0688D4] focus:outline-none'
+  return (
+    <section className="fin-card min-w-0 p-[16px]" data-testid="agente-conhecimento">
+      <div className="flex flex-wrap items-start justify-between gap-[8px]">
+        <div className="min-w-0">
+          <h3 className="text-[16px] font-semibold leading-tight text-[#1C2B33]">Conhecimento da loja</h3>
+          <p className="mt-1 text-[13px] text-[#465A69]">Respostas que você ensinou. A IA usa em qualquer jeito de perguntar; fora disso e do cardápio, ela não inventa.</p>
+        </div>
+        <button type="button" onClick={() => setEditando({ id: null, pergunta: '', resposta: '' })} className="inline-flex h-[36px] items-center rounded-[6px] border border-[#D1D5DB] bg-white px-[12px] text-[13px] font-semibold text-[#374151] hover:bg-[#F9FAFB]" data-testid="conhecimento-novo">+ Resposta</button>
+      </div>
+      {editando && (
+        <div className="mt-[12px] space-y-[8px] rounded-[8px] bg-[#F9FAFB] p-[12px]">
+          <label className="block text-[12.5px] font-semibold text-[#374151]">Pergunta do cliente<input value={editando.pergunta} maxLength={300} onChange={(ev) => setEditando({ ...editando, pergunta: ev.target.value })} className={campo} placeholder="Fazem suco?" /></label>
+          <label className="block text-[12.5px] font-semibold text-[#374151]">Resposta certa<textarea value={editando.resposta} maxLength={600} rows={2} onChange={(ev) => setEditando({ ...editando, resposta: ev.target.value })} className={campo} placeholder="Não, só refrigerante e água." /></label>
+          <div className="flex justify-end gap-[8px]">
+            <button type="button" onClick={() => setEditando(null)} className="h-[34px] rounded-[6px] px-[12px] text-[13px] font-semibold text-[#4B5563] hover:bg-[#EDEEF1]">Cancelar</button>
+            <button type="button" onClick={() => void salvar()} className="h-[34px] rounded-[6px] bg-[#0688D4] px-[14px] text-[13px] font-semibold text-white hover:bg-[#0570AE]">Salvar</button>
+          </div>
+        </div>
+      )}
+      {itens && !itens.length && !editando && <p className="mt-[10px] text-[13px] text-[#5B6472]">Nada ensinado ainda. Use “IA responde” na revisão das mensagens que o robô não entendeu.</p>}
+      {!!itens?.length && (
+        <ul className="mt-[10px] divide-y divide-[#E5E7EB]">
+          {itens.map((k) => (
+            <li key={k.id} className="flex items-start gap-[8px] py-[8px]" data-testid="conhecimento-item">
+              <div className="min-w-0 flex-1">
+                <p className="text-[13.5px] font-semibold text-[#1F2937]">{k.pergunta}</p>
+                <p className="text-[13px] text-[#4B5563]">{k.resposta}</p>
+              </div>
+              <button type="button" onClick={() => setEditando({ id: k.id, pergunta: k.pergunta, resposta: k.resposta })} className="h-[30px] rounded-[6px] px-[8px] text-[12.5px] font-semibold text-[#0868A6] hover:bg-[#E0F2FE]">Editar</button>
+              <button type="button" onClick={() => void apagar(k.id)} className="h-[30px] rounded-[6px] px-[8px] text-[12.5px] font-semibold text-[#B91C1C] hover:bg-[#FEF2F2]">Apagar</button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   )
 }
