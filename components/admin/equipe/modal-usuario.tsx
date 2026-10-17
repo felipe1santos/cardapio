@@ -54,7 +54,6 @@ export function ModalUsuario({
   onRedefinirSenha,
   onApagarPin,
   financeiroAtivo = false,
-  novidades = false,
 }: {
   /** Null = adicionar. */
   usuario: UsuarioEquipe | null
@@ -71,12 +70,10 @@ export function ModalUsuario({
   onApagarPin?: () => Promise<string | null>
   /** Loja com o módulo financeiro (0132): mostra o grupo Financeiro e o "Apagar PIN". */
   financeiroAtivo?: boolean
-  /** "Novidades em teste" (12/10): perfis com o KDS e a área KDS. */
-  novidades?: boolean
 }) {
   const editando = !!usuario
   const cargoInicial: Cargo = usuario?.cargo ?? 'garcom'
-  const acessosIniciais: Acessos = usuario?.acessos ?? modeloDoCargo(cargoInicial, { novidades }) ?? { areas: [], sensiveis: [] }
+  const acessosIniciais: Acessos = usuario?.acessos ?? modeloDoCargo(cargoInicial) ?? { areas: [], sensiveis: [] }
   const [nome, setNome] = useState(usuario?.nome ?? '')
   const [login, setLogin] = useState(usuario?.usuario ?? '')
   const [senha, setSenha] = useState('')
@@ -120,7 +117,7 @@ export function ModalUsuario({
 
   function escolherCargo(novo: Cargo) {
     if (novo === 'motoboy') { setCargo(novo); setAcessos({ areas: [], sensiveis: [] }); return }
-    const modelo = modeloDoCargo(novo, { novidades })
+    const modelo = modeloDoCargo(novo)
     if (!modelo) { setCargo(novo); return }
     const ajustado = { areas: modelo.areas.filter((a) => podeEquipe || a !== 'equipe'), sensiveis: modelo.sensiveis }
     // Já tem permissões diferentes do modelo: pergunta antes de substituir.
@@ -133,7 +130,7 @@ export function ModalUsuario({
     const novo = trocaPendente!
     setCargo(novo)
     if (substituir) {
-      const m = modeloDoCargo(novo, { novidades })!
+      const m = modeloDoCargo(novo)!
       setAcessos({ areas: m.areas.filter((a) => podeEquipe || a !== 'equipe'), sensiveis: m.sensiveis })
     }
     setTrocaPendente(null)

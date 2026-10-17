@@ -52,6 +52,7 @@ import {
 import type { ClientePerfil, EnderecoCliente } from '@/lib/queries/clientes'
 import type { PedidoCliente } from '@/lib/queries/pedidos'
 import { instanteDoHorario, textoAgendado, type DiaAgendamento } from '@/lib/agendamento'
+import { deveReconferirLoja } from '@/lib/loja-ao-vivo'
 import { motivoBloqueioSacola, type ConferenciaLinha } from '@/lib/sacola-conferencia'
 import { mascararTelefoneBR, telefoneCompleto } from '@/lib/telefone'
 import { capitalizarTexto } from '@/lib/texto'
@@ -955,6 +956,29 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       window.removeEventListener('focus', aoVoltar)
     }
   }, [])
+
+  // Aberto/fechado ao vivo (16/10/2026, "No app mostra que tá fechado"): o HTML pode vir do cache e a página pode ficar
+  // aberta no celular desde antes de a loja abrir. Confere ao abrir e, com a página visível, de minuto em minuto enquanto
+  // a loja está fechada (5 min aberta). Só lê a loja do banco; a conta é a mesma do robô e do pedido (lojaEstaAberta).
+  const abertaRef = useRef(restauranteInicial.lojaAberta)
+  abertaRef.current = restaurante?.lojaAberta ?? abertaRef.current
+  useEffect(() => {
+    let vivo = true
+    let ultima: number | null = null
+    async function conferir() {
+      const visivel = document.visibilityState === 'visible'
+      if (!deveReconferirLoja({ aberta: abertaRef.current, visivel, ultimaConferencia: ultima, agora: Date.now() })) return
+      ultima = Date.now()
+      try {
+        const loja = await buscarRestaurantePorSlug(supabase, slug)
+        if (vivo && loja) setRestaurante(loja)
+      } catch { /* sem rede: tenta na próxima */ }
+    }
+    void conferir()
+    const timer = setInterval(() => void conferir(), 15_000)
+    document.addEventListener('visibilitychange', conferir)
+    return () => { vivo = false; clearInterval(timer); document.removeEventListener('visibilitychange', conferir) }
+  }, [supabase, slug])
 
   // ── Tracking pixel injection ───────────────────────────────────────────────
   // Só ID válido entra no script (ver idsDeMedicaoSeguros). Depende só dos IDs: antes dependia do

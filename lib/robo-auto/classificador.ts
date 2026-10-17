@@ -17,8 +17,12 @@ export type Assunto =
   | 'saudacao' | 'cardapio' | 'entrega' | 'status_pedido' | 'horario' | 'pagamento_pix'
   | 'endereco_retirada' | 'reclamacao' | 'atendente' | 'parar'
 
-/** 'pedir' (11/10): vontade de pedir PELA CONVERSA — com o Agente de IA ligado, a IA anota; sem ele, o robô manda o link. */
-export type Intencao = Assunto | 'pedir' | 'ok' | 'voltar' | 'outro'
+/**
+ * 'pedir' (11/10): vontade de pedir PELA CONVERSA — com o Agente de IA ligado, a IA anota; sem ele, o robô manda o link.
+ * 'pix_chave' (16/10): quer a CHAVE Pix para pagar ("já me manda a chave pix que pago") — vai a chave, não a lista de formas.
+ * 'resumo_pedido' (16/10): o resumo que a própria vitrine abre no WhatsApp depois do pedido ("Acabei de fazer um pedido…").
+ */
+export type Intencao = Assunto | 'pedir' | 'pix_chave' | 'resumo_pedido' | 'ok' | 'voltar' | 'outro'
 
 export const ASSUNTOS: Assunto[] = [
   'atendente', 'reclamacao', 'parar', 'status_pedido', 'entrega', 'pagamento_pix', 'horario', 'endereco_retirada', 'cardapio', 'saudacao',
@@ -92,6 +96,8 @@ export const PALAVRAS_PADRAO: Record<Assunto, string[]> = {
   horario: [
     'horario', 'horarios', 'que horas', 'que hora', 'aberto', 'aberta', 'abertos', 'abertas', 'abre', 'abrem', 'fecha', 'fecham', 'fechado', 'fechada',
     'funcionamento', 'funciona', 'funcionam', 'atendendo', 'hoje tem', 'horaio',
+    // 16/10 (Ponto 400): "vcs tá trabalhando hoje", "tá funcionando?", "vai abrir hoje?", "já abriu?"
+    'trabalhando', 'trabalham hoje', 'funcionando', 'abrir', 'abriu', 'abriram',
   ],
   endereco_retirada: [
     'endereco', 'onde fica', 'onde voces ficam', 'onde e a loja', 'onde e ai', 'localizacao', 'retirar', 'retirada', 'retiro', 'buscar', 'busco',
@@ -134,6 +140,9 @@ function distancia(a: string, b: string, maximo: number): number {
   return anterior[b.length]
 }
 
+/** Palavras comuns que a passada tolerante NÃO aproxima ("saber" virava "sabor" → cardápio; "ainda" virava bairro). */
+const NAO_APROXIMAR = new Set(['saber', 'sabia', 'sabem', 'ainda', 'pedi', 'pedido', 'pedidos'])
+
 function toleranciaPara(palavra: string): number {
   return palavra.length >= 8 ? 2 : palavra.length >= 5 ? 1 : 0
 }
@@ -146,7 +155,7 @@ function contem(palavras: string[], expressao: string[], tolerante: boolean): bo
       const p = palavras[i + k]
       const e = expressao[k]
       if (p === e) continue
-      const tol = tolerante ? toleranciaPara(e) : 0
+      const tol = tolerante && !NAO_APROXIMAR.has(p) ? toleranciaPara(e) : 0
       ok = tol > 0 && distancia(p, e, tol) <= tol
     }
     if (ok) return true
@@ -212,11 +221,43 @@ function pedidoFraco(palavras: string[]): boolean {
   return false
 }
 
+/** "Estão abertos agora?" escrito com palavras de entrega/trabalho — vem antes da entrega ("tá entregando ainda?"). */
+const ESTA_ABERTO = [
+  'ta entregando', 'esta entregando', 'tao entregando', 'estao entregando', 'entregando hoje', 'entregando ainda', 'entregando agora', 'vao entregar hoje',
+  'ta trabalhando', 'esta trabalhando', 'tao trabalhando', 'estao trabalhando', 'trabalhando hoje', 'ta funcionando', 'tao funcionando', 'estao funcionando',
+  'vai abrir', 'vao abrir', 'ja abriu', 'ja abriram', 'ate que horas',
+].map((e) => e.split(' '))
+
+/** Pix na hora da entrega / ao motoboy: é pergunta de forma de pagamento, não pedido da chave. */
+const PIX_NA_ENTREGA = new Set(['entrega', 'entregador', 'motoboy', 'chegar', 'maquininha', 'cartao', 'dinheiro', 'credito', 'debito', 'troco'])
+
+/** Verbos de quem quer a chave para pagar agora ("manda o pix", "qual o pix", "posso pagar no pix"). */
+const QUER_A_CHAVE = new Set(['manda', 'mandar', 'mande', 'me', 'passa', 'passar', 'passe', 'envia', 'enviar', 'qual', 'pagar', 'pago', 'faz', 'fazer', 'faco'])
+
+/**
+ * Quer a chave Pix: fala "chave", ou "pix" com um verbo de pedir/pagar, ou manda só "pix" — e não está perguntando sobre
+ * pagar na entrega. "aceita pix?" continua sendo a pergunta de formas de pagamento (que também traz a chave).
+ */
+function pedeChavePix(palavras: string[]): boolean {
+  if (palavras.some((p) => PIX_NA_ENTREGA.has(p))) return false
+  if (palavras.includes('chave')) return true
+  const pix = palavras.includes('pix') || palavras.includes('pics')
+  if (!pix) return false
+  return palavras.every((p) => p === 'pix' || p === 'pics' || p === 'o') || palavras.some((p) => QUER_A_CHAVE.has(p))
+}
+
+/** O resumo que a vitrine monta (app/loja/[slug]/vitrine.tsx, montarAvisoLoja): "Acabei de fazer um pedido…" + "• 1x …" + "Total:". */
+function ehResumoDaVitrine(bruto: string, normalizado: string): boolean {
+  if (normalizado.startsWith('acabei de fazer um pedido')) return true
+  return /•\s*\d+x\s/.test(bruto) && /total:\s*r\$/i.test(bruto)
+}
+
 export function classificar(texto: string | null, extras?: PalavrasExtras): Classificacao {
   const bruto = texto ?? ''
   const normalizado = normalizarTexto(bruto)
   const r = (intencao: Intencao, porNumero = false): Classificacao => ({ intencao, assunto: intencao, porNumero, normalizado })
   if (!normalizado) return r(bruto.trim() ? 'ok' : 'outro') // só emoji (👍) = ok
+  if (ehResumoDaVitrine(bruto, normalizado)) return r('resumo_pedido')
 
   const opcao = opcaoDoMenu(bruto)
   if (opcao !== null) return r(MENU_NUMEROS[opcao], true)
@@ -231,6 +272,13 @@ export function classificar(texto: string | null, extras?: PalavrasExtras): Clas
     for (const assunto of ASSUNTOS) {
       if (assunto === 'status_pedido' && PEDIR_ANTES_DO_STATUS.some((e) => contem(palavras, e, tolerante))) return pedir(false)
       if (assunto === 'entrega') {
+        if (!tolerante && ESTA_ABERTO.some((e) => contem(palavras, e, false))) {
+          // "está entregando no centro?" continua sendo taxa do bairro; "tá entregando ainda/hoje?" é "estão abertos?".
+          const b = bairroDaFrase(bruto)
+          if (!b || ['ainda', 'hoje', 'agora', 'ai'].includes(b)) return r('horario')
+        }
+        if (!tolerante && pedeChavePix(palavras)) return r('pix_chave')
+        if (!tolerante && palavras.includes('pix')) return r('pagamento_pix') // "pix na entrega?"
         if (PEDIR_SEM_LINK.some((e) => contem(palavras, e, tolerante))) return pedir(true)
         // "quero fazer um pedido POR AQUI / pelo whats" (14/10): já disse que é pela conversa — a IA atende, sem o link.
         if (PEDIR_FORTE.some((e) => contem(palavras, e, tolerante))) return pedir(palavras.some((p) => PELA_CONVERSA.has(p)))

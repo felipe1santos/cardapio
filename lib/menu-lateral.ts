@@ -47,7 +47,7 @@ export type ItemMenu = Omit<(typeof NAV_ITEMS)[number], 'href'> & { href: string
 /** Item do menu → módulo pago que ele abre (0176). */
 const MODULO_DO_ITEM: Record<string, Modulo> = { '/admin/financeiro': 'financeiro', '/admin/campanhas': 'disparos', '/admin/agente-ia': 'agente_ia' }
 
-/** Saem do menu principal com "Novidades em teste" (viram itens de Ajustes). */
+/** Fora do menu principal (são itens de Ajustes desde a reorganização de 10/10; em todas as lojas desde 16/10). */
 const FORA_DO_MENU_NOVO = new Set(['/admin/agente-ia', '/admin/impressao'])
 
 /**
@@ -90,19 +90,17 @@ export function itensDoMenu(opcoes: {
    * "Quero liberar". Sem a informação ainda (carregando): tratado como bloqueado (nunca abre o que não pagou).
    */
   modulos?: ModulosDaLoja | null
-  /** "Novidades em teste" (0178): menu reorganizado. Ausente/false = menu de antes. */
-  novidades?: boolean
 }): ItemMenu[] {
   const lista: ItemMenu[] = []
   for (const item of NAV_ITEMS) {
     if (item.href === '/admin/lista-pedidos' && !opcoes.usaLogistica) continue
     if (item.href === '/admin/mesas' && !opcoes.moduloMesas) continue
-    if (opcoes.novidades && FORA_DO_MENU_NOVO.has(item.href)) continue
+    if (FORA_DO_MENU_NOVO.has(item.href)) continue
     if (opcoes.papel !== null) {
       const exigida = PERMISSAO_DO_MENU[item.href]
       if (exigida && !pode(opcoes.papel, exigida)) {
         // Sem os Ajustes, mas com a Impressão (gerente): "Ajustes" abre direto na Impressão — como antes ele tinha o item Impressão.
-        if (opcoes.novidades && item.href === '/admin/ajustes' && pode(opcoes.papel, 'impressao.configurar')) lista.push({ ...item, href: HREF_IMPRESSAO })
+        if (item.href === '/admin/ajustes' && pode(opcoes.papel, 'impressao.configurar')) lista.push({ ...item, href: HREF_IMPRESSAO })
         continue
       }
     }

@@ -22,7 +22,8 @@ const FRASES: [string, Intencao][] = [
   ['quanto é o frete?', 'entrega'], ['entrega em vila velha?', 'entrega'], ['voces fazem entrega', 'entrega'], ['tem delivery?', 'entrega'],
   ['quanto fica a entrega pra praia do canto', 'entrega'], ['entregam na glória?', 'entrega'], ['qnt tempo demora a entrega', 'entrega'],
   // Ponto 400, 11/10: "entregando" ficava perto de "entregador" (status) na passada tolerante
-  ['Está entregando?', 'entrega'], ['vcs tão entregando hoje?', 'entrega'],
+  // 16/10: "tá entregando?" é "estão abertos?" (responde aberto agora + horário), não pergunta o bairro.
+  ['Está entregando?', 'horario'], ['vcs tão entregando hoje?', 'horario'],
   ['tempo de entrega', 'entrega'], ['taxa pro jardim camburi', 'entrega'], ['vcs chegam ate itapua?', 'entrega'], ['faz entrega aqui no bairro?', 'entrega'],
   ['qto é a taxa', 'entrega'], ['taxx de entrega', 'entrega'], ['frete pro centro', 'entrega'], ['entregao no ibes?', 'entrega'], ['atendem o bairro jockey?', 'entrega'],
   // status do pedido
@@ -37,10 +38,11 @@ const FRASES: [string, Intencao][] = [
   ['qual o horário?', 'horario'], ['abre hoje?', 'horario'], ['até que horas vcs funcionam', 'horario'], ['estão atendendo?', 'horario'], ['fecha que horas', 'horario'],
   ['funciona domingo?', 'horario'], ['horario', 'horario'], ['horaio', 'horario'], ['vcs abrem que hora', 'horario'], ['hj tem?', 'horario'],
   // pagamento e Pix
-  ['aceita pix?', 'pagamento_pix'], ['qual a chave pix', 'pagamento_pix'], ['manda o pix', 'pagamento_pix'], ['aceita cartão?', 'pagamento_pix'],
+  // 16/10: pedir a chave ("qual a chave", "manda o pix", "pix") manda só a chave; "aceita pix?" segue com as formas.
+  ['aceita pix?', 'pagamento_pix'], ['qual a chave pix', 'pix_chave'], ['manda o pix', 'pix_chave'], ['aceita cartão?', 'pagamento_pix'],
   ['formas de pagamento', 'pagamento_pix'], ['pode ser no débito?', 'pagamento_pix'], ['aceitam credito', 'pagamento_pix'], ['posso pagar em dinheiro?', 'pagamento_pix'],
-  ['tem troco pra 100?', 'pagamento_pix'], ['como faço o pagamento', 'pagamento_pix'], ['pix', 'pagamento_pix'], ['chave', 'pagamento_pix'],
-  ['aceita vale refeição?', 'pagamento_pix'], ['passa cartao?', 'pagamento_pix'], ['qual o pics', 'pagamento_pix'], ['vcs levam troco?', 'pagamento_pix'],
+  ['tem troco pra 100?', 'pagamento_pix'], ['como faço o pagamento', 'pagamento_pix'], ['pix', 'pix_chave'], ['chave', 'pix_chave'],
+  ['aceita vale refeição?', 'pagamento_pix'], ['passa cartao?', 'pagamento_pix'], ['qual o pics', 'pix_chave'], ['vcs levam troco?', 'pagamento_pix'],
   // pedido escrito por mensagem com "troco para" (Ponto 400, 11/10): é saudação, não pergunta de pagamento
   ['Boa noite querido um x tudo troco para 50', 'saudacao'],
   // endereço e retirada
@@ -126,7 +128,7 @@ describe('intenção de pedir pela conversa', () => {
   const NAO = [
     ['qual o horário', 'horario'], ['tem taxa?', 'entrega'], ['quero saber a taxa pro centro', 'entrega'], ['queria saber que horas fecha', 'horario'],
     ['quero falar com atendente', 'atendente'], ['quero cancelar meu pedido', 'atendente'], ['manda o cardápio', 'cardapio'], ['manda o link', 'cardapio'],
-    ['me manda a chave pix', 'pagamento_pix'], ['meu pedido já saiu?', 'status_pedido'], ['quero o endereço', 'endereco_retirada'],
+    ['me manda a chave pix', 'pix_chave'], ['meu pedido já saiu?', 'status_pedido'], ['quero o endereço', 'endereco_retirada'],
     ['aceita cartão?', 'pagamento_pix'], ['oi', 'saudacao'], ['quanto custa o x-tudo?', 'cardapio'], ['como faço pra pedir?', 'cardapio'],
   ] as const
   it.each(NAO)('"%s" não é pedido (→ %s)', (f, esperado) => expect(classificar(f).intencao).toBe(esperado))

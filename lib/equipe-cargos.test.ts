@@ -100,15 +100,11 @@ describe('cargos da equipe', () => {
   })
 })
 
-describe('perfis prontos com o KDS (12/10, só com "Novidades em teste")', () => {
+describe('perfis prontos com o KDS (todas as lojas desde 16/10)', () => {
   it('Cozinha = só KDS; Caixa = PDV, Painel de Pedidos e Mesas; Garçom = Mesas', () => {
-    expect(modeloDoCargo('cozinha', { novidades: true })?.areas).toEqual(['kds'])
-    expect(modeloDoCargo('caixa', { novidades: true })?.areas.sort()).toEqual(['mesas', 'pdv', 'pedidos'])
-    expect(modeloDoCargo('garcom', { novidades: true })?.areas).toEqual(['mesas'])
-  })
-  it('13/10: Cozinha = só o KDS em todas as lojas (a Cozinha antiga saiu); o Caixa novo segue só com "Novidades em teste"', () => {
     expect(modeloDoCargo('cozinha')?.areas).toEqual(['kds'])
-    expect(modeloDoCargo('caixa')?.areas).toContain('clientes')
+    expect(modeloDoCargo('caixa')?.areas.sort()).toEqual(['mesas', 'pdv', 'pedidos'])
+    expect(modeloDoCargo('garcom')?.areas).toEqual(['mesas'])
   })
   it('usuário com o perfil novo continua reconhecido pelo cargo', () => {
     expect(cargoDoUsuario(null, 'atendente', { areas: ['kds'], sensiveis: [] })).toBe('cozinha')

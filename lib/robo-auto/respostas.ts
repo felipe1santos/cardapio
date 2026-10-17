@@ -215,6 +215,7 @@ export function responder(decisao: Decisao, l: DadosLojaAuto, ctx: ContextoRespo
     case 'reclamacao':
       return { mensagens: [t('reclamacao')] }
     case 'atendente':
+      if (decisao.porSemPix) return { mensagens: ['*💠 Pix*\n\nJá chamei alguém da loja para te passar a chave Pix. Só um instante! 🙏'] }
       return { mensagens: [t(decisao.porNaoEntender ? 'atendente_nao_entendeu' : 'atendente')] }
     case 'parar':
       return { mensagens: [t('parar')] }
@@ -224,5 +225,18 @@ export function responder(decisao: Decisao, l: DadosLojaAuto, ctx: ContextoRespo
       return { mensagens: [t('pedir_link')], autoEstado: 'pedir_link' }
     case 'pedir_sem_link':
       return { mensagens: [t('pedir_sem_link')], autoEstado: null }
+    case 'pix_chave': {
+      // A chave sai SOZINHA na 2ª mensagem (fácil de copiar); com pedido em aberto, o valor vai junto (16/10).
+      const tipo = TIPOS_CHAVE[l.pixTipo ?? ''] ?? 'Pix'
+      const p = ctx.pedido
+      const valor = p ? `\nValor do pedido \`#${p.numero}\`: *${brl(p.total)}*` : ''
+      return { mensagens: [`*💠 Chave Pix (${tipo})*${valor}\n\nCopie a chave na mensagem abaixo 👇 e mande o comprovante aqui.`, l.pixChave!.trim()] }
+    }
+    case 'resumo_pedido': {
+      // O cliente mandou o resumo que a vitrine abre no WhatsApp: confirma o pedido. Nunca manda o link (16/10).
+      const p = ctx.pedido
+      if (!p) return { mensagens: ['*👍 Recebemos sua mensagem!*\n\nAssim que o pedido aparecer aqui, você recebe a confirmação.'] }
+      return { mensagens: [`*👍 Recebemos seu pedido \`#${p.numero}\`!*\n\n> ${p.rotuloStatus}`] }
+    }
   }
 }

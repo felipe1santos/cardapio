@@ -9,6 +9,7 @@ import type { TipoMensagem } from '@/lib/mensageria/provedor'
 export type AcaoAuto =
   | 'saudacao' | 'menu_curto' | 'cardapio' | 'entrega' | 'entrega_perguntar_bairro' | 'status' | 'status_numero'
   | 'horario' | 'pagamento' | 'endereco' | 'reclamacao' | 'atendente' | 'parar' | 'nao_entendeu' | 'audio' | 'nada'
+  | 'pix_chave' | 'resumo_pedido'
   | 'pedir_link' | 'pedir_sem_link'
 
 export interface EstadoAuto {
@@ -40,6 +41,8 @@ export interface Decisao {
   naoEntendida: boolean
   /** Transferido por não entender 2 vezes seguidas. */
   porNaoEntender?: boolean
+  /** Pediu a chave Pix e a loja não cadastrou: vai para o atendente (16/10). */
+  porSemPix?: boolean
 }
 
 export interface EntradaDecisao {
@@ -50,6 +53,8 @@ export interface EntradaDecisao {
   assuntosDesligados?: Set<Assunto>
   /** Tipo da mensagem (padrão: texto). */
   tipo?: TipoMensagem
+  /** A loja cadastrou a chave Pix do robô (padrão: sim). */
+  temPix?: boolean
 }
 
 const ACAO_DO_ASSUNTO: Record<Assunto, AcaoAuto> = {
@@ -65,7 +70,10 @@ export function decidir(e: EntradaDecisao): Decisao {
   const { classificacao, texto, agora } = e
   const desligados = e.assuntosDesligados ?? new Set<Assunto>()
   let intencao = classificacao.intencao
-  if (intencao !== 'ok' && intencao !== 'voltar' && intencao !== 'outro' && intencao !== 'pedir' && desligados.has(intencao) && !SEMPRE_LIGADOS.includes(intencao)) intencao = 'outro'
+  if (intencao !== 'ok' && intencao !== 'voltar' && intencao !== 'outro' && intencao !== 'pedir' && intencao !== 'pix_chave' && intencao !== 'resumo_pedido'
+    && desligados.has(intencao) && !SEMPRE_LIGADOS.includes(intencao)) intencao = 'outro'
+  // Pedir a chave é parte do assunto Pix: desligado pelo dono, desliga junto.
+  if (intencao === 'pix_chave' && desligados.has('pagamento_pix')) intencao = 'outro'
 
   const agoraIso = agora.toISOString()
 
@@ -108,6 +116,14 @@ export function decidir(e: EntradaDecisao): Decisao {
     if (classificacao.pedidoSemLink || emEspera === 'pedir_link') return { acao: 'pedir_sem_link', intencao, estado: entendido(limpo), naoEntendida: false }
     return { acao: 'pedir_link', intencao, estado: { ...entendido(limpo), autoEstado: 'pedir_link', autoEstadoEm: agoraIso }, naoEntendida: false }
   }
+
+  // Pediu a chave Pix (16/10): a chave sai sozinha; sem chave cadastrada, o atendente manda (conversa amarela na central).
+  if (intencao === 'pix_chave') {
+    if (e.temPix === false) return { acao: 'atendente', intencao, estado: entendido(limpo), silenciar: 'atendente', naoEntendida: false, porSemPix: true }
+    return { acao: 'pix_chave', intencao, estado: entendido(limpo), naoEntendida: false }
+  }
+  // Resumo que a vitrine mandou depois do pedido (16/10): confirma o pedido; nunca manda o link.
+  if (intencao === 'resumo_pedido') return { acao: 'resumo_pedido', intencao, estado: entendido(limpo), naoEntendida: false }
 
   if (intencao === 'outro') {
     const vezes = e.estado.naoEntendeu + 1

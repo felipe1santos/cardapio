@@ -84,7 +84,7 @@ vermelho. 12px/600, sem caixa alta, `whitespace-nowrap` (nunca botão em 2 linha
 ## 6. Tokens da central do WhatsApp (Kanban v3, 15/10/2026)
 
 Extraídos de `components/atendimento/central.tsx` e guardados em `components/ui/tokens-central.ts` (classes prontas +
-`COR` em hex). Base do Kanban v3 (`components/pedidos/card-pedido-v3.tsx` e `painel-pedido-v3.tsx`).
+`COR` em hex). O Kanban v3 que os usava foi cancelado e apagado em 16/10/2026; os tokens seguem para o AvisoTopo (§7).
 
 | Token | Valor | Origem na central |
 |---|---|---|

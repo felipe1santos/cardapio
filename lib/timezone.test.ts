@@ -187,3 +187,32 @@ describe('horarioFechamentoAtual', () => {
     expect(horarioFechamentoAtual({ statusLoja: 'fechado_manual', horarioFuncionamento: grade })).toBeNull()
   })
 })
+
+describe('lojaEstaAberta — caso da Ponto 400 (16/10/2026, grade 18:00–23:59)', () => {
+  // 16/10/2026 é sexta-feira (dia 5).
+  const grade: HorarioFuncionamento = { '5': [{ abre: '18:00', fecha: '23:59' }] }
+
+  it('aberta na mão às 17:52 (antes da grade) = aberta', () => {
+    congelarEmSaoPaulo('2026-10-16T17:52:51')
+    expect(lojaEstaAberta({ statusLoja: 'aberto_manual', horarioFuncionamento: grade })).toBe(true)
+  })
+  it('fechada na mão no meio da grade = fechada', () => {
+    congelarEmSaoPaulo('2026-10-16T19:16:00')
+    expect(lojaEstaAberta({ statusLoja: 'fechado_manual', horarioFuncionamento: grade })).toBe(false)
+  })
+  it('automático: 17:59 fechada, 18:00 e 23:58 abertas, 23:59 e 00:00 fechadas', () => {
+    const loja = { statusLoja: 'automatico' as const, horarioFuncionamento: grade }
+    congelarEmSaoPaulo('2026-10-16T17:59:00'); expect(lojaEstaAberta(loja)).toBe(false)
+    congelarEmSaoPaulo('2026-10-16T18:00:00'); expect(lojaEstaAberta(loja)).toBe(true)
+    congelarEmSaoPaulo('2026-10-16T23:58:00'); expect(lojaEstaAberta(loja)).toBe(true)
+    congelarEmSaoPaulo('2026-10-16T23:59:00'); expect(lojaEstaAberta(loja)).toBe(false)
+    congelarEmSaoPaulo('2026-10-17T00:00:00'); expect(lojaEstaAberta(loja)).toBe(false)
+  })
+  it('fuso de Brasília com o servidor em UTC: 22:16 UTC = 19:16 em Brasília = aberta', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-16T22:16:00Z'))
+    expect(lojaEstaAberta({ statusLoja: 'automatico', horarioFuncionamento: grade })).toBe(true)
+    vi.setSystemTime(new Date('2026-10-16T20:30:00Z')) // 17:30 em Brasília
+    expect(lojaEstaAberta({ statusLoja: 'automatico', horarioFuncionamento: grade })).toBe(false)
+  })
+})

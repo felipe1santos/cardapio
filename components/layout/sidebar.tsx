@@ -26,8 +26,6 @@ export interface LojaNoMenu {
 }
 
 export interface SidebarProps {
-  /** "Novidades em teste" (0178): visual novo do menu (texto escuro, cadeado laranja). */
-  novoVisual?: boolean
   items: SidebarItem[]
   activeHref: string
   storeSlug?: string | null
@@ -88,10 +86,9 @@ const ITEM_MENU = [
   'flex min-h-[40px] items-center gap-[10px] rounded-[8px] px-[10px] py-[8px] text-left text-[14px] leading-[20px] transition-colors',
   'focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#0688D4]',
 ].join(' ')
-// Dois visuais: o de sempre (cinza) e o NOVO — texto e ícone quase pretos (#111827, o escuro do kit) e cadeado laranja ao
-// passar o mouse (pedido do dono 10/10), só com "Novidades em teste" (0178).
+// Visual do menu (pedido do dono 10/10; em todas as lojas desde 16/10): texto e ícone quase pretos (#111827, o escuro do
+// kit) e cadeado laranja ao passar o mouse.
 const VISUAL = {
-  antigo: { ativo: 'bg-[#EEF0F3] font-semibold text-[#1F2937]', inativo: 'font-medium text-[#4B5563] hover:bg-[#F6F7F9] hover:text-[#1F2937]', icone: 'text-[#4B5563]', iconeAtivo: 'text-[#374151]', cadeado: 'text-[#4B5563]' },
   novo: { ativo: 'bg-[#EEF0F3] font-semibold text-[#111827]', inativo: 'font-medium text-[#111827] hover:bg-[#F6F7F9] hover:text-[#111827]', icone: 'text-[#111827]', iconeAtivo: 'text-[#111827]', cadeado: 'text-[#111827] transition-colors group-hover:text-[#F97316]' },
 }
 
@@ -104,14 +101,13 @@ export function Sidebar({
   onAbrirLoja,
   notificacoes,
   onSignOut,
-  novoVisual = false,
   pendencias = 0,
   mostrarPendencias = true,
   onAbrirPendencias,
   aberta = false,
   onFechar,
 }: SidebarProps) {
-  const v = novoVisual ? VISUAL.novo : VISUAL.antigo
+  const v = VISUAL.novo
   const ITEM_ATIVO = v.ativo
   const ITEM_INATIVO = v.inativo
   // Sino de notificações e alerta de pendências: no card da loja (ou, sem a loja

@@ -25,6 +25,8 @@ function colunasConcedidas(): string[] {
         if (col) colunas.add(col)
       }
     }
+    // Coluna apagada depois (ex.: novidades_teste na 0196) leva a concessão junto.
+    for (const m of conteudo.matchAll(/alter table public\.restaurantes drop column if exists (\w+)/g)) colunas.delete(m[1]!)
   }
   return [...colunas]
 }

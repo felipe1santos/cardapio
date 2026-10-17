@@ -376,11 +376,12 @@ export async function processarMensagemAuto(
     }
   }
 
-  const decidido = decidir({ classificacao: classif, texto: m.texto ?? '', estado, agora, assuntosDesligados: loja.assuntosDesligados, tipo: m.tipo })
+  const temPix = !!loja.pixChave?.trim()
+  const decidido = decidir({ classificacao: classif, texto: m.texto ?? '', estado, agora, assuntosDesligados: loja.assuntosDesligados, tipo: m.tipo, temPix })
   // IA falhou numa mensagem que o robô sozinho não responderia ("sim", foto): o cliente recebe o "não entendi" com o
   // link e a oferta de atendente — nunca fica sem resposta.
   const d = iaFalhou && decidido.acao === 'nada'
-    ? decidir({ classificacao: { intencao: 'outro', assunto: 'outro', porNumero: false, normalizado: classificacao.normalizado }, texto: m.texto ?? '', estado, agora, assuntosDesligados: loja.assuntosDesligados, tipo: 'texto' })
+    ? decidir({ classificacao: { intencao: 'outro', assunto: 'outro', porNumero: false, normalizado: classificacao.normalizado }, texto: m.texto ?? '', estado, agora, assuntosDesligados: loja.assuntosDesligados, tipo: 'texto', temPix })
     : decidido
   if (d.acao === 'nada') return { respostas: 0, motivo: m.tipo === 'texto' ? 'nada' : 'midia_sem_resposta' }
 
@@ -392,6 +393,18 @@ export async function processarMensagemAuto(
     pedido = abertos === 1 ? lista[0] : null
   } else if (d.acao === 'status_numero' && d.numeroPedido) {
     pedido = await pedidoPorNumero(admin, restauranteId, telefone, d.numeroPedido, ctx.semEntregador)
+  } else if (d.acao === 'pix_chave' || d.acao === 'resumo_pedido') {
+    // Chave Pix com o valor do pedido em aberto / confirmação do resumo da vitrine (16/10): o pedido mais recente do telefone.
+    pedido = (await pedidosAbertosDoTelefone(admin, restauranteId, telefone, ctx.semEntregador))[0] ?? null
+  }
+  // Resumo da vitrine e a confirmação automática do pedido já saiu nesta conversa (30 min): fica em silêncio (16/10).
+  if (d.acao === 'resumo_pedido') {
+    const { data: auto } = await admin.from('whatsapp_mensagens').select('id').eq('restaurante_id', restauranteId).eq('conversa_id', e.conversa_id)
+      .eq('origem', 'automatico').gte('criado_em', new Date(agora.getTime() - 30 * 60_000).toISOString()).limit(1)
+    if ((auto ?? []).length) {
+      await aplicar('resumo_pedido', d.estado, null)
+      return { respostas: 0, motivo: 'resumo_ja_confirmado' }
+    }
   }
   // Taxa pela MESMA regra do checkout (12/10): com faixa de raio, o menor entre bairro e raio (Jaburuna: R$ 3,00 pelo raio,
   // não R$ 5,89 da lista). Geocodificação só pela guarda, com cache por endereço.

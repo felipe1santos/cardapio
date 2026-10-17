@@ -42,9 +42,6 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { RotaPanel } from '@/components/pedidos/rota-panel'
 import { DespacharNoCard } from '@/components/pedidos/despachar-card'
-import { CardPedidoKanban } from '@/components/pedidos/card-pedido-kanban'
-import { acaoDoCard } from '@/lib/kanban-card'
-import { useEstadoSessao } from '@/lib/sessao-cliente'
 import { CancelarPedidoModal } from '@/components/pedidos/cancelar-modal'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
@@ -215,10 +212,7 @@ function FluxoCard({ order, tone, onClick, onConcluir, rotulo }: { order: Pedido
 
 
 export default function PedidosPage() {
-  // "Novidades em teste" (0178): selo de origem também para Direto / Sem origem.
   const supabase = useMemo(() => getBrowserSupabase(), [])
-  // Card novo (13/10): só nas lojas com "Novidades em teste"; as outras seguem com o card de antes.
-  const cardsNovos = useEstadoSessao()?.novidades === true
   const [restauranteId, setRestauranteId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -1041,7 +1035,7 @@ export default function PedidosPage() {
                   </div>
                   <span className="rounded-full bg-white/25 px-2 py-0.5 text-[11px] font-semibold text-white">{colOrders.length}</span>
                 </div>
-                <div className={`flex-1 ${cardsNovos ? 'space-y-[14px]' : 'space-y-3'} overflow-y-auto p-3 max-lg:overflow-visible ${comRotas ? 'pb-20' : ''}`}>
+                <div className={`flex-1 space-y-3 overflow-y-auto p-3 max-lg:overflow-visible ${comRotas ? 'pb-20' : ''}`}>
                   {colOrders.map((order) => {
                     const idadeMs = now - new Date(order.criadoEm).getTime()
                     const corTempo = { ok: 'text-price-text', atencao: 'text-[#B45309]', atraso: 'text-danger' }[corTempoPedido(idadeMs)]
@@ -1053,24 +1047,6 @@ export default function PedidosPage() {
                       order.formaPagamento === 'dinheiro' && order.trocoPara ? `Troco p/ ${brl(order.trocoPara)}` : null,
                     ].filter(Boolean).join(' · ')
                     const abrir = () => setDetail(selecionado ? null : order)
-                    if (cardsNovos) {
-                      const novo = order.status === 'recebido' && !order.preparandoNotificado
-                      const acao = acaoDoCard(order, usaDespachoDeRotas(fluxo))
-                      return (
-                        <CardPedidoKanban
-                          key={order.id}
-                          pedido={order}
-                          agora={now}
-                          selecionado={selecionado}
-                          novo={novo}
-                          somBloqueado={novo && alarme.somAtivo && alarme.bloqueado}
-                          onAbrir={abrir}
-                          acao={acao === 'despachar' && !restauranteId ? null : acao}
-                          onAcao={() => (acao === 'saiu' ? saiuSemEntregador(order) : avancar(order))}
-                          renderDespachar={restauranteId ? (seta) => <DespacharNoCard seta={seta} pedido={order} supabase={supabase} restauranteId={restauranteId} onDespachado={aoDespachar} onErro={setError} /> : undefined}
-                        />
-                      )
-                    }
                     return (
                       // Card mínimo (2026-10-03): 3 linhas. Clicar em qualquer parte abre o painel do
                       // pedido; o botão de etapa só avança (não abre o painel).
@@ -1236,7 +1212,6 @@ export default function PedidosPage() {
           reimpEstado={reimpEstado}
           onReimprimir={() => reimprimir(detail)}
           onCancelar={() => pedirCancelamento(detail)}
-          visualNovo={cardsNovos}
         />
       )}
       </div>

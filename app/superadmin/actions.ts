@@ -163,6 +163,13 @@ export async function alternarModuloAction(restauranteId: string, modulo: string
     { onConflict: 'restaurante_id,modulo' },
   )
   if (error) return { ok: false, erro: 'Não foi possível alterar o módulo.' }
+  // Regra de 16/10/2026: módulo ligado no Super Admin = a função funciona na loja, já ligada. O Agente de IA liga junto
+  // (teto padrão: US$ 0,50/dia por loja, US$ 5/dia no sistema; a loja ainda pode desligar em Ajustes › Agente de IA).
+  if (m === 'agente_ia' && liberar) {
+    // Só atualiza: sem linha de configuração o Agente já vale como ligado (lib/agente-ia/atender.ts).
+    const { error: e2 } = await admin.from('whatsapp_robo_config').update({ ia_ativo: true }).eq('restaurante_id', restauranteId)
+    if (e2) return { ok: false, erro: 'Módulo liberado, mas não foi possível ligar o Agente de IA. Tente de novo.' }
+  }
   let voltouNivel1 = false
   if (m === 'financeiro' && !liberar) {
     const { data } = await admin.from('restaurantes').update({ controle_caixa_ativo: false }).eq('id', restauranteId).eq('controle_caixa_ativo', true).select('id')
@@ -175,23 +182,6 @@ export async function alternarModuloAction(restauranteId: string, modulo: string
   })
   await auditarPlataforma(admin, { ator: quem.email, acao: liberar ? 'plataforma.modulo_liberou' : 'plataforma.modulo_bloqueou', restauranteId, alvo: m })
   return terminar({ ok: true, mensagem: `${INFO_MODULO[m].nome} ${liberar ? 'liberado' : 'bloqueado'} na loja.` })
-}
-
-/**
- * "Novidades em teste" (0178): liga/desliga as telas novas numa loja. Não mexe em dado nenhum — só no que a loja vê.
- */
-export async function alternarNovidadesAction(restauranteId: string, ligar: boolean): Promise<ResultadoAcao> {
-  const quem = await ensureSuperAdmin()
-  if (!UUID.test(restauranteId)) return { ok: false, erro: 'Loja inválida.' }
-  const admin = getAdminSupabase()
-  const { error } = await admin.from('restaurantes').update({ novidades_teste: ligar }).eq('id', restauranteId)
-  if (error) return { ok: false, erro: 'Não foi possível alterar as novidades da loja.' }
-  await registrarAuditoria(admin, {
-    restauranteId, usuarioId: null, usuarioNome: `Plataforma (${quem.email})`,
-    acao: ligar ? 'novidades.ligadas' : 'novidades.desligadas', entidade: 'restaurante', entidadeId: restauranteId, dados: {},
-  })
-  await auditarPlataforma(admin, { ator: quem.email, acao: ligar ? 'plataforma.novidades_ligou' : 'plataforma.novidades_desligou', restauranteId })
-  return terminar({ ok: true, mensagem: ligar ? 'Novidades em teste ligadas na loja.' : 'Novidades em teste desligadas na loja.' })
 }
 
 /**
@@ -249,21 +239,6 @@ export async function definirLimitesCampanhasAction(v: { disparoTetoDia: string;
   await auditarPlataforma(admin, { ator: quem.email, acao: 'plataforma.limites_campanhas', dados: { disparo, freq, push } })
   revalidatePath('/superadmin/gasto')
   return { ok: true, mensagem: 'Limites salvos.' }
-}
-
-/** Libera as "Novidades em teste" para TODAS as lojas (confirmação digitada: LIBERAR). */
-export async function liberarNovidadesTodasAction(confirmacao: string): Promise<ResultadoAcao> {
-  const quem = await ensureSuperAdmin()
-  if ((confirmacao ?? '').trim().toUpperCase() !== 'LIBERAR') return { ok: false, erro: 'Digite LIBERAR para confirmar.' }
-  const admin = getAdminSupabase()
-  const { data, error } = await admin.from('restaurantes').update({ novidades_teste: true }).eq('novidades_teste', false).select('id')
-  if (error) return { ok: false, erro: 'Não foi possível liberar para todas as lojas.' }
-  const ids = ((data ?? []) as { id: string }[]).map((r) => r.id)
-  for (const id of ids) {
-    await registrarAuditoria(admin, { restauranteId: id, usuarioId: null, usuarioNome: `Plataforma (${quem.email})`, acao: 'novidades.ligadas', entidade: 'restaurante', entidadeId: id, dados: { todas: true } })
-  }
-  await auditarPlataforma(admin, { ator: quem.email, acao: 'plataforma.novidades_todas', dados: { lojas: ids.length } })
-  return terminar({ ok: true, mensagem: `Novidades liberadas para ${ids.length} loja(s).` })
 }
 
 export async function sairAction() {

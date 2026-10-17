@@ -24,7 +24,7 @@ import { RoboAtendimentoAjustes } from '@/components/admin/robo/robo-ajustes'
 import { Modelos, useModelos } from '@/components/admin/campanhas/modelos'
 import { PushNotificacoes } from '@/components/admin/push-notificacoes'
 import { AgenteIa } from '@/components/admin/agente-ia'
-import { abasDoAjustes, abasMovidas, HREF_IMPRESSAO, type AbaAjustes } from '@/components/admin/ajustes-abas'
+import { abasDoAjustes, ABAS_MOVIDAS, HREF_IMPRESSAO, type AbaAjustes } from '@/components/admin/ajustes-abas'
 import { PilhaToasts, useToasts } from '@/components/admin/toasts'
 import { normalizarInstagram } from '@/lib/instagram'
 import { fonteVitrine } from '@/lib/fonte-vitrine'
@@ -66,7 +66,7 @@ import { CarregandoPagina } from '@/components/admin/barra-carregamento'
 // Modelos de mensagem e Notificações do app foram para Campanhas).
 type Tab = AbaAjustes
 /** Todos os ids possíveis (para ler o ?aba= ao abrir). */
-const TAB_IDS = [...new Set([...abasDoAjustes({ podeAjustes: true, podeImpressao: true, agenteLiberado: true, novidades: true }), ...abasDoAjustes({ podeAjustes: true, podeImpressao: true, agenteLiberado: true, novidades: false })].map((t) => t.id))]
+const TAB_IDS = abasDoAjustes({ podeAjustes: true, podeImpressao: true, agenteLiberado: true }).map((t) => t.id)
 
 /** Bloco de seção do painel de ajustes — agrupa campos afins sob um título. */
 function Secao({
@@ -1954,24 +1954,22 @@ export default function AjustesPage() {
   const [tab, setTab] = useState<Tab>('loja')
   const estadoSessao = useEstadoSessao()
   // Ajustes é só do dono (ajustes.editar), que também configura a Impressão.
-  const novidades = estadoSessao?.novidades === true
-  const TABS = abasDoAjustes({ podeAjustes: true, podeImpressao: true, agenteLiberado: !!estadoSessao?.modulos?.agente_ia, novidades })
+  const TABS = abasDoAjustes({ podeAjustes: true, podeImpressao: true, agenteLiberado: !!estadoSessao?.modulos?.agente_ia })
 
   useEffect(() => {
     buscarRestauranteIdDoUsuario(supabase).then(setRestauranteId)
   }, [supabase])
 
   // A Impressão tem uma página só (menu lateral). Link antigo (?aba=impressao) vai para ela.
-  // Espera o estado da sessão (a chave "Novidades em teste" decide para onde vão as abas que mudaram de lugar).
+  // Espera o estado da sessão (os módulos decidem o cadeado do Agente de IA).
   const sessaoPronta = estadoSessao !== null
   // `?aba=` escolhe a seção do submenu; `?secao=` rola até um bloco dela e o destaca (os avisos da loja
   // levam direto ao campo que falta, 15/10). `semAba` = a aba Perfil (link sem ?aba= vindo de um aviso).
   function aplicarDestino(search: string, semAba: 'manter' | 'perfil') {
     const params = new URLSearchParams(search)
     const aba = params.get('aba')
-    const movidas = abasMovidas(novidades)
-    // Abas que mudaram de lugar: Impressão, Cozinha (menu) e, com as novidades, Modelos e Notificações do app (Campanhas).
-    if (aba && movidas[aba]) { router.replace(movidas[aba]); return }
+    // Abas que mudaram de lugar: Impressão, Cozinha (menu), Modelos e Notificações do app (Campanhas).
+    if (aba && ABAS_MOVIDAS[aba]) { router.replace(ABAS_MOVIDAS[aba]); return }
     // "Aparência" virou bloco do Perfil da loja (2026-10-06): o link antigo abre o Perfil já nele.
     const secao = aba === 'aparencia' ? 'aparencia' : params.get('secao')
     if (aba && (TAB_IDS as string[]).includes(aba)) setTab(aba as Tab)
@@ -1995,7 +1993,7 @@ export default function AjustesPage() {
 
   // Troca de seção fica na URL (?aba=…): o voltar do navegador e os links diretos funcionam.
   function irPara(id: Tab) {
-    if (id === 'impressao') { router.push(novidades ? HREF_IMPRESSAO : '/admin/impressao'); return }
+    if (id === 'impressao') { router.push(HREF_IMPRESSAO); return }
     setTab(id)
     const u = new URL(window.location.href)
     if (id === 'loja') u.searchParams.delete('aba'); else u.searchParams.set('aba', id)
@@ -2028,10 +2026,8 @@ export default function AjustesPage() {
               <TabQrCode restauranteId={restauranteId} active={tab === 'qrcode'} />
               <TabConta active={tab === 'conta'} />
               {tab === 'mensagens' && <TabWhatsapp tipo="mensagens" restauranteId={restauranteId} />}
-              {tab === 'modelos' && <TabWhatsapp tipo="modelos" restauranteId={restauranteId} />}
-              {tab === 'notificacoes' && <TabWhatsapp tipo="notificacoes" restauranteId={restauranteId} />}
               {tab === 'robo' && <TabWhatsapp tipo="robo" restauranteId={restauranteId} />}
-              {tab === 'agente' && novidades && <TabWhatsapp tipo="agente" restauranteId={restauranteId} />}
+              {tab === 'agente' && <TabWhatsapp tipo="agente" restauranteId={restauranteId} />}
             </>
           )}
         </div>

@@ -1,8 +1,7 @@
 import type { ItemSubmenu } from '@/components/admin/submenu-vertical'
 
 /**
- * Seções de Ajustes (submenu). Reorganização 10/10/2026 (ordem do dono) — SÓ com "Novidades em teste" (0178);
- * sem a chave, a lista é exatamente a de antes (abasAntigas):
+ * Seções de Ajustes (submenu). Reorganização 10/10/2026 (ordem do dono), em todas as lojas desde 16/10/2026:
  *  - Impressão saiu do menu principal e virou item daqui (página própria /admin/ajustes/impressao, mesma
  *    permissão de antes: dono e gerente).
  *  - Agente de IA saiu do menu principal e fica logo abaixo do Robô de atendimento (cadeado sem o módulo).
@@ -12,28 +11,12 @@ export type AbaAjustes = 'loja' | 'entrega' | 'mesas' | 'qrcode' | 'conta' | 'im
 
 export const HREF_IMPRESSAO = '/admin/ajustes/impressao'
 
-/** Abas que mudaram de lugar → para onde vão (com e sem as novidades). */
-export function abasMovidas(novidades: boolean): Record<string, string> {
-  return novidades
-    ? { impressao: HREF_IMPRESSAO, cozinha: '/admin/kds', modelos: '/admin/campanhas?aba=modelos', notificacoes: '/admin/campanhas?aba=notificacoes' }
-    : { impressao: '/admin/impressao', cozinha: '/admin/kds' }
+/** Abas que mudaram de lugar → para onde vão. */
+export const ABAS_MOVIDAS: Record<string, string> = {
+  impressao: HREF_IMPRESSAO, cozinha: '/admin/kds', modelos: '/admin/campanhas?aba=modelos', notificacoes: '/admin/campanhas?aba=notificacoes',
 }
 
-/** A lista de sempre (antes de 10/10). */
-const ABAS_ANTIGAS: ItemSubmenu<AbaAjustes>[] = [
-  { id: 'loja', label: 'Perfil da loja', icone: 'store' },
-  { id: 'entrega', label: 'Entrega', icone: 'delivery_dining' },
-  { id: 'mesas', label: 'Mesas', icone: 'table_restaurant' },
-  { id: 'qrcode', label: 'QR Code', icone: 'qr_code_2' },
-  { id: 'conta', label: 'Conta', icone: 'manage_accounts' },
-  { id: 'mensagens', label: 'Mensagens automáticas', icone: 'chat', grupo: 'WhatsApp e notificações' },
-  { id: 'modelos', label: 'Modelos de mensagem', icone: 'description' },
-  { id: 'notificacoes', label: 'Notificações do app', icone: 'notifications' },
-  { id: 'robo', label: 'Robô de atendimento', icone: 'smart_toy' },
-]
-
-export function abasDoAjustes(o: { podeAjustes: boolean; podeImpressao: boolean; agenteLiberado: boolean; novidades: boolean }): ItemSubmenu<AbaAjustes>[] {
-  if (!o.novidades) return o.podeAjustes ? ABAS_ANTIGAS : []
+export function abasDoAjustes(o: { podeAjustes: boolean; podeImpressao: boolean; agenteLiberado: boolean }): ItemSubmenu<AbaAjustes>[] {
   const todas: ItemSubmenu<AbaAjustes>[] = [
     { id: 'loja', label: 'Perfil da loja', icone: 'store' },
     { id: 'entrega', label: 'Entrega', icone: 'delivery_dining' },

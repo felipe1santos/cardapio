@@ -33,7 +33,7 @@ export async function GET() {
   const lim = limitesIa()
   const teto = c.ia_teto_usd_dia === null || c.ia_teto_usd_dia === undefined ? lim.usdDiaLoja : Number(c.ia_teto_usd_dia)
   return NextResponse.json({
-    ativo: c.ia_ativo === true,
+    ativo: c.ia_ativo !== false, // módulo liberado = ligado por padrão (16/10)
     roboAtivo: c.autoatendimento_ativo === true,
     disponivel: Boolean(process.env.ANTHROPIC_API_KEY),
     gastoHojeMicroUsd: gasto,

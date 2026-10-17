@@ -1,3 +1,14 @@
+## ⚠️ LEIA PRIMEIRO: TUDO É PARA TODAS AS LOJAS (16/10/2026)
+
+Tudo que existe no sistema (telas, menus, funcionalidades, visual, robô, Agente de IA, Financeiro, Disparos, KDS,
+campanhas, tudo) está disponível para **TODAS AS LOJAS**, com o mesmo código e o mesmo visual. Não existe nada "só na
+Menuzia" (Menuzia = Angus Burguer, slug `menuzia`). O **ÚNICO** lugar que liga ou desliga algo por loja é o **SUPER
+ADMIN** (chaves de módulos: Financeiro, Agente de IA, Disparos, e qualquer outra que exista lá — `loja_modulos`,
+`lib/modulos.ts`). Chave ligada no Super Admin = a função aparece e **FUNCIONA** na loja, já ligada por padrão. Chave
+desligada = some/fica bloqueada com o cadeado e "Quero liberar". Testes são feitos na Menuzia, mas tudo que vai para
+produção vai para TODAS as lojas. Não criar chave escondida por loja (como a antiga "Novidades em teste"); escolhas de
+negócio da loja (horário, cardápio, cores, taxas, aceite automático…) continuam sendo da loja.
+
 ## ⚠️ LEIA PRIMEIRO: REGRAS DE CUSTO
 
 Em 03–09/10/2026 um loop no mapa do despacho fez ~20 mil chamadas pagas ao Google (≈ R$ 200). Regras permanentes

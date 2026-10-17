@@ -27,19 +27,15 @@ import { AVISO_DISPAROS } from '@/lib/mensageria/disparo-regras'
 // chave, como antes: elas ficam em Ajustes e ?aba=modelos|notificacoes leva para lá. As mensagens automáticas de STATUS
 // do pedido ficam sempre em Ajustes (livres).
 type Aba = 'visao' | 'campanhas' | 'agendamentos' | 'modelos' | 'notificacoes'
-const ABAS_BASE: ItemSubmenu<Aba>[] = [
+const ABAS: ItemSubmenu<Aba>[] = [
   { id: 'visao', label: 'Visão geral', icone: 'dashboard' },
   { id: 'campanhas', label: 'Campanhas', icone: 'campaign' },
   { id: 'agendamentos', label: 'Agendamentos', icone: 'schedule' },
-]
-const ABAS_NOVIDADES: ItemSubmenu<Aba>[] = [
-  ...ABAS_BASE,
   { id: 'modelos', label: 'Modelos de mensagem', icone: 'description' },
   { id: 'notificacoes', label: 'Notificações do app', icone: 'notifications' },
 ]
-function movidas(novidades: boolean): Record<string, string> {
-  return novidades ? { automaticas: 'mensagens' } : { automaticas: 'mensagens', notificacoes: 'notificacoes', modelos: 'modelos' }
-}
+/** Abas antigas que moram em Ajustes. */
+const MOVIDAS: Record<string, string> = { automaticas: 'mensagens' }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -337,15 +333,12 @@ export default function CampanhasPage() {
   const [aba, setAba] = useState<Aba>('visao')
   // Atalho: /admin/campanhas?aba=notificacoes (Fidelidade) abre direto a seção; "metricas" virou a Visão geral.
   const estadoSessao = useEstadoSessao()
-  const novidades = estadoSessao?.novidades === true
-  const ABAS = novidades ? ABAS_NOVIDADES : ABAS_BASE
   const sessaoPronta = estadoSessao !== null
   useEffect(() => {
     if (!sessaoPronta) return
     const q = new URLSearchParams(window.location.search).get('aba')
-    const m = movidas(novidades)
-    if (q && m[q]) { router.replace(`/admin/ajustes?aba=${m[q]}`); return }
-    if (q && (novidades ? ABAS_NOVIDADES : ABAS_BASE).some((a) => a.id === q)) setAba(q as Aba)
+    if (q && MOVIDAS[q]) { router.replace(`/admin/ajustes?aba=${MOVIDAS[q]}`); return }
+    if (q && ABAS.some((a) => a.id === q)) setAba(q as Aba)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessaoPronta])
   const toasts = useToasts()
@@ -580,8 +573,8 @@ export default function CampanhasPage() {
           {aba === 'campanhas' && <ListaCampanhas campanhas={campanhas} carregando={loading} acoes={acoes} onNovo={abrirNovo} />}
           {aba === 'agendamentos' && <Agendamentos campanhas={campanhas} carregando={loading} acoes={acoes} onNovo={abrirNovo} />}
           {/* "Usar" abre o disparo com o modelo, aqui mesmo. */}
-          {aba === 'modelos' && novidades && <Modelos api={modelos} onUsar={usarModelo} onUsarPush={(m) => { router.replace(`/admin/campanhas?aba=notificacoes&modelo=${encodeURIComponent(m.id)}`); setAba('notificacoes') }} onToast={toasts.mostrar} />}
-          {aba === 'notificacoes' && novidades && <PushNotificacoes />}
+          {aba === 'modelos' && <Modelos api={modelos} onUsar={usarModelo} onUsarPush={(m) => { router.replace(`/admin/campanhas?aba=notificacoes&modelo=${encodeURIComponent(m.id)}`); setAba('notificacoes') }} onToast={toasts.mostrar} />}
+          {aba === 'notificacoes' && <PushNotificacoes />}
         </div>
       </div>
 

@@ -36,12 +36,7 @@ export default function AjustesImpressaoPage() {
     podeAjustes: papel !== null && pode(papel, 'ajustes.editar'),
     podeImpressao: true,
     agenteLiberado: !!estado?.modulos?.agente_ia,
-    novidades: true,
   })
-
-  // Sem "Novidades em teste" (0178) a Impressão continua sendo a página de sempre.
-  const semNovidades = estado !== null && estado.novidades !== true
-  useEffect(() => { if (semNovidades) router.replace('/admin/impressao') }, [semNovidades, router])
 
   function irPara(id: AbaAjustes) {
     if (id === 'impressao') return

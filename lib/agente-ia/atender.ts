@@ -24,9 +24,12 @@ import { limparTom } from './tom'
 export interface ConfigIa { ia_ativo?: boolean | null; ia_teto_usd_dia?: number | string | null }
 export const COLUNAS_CONFIG_IA = 'ia_ativo, ia_teto_usd_dia'
 
-/** Interruptor do Agente ligado E módulo pago liberado. (Chave e teto são conferidos na chamada: faltando, o motivo fica registrado.) */
+/**
+ * Módulo pago liberado no Super Admin E a loja não desligou o Agente (16/10/2026: módulo ligado = Agente ligado por
+ * padrão; só um "desligar" explícito da loja, ia_ativo = false, o tira). Chave e teto são conferidos na chamada.
+ */
 export async function agenteLigadoNaLoja(admin: SupabaseClient, restauranteId: string, cfg: ConfigIa): Promise<boolean> {
-  if (cfg.ia_ativo !== true) return false
+  if (cfg.ia_ativo === false) return false
   return moduloLiberado(admin, restauranteId, 'agente_ia').catch(() => false)
 }
 

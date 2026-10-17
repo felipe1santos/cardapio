@@ -48,7 +48,7 @@ export function passo(conv: ConversaSimulada, texto: string, f: FontesSimulador,
     conv.silenciada = null
     if (volta) return { entrada: texto, intencao: 'voltar', acao: 'reativada', respostas: ['*🔔 Pronto!* O atendimento automático voltou. Digite *oi* para ver as opções.'], silenciada: null }
   }
-  const d = decidir({ classificacao: c, texto, estado: conv.estado, agora, assuntosDesligados: f.loja.assuntosDesligados })
+  const d = decidir({ classificacao: c, texto, estado: conv.estado, agora, assuntosDesligados: f.loja.assuntosDesligados, temPix: !!f.loja.pixChave?.trim() })
   let pedido: PedidoAuto | null = null
   let abertos = 0
   if (d.acao === 'status') {

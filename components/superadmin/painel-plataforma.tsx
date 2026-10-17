@@ -15,7 +15,7 @@ import { IaDaLoja, UsoIaResumo } from './uso-ia'
 import type { ModulosDaLoja } from '@/lib/modulos'
 import { ModulosLoja } from './modulos-loja'
 import {
-  alterarValidadeAction, alternarBetaImpressaoAction, alternarNovidadesAction, liberarNovidadesTodasAction, bloquearAction, desbloquearAction, excluirDadosAction,
+  alterarValidadeAction, alternarBetaImpressaoAction, bloquearAction, desbloquearAction, excluirDadosAction,
   preCadastrarAction, removerPreCadastroAction, sairAction, type ResultadoAcao,
 } from '@/app/superadmin/actions'
 
@@ -133,8 +133,7 @@ type ModalAberto =
   | { tipo: 'detalhes'; loja: LojaPlataforma }
   | { tipo: 'validade'; loja: LojaPlataforma }
   | { tipo: 'desbloquear'; loja: LojaPlataforma }
-  | { tipo: 'confirmar'; loja: LojaPlataforma; acao: 'bloquear' | 'remover' | 'beta_liberar' | 'beta_retirar' | 'novidades_ligar' | 'novidades_desligar' }
-  | { tipo: 'novidades_todas' }
+  | { tipo: 'confirmar'; loja: LojaPlataforma; acao: 'bloquear' | 'remover' | 'beta_liberar' | 'beta_retirar' }
   | { tipo: 'excluir'; loja: LojaPlataforma }
 
 export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis, usoIa, modulos }: { lojas: LojaPlataforma[]; resumo: ResumoPlataforma; emailSuperadmin: string; usoApis?: UsoApis | null; usoIa?: UsoIa | null; modulos?: Record<string, ModulosDaLoja> }) {
@@ -267,11 +266,6 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis, usoI
               </button>
             ))}
           </div>
-          <button type="button" onClick={() => setModal({ tipo: 'novidades_todas' })}
-            className="hidden h-[40px] flex-shrink-0 items-center gap-1.5 rounded-[4px] border border-border bg-white px-3 text-[12px] font-semibold uppercase tracking-wide text-text-main hover:bg-page sm:flex"
-            data-testid="novidades-todas">
-            Liberar novidades para todas
-          </button>
           <button type="button" onClick={() => setModal({ tipo: 'cadastrar' })}
             className="fixed bottom-4 right-4 z-40 flex h-[48px] items-center gap-1.5 rounded-full bg-[#0369A1] px-5 text-[13px] font-semibold text-white shadow-[0_8px_20px_rgba(3,105,161,0.4)] hover:brightness-110 sm:static sm:h-[40px] sm:rounded-[4px] sm:px-4 sm:text-[12px] sm:uppercase sm:tracking-wide sm:shadow-none"
             data-testid="cadastrar-cliente">
@@ -299,7 +293,6 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis, usoI
                   <th className="px-3 py-2.5 text-left uppercase">IA (Claude)</th>
                   <th className="px-3 py-2.5 text-left uppercase">Módulos</th>
                   <th className="px-3 py-2.5 text-left uppercase">Impressão Alfa 1</th>
-                  <th className="px-3 py-2.5 text-left uppercase">Novidades em teste</th>
                   <th className="px-3 py-2.5"><span className="sr-only">Ações</span></th>
                 </tr>
               </thead>
@@ -326,7 +319,6 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis, usoI
                     <td className="px-3 py-2.5">{l.restauranteId && usoIa ? <IaDaLoja uso={usoIa.porLoja[l.restauranteId]} limites={usoIa.limites} restauranteId={l.restauranteId} teto={usoIa.tetosLoja[l.restauranteId]} /> : '—'}</td>
                     <td className="px-3 py-2.5">{l.restauranteId && modulos?.[l.restauranteId] ? <ModulosLoja restauranteId={l.restauranteId} loja={l.loja || ''} inicial={modulos[l.restauranteId]} /> : '—'}</td>
                     <td className="px-3 py-2.5">{l.restauranteId ? (l.betaLiberado ? <span className="rounded-[4px] bg-[#0369A1] px-2 py-[3px] text-[11px] font-semibold text-white">Piloto</span> : <span className="text-[12px] text-text-subtle">Não</span>) : '—'}</td>
-                    <td className="px-3 py-2.5" data-testid="coluna-novidades">{l.restauranteId ? (l.novidades ? <span className="rounded-[4px] bg-[#DCFCE7] px-2 py-[3px] text-[11px] font-semibold text-[#15803D]">Ligadas</span> : <span className="text-[12px] text-text-subtle">Não</span>) : '—'}</td>
                     <td className="px-2 py-2.5 text-right"><BotaoMenu l={l} /></td>
                   </tr>
                 ))}
@@ -390,11 +382,6 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis, usoI
                   {l.betaLiberado ? 'Retirar do piloto de Impressão Alfa 1' : 'Liberar Impressão Alfa 1'}
                 </button>
               )}
-              {l.restauranteId && (
-                <button role="menuitem" type="button" className={`${ITEM} border-t border-border`} onClick={() => abrir({ tipo: 'confirmar', loja: l, acao: l.novidades ? 'novidades_desligar' : 'novidades_ligar' })} data-testid="acao-novidades">
-                  {l.novidades ? 'Desligar Novidades em teste' : 'Ligar Novidades em teste'}
-                </button>
-              )}
               {l.situacao === 'pendente' && <button role="menuitem" type="button" className={`${ITEM} border-t border-border text-[#B91C1C]`} onClick={() => abrir({ tipo: 'confirmar', loja: l, acao: 'remover' })} data-testid="acao-remover">Remover pré-cadastro</button>}
               {semAcesso && <button role="menuitem" type="button" className={`${ITEM} text-[#B91C1C]`} onClick={() => abrir({ tipo: 'excluir', loja: l })} data-testid="acao-excluir">Excluir dados…</button>}
             </div>
@@ -411,10 +398,8 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis, usoI
         const l = modal.loja
         executar(() => modal.acao === 'bloquear' ? bloquearAction(l.contaId)
           : modal.acao === 'remover' ? removerPreCadastroAction(l.contaId)
-            : modal.acao === 'novidades_ligar' || modal.acao === 'novidades_desligar' ? alternarNovidadesAction(l.restauranteId!, modal.acao === 'novidades_ligar')
-              : alternarBetaImpressaoAction(l.restauranteId!, modal.acao === 'beta_liberar'))
+            : alternarBetaImpressaoAction(l.restauranteId!, modal.acao === 'beta_liberar'))
       }} />}
-      {modal?.tipo === 'novidades_todas' && <ModalNovidadesTodas ocupado={pendente} lojas={lojas.filter((x) => x.restauranteId && !x.novidades).length} onFechar={fecharModal} onConfirmar={(t) => executar(() => liberarNovidadesTodasAction(t))} />}
       {modal?.tipo === 'excluir' && <ModalExcluir loja={modal.loja} ocupado={pendente} onFechar={fecharModal} onConfirmar={(t) => executar(() => excluirDadosAction(modal.loja.contaId, t))} />}
       <PilhaToasts itens={toasts.itens} />
     </div>
@@ -538,25 +523,6 @@ function ModalValidade({ loja, desbloquear, ocupado, onFechar, onEnviar }: { loj
   )
 }
 
-/** "Liberar novidades para todas as lojas" (0178): confirmação digitada, como no excluir dados. */
-function ModalNovidadesTodas({ ocupado, lojas, onFechar, onConfirmar }: { ocupado: boolean; lojas: number; onFechar: () => void; onConfirmar: (t: string) => void }) {
-  const [texto, setTexto] = useState('')
-  return (
-    <Modal titulo="Liberar novidades para todas as lojas" testid="modal-novidades-todas" onFechar={onFechar}
-      rodape={<>
-        <button type="button" className={BTN_NEUTRO} onClick={onFechar}>Cancelar</button>
-        <button type="button" className={BTN_PRIMARIO} disabled={ocupado || texto.trim().toUpperCase() !== 'LIBERAR'} onClick={() => onConfirmar(texto)} data-testid="confirmar-novidades-todas">{ocupado ? 'Aguarde…' : 'Liberar para todas'}</button>
-      </>}>
-      <p className="text-[13.5px] leading-[20px] text-text-main">
-        {lojas} loja(s) ainda sem as novidades passam a ver as telas novas (menu reorganizado, fotos em carrossel, links para divulgar, origem no card e no Dashboard). Nenhum dado muda; dá para desligar loja por loja depois.
-      </p>
-      <label className="mt-3 block text-[12px] font-semibold text-text-subtle">Digite LIBERAR para confirmar
-        <input value={texto} onChange={(e) => setTexto(e.target.value)} className="mt-1 w-full rounded-[4px] border border-border px-3 py-2 text-[14px]" data-testid="texto-novidades-todas" />
-      </label>
-    </Modal>
-  )
-}
-
 function ModalConfirmar({ modal, ocupado, onFechar, onConfirmar }: { modal: Extract<ModalAberto, { tipo: 'confirmar' }>; ocupado: boolean; onFechar: () => void; onConfirmar: () => void }) {
   const l = modal.loja
   const textos = {
@@ -564,8 +530,6 @@ function ModalConfirmar({ modal, ocupado, onFechar, onConfirmar }: { modal: Extr
     remover: ['Remover pré-cadastro', `O convite de ${l.email} será removido. Para cadastrar de novo, use "+ Cadastrar cliente".`, 'Remover', BTN_PERIGO],
     beta_liberar: ['Liberar Impressão Alfa 1', `"${l.loja}" passa a poder usar o Assistente Alfa 1. Continua no Assistente antigo até o dono escolher outro modo.`, 'Liberar', BTN_PRIMARIO],
     beta_retirar: ['Retirar do piloto', `A impressão de "${l.loja}" volta toda para o Assistente antigo.`, 'Retirar', BTN_PERIGO],
-    novidades_ligar: ['Ligar Novidades em teste', `"${l.loja}" passa a ver as telas novas (menu reorganizado, fotos em carrossel, links para divulgar, origem no card e no Dashboard). Nenhum dado muda.`, 'Ligar', BTN_PRIMARIO],
-    novidades_desligar: ['Desligar Novidades em teste', `"${l.loja}" volta às telas de antes. Nenhum dado muda.`, 'Desligar', BTN_PERIGO],
   }[modal.acao]
   return (
     <Modal titulo={textos[0]} testid="modal-confirmar" onFechar={onFechar}

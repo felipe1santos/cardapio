@@ -55,17 +55,17 @@ const MODELO_DO_CARGO: Record<Exclude<Cargo, 'dono' | 'personalizado'>, Acessos>
 }
 
 /**
- * Perfis com o KDS (12/10): Cozinha = só o KDS em TODAS as lojas desde 13/10 (MODELOS); o Caixa novo (PDV, Painel de
- * Pedidos e Mesas) continua só com "Novidades em teste".
+ * Perfis com o KDS (12/10): Cozinha = só o KDS desde 13/10 (MODELOS); o Caixa novo (PDV, Painel de Pedidos e Mesas) em
+ * todas as lojas desde 16/10.
  */
 const MODELO_DO_CARGO_KDS: Partial<Record<Cargo, Acessos>> = {
   caixa: { areas: ['pedidos', 'pdv', 'mesas'], sensiveis: ['desconto', 'taxa', 'fechar_caixa'] },
 }
 
 /** Modelo de permissões do cargo (cópia). Personalizado/dono: null (não preenche nada). */
-export function modeloDoCargo(cargo: Cargo, opcoes: { novidades?: boolean } = {}): Acessos | null {
+export function modeloDoCargo(cargo: Cargo): Acessos | null {
   if (cargo === 'dono' || cargo === 'personalizado') return null
-  const m = (opcoes.novidades && MODELO_DO_CARGO_KDS[cargo]) || MODELO_DO_CARGO[cargo]
+  const m = MODELO_DO_CARGO_KDS[cargo] || MODELO_DO_CARGO[cargo]
   return { areas: [...m.areas], sensiveis: [...m.sensiveis] }
 }
 

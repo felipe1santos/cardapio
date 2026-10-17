@@ -14,11 +14,6 @@ const PASTAS = ['app', 'components', 'lib']
 export const FORA_DA_REGRA = [
   'components/admin/qr-cardapio-folha.tsx',
   'lib/previa-loja.ts', // imagem de compartilhamento (não é tela)
-  // Card novo do Kanban (13/10): o modelo aprovado pelo dono pede negrito (número, nome, valor, tempo). Só este arquivo.
-  'components/pedidos/card-pedido-kanban.tsx',
-  // Kanban v3 (15/10): card e painel no modelo aprovado (número, nome, itens e valor em negrito). Só estes dois.
-  'components/pedidos/card-pedido-v3.tsx',
-  'components/pedidos/painel-pedido-v3.tsx',
   ...DESPACHO_DE_ROTAS(),
 ]
 function DESPACHO_DE_ROTAS(): string[] {

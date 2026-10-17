@@ -16,8 +16,8 @@ describe('decisão do robô de autoatendimento', () => {
     expect(d('bom dia', { ...ESTADO_VAZIO, saudacaoEm: min(6 * 60 + 1) }).acao).toBe('saudacao')
   })
 
-  it('"tão entregando hoje?" pergunta o bairro (não vira bairro "hoje")', () => {
-    expect(d('vcs tão entregando hoje?').acao).toBe('entrega_perguntar_bairro')
+  it('"tão entregando hoje?" responde se está aberto (16/10; antes perguntava o bairro)', () => {
+    expect(d('vcs tão entregando hoje?').acao).toBe('horario')
     expect(d('está entregando no centro?').bairro).toBe('centro')
   })
 

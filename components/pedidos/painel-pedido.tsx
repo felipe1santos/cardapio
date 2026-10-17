@@ -13,9 +13,6 @@ import { textoAgendado } from '@/lib/agendamento'
 import { mascararTelefoneBR } from '@/lib/telefone'
 import { rotuloForma, statusAReceber, trocoLevar } from '@/lib/pdv-pagamento'
 import { textoTempoPedido } from '@/lib/tempo-pedido'
-import { EtiquetaNumero, EtiquetaPagamento, FONTE_CARD, IconesDoTipo, LogoOrigemPedido, NEGRITO, tempoDoCard } from '@/components/pedidos/card-pedido-kanban'
-import { logoDaOrigem } from '@/lib/kanban-card'
-import { nomeLimpo } from '@/lib/nome-item'
 
 /**
  * Painel do pedido no Painel de Pedidos (2026-10-03). Fica AO LADO do quadro (sem escurecer nem
@@ -77,7 +74,7 @@ function Obs({ texto, testid }: { texto: string; testid: string }) {
 
 export function PainelPedido({
   pedido, agora, onFechar, editandoPag, setEditandoPag, onPagamentoAlterado,
-  reimpEstado, onReimprimir, onCancelar, visualNovo = false,
+  reimpEstado, onReimprimir, onCancelar,
 }: {
   pedido: Pedido
   agora: number
@@ -88,8 +85,6 @@ export function PainelPedido({
   reimpEstado: 'idle' | 'enviando' | 'ok' | 'erro'
   onReimprimir: () => void
   onCancelar: () => void
-  /** Card novo do Kanban (13/10, "Novidades em teste"): o painel no mesmo visual do card. Só aparência. */
-  visualNovo?: boolean
 }) {
   // Esc fecha (se nenhuma janela estiver por cima).
   useEffect(() => {
@@ -103,18 +98,12 @@ export function PainelPedido({
   const levar = !p.pago && p.formaPagamento === 'dinheiro' ? trocoLevar(p.total, p.trocoPara) : 0
   const idade = textoTempoPedido(agora - new Date(p.criadoEm).getTime())
   const linhaLanc = referenciaDoLancamento(p)
-  // Visual do card novo: cantos retos, cinza #F3F4F6, borda #D1D5DB, DM Sans, valores em verde escuro.
-  const caixa = visualNovo ? 'mb-4 rounded-none border border-[#D1D5DB] bg-[#F3F4F6] p-3 shadow-[0_2px_4px_rgba(17,24,39,.06)]' : ''
-  const verde = visualNovo ? 'text-[#0B4A2A]' : VERDE
-  const botao = visualNovo ? 'rounded-none' : 'rounded-[3px]'
+  const verde = VERDE
+  const botao = 'rounded-[3px]'
 
   return (
     <aside
-      className={visualNovo
-        ? 'flex flex-col bg-white text-[#111827] max-lg:fixed max-lg:inset-0 max-lg:z-[60] lg:w-[520px] lg:flex-shrink-0 lg:border-l lg:border-[#D1D5DB] lg:shadow-[-8px_0_20px_rgba(17,24,39,.10)]'
-        : 'flex flex-col bg-white max-lg:fixed max-lg:inset-0 max-lg:z-[60] lg:w-[460px] lg:flex-shrink-0 lg:border-l lg:border-border lg:shadow-[-4px_0_12px_rgba(16,24,40,0.06)]'}
-      style={visualNovo ? FONTE_CARD : undefined}
-      data-visual={visualNovo ? 'novo' : undefined}
+      className="flex flex-col bg-white max-lg:fixed max-lg:inset-0 max-lg:z-[60] lg:w-[460px] lg:flex-shrink-0 lg:border-l lg:border-border lg:shadow-[-4px_0_12px_rgba(16,24,40,0.06)]"
       data-testid="painel-pedido"
       aria-label={`Pedido #${p.numero}`}
     >
@@ -124,20 +113,7 @@ export function PainelPedido({
           <button type="button" onClick={onFechar} className="-ml-1 flex h-[40px] items-center gap-1 rounded-[3px] px-2 text-[14px] font-semibold text-primary hover:bg-primary/10 lg:hidden" data-testid="painel-voltar">
             <ArrowLeft className="h-5 w-5" /> Voltar
           </button>
-          {visualNovo ? (
-            <div className="min-w-0 flex-1" data-testid="painel-cabecalho-novo">
-              <div className="flex items-center gap-[10px]">
-                <EtiquetaNumero numero={p.numero} grande />
-                <h2 className={`min-w-0 truncate text-[20px] ${NEGRITO} uppercase leading-tight`} title={p.clienteNome || undefined}>{p.clienteNome || 'Cliente'}</h2>
-              </div>
-              <div className="mt-2 flex flex-wrap items-center gap-x-[12px] gap-y-1 text-[14px]">
-                <IconesDoTipo pedido={p} />
-                <span className={`${NEGRITO} tabular-nums`} data-testid="painel-horario">Feito às {hora(p.criadoEm)} · {tempoDoCard(agora - new Date(p.criadoEm).getTime())}</span>
-                {p.agendadoPara && <span className="font-semibold text-[#0369A1]">Agendado para {textoAgendado(p.agendadoPara)}</span>}
-              </div>
-              <p className="mt-1 text-[13px] text-[#4B5563]" data-testid="painel-origem">Origem: <span className="font-semibold text-[#111827]">{logoDaOrigem(p).rotulo}</span>{p.origemCampanha ? ` · ${p.origemCampanha === 'robô' ? 'robô de atendimento' : `campanha ${p.origemCampanha}`}` : ''}</p>
-            </div>
-          ) : <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-[20px] font-semibold leading-tight text-text-main">Pedido #{p.numero}</h2>
               <EtiquetasPedido pedido={p} />
@@ -159,8 +135,7 @@ export function PainelPedido({
                 </p>
               ) : null
             })()}
-          </div>}
-          {visualNovo && <LogoOrigemPedido pedido={p} altura={44} />}
+          </div>
           <button type="button" onClick={onFechar} aria-label="Fechar o painel" className="flex h-[40px] w-[40px] flex-shrink-0 items-center justify-center rounded-[3px] text-text-subtle hover:bg-page max-lg:hidden" data-testid="painel-fechar">
             <X className="h-5 w-5" />
           </button>
@@ -179,12 +154,12 @@ export function PainelPedido({
 
         {/* Itens */}
         <p className={TITULO}>Itens do pedido</p>
-        <ul className={visualNovo ? `${caixa} space-y-2.5` : 'mb-4 space-y-2.5 rounded-[3px] border border-border p-3'} data-testid="painel-itens">
+        <ul className="mb-4 space-y-2.5 rounded-[3px] border border-border p-3" data-testid="painel-itens">
           {p.itens.map((l) => (
             <li key={l.id}>
               <div className="flex justify-between gap-3 text-[15px] text-text-main">
                 <span className="min-w-0">
-                  <b>{l.quantidade}x</b> {visualNovo ? nomeLimpo(l.nome) : l.nome}
+                  <b>{l.quantidade}x</b> {l.nome}
                   {l.tamanhoNome && <span className="text-text-subtle"> · {l.tamanhoNome}</span>}
                   {l.saborNome && <span className="text-text-subtle"> · {l.saborNome}</span>}
                 </span>
@@ -204,13 +179,13 @@ export function PainelPedido({
             <div className="flex justify-between text-text-subtle"><span>Subtotal</span><span className={`tabular-nums ${verde}`}>{brl(p.subtotal)}</span></div>
             {p.taxaEntrega > 0 && <div className="flex justify-between text-text-subtle"><span>Taxa de entrega</span><span className={`tabular-nums ${verde}`}>{brl(p.taxaEntrega)}</span></div>}
             {p.desconto > 0 && <div className="flex justify-between text-text-subtle"><span>Desconto</span><span className={`tabular-nums ${verde}`}>−{brl(p.desconto)}</span></div>}
-            <div className="flex items-baseline justify-between pt-1"><span className="text-[16px] font-semibold text-text-main">Total</span><span className={`text-[20px] ${visualNovo ? NEGRITO : 'font-semibold'} tabular-nums ${verde}`} data-testid="painel-total">{brl(p.total)}</span></div>
+            <div className="flex items-baseline justify-between pt-1"><span className="text-[16px] font-semibold text-text-main">Total</span><span className={`text-[20px] font-semibold tabular-nums ${verde}`} data-testid="painel-total">{brl(p.total)}</span></div>
           </li>
         </ul>
 
         {/* Cliente e pagamento */}
         <p className={TITULO}>Cliente e pagamento</p>
-        <div className={visualNovo ? `${caixa} space-y-2` : 'mb-4 space-y-2 rounded-[3px] border border-border p-3'}>
+        <div className="mb-4 space-y-2 rounded-[3px] border border-border p-3">
           <div className="flex justify-between gap-3"><span className="text-text-subtle">Cliente</span><span className="text-right font-semibold">{p.clienteNome || '—'}</span></div>
           {p.clienteTelefone && (
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
@@ -241,9 +216,9 @@ export function PainelPedido({
               <div className="flex items-start justify-between gap-3" data-testid="detalhes-pagamento">
                 <span className="text-text-subtle">Pagamento</span>
                 <span className="text-right">
-                  {visualNovo ? <EtiquetaPagamento pedido={p} /> : <span className="inline-flex items-center gap-1.5 font-semibold"><Icone className="h-4 w-4" aria-hidden /> {rotuloForma(p.formaPagamento, p.cartaoTipo, p.pagamentoOnline)}</span>}
+                  <span className="inline-flex items-center gap-1.5 font-semibold"><Icone className="h-4 w-4" aria-hidden /> {rotuloForma(p.formaPagamento, p.cartaoTipo, p.pagamentoOnline)}</span>
                   {/* Visual novo: a etiqueta já diz "Pago" (online ou Pix pago); não repete. */}
-                  {!(visualNovo && p.pago) && <><br />{p.pago ? <span className="font-semibold text-price-text">Pago</span> : <span className="font-semibold text-[#92400E]">{statusAReceber(p.tipo)}</span>}</>}
+                  <br />{p.pago ? <span className="font-semibold text-price-text">Pago</span> : <span className="font-semibold text-[#92400E]">{statusAReceber(p.tipo)}</span>}
                   {p.formaPagamento === 'dinheiro' && p.trocoPara ? (
                     <><br /><span className="font-semibold text-[#92400E]" data-testid="painel-troco">Troco p/ {brl(p.trocoPara)}{levar > 0 ? ` · levar ${brl(levar)}` : ''}</span></>
                   ) : null}
@@ -262,7 +237,7 @@ export function PainelPedido({
         {p.tipo === 'entrega' && (p.entregadorId || p.status === 'em_rota') && (
           <>
             <p className={TITULO}>Entrega</p>
-            <div className={visualNovo ? `${caixa} flex items-center justify-between gap-3` : 'mb-4 flex items-center justify-between gap-3 rounded-[3px] border border-border p-3'} data-testid="painel-entrega">
+            <div className="mb-4 flex items-center justify-between gap-3 rounded-[3px] border border-border p-3" data-testid="painel-entrega">
               <span className="inline-flex items-center gap-1.5"><Bike className="h-4 w-4 text-text-subtle" aria-hidden /> {p.entregadorNome ?? 'Motoboy'}</span>
               <span className="font-semibold">{p.status === 'em_rota' ? 'Em rota' : p.status === 'entregue' ? (p.entregueAutomatico ? 'Entregue (automático)' : 'Entregue') : 'Aguardando saída'}</span>
             </div>
@@ -273,7 +248,7 @@ export function PainelPedido({
       {/* Rodapé fixo */}
       {/* lg: espaço à direita para o botão flutuante de atendimento não cobrir o Cancelar. */}
       {/* Visual novo: espaço embaixo para o botão flutuante "Despachar" não cobrir o Cancelar. */}
-      <div className={`space-y-2 border-t border-border p-3 lg:pr-[82px] ${visualNovo ? 'lg:pb-[76px]' : ''}`}>
+      <div className={`space-y-2 border-t border-border p-3 lg:pr-[82px] `}>
         <button type="button" onClick={onReimprimir} disabled={reimpEstado === 'enviando' || reimpEstado === 'ok'}
           className={`flex h-[44px] w-full items-center justify-center gap-2 ${botao} bg-text-main px-4 text-[13px] font-semibold text-white hover:bg-black disabled:opacity-60`} data-testid="painel-reimprimir">
           <PrinterCheck className="h-4 w-4" /> {reimpEstado === 'enviando' ? 'Enviando…' : reimpEstado === 'ok' ? 'Enviado p/ impressora' : 'Reimprimir pedido'}

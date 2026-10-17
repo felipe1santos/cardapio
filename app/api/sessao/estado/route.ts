@@ -13,7 +13,7 @@ export async function GET() {
   const admin = getAdminSupabase()
   const d = await dispositivoDaRequisicao()
   const [{ data: loja }, { data: u }, { data: cfg }, travada, modulos] = await Promise.all([
-    admin.from('restaurantes').select('nome, financeiro_ativo, controle_caixa_ativo, novidades_teste').eq('id', sessao.restauranteId).maybeSingle(),
+    admin.from('restaurantes').select('nome, financeiro_ativo, controle_caixa_ativo').eq('id', sessao.restauranteId).maybeSingle(),
     admin.from('usuarios').select('pin_hash').eq('id', sessao.userId).maybeSingle(),
     admin.from('fin_config').select('inatividade_min').eq('restaurante_id', sessao.restauranteId).maybeSingle(),
     telaTravada(admin, sessao.userId, d.terminal),
@@ -36,7 +36,5 @@ export async function GET() {
     modulos,
     lojaNome: (loja?.nome as string | undefined) ?? '',
     whatsappComercial: whatsappComercial(),
-    // "Novidades em teste" (0178): só a Menuzia vê as telas novas até o dono liberar para todas.
-    novidades: loja?.novidades_teste === true,
   }, { headers: { 'Cache-Control': 'no-store' } })
 }

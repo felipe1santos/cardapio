@@ -21,8 +21,6 @@ export interface EstadoSessao {
   modulos?: import('@/lib/modulos').ModulosDaLoja
   lojaNome?: string
   whatsappComercial?: string
-  /** "Novidades em teste" (0178): telas novas só nas lojas com a chave ligada. Ausente = desligada. */
-  novidades?: boolean
 }
 
 export const EVENTO_TRAVAR = 'menuzia:travar-tela'

@@ -2,9 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRealtimeComFallback } from '@/lib/realtime-fallback'
-import { Bike, Users, ClipboardCheck, Phone, User, MapPin, Plus, Wallet, Zap, RefreshCw, Volume2, VolumeX, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react'
-import { Capacete } from '@/components/icones/capacete'
-import { avisoDePedidosParados, pedidoParado, tempoParado } from '@/lib/pedido-parado'
+import { Bike, Phone, MapPin, Zap, RefreshCw, Volume2, VolumeX, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react'
+import { avisoDePedidosParados } from '@/lib/pedido-parado'
 import { TopBar } from '@/components/layout/topbar'
 import { TONS_PAINEL, type TomPainel } from '@/components/admin/cartao-numero'
 import { ICONES } from '@/lib/icones-painel'
@@ -43,7 +42,6 @@ import { rotuloForma } from '@/lib/pdv-pagamento'
 import { PainelPedido } from '@/components/pedidos/painel-pedido'
 import { solicitarReimpressao } from '@/lib/queries/impressao'
 import { useCoordenadasPedidos } from '@/lib/mapa/cliente'
-import { useEstadoSessao } from '@/lib/sessao-cliente'
 import { EmRotaNovo, FinalizadosNovo, ListaEntregadoresNovo } from '@/components/logistica/pedidos-novo'
 import { CarregandoPagina } from '@/components/admin/barra-carregamento'
 import { contarOnline } from '@/lib/motoboy/status-real'
@@ -208,16 +206,6 @@ function CabecalhoSecao({
   )
 }
 
-function Vazio({ icone, titulo, texto }: { icone: React.ReactNode; titulo: string; texto: string }) {
-  return (
-    <div className="flex flex-col items-center gap-1.5 px-6 py-10 text-center">
-      <span className="mb-1 flex h-10 w-10 items-center justify-center rounded-full bg-[#f1f2f4] text-[var(--adm-texto-suave)]">{icone}</span>
-      <p className="text-[13.5px] font-semibold text-[var(--adm-texto)]">{titulo}</p>
-      <p className="max-w-[320px] text-[12px] text-[var(--adm-texto-suave)]">{texto}</p>
-    </div>
-  )
-}
-
 /** Foto do entregador ou a inicial num círculo com cor estável pelo nome. */
 const CORES_AVATAR = ['#A855F7', '#F97316', '#10B981', '#3B82F6', '#F59E0B', '#EF4444']
 function Avatar({ nome, fotoUrl, tamanho = 40 }: { nome: string; fotoUrl: string | null; tamanho?: number }) {
@@ -274,100 +262,6 @@ function ResumoPedido({ order, selo, extra }: { order: Pedido; selo?: React.Reac
   )
 }
 
-const TOM_STATUS: Record<StatusEntregador, { fundo: string; texto: string; ponto: string }> = {
-  online: { fundo: '#DCFCE7', texto: '#15803D', ponto: '#10B981' },
-  ocupado: { fundo: '#FFEDD5', texto: '#C2410C', ponto: '#F97316' },
-  offline: { fundo: '#F1F2F4', texto: '#4B5563', ponto: '#9CA3AF' },
-}
-
-/**
- * Cartão do entregador: quem é, com o que roda, se está na rua e o que dá pra
- * fazer com ele — tudo com rótulo. Antes eram quatro ícones de 14px sem nome.
- */
-function CartaoEntregador({
-  driver,
-  mudandoStatus,
-  onStatus,
-  onPerfil,
-  onLocalizacao,
-  onAcesso,
-}: {
-  driver: Entregador
-  mudandoStatus: boolean
-  onStatus: (s: StatusEntregador) => void
-  onPerfil: () => void
-  onLocalizacao: () => void
-  onAcesso: () => void
-}) {
-  const tom = TOM_STATUS[driver.status]
-  const veiculo = [driver.veiculo, driver.placa].filter(Boolean).join(' · ')
-  const acao = 'inline-flex flex-1 items-center justify-center gap-1.5 rounded-[4px] border border-[var(--adm-borda)] bg-white px-2 py-2 text-[12px] font-semibold text-[var(--adm-texto-medio)] transition-colors hover:border-[var(--adm-azul)] hover:text-[var(--adm-azul)] disabled:cursor-not-allowed disabled:opacity-50'
-  return (
-    <div className="flex flex-col rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white">
-      <div className="flex items-start gap-3 p-4">
-        <div className="relative">
-          <Avatar nome={driver.nome} fotoUrl={driver.fotoUrl} tamanho={44} />
-          <span
-            className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-white"
-            style={{ backgroundColor: driver.online ? '#10B981' : '#D1D5DB' }}
-            title={driver.online ? 'Com o app aberto agora' : 'App fechado'}
-          />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between gap-2">
-            <p className="truncate text-[14px] font-semibold text-[var(--adm-texto)]">
-              {driver.nome}
-              {driver.desativado && <span className="ml-1.5 rounded-[3px] bg-danger-bg px-1.5 py-0.5 text-[10px] font-semibold uppercase text-danger" data-testid="entregador-desativado">Desativado</span>}
-            </p>
-            <select
-              value={driver.status}
-              disabled={mudandoStatus}
-              onChange={(e) => onStatus(e.target.value as StatusEntregador)}
-              aria-label={`Situação de ${driver.nome}`}
-              className="flex-shrink-0 cursor-pointer rounded-full border-0 py-1 pl-2.5 pr-6 text-[11px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-[var(--adm-azul)]"
-              style={{ backgroundColor: tom.fundo, color: tom.texto }}
-            >
-              <option value="online">Disponível</option>
-              <option value="ocupado">Ocupado</option>
-              <option value="offline">Offline</option>
-            </select>
-          </div>
-          <p className="mt-0.5 truncate text-[12px] text-[var(--adm-texto-suave)]">
-            {veiculo || <span className="italic">Veículo não informado</span>}
-          </p>
-          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px]">
-            <span className={`font-semibold ${driver.emRota ? 'text-[#9333EA]' : 'text-[var(--adm-texto-medio)]'}`}>
-              {driver.emRota ? `${driver.emRota} entrega${driver.emRota > 1 ? 's' : ''} em rota` : 'Sem entregas agora'}
-            </span>
-            {driver.telefone ? (
-              <a href={`tel:${driver.telefone}`} className="inline-flex items-center gap-1 text-[var(--adm-texto-medio)] hover:text-[var(--adm-azul)]">
-                <Phone className="h-3.5 w-3.5" /> {driver.telefone}
-              </a>
-            ) : (
-              <span className="text-[var(--adm-texto-suave)]">Sem telefone</span>
-            )}
-          </div>
-        </div>
-      </div>
-      <div className="mt-auto flex gap-2 border-t border-[var(--adm-borda)] bg-[var(--adm-superficie-2)] p-3">
-        <button onClick={onAcesso} className={acao} title="Link e QR para o motoboy abrir o app sem senha">
-          <ExternalLink className="h-3.5 w-3.5" /> Acesso
-        </button>
-        <button
-          onClick={onLocalizacao}
-          className={acao}
-          title={driver.online ? 'Ver onde ele está agora' : driver.localizacao ? 'Ver a última localização conhecida' : 'Localização ainda não disponível'}
-        >
-          <MapPin className={`h-3.5 w-3.5 ${driver.online ? 'text-[#10B981]' : ''}`} /> Mapa
-        </button>
-        <button onClick={onPerfil} className={acao}>
-          <User className="h-3.5 w-3.5" /> Editar
-        </button>
-      </div>
-    </div>
-  )
-}
-
 const CLASSE_CAMPO =
   'h-[38px] w-full rounded-[4px] border border-[var(--adm-borda)] bg-white px-2.5 font-sans text-[13px] outline-none transition-colors focus:border-[var(--adm-azul)]'
 
@@ -392,8 +286,7 @@ function CampoEntregador({ rotulo, obrigatorio, dica, children }: { rotulo: stri
  */
 export default function PedidosFinalizadosPage() {
   const supabase = useMemo(() => getBrowserSupabase(), [])
-  // Visual novo (14/10): só nas lojas com "Novidades em teste"; as funções são as mesmas (components/logistica/pedidos-novo).
-  const novo = useEstadoSessao()?.novidades === true
+  // Visual (14/10; todas as lojas desde 16/10): components/logistica/pedidos-novo.
   const [restauranteId, setRestauranteId] = useState<string | null>(null)
   // Onde a loja fica: o mapa do entregador abre nela (antes: Fortaleza fixo até a rota chegar).
   const [lojaMapa, setLojaMapa] = useState<LojaDoMapa>('carregando')
@@ -591,7 +484,6 @@ export default function PedidosFinalizadosPage() {
   }, [supabase, restauranteId, periodo, intervalo, concluidos])
   useEffect(() => { setReimpEstado('idle'); setEditandoPag(false) }, [detalhe?.id])
 
-  const available = drivers.filter((d) => d.status === 'online' && !d.desativado)
   /** Prontos sem entregador próprio — inclui os que já foram mandados pro Nexta. */
   const unassignedTodos = useMemo(() => orders.filter((o) => o.status === 'pronto' && !o.entregadorId), [orders])
   const inRoute = orders.filter((o) => o.status === 'em_rota')
@@ -943,9 +835,7 @@ export default function PedidosFinalizadosPage() {
               <LinhaResumos itens={[
                 { rotulo: 'Entregues hoje', valor: <>{entreguesHoje.length} <span className="font-normal text-[var(--adm-texto-suave)]">· {brl(entreguesHoje.reduce((s, o) => s + o.total, 0))}</span></>, icone: ICONES.concluido, tom: 'verde', testid: 'resumo-entregues' },
                 { rotulo: 'Em rota agora', valor: inRoute.length + comNexta.length, icone: ICONES.logistica, tom: 'roxo', testid: 'resumo-em-rota', dica: comNexta.length ? `${comNexta.length} com o Nexta` : 'com seus entregadores' },
-                novo
-                  ? { rotulo: 'Online agora', valor: <>{onlineAgora.online} <span className="font-normal text-[var(--adm-texto-suave)]">de {onlineAgora.total}</span></>, icone: ICONES.entregador, tom: 'azul', testid: 'resumo-online', dica: 'com o app aberto' }
-                  : { rotulo: 'Entregadores disponíveis', valor: <>{available.length} <span className="font-normal text-[var(--adm-texto-suave)]">de {drivers.length}</span></>, icone: ICONES.entregador, tom: 'azul' },
+                { rotulo: 'Online agora', valor: <>{onlineAgora.online} <span className="font-normal text-[var(--adm-texto-suave)]">de {onlineAgora.total}</span></>, icone: ICONES.entregador, tom: 'azul', testid: 'resumo-online', dica: 'com o app aberto' },
               ]} />
             </div>
           )}
@@ -963,7 +853,7 @@ export default function PedidosFinalizadosPage() {
         <DinheiroComMotoboys compacto />
         <div className="flex flex-col">
           {/* Entregadores */}
-          {tab === 'entregadores' && novo && (
+          {tab === 'entregadores' && (
             <ListaEntregadoresNovo
               drivers={drivers}
               emRota={inRoute}
@@ -977,54 +867,6 @@ export default function PedidosFinalizadosPage() {
               onFechamento={openClosing}
             />
           )}
-          {tab === 'entregadores' && !novo && (
-          <section className="flex flex-col rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white">
-            <CabecalhoSecao
-              icone={<Users className="h-4 w-4" strokeWidth={2.2} />}
-              tom="cinza"
-              titulo="Entregadores"
-              contador={drivers.length}
-              descricao="Cadastre a equipe, envie o login de acesso e acompanhe quem está na rua."
-              acoes={
-                <>
-                  <Button variant="outline" onClick={openClosing} className="gap-1.5">
-                    <Wallet className="h-4 w-4" /> Fechamento de caixa
-                  </Button>
-                  <Button variant="primary" onClick={abrirNovoEntregador} className="gap-1.5">
-                    <Plus className="h-4 w-4" /> Novo entregador
-                  </Button>
-                </>
-              }
-            />
-            <div className="grid auto-rows-min grid-cols-1 gap-3 bg-[var(--adm-bg)] p-4 md:grid-cols-2 2xl:grid-cols-3">
-              {drivers.length === 0 && (
-                <div className="col-span-full flex flex-col items-center gap-2 rounded-[6px] border border-dashed border-[var(--adm-borda-forte)] bg-white px-6 py-12 text-center">
-                  <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[#F3E8FF] text-[#9333EA]">
-                    <Bike className="h-6 w-6" />
-                  </span>
-                  <p className="text-[14px] font-semibold text-[var(--adm-texto)]">Nenhum entregador cadastrado</p>
-                  <p className="max-w-[340px] text-[12.8px] text-[var(--adm-texto-suave)]">
-                    Cadastre seu primeiro motoboy. Ele recebe um link para ver as entregas e compartilhar a localização — sem senha.
-                  </p>
-                  <Button variant="primary" className="mt-2 gap-1.5" onClick={abrirNovoEntregador}>
-                    <Plus className="h-4 w-4" /> Cadastrar entregador
-                  </Button>
-                </div>
-              )}
-              {drivers.map((driver) => (
-                <CartaoEntregador
-                  key={driver.id}
-                  driver={driver}
-                  mudandoStatus={statusMudando === driver.id}
-                  onStatus={(s) => mudarStatus(driver.id, s)}
-                  onPerfil={() => setProfileDriverId(driver.id)}
-                  onLocalizacao={() => setLocationDriverId(driver.id)}
-                  onAcesso={() => setLinkDriver(driver)}
-                />
-              ))}
-            </div>
-          </section>
-          )}
 
           {/* Pedidos */}
           {tab !== 'entregadores' && (
@@ -1032,11 +874,6 @@ export default function PedidosFinalizadosPage() {
             {tab === 'pedidos' && (
             <div className="flex flex-col gap-4" data-testid="aba-pedidos">
             <div className="flex flex-col gap-4" data-testid="em-rota-agora">
-            {!novo && comNexta.length === 0 && inRoute.length === 0 && (
-              <div className="rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white">
-                <CabecalhoSecao icone={<Capacete className="h-4 w-4" strokeWidth={2.2} />} tom="roxo" titulo="Em rota agora" contador={0} descricao="Nenhum pedido na rua. Despache pelo Painel de Pedidos (botão Despachar ou no próprio card)." />
-              </div>
-            )}
 
             {/* Com o Nexta: solicitado, ainda não coletado. Depois da coleta vai pra "Em rota". */}
             {nextaAtivo && comNexta.length > 0 && (
@@ -1170,7 +1007,6 @@ export default function PedidosFinalizadosPage() {
               </div>
             )}
 
-            {novo && (
               <EmRotaNovo
                 pedidos={inRoute}
                 drivers={drivers}
@@ -1180,80 +1016,7 @@ export default function PedidosFinalizadosPage() {
                 onNaoEntregue={naoEntregue}
                 onMapa={setLocationDriverId}
               />
-            )}
-            {!novo && inRoute.length > 0 && (
-            <div className="rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white">
-              <CabecalhoSecao
-                fixo
-                icone={<Capacete className="h-4 w-4" strokeWidth={2.2} />}
-                tom="roxo"
-                titulo="Em rota agora"
-                contador={inRoute.length}
-                descricao="Já saíram com o entregador. Marque como entregue quando o cliente receber."
-              />
-              <div className="divide-y divide-[var(--adm-borda)]">
-                {inRoute.map((order) => {
-                  const parado = pedidoParado(order, Date.now())
-                  const nexta = nextaPorPedido.get(order.id)
-                  const motoboy = drivers.find((d) => d.id === order.entregadorId) ?? null
-                  return (
-                    <div
-                      key={order.id}
-                      className={`flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between ${parado ? 'bg-danger-bg/40' : ''}`}
-                    >
-                      <div className="min-w-0">
-                        <ResumoPedido
-                          order={order}
-                          selo={
-                            parado ? (
-                              <Badge tone="danger" title="Saiu há muito tempo e ninguém fechou. Marque entregue ou não entregue.">
-                                Parado há {tempoParado(order.criadoEm, Date.now())}
-                              </Badge>
-                            ) : (
-                              <Badge tone="preparing">Saiu para entrega</Badge>
-                            )
-                          }
-                        />
-                        {/* Entrega do Nexta não tem entregador próprio: quem aparece é o
-                            motoboy que o webhook informou. */}
-                        <div className="mt-2 flex items-center gap-2 text-[12.8px]">
-                          {nexta ? (
-                            <span className="inline-flex items-center gap-1 font-semibold text-[#0369A1]">
-                              <Zap className="h-3.5 w-3.5" /> Nexta{nexta.entregadorNome && ` · ${nexta.entregadorNome}`}
-                            </span>
-                          ) : (
-                            <>
-                              <Avatar nome={motoboy?.nome ?? '?'} fotoUrl={motoboy?.fotoUrl ?? null} tamanho={22} />
-                              <span className="font-semibold text-[var(--adm-texto)]">{driverName(order.entregadorId)}</span>
-                              {motoboy?.telefone && (
-                                <a href={`tel:${motoboy.telefone}`} title={`Ligar para ${motoboy.telefone}`} className="text-[var(--adm-texto-suave)] hover:text-[var(--adm-azul)]">
-                                  <Phone className="h-3.5 w-3.5" />
-                                </a>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex flex-shrink-0 gap-2">
-                        <Button variant="success" className="min-h-[36px] flex-1 px-4 text-[12px] sm:flex-none" onClick={() => deliver(order.id)}>
-                          Entregue
-                        </Button>
-                        <Button
-                          variant="outline"
-                          className="min-h-[36px] border-danger text-danger hover:bg-danger-bg"
-                          onClick={() => naoEntregue(order.id)}
-                        >
-                          Não entregue
-                        </Button>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
             </div>
-            )}
-            </div>
-            {novo && (
               <FinalizadosNovo
                 lista={lista}
                 filtrados={concluidosFiltrados}
@@ -1271,100 +1034,6 @@ export default function PedidosFinalizadosPage() {
                   ativos: filtrosAtivos, limpar: limparFiltros,
                 }}
               />
-            )}
-            {!novo && (
-            <div className="flex flex-col rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white" data-testid="pedidos-finalizados">
-              <div className="flex flex-shrink-0 flex-wrap items-center gap-2 border-b border-[var(--adm-borda)] px-4 py-3">
-                <select
-                  value={periodo}
-                  onChange={(e) => setPeriodo(e.target.value as Periodo)}
-                  aria-label="Período"
-                  data-testid="filtro-periodo"
-                  className="h-[36px] rounded-[4px] border border-[var(--adm-borda)] bg-white px-2.5 font-sans text-[13px] outline-none focus:border-[var(--adm-azul)]"
-                >
-                  {(Object.keys(ROTULO_PERIODO) as Periodo[]).map((p) => <option key={p} value={p}>{ROTULO_PERIODO[p]}</option>)}
-                </select>
-                {periodo === 'personalizado' && (
-                  <>
-                    <input type="date" value={periodoDe} onChange={(e) => setPeriodoDe(e.target.value)} aria-label="De" data-testid="filtro-de" className="h-[36px] rounded-[4px] border border-[var(--adm-borda)] px-2 font-sans text-[13px]" />
-                    <input type="date" value={periodoAte} min={periodoDe || undefined} onChange={(e) => setPeriodoAte(e.target.value)} aria-label="Até" data-testid="filtro-ate" className="h-[36px] rounded-[4px] border border-[var(--adm-borda)] px-2 font-sans text-[13px]" />
-                  </>
-                )}
-                <input
-                  value={filtroBusca}
-                  onChange={(e) => setFiltroBusca(e.target.value)}
-                  placeholder="Buscar por cliente ou bairro"
-                  className="h-[36px] min-w-[180px] flex-1 rounded-[4px] border border-[var(--adm-borda)] px-2.5 font-sans text-[13px] outline-none focus:border-[var(--adm-azul)]"
-                />
-                <select
-                  value={filtroStatus}
-                  onChange={(e) => setFiltroStatus(e.target.value as typeof filtroStatus)}
-                  className="h-[36px] rounded-[4px] border border-[var(--adm-borda)] bg-white px-2.5 font-sans text-[13px] outline-none focus:border-[var(--adm-azul)]"
-                >
-                  <option value="todos">Todos os status</option>
-                  <option value="entregue">Concluído</option>
-                  <option value="cancelado">Cancelado</option>
-                </select>
-                <input
-                  value={filtroValorMin}
-                  onChange={(e) => setFiltroValorMin(e.target.value)}
-                  placeholder="Valor mín."
-                  inputMode="decimal"
-                  className="h-[36px] w-24 rounded-[4px] border border-[var(--adm-borda)] px-2.5 font-sans text-[13px] outline-none focus:border-[var(--adm-azul)]"
-                />
-                <input
-                  value={filtroValorMax}
-                  onChange={(e) => setFiltroValorMax(e.target.value)}
-                  placeholder="Valor máx."
-                  inputMode="decimal"
-                  className="h-[36px] w-24 rounded-[4px] border border-[var(--adm-borda)] px-2.5 font-sans text-[13px] outline-none focus:border-[var(--adm-azul)]"
-                />
-                {filtrosAtivos && (
-                  <button onClick={limparFiltros} className="text-[12px] font-semibold text-[var(--adm-azul)] hover:underline">
-                    Limpar filtros
-                  </button>
-                )}
-                {/* Topo compacto (16/10): a contagem do antigo cabeçalho "Pedidos finalizados" fica no fim da barra. */}
-                <span className="ml-auto inline-flex items-center gap-1.5 whitespace-nowrap text-[12px] text-[var(--adm-texto-suave)]" data-testid="finalizados-contagem">
-                  <ClipboardCheck className="h-3.5 w-3.5" aria-hidden="true" />
-                  {filtrosAtivos ? `${concluidosFiltrados.length} de ${lista.length} com os filtros aplicados` : `${lista.length} · entregues, retirados e cancelados · ${ROTULO_PERIODO[periodo].toLowerCase()}`}
-                </span>
-              </div>
-              <div className="divide-y divide-[var(--adm-borda)]" data-testid="lista-finalizados">
-                {carregandoLista && <p className="p-4 text-[13px] text-[var(--adm-texto-suave)]">Carregando…</p>}
-                {!carregandoLista && lista.length === 0 && (
-                  <Vazio icone={<ClipboardCheck className="h-5 w-5" />} titulo={periodo === 'personalizado' && !intervalo ? 'Escolha as datas' : 'Nenhum pedido finalizado no período'} texto="Pedidos entregues, retirados e cancelados aparecem aqui." />
-                )}
-                {lista.length > 0 && concluidosFiltrados.length === 0 && (
-                  <div className="p-6 text-center text-[13px] text-[var(--adm-texto-suave)]">Nenhum pedido encontrado com esses filtros</div>
-                )}
-                {concluidosFiltrados.map((order) => {
-                  const entregue = order.status === 'entregue'
-                  return (
-                    // Uma linha por pedido: número, cliente, tipo, onde/quem, pagamento e valor.
-                    <button type="button" key={order.id} onClick={() => setDetalhe(detalhe?.id === order.id ? null : order)} aria-pressed={detalhe?.id === order.id}
-                      className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-[12.8px] hover:bg-[var(--adm-superficie-2)] ${detalhe?.id === order.id ? 'bg-[var(--adm-azul-claro)]' : ''}`} data-testid={`finalizado-${order.numero}`}>
-                      <span className={`h-2 w-2 flex-shrink-0 rounded-full ${entregue ? 'bg-[#10B981]' : 'bg-danger'}`} title={entregue ? 'Concluído' : 'Cancelado'} />
-                      <span className="w-12 flex-shrink-0 font-semibold tabular-nums">#{order.numero}</span>
-                      <span className="w-[160px] flex-shrink-0 truncate font-semibold">{order.clienteNome || 'Cliente'}</span>
-                      <span className="flex-shrink-0">
-                        <Badge tone={order.tipo === 'entrega' ? 'alert' : 'paused'}>{order.tipo === 'entrega' ? 'Entrega' : 'Retirada'}</Badge>
-                      </span>
-                      <span className="min-w-0 flex-1 truncate text-[var(--adm-texto-suave)]">
-                        {order.tipo === 'entrega' ? `${endereco(order)} · ${driverName(order.entregadorId)}` : 'Retirada no balcão'}
-                      </span>
-                      {!entregue && <Badge tone="danger">Cancelado</Badge>}
-                      {entregue && order.entregueAutomatico && <Badge tone="alert" data-testid="selo-entregue-automatico">Entregue (automático)</Badge>}
-                      <span className="hidden flex-shrink-0 sm:inline">
-                        <Badge tone={order.formaPagamento === 'dinheiro' ? 'pending' : 'alert'}>{rotuloForma(order.formaPagamento, order.cartaoTipo, order.pagamentoOnline)}</Badge>
-                      </span>
-                      <span className="w-[84px] flex-shrink-0 text-right font-semibold tabular-nums text-price-text">{brl(order.total)}</span>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-            )}
             </div>
             )}
           </section>

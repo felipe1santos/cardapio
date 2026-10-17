@@ -18,7 +18,7 @@ export const MODO_IA_SEM_MENSAGEM_MS = 30 * 60_000
 /** No máximo 25 respostas da IA por conversa; depois manda o link e devolve ao robô (D26). */
 export const MAX_RESPOSTAS_IA = 25
 
-const SO_DO_ROBO: Intencao[] = ['atendente', 'reclamacao', 'parar', 'voltar']
+const SO_DO_ROBO: Intencao[] = ['atendente', 'reclamacao', 'parar', 'voltar', 'resumo_pedido']
 
 const ATENDENTE_EXPLICITO = /(^0$)|\b(atendente|humano|pessoa|alguem|gerente|dono|responsavel|falar com|me atende|me liga)\b/
 
@@ -30,7 +30,8 @@ export function rotaDaMensagem(p: {
   jaMandouLink?: boolean
 }): RotaMensagem {
   if (p.emModoIa && p.tipo === 'texto') {
-    if (p.intencao === 'parar' || p.intencao === 'voltar') return 'robo'
+    // O resumo que a vitrine manda depois do pedido é sempre do robô (confirma o pedido, sem custo; 16/10).
+    if (p.intencao === 'parar' || p.intencao === 'voltar' || p.intencao === 'resumo_pedido') return 'robo'
     if (p.intencao === 'atendente' && ATENDENTE_EXPLICITO.test(p.normalizado ?? '')) return 'robo'
     return 'ia'
   }
@@ -47,7 +48,7 @@ export function rotaDaMensagem(p: {
   if (p.intencao === 'outro') return 'ia'
   // Item do cardápio citado + entrega/pagamento = pedido numa frase só ("1 x-tudo, entrega na rua X, cartão"; teste real
   // 12/10). Status, horário e endereço da loja continuam com o robô.
-  if (p.itemCitado && ['cardapio', 'saudacao', 'ok', 'entrega', 'pagamento_pix'].includes(p.intencao)) return 'ia'
+  if (p.itemCitado && ['cardapio', 'saudacao', 'ok', 'entrega', 'pagamento_pix', 'pix_chave'].includes(p.intencao)) return 'ia'
   return 'robo'
 }
 
