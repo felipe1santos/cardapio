@@ -17,10 +17,16 @@ export interface ItemRevisao {
 
 const ACOES: { id: AcaoAprender; rotulo: string; icone: React.ReactNode; explica: string }[] = [
   { id: 'robo', rotulo: 'Robô responde', icone: <Bot className="h-[15px] w-[15px]" />, explica: 'Escolha o assunto e toque em 1 a 3 palavras que mostram isso. Elas viram palavra-chave do robô.' },
-  { id: 'ia', rotulo: 'IA responde', icone: <Sparkles className="h-[15px] w-[15px]" />, explica: 'Escreva a resposta certa. Ela vai para o Conhecimento da loja e o Agente de IA usa em qualquer jeito de perguntar.' },
+  { id: 'ia', rotulo: 'IA responde', icone: <Sparkles className="h-[15px] w-[15px]" />, explica: 'Escreva a resposta que o CLIENTE vai receber (ex.: Não, só refrigerante e água). Não escreva instruções para a IA.' },
   { id: 'pedido', rotulo: 'É pedido', icone: <ShoppingBag className="h-[15px] w-[15px]" />, explica: 'Pedido escrito parecido vai direto para o Agente de IA (sem a IA ligada, para o atendente).' },
   { id: 'ignorar', rotulo: 'Ignorar', icone: <EyeOff className="h-[15px] w-[15px]" />, explica: 'Não pede nada ("ah", "pode deixar", "ok"). Sai da lista.' },
 ]
+
+/** Resposta que parece instrução para a IA ("o cliente", "você precisa", "atender"…) e não a frase que o cliente vai ler. */
+export function pareceInstrucao(texto: string): boolean {
+  const t = texto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+  return /\b(o cliente|ao cliente|voce precisa|voce deve|atender|responda|diga que|fale que|informe que)\b/.test(t)
+}
 
 export function CartaoNaoEntendidas({ rotulos, assuntos, agenteLigado, mostrar, onMudou }: {
   rotulos: Record<Assunto, string>; assuntos: Assunto[]; agenteLigado: boolean
@@ -55,27 +61,31 @@ export function CartaoNaoEntendidas({ rotulos, assuntos, agenteLigado, mostrar, 
   )
 }
 
-function ModalRevisao({ itens, rotulos, assuntos, agenteLigado, mostrar, onResolvido, onFechar }: {
+export function ModalRevisao({ itens, rotulos, assuntos, agenteLigado, mostrar, onResolvido, onFechar }: {
   itens: ItemRevisao[]; rotulos: Record<Assunto, string>; assuntos: Assunto[]; agenteLigado: boolean
   mostrar: (tipo: 'ok' | 'erro', texto: string) => void; onResolvido: (id: string) => void; onFechar: () => void
 }) {
   const [i, setI] = useState(0)
   const item = itens[Math.min(i, itens.length - 1)]
   const sug = item?.sugestao
-  const [acao, setAcao] = useState<AcaoAprender>('ia')
-  const [assunto, setAssunto] = useState<Assunto | ''>('')
-  const [palavras, setPalavras] = useState<string[]>([])
-  const [resposta, setResposta] = useState('')
-  const [salvando, setSalvando] = useState(false)
-
-  // Nova mensagem na tela: a sugestão automática já vem marcada.
-  useEffect(() => {
+  // Escolha por mensagem (id), partindo SEMPRE da sugestão: o botão marcado ao abrir é o "sugerido" (16/10: antes um efeito
+  // copiava a sugestão depois do primeiro desenho e o botão podia ficar no padrão "IA responde").
+  const [escolhas, setEscolhas] = useState<Record<string, { acao?: AcaoAprender; assunto?: Assunto | ''; palavras?: string[]; resposta?: string }>>({})
+  const minha = (item && escolhas[item.id]) || {}
+  const acao: AcaoAprender = minha.acao ?? sug?.acao ?? 'ia'
+  const assunto: Assunto | '' = minha.assunto ?? sug?.assunto ?? ''
+  const palavras: string[] = minha.palavras ?? (sug?.palavras ?? []).filter((p) => item?.palavras.includes(p)).slice(0, 3)
+  const resposta = minha.resposta ?? ''
+  const mudar = useCallback((m: Partial<{ acao: AcaoAprender; assunto: Assunto | ''; palavras: string[]; resposta: string }>) => {
     if (!item) return
-    setAcao(sug?.acao ?? 'ia')
-    setAssunto(sug?.assunto ?? '')
-    setPalavras((sug?.palavras ?? []).filter((p) => item.palavras.includes(p)).slice(0, 3))
-    setResposta('')
-  }, [item, sug])
+    setEscolhas((e) => ({ ...e, [item.id]: { ...e[item.id], ...m } }))
+  }, [item])
+  const setAcao = (a: AcaoAprender) => mudar({ acao: a })
+  const setAssunto = (a: Assunto | '') => mudar({ assunto: a })
+  const setPalavras = (f: (l: string[]) => string[]) => mudar({ palavras: f(palavras) })
+  const setResposta = (r: string) => mudar({ resposta: r })
+  const [salvando, setSalvando] = useState(false)
+  const instrucao = acao === 'ia' && pareceInstrucao(resposta)
 
   const conflitos = useMemo(() => {
     if (acao !== 'robo' || !assunto || !palavras.length || !item) return null
@@ -84,7 +94,7 @@ function ModalRevisao({ itens, rotulos, assuntos, agenteLigado, mostrar, onResol
     return { frases: [...new Set(r.flatMap((x) => x.frases))].slice(0, 4), assuntos: [...new Set(r.flatMap((x) => x.outrosAssuntos))] }
   }, [acao, assunto, palavras, item, itens])
 
-  const pode = !!item && !salvando && (acao === 'robo' ? !!assunto && palavras.length >= 1 : acao === 'ia' ? resposta.trim().length >= 2 : true)
+  const pode = !!item && !salvando && (acao === 'robo' ? !!assunto && palavras.length >= 1 : acao === 'ia' ? resposta.trim().length >= 2 && !instrucao : true)
 
   const confirmar = useCallback(async () => {
     if (!item || !pode) return
@@ -108,11 +118,11 @@ function ModalRevisao({ itens, rotulos, assuntos, agenteLigado, mostrar, onResol
       if (e.key === 'ArrowRight') setI((x) => Math.min(x + 1, itens.length - 1))
       if (e.key === 'ArrowLeft') setI((x) => Math.max(x - 1, 0))
       const k = ['1', '2', '3', '4'].indexOf(e.key)
-      if (k >= 0) setAcao(ACOES[k].id)
+      if (k >= 0) mudar({ acao: ACOES[k].id })
     }
     window.addEventListener('keydown', tecla)
     return () => window.removeEventListener('keydown', tecla)
-  }, [confirmar, onFechar, itens.length])
+  }, [confirmar, onFechar, itens.length, mudar])
 
   if (!item || typeof document === 'undefined') return null
   const posicao = Math.min(i, itens.length - 1) + 1
@@ -187,6 +197,7 @@ function ModalRevisao({ itens, rotulos, assuntos, agenteLigado, mostrar, onResol
                 <textarea value={resposta} onChange={(e) => setResposta(e.target.value)} maxLength={600} rows={3} placeholder="Ex.: Não, só refrigerante e água." data-testid="revisar-resposta"
                   className="mt-[4px] block w-full rounded-[6px] border border-[#D1D5DB] px-[10px] py-[8px] text-[14px] focus:border-[#0688D4] focus:outline-none" />
               </label>
+              {instrucao && <p className="mt-[4px] text-[12.5px] font-semibold text-[#B91C1C]" data-testid="revisar-instrucao">Isso parece uma instrução para a IA. Escreva a resposta como o cliente vai ler.</p>}
               {!agenteLigado && <p className="mt-[4px] text-[12px] text-[#5B6472]">Fica guardada no Conhecimento da loja; o Agente de IA usa quando estiver ligado.</p>}
             </div>
           )}
