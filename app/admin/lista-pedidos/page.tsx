@@ -904,7 +904,7 @@ export default function PedidosFinalizadosPage() {
 
         {/* Abas em linha, sublinhado na cor de marca — o mesmo desenho das tabelas
             do Dashboard, sem o bloco vermelho de antes. */}
-        <div className="flex flex-shrink-0 items-end justify-between gap-3 border-b border-[var(--adm-borda)]">
+        <div className="flex flex-shrink-0 items-end justify-between gap-3 border-b border-[var(--adm-borda)] max-md:flex-wrap max-md:gap-y-1">
           <div className="flex gap-1 max-lg:overflow-x-auto max-lg:[scrollbar-width:none] max-lg:[&::-webkit-scrollbar]:hidden" role="tablist">
             {TABS.map((t) => {
               const contador = t.id === 'pedidos' ? lista.length : drivers.length
@@ -936,10 +936,10 @@ export default function PedidosFinalizadosPage() {
               )
             })}
           </div>
-          <div className="mb-1.5 flex min-w-0 flex-shrink items-center gap-2">
+          <div className="mb-1.5 flex min-w-0 flex-shrink items-center gap-2 max-md:basis-full">
           {/* Resumo numa linha ao lado das abas (16/10; antes eram 3 cartões grandes). */}
           {resumoVisivel && (
-            <div className="min-w-0 max-md:hidden" data-testid="indicadores-pedidos">
+            <div className="min-w-0 max-md:w-full" data-testid="indicadores-pedidos">
               <LinhaResumos itens={[
                 { rotulo: 'Entregues hoje', valor: <>{entreguesHoje.length} <span className="font-normal text-[var(--adm-texto-suave)]">· {brl(entreguesHoje.reduce((s, o) => s + o.total, 0))}</span></>, icone: ICONES.concluido, tom: 'verde', testid: 'resumo-entregues' },
                 { rotulo: 'Em rota agora', valor: inRoute.length + comNexta.length, icone: ICONES.logistica, tom: 'roxo', testid: 'resumo-em-rota', dica: comNexta.length ? `${comNexta.length} com o Nexta` : 'com seus entregadores' },
