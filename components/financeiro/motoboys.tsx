@@ -15,11 +15,10 @@ interface Moto {
   pedidos: { pedidoId: string; numero: number | null; saldoCentavos?: number }[]
   semPedidoCentavos?: number; trocoLevadoCentavos?: number; recebidoCentavos?: number; trocoDadoCentavos?: number
 }
-interface SemRegistro { pedidoId: string; numero: number; totalCentavos: number; forma: string; trocoPara: number | null; cliente: string; entregador: string | null; nexta: boolean }
+interface SemRegistro { pedidoId: string; numero: number; totalCentavos: number; forma: string; trocoPara: number | null; cliente: string; entregador: string | null }
 interface Estado {
   modo: { modo: 'pedido' | 'fundo'; proximo: 'pedido' | 'fundo' | null; fundoPadraoCentavos: number }
   veValores: boolean; papel: string; motoboys: Moto[]; semRegistro: SemRegistro[]
-  nexta: { id: number; valorCentavos: number; numero: number | null; em: string }[]
 }
 /** Tem dinheiro para acertar (com ou sem permissão de ver o valor). Esses vêm primeiro na lista. */
 const temDin = (m: Moto) => (m.saldoCentavos ?? 0) !== 0 || !!m.temDinheiro
@@ -97,31 +96,18 @@ export function SecaoMotoboys() {
       </section>
 
       <section className={cartao} data-testid="sem-registro">
-        <h2 className="border-b border-border px-4 py-3 text-[13px] font-semibold text-text-main">Entregas sem pagamento registrado (sem app, sem motoboy, Nexta)</h2>
+        <h2 className="border-b border-border px-4 py-3 text-[13px] font-semibold text-text-main">Entregas sem pagamento registrado (sem app, sem motoboy)</h2>
         {e.semRegistro.length === 0 ? <p className="px-4 py-3 text-[13px] text-text-subtle">Nada pendente.</p> : (
           <ul className="divide-y divide-border">
             {e.semRegistro.map((p) => (
               <li key={p.pedidoId} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-[13px]" data-testid="sem-registro-linha">
-                <span>#{p.numero} · {p.cliente} · {brl(p.totalCentavos)} · {ROTULO[p.forma] ?? p.forma}{p.nexta ? ' · Nexta' : p.entregador ? ` · ${p.entregador}` : ' · sem motoboy'}</span>
+                <span>#{p.numero} · {p.cliente} · {brl(p.totalCentavos)} · {ROTULO[p.forma] ?? p.forma}{p.entregador ? ` · ${p.entregador}` : ' · sem motoboy'}</span>
                 <button type="button" className={botao.secundario} onClick={() => setRegistrando(p)} data-testid="registrar-entrega">Registrar recebimento</button>
               </li>
             ))}
           </ul>
         )}
       </section>
-
-      {e.nexta.length > 0 && (
-        <section className={cartao} data-testid="nexta-a-receber">
-          <div className="flex items-center justify-between border-b border-border px-4 py-3">
-            <h2 className="text-[13px] font-semibold text-text-main">Nexta: a receber ({e.nexta.length})</h2>
-            <button type="button" className={botao.sucesso} data-testid="repasse-nexta"
-              onClick={async () => { const r = await post('/api/admin/financeiro/motoboys', { acao: 'repasse_nexta', lancamentoIds: e.nexta.map((n) => n.id), chave: crypto.randomUUID() }); pronto(r.s === 200 ? 'Repasse da Nexta registrado na gaveta.' : String(r.j.error)) }}>
-              Repasse recebido
-            </button>
-          </div>
-          <ul className="divide-y divide-border text-[13px]">{e.nexta.map((n) => <li key={n.id} className="px-4 py-2">#{n.numero ?? '—'} · {brl(n.valorCentavos)}</li>)}</ul>
-        </section>
-      )}
 
       {acertando && <JanelaAcerto m={acertando} dono={e.papel === 'dono'} onFechar={() => setAcertando(null)} onPronto={pronto} />}
       {troco && <JanelaTroco m={troco.m} motivo={troco.motivo} padrao={troco.motivo === 'fundo' ? e.modo.fundoPadraoCentavos : 0} onFechar={() => setTroco(null)} onPronto={pronto} />}
@@ -212,7 +198,7 @@ function JanelaRegistro({ p, onFechar, onPronto }: { p: SemRegistro; onFechar: (
   const [chave] = useState(() => crypto.randomUUID())
   return (
     <Janela titulo={`Registrar recebimento — #${p.numero}`} onFechar={onFechar} testid="janela-registro">
-      <p className="mb-2 text-[13px] text-text-subtle">Total {brl(p.totalCentavos)}{p.nexta ? ' · entregue pela Nexta (dinheiro fica a receber até o repasse)' : ''}</p>
+      <p className="mb-2 text-[13px] text-text-subtle">Total {brl(p.totalCentavos)}</p>
       <div className="mb-2 grid grid-cols-2 gap-2">
         {[['dinheiro', 'Dinheiro'], ['cartao', 'Cartão'], ['pix', 'Pix (a conferir)'], ['nao_pago', 'Não pagou']].map(([f, r]) => (
           <button key={f} type="button" aria-pressed={forma === f} onClick={() => setForma(f)} data-testid={`reg-${f}`}

@@ -2,20 +2,19 @@ import { NextResponse } from 'next/server'
 import { contextoFinanceiro } from '@/lib/financeiro/contexto'
 import { podeFin, veValoresFin } from '@/lib/financeiro/permissoes'
 import {
-  acertarMotoboy, baixarPendencia, definirModoTroco, entregarTroco, entregasSemRegistro, modoTroco, nextaAReceber,
-  registrarEntregaOperador, repasseNexta, situacaoMotoboys,
+  acertarMotoboy, baixarPendencia, definirModoTroco, entregarTroco, entregasSemRegistro, modoTroco,
+  registrarEntregaOperador, situacaoMotoboys,
 } from '@/lib/financeiro/motoboy'
 
 /**
  * Financeiro › Acerto de Motoboys (Fase 3). Loja e usuário da sessão; valores do livro-caixa.
  * Quem só faz o acerto NÃO vê o esperado antes de contar (acerto às cegas).
- *   GET                                                → modo do troco, motoboys, entregas sem registro, Nexta a receber
+ *   GET                                                → modo do troco, motoboys, entregas sem registro
  *   POST { acao: 'modo', modo, fundoPadraoCentavos? }  (gerente/dono)
  *   POST { acao: 'troco', entregadorId, valorCentavos, motivo: 'fundo'|'complemento'|'pedido', pedidoId?, chave }
  *   POST { acao: 'acertar', entregadorId, contadoCentavos, pedidoIds?, chave }
  *   POST { acao: 'baixar', entregadorId, motivo, chave }  (só o dono)
  *   POST { acao: 'registrar', pedidoId, forma, recebidoCentavos?, nsu?, motivo?, chave }
- *   POST { acao: 'repasse_nexta', lancamentoIds, chave }
  */
 export async function GET() {
   const c = await contextoFinanceiro()
@@ -25,8 +24,8 @@ export async function GET() {
     return NextResponse.json({ error: 'Você não tem permissão para o acerto de motoboys.', codigo: 'sem_permissao_acao' }, { status: 403 })
   }
   const ve = veValoresFin(c.sessao.papel, c.acessos)
-  const [modo, motoboys, semRegistro, nexta] = await Promise.all([
-    modoTroco(c.admin, loja), situacaoMotoboys(c.admin, loja), entregasSemRegistro(c.admin, loja), nextaAReceber(c.admin, loja),
+  const [modo, motoboys, semRegistro] = await Promise.all([
+    modoTroco(c.admin, loja), situacaoMotoboys(c.admin, loja), entregasSemRegistro(c.admin, loja),
   ])
   return NextResponse.json({
     modo, veValores: ve, papel: c.sessao.papel,
@@ -35,7 +34,7 @@ export async function GET() {
       entregadorId: m.entregadorId, nome: m.nome, desativado: m.desativado, temDinheiro: m.saldoCentavos !== 0,
       pedidos: m.pedidos.map((p) => ({ pedidoId: p.pedidoId, numero: p.numero })),
     }),
-    semRegistro, nexta,
+    semRegistro,
   }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
@@ -76,9 +75,6 @@ export async function POST(request: Request) {
         pedidoId: s(corpo.pedidoId, 36), forma: s(corpo.forma, 20), recebidoCentavos: Number.isSafeInteger(corpo.recebidoCentavos) ? (corpo.recebidoCentavos as number) : null,
         nsu: s(corpo.nsu, 40) || null, motivo: s(corpo.motivo) || null, chave: s(corpo.chave, 100),
       })
-      break
-    case 'repasse_nexta':
-      r = await repasseNexta(c, { lancamentoIds: Array.isArray(corpo.lancamentoIds) ? corpo.lancamentoIds.filter((x): x is number => Number.isSafeInteger(x)) : [], chave: s(corpo.chave, 100) })
       break
     default:
       return NextResponse.json({ error: 'Ação inválida.' }, { status: 400 })

@@ -55,7 +55,7 @@ describe('garçom tentando entrar pela URL', () => {
 
 describe('dono não perde nada', () => {
   it('passa em todas as páginas e APIs mapeadas', () => {
-    for (const r of ['/admin/dashboard', '/admin/ajustes', '/admin/equipe', '/admin/mesas', '/api/admin/equipe', '/api/admin/nexta/config', '/api/admin/whatsapp/status']) {
+    for (const r of ['/admin/dashboard', '/admin/ajustes', '/admin/equipe', '/admin/mesas', '/api/admin/equipe', '/api/admin/whatsapp/status']) {
       expect(decidirAcesso(r, 'dono')).toEqual({ tipo: 'seguir' })
     }
   })
@@ -86,11 +86,6 @@ describe('regras gerais', () => {
   it('/admin puro leva à tela inicial do papel', () => {
     expect(decidirAcesso('/admin', 'garcom')).toEqual({ tipo: 'redirecionar', para: '/admin/mesas' })
     expect(decidirAcesso('/admin', 'dono')).toEqual({ tipo: 'redirecionar', para: '/admin/dashboard' })
-  })
-
-  it('Nexta: configurar é integração, despachar é logística', () => {
-    expect(permissaoDaRota('/api/admin/nexta/config')).toBe('integracoes.gerenciar')
-    expect(permissaoDaRota('/api/admin/nexta/despachar')).toBe('logistica.operar')
   })
 
   it('conversas do robô do WhatsApp: dono e gerente; configurar o robô: só o dono', () => {

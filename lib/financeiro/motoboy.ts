@@ -245,7 +245,7 @@ export async function conferirPix(ctx: ContextoFin, p: { lancamentoId: number; c
   return { ok: true as const }
 }
 
-// ─── entregas sem registro (sem motoboy no app, Nexta) ──────────────────────────────────────
+// ─── entregas sem registro (sem motoboy no app) ──────────────────────────────────────
 export async function entregasSemRegistro(admin: SupabaseClient, loja: string) {
   const { data: primeiro } = await admin.from('fin_lancamentos').select('criado_em').eq('restaurante_id', loja).order('seq').limit(1)
   const desde = new Date(Math.max(Date.now() - 14 * 86_400_000, primeiro?.[0] ? Date.parse(primeiro[0].criado_em as string) : 0)).toISOString()
@@ -255,23 +255,20 @@ export async function entregasSemRegistro(admin: SupabaseClient, loja: string) {
   if (!ids.length) return []
   const registrados = new Set<string>()
   const comPendencia = new Set<string>()
-  const nexta = new Set<string>()
   for (let i = 0; i < ids.length; i += 80) {
     const parte = ids.slice(i, i + 80)
-    const [{ data: reg }, { data: pend }, { data: nx }] = await Promise.all([
+    const [{ data: reg }, { data: pend }] = await Promise.all([
       admin.from('fin_entregas_pagamento').select('pedido_id').in('pedido_id', parte),
       admin.from('fin_lancamentos').select('pedido_id').eq('restaurante_id', loja).eq('tipo', 'pendencia_motoboy').in('pedido_id', parte),
-      admin.from('nexta_entregas').select('pedido_id').in('pedido_id', parte),
     ])
     for (const r of reg ?? []) registrados.add(r.pedido_id as string)
     for (const r of pend ?? []) comPendencia.add(r.pedido_id as string)
-    for (const r of nx ?? []) nexta.add(r.pedido_id as string)
   }
   // Fora: já registrados; já pagos (Pix confirmado, pago no caixa); os que já viraram "a acertar" do motoboy.
   return (peds ?? []).filter((p) => !registrados.has(p.id as string) && !p.pago && !comPendencia.has(p.id as string)).map((p) => ({
     pedidoId: p.id as string, numero: p.numero as number, totalCentavos: Math.round(Number(p.total) * 100), forma: p.forma_pagamento as string,
     cartaoTipo: (p.cartao_tipo as string | null) ?? null, trocoPara: p.troco_para === null ? null : Number(p.troco_para), cliente: p.cliente_nome as string,
-    entregador: (p.entregadores as unknown as { nome?: string } | null)?.nome ?? null, nexta: nexta.has(p.id as string), entregueEm: (p.entregue_em as string | null) ?? null,
+    entregador: (p.entregadores as unknown as { nome?: string } | null)?.nome ?? null, entregueEm: (p.entregue_em as string | null) ?? null,
   }))
 }
 
@@ -288,33 +285,6 @@ export async function registrarEntregaOperador(ctx: ContextoFin, p: { pedidoId: 
     return falha(msg[cod] ?? 'Não foi possível registrar.', 409, cod)
   }
   return { ok: true as const, ...(data as Record<string, unknown>) }
-}
-
-/** Nexta repassou o dinheiro que o entregador dela recebeu: sai do "a receber", entra na gaveta. */
-export async function repasseNexta(ctx: ContextoFin, p: { lancamentoIds: number[]; chave: string }) {
-  const loja = ctx.sessao.restauranteId
-  if (!podeFin(ctx.sessao.papel, ctx.acessos, 'receber_pagamento') && !podeFin(ctx.sessao.papel, ctx.acessos, 'acerto_motoboy')) return falha('Sem permissão.', 403, 'sem_permissao_acao')
-  const turno = await turnoAberto(ctx.admin, loja)
-  if (!turno) return falha('Abra o caixa: o repasse entra na gaveta.', 409, 'caixa_fechado')
-  const { data: ls } = await ctx.admin.from('fin_lancamentos').select('id, valor_centavos, pedido_id, dados, carteira').eq('restaurante_id', loja).in('id', p.lancamentoIds)
-  const validos = (ls ?? []).filter((l) => l.carteira === 'a_receber' && (l.dados as Record<string, unknown> | null)?.nexta === true && Number(l.valor_centavos) > 0)
-  if (!validos.length) return falha('Nada a repassar.', 409)
-  const total = validos.reduce((s, l) => s + Number(l.valor_centavos), 0)
-  const linhas: LinhaLancamento[] = validos.map((l) => ({ carteira: 'a_receber', tipo: 'recebimento', valorCentavos: -Number(l.valor_centavos), forma: 'dinheiro', pedidoId: l.pedido_id as string | null, referenciaId: l.id as number, dados: { nexta: true, repasse: true } }))
-  linhas.push({ carteira: 'gaveta', tipo: 'recebimento', valorCentavos: total, forma: 'dinheiro', dados: { nexta: true, repasse: true } })
-  const r = await lancar(ctx.admin, { restauranteId: loja, turnoId: turno.id, chave: `nexta:${p.chave}`, origem: 'delivery', usuario: { id: ctx.sessao.userId, nome: ctx.sessao.nome }, motivo: 'Repasse da Nexta', dispositivo: ctx.dispositivo, linhas })
-  if (!r.ok) return falha(r.erro, 400)
-  if (!r.repetido) await registrarAuditoria(ctx.admin, { restauranteId: loja, usuarioId: ctx.sessao.userId, usuarioNome: ctx.sessao.nome, acao: 'fin.repasse_nexta', entidade: 'lancamento', entidadeId: undefined, dados: { valor_centavos: total, lancamentos: validos.map((l) => l.id) } })
-  return { ok: true as const, totalCentavos: total }
-}
-
-export async function nextaAReceber(admin: SupabaseClient, loja: string) {
-  const { data } = await admin.from('fin_lancamentos').select('id, valor_centavos, pedido_id, dados, criado_em').eq('restaurante_id', loja).eq('carteira', 'a_receber').gt('valor_centavos', 0).order('seq', { ascending: false }).limit(200)
-  const nx = (data ?? []).filter((l) => (l.dados as Record<string, unknown> | null)?.nexta === true)
-  if (!nx.length) return []
-  const { data: refs } = await admin.from('fin_lancamentos').select('referencia_id').eq('restaurante_id', loja).eq('carteira', 'a_receber').in('referencia_id', nx.map((l) => l.id as number))
-  const pagos = new Set((refs ?? []).map((r) => r.referencia_id as number))
-  return nx.filter((l) => !pagos.has(l.id as number)).map((l) => ({ id: l.id as number, valorCentavos: Number(l.valor_centavos), pedidoId: l.pedido_id as string | null, numero: ((l.dados as Record<string, unknown>)?.numero as number | undefined) ?? null, em: l.criado_em as string }))
 }
 
 export { veValoresFin }

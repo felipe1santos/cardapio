@@ -61,7 +61,7 @@ export async function middleware(request: NextRequest) {
       // conexão seria pior.
       //
       // Numa API, não. Boa parte das rotas de `/api/admin` roda com `service_role`
-      // (PDV, cancelamento de pedido, campanhas, fidelidade, Nexta, WhatsApp), que passa
+      // (PDV, cancelamento de pedido, campanhas, fidelidade, WhatsApp), que passa
       // POR CIMA da RLS — ali este porteiro é a única checagem de papel que existe, e
       // deixar passar abriria fechar comanda e disparar campanha para qualquer usuário
       // logado. Sem saber o papel, a resposta é 503: é uma falha nossa, temporária, e o

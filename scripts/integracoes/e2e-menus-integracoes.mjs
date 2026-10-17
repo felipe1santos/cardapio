@@ -118,7 +118,7 @@ try {
     const { ctx, p } = await logar('dono.dash54')
     // Hotfix 2026-10-07: a tela relia tudo em loop (centenas de req/s). Parada, lê no máximo poucas vezes.
     let leituras = 0
-    const contar = (r) => { if (/\/api\/admin\/(whatsapp\/status|pix-online|integracoes\/meta-capi|nexta\/config)/.test(r.url())) leituras++ }
+    const contar = (r) => { if (/\/api\/admin\/(whatsapp\/status|pix-online|integracoes\/meta-capi)/.test(r.url())) leituras++ }
     p.on('request', contar)
     await ir(p, '/admin/integracoes'); await p.waitForTimeout(800)
     const base = leituras; await p.waitForTimeout(8000)
@@ -128,7 +128,7 @@ try {
     const href = await p.getByTestId('sugerir-integracao').getAttribute('href')
     ok('"Sugerir integração" abre o WhatsApp do suporte com a frase', href?.startsWith('https://wa.me/5527992534407?text=') && decodeURIComponent(href.split('text=')[1]) === 'Gostaria de sugerir a integração: ', href)
     const cards = await p.locator('[data-testid^="integracao-"][data-ativa]').evaluateAll((els) => els.map((e) => ({ id: e.dataset.testid.replace('integracao-', ''), ativa: e.dataset.ativa, img: !!e.querySelector('img'), seta: !!e.querySelector('svg') })))
-    ok('só integrações reais, cada uma com logo e seta', cards.length >= 5 && cards.every((c) => c.img && c.seta) && cards.every((c) => ['whatsapp', 'mercadopago', 'facebook', 'capi', 'google', 'nexta'].includes(c.id)), JSON.stringify(cards))
+    ok('só integrações reais, cada uma com logo e seta', cards.length >= 5 && cards.every((c) => c.img && c.seta) && cards.every((c) => ['whatsapp', 'mercadopago', 'facebook', 'capi', 'google'].includes(c.id)), JSON.stringify(cards))
     ok('WhatsApp desconectado está em Disponíveis', cards.find((c) => c.id === 'whatsapp')?.ativa === 'nao')
     ok('Mercado Pago (Pix liberado) em "Pagamentos"', await p.locator('section', { has: p.getByRole('heading', { name: 'Pagamentos' }) }).getByTestId('integracao-mercadopago').isVisible())
     const texto = await p.getByTestId('pagina-integracoes').innerText()

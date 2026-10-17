@@ -7,7 +7,7 @@
  * - Lançamento sem turno (entrega registrada pelo motoboy, Pix conferido sem caixa aberto) cai no turno cuja
  *   janela (abertura → fechamento) contém o horário dele; fora de qualquer janela, na linha "Fora de turno".
  * - Vendido = recebimentos (+ troco devolvido pelo motoboy) − estornos, fora das contrapartidas (empresa/resultado).
- *   Recebido = vendido − "a receber" (fiado, não pago, Nexta).
+ *   Recebido = vendido − "a receber" (fiado, não pago).
  * - Esperado em dinheiro: o que o fechamento GRAVOU (turno fechado) ou o saldo da gaveta agora (turno aberto).
  */
 

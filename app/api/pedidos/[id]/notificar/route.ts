@@ -18,7 +18,7 @@ const STATUS_NOTIFICAVEIS: StatusPedido[] = ['recebido', 'preparando', 'pronto',
  * Os consumidores legítimos (inventariados antes da mudança) são todos telas do painel
  * já autenticadas, que chamam via `lib/notificar.ts` com o cookie da sessão:
  * `/admin/pedidos` (Kanban), `/admin/logistica` e `components/pedidos/rota-panel.tsx`.
- * Cozinha, entregador, vitrine e o webhook do Nexta NÃO passam por aqui — eles chamam
+ * Cozinha, entregador e vitrine NÃO passam por aqui — eles chamam
  * `notificarPedido` de `lib/whatsapp` direto no servidor, com autenticação própria de
  * token, e continuam intocados.
  *
@@ -60,7 +60,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   try {
-    // WhatsApp + motor de fidelidade moram em lib/pedido-eventos.ts: o webhook do Nexta
+    // WhatsApp + motor de fidelidade moram em lib/pedido-eventos.ts: o app do motoboy
     // também move o status do pedido (coleta/entrega) e precisa dos mesmos efeitos.
     // A trava por status no banco continua sendo o que impede mensagem repetida — esta
     // rota chamada duas vezes com o mesmo status manda uma mensagem só.

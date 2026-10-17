@@ -7,9 +7,6 @@ import { Badge } from '@/components/ui/badge'
 import { RotaMap, type RotaMapLoja } from '@/components/pedidos/rota-map'
 import { RouteMap } from '@/components/maps/route-map'
 import { notificarPedido } from '@/lib/notificar'
-import { invalidarCotacaoNexta, useCotacoesNexta } from '@/lib/nexta-cotacao-cache'
-import { nextaEntregaAtiva, nextaEventoTexto } from '@/lib/nexta-eventos'
-import { listarNextaEntregas, type NextaEntregaLinha } from '@/lib/queries/nexta'
 import {
   atribuirEntregadorEmLote,
   MSG_PEDIDO_MUDOU,
@@ -22,13 +19,6 @@ import {
 import { formatarReal } from '@/lib/moeda'
 import { NovoMotoboy } from '@/components/pedidos/novo-motoboy'
 import { useCoordenadasPedidos } from '@/lib/mapa/cliente'
-
-/**
- * Valor sentinela do "entregador" Nexta na seleção. O Nexta ocupa o mesmo lugar de um
- * motoboy na coluna da direita, então reusa o mesmo `motoboyId` em vez de um segundo
- * estado que poderia divergir.
- */
-const NEXTA_ID = 'nexta'
 
 // Milhar com ponto ("R$ 4.088,00"): função única do painel, ver lib/moeda.ts.
 const brl = formatarReal
@@ -126,14 +116,6 @@ function RotaPanelBase({ supabase, restauranteId, apiKey, onClose }: RotaPanelPr
   const [locDriverId, setLocDriverId] = useState<string | null>(null)
   const [perfilDriver, setPerfilDriver] = useState<Entregador | null>(null)
 
-  const [nextaAtivo, setNextaAtivo] = useState(false)
-  const [nextaEntregas, setNextaEntregas] = useState<NextaEntregaLinha[]>([])
-  /** Pedidos que falharam no último despacho em lote — ficam marcados, com aviso no card. */
-  const [falhasNexta, setFalhasNexta] = useState<Set<string>>(new Set())
-
-  /** O Nexta só existe no painel admin (sessão da loja). */
-  const modoAdmin = Boolean(supabase && restauranteId)
-
   // Onde a loja fica (Ajustes): o mapa abre nela e enquadra loja + pedidos (antes abria em Fortaleza).
   const [lojaMapa, setLojaMapa] = useState<RotaMapLoja | null | 'carregando'>(supabase && restauranteId ? 'carregando' : null)
   useEffect(() => {
@@ -155,14 +137,6 @@ function RotaPanelBase({ supabase, restauranteId, apiKey, onClose }: RotaPanelPr
     return () => { vivo = false }
   }, [supabase, restauranteId])
 
-  useEffect(() => {
-    if (!modoAdmin) return
-    fetch('/api/admin/nexta/config')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d: { config?: { ativo: boolean } | null } | null) => setNextaAtivo(Boolean(d?.config?.ativo)))
-      .catch(() => setNextaAtivo(false))
-  }, [modoAdmin])
-
   const [novoMotoboy, setNovoMotoboy] = useState(false)
   const refetch = useCallback(async () => {
     try {
@@ -175,12 +149,6 @@ function RotaPanelBase({ supabase, restauranteId, apiKey, onClose }: RotaPanelPr
           listarEntregadores(supabase!, restauranteId!),
         ])
       }
-      if (supabase && restauranteId) {
-        // Falha aqui não pode derrubar o painel de rotas inteiro — o Nexta é acessório.
-        const entregas = await listarNextaEntregas(supabase, restauranteId, new Date(Date.now() - JANELA_HORAS * 3600 * 1000).toISOString()).catch(() => [])
-        setNextaEntregas(entregas)
-      }
-
       const prontos = rotas.filter((o) => o.status === 'pronto' && !o.entregadorId)
       setTodos(rotas)
       setPedidos(prontos)
@@ -210,7 +178,6 @@ function RotaPanelBase({ supabase, restauranteId, apiKey, onClose }: RotaPanelPr
         .channel(`rota-panel-${restauranteId}`)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos', filter: `restaurante_id=eq.${restauranteId}` }, () => refetch())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'entregadores', filter: `restaurante_id=eq.${restauranteId}` }, () => refetch())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'nexta_entregas', filter: `restaurante_id=eq.${restauranteId}` }, () => refetch())
         .subscribe()
       return () => {
         supabase.removeChannel(channel)
@@ -223,33 +190,6 @@ function RotaPanelBase({ supabase, restauranteId, apiKey, onClose }: RotaPanelPr
   const disponiveis = drivers.filter((d) => d.status === 'online')
   const motoboy = drivers.find((d) => d.id === motoboyId) ?? null
   const locDriver = drivers.find((d) => d.id === locDriverId) ?? null
-
-  const nextaSelecionado = motoboyId === NEXTA_ID
-
-  /** Entrega ativa do Nexta por pedido — quem tem uma não pode ser despachado de novo. */
-  const nextaPorPedido = useMemo(() => {
-    const mapa = new Map<string, NextaEntregaLinha>()
-    for (const e of nextaEntregas) if (nextaEntregaAtiva(e.status)) mapa.set(e.pedidoId, e)
-    return mapa
-  }, [nextaEntregas])
-
-  // Cota só o que está marcado: aqui o lojista escolhe os pedidos antes de decidir o
-  // entregador, então cotar a lista inteira seria desperdício.
-  const idsMarcados = useMemo(() => [...marcados].filter((id) => !nextaPorPedido.has(id)).sort(), [marcados, nextaPorPedido])
-  const cotacoesNexta = useCotacoesNexta(idsMarcados, nextaAtivo && idsMarcados.length > 0)
-
-  const totalNexta = useMemo(() => {
-    let total = 0
-    let cotados = 0
-    for (const id of idsMarcados) {
-      const c = cotacoesNexta[id]
-      if (c?.status === 'ok') {
-        total += c.preco
-        cotados++
-      }
-    }
-    return { total, cotados }
-  }, [idsMarcados, cotacoesNexta])
 
   const passaFunnel = useCallback(
     (p: Pedido) => {
@@ -341,9 +281,6 @@ function RotaPanelBase({ supabase, restauranteId, apiKey, onClose }: RotaPanelPr
   )
 
   function toggleMarcado(id: string) {
-    // Pedido já enviado ao Nexta não entra em novo despacho — o banco barraria (índice
-    // parcial de entrega ativa), e deixar marcar só geraria erro na cara do lojista.
-    if (nextaPorPedido.has(id)) return
     setMarcados((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
@@ -373,58 +310,21 @@ function RotaPanelBase({ supabase, restauranteId, apiKey, onClose }: RotaPanelPr
 
   const marcadosNaOrdem = ordenados.filter((p) => marcados.has(p.id))
 
-  /**
-   * Despacho pelo Nexta: uma corrida POR PEDIDO, sequencial — não existe endpoint de
-   * lote, e quem junta entregas é o próprio Nexta (mandamos `canCombine: true`).
-   *
-   * Sucesso parcial é a regra, não a exceção: os que passaram somem da lista, os que
-   * falharam continuam marcados com aviso vermelho no card.
-   */
-  async function despacharPeloNexta(ids: string[]) {
-    const falhas = new Set<string>()
-    for (const id of ids) {
-      try {
-        const res = await fetch('/api/admin/nexta/despachar', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pedidoId: id }),
-        })
-        if (!res.ok) throw new Error()
-        invalidarCotacaoNexta(id)
-      } catch {
-        falhas.add(id)
-      }
-    }
-    setFalhasNexta(falhas)
-    setMarcados(falhas)
-    if (falhas.size > 0) {
-      setError(`${falhas.size} de ${ids.length} pedido(s) não foram aceitos pelo Nexta — veja os cards em vermelho.`)
-    } else {
-      setMotoboyId(null)
-    }
-    // O WhatsApp de "saiu para entrega" NÃO sai aqui: no Nexta o pedido só entra em rota
-    // quando o motoboy coleta de verdade (evento ORDER_PICKED, via webhook).
-  }
-
   async function despachar() {
     if (marcadosNaOrdem.length === 0) return
-    if (!nextaSelecionado && !motoboy) return
+    if (!motoboy) return
     setDespachando(true)
     setError(null)
     const ids = marcadosNaOrdem.map((p) => p.id)
     try {
-      if (nextaSelecionado) {
-        await despacharPeloNexta(ids)
-      } else {
-        let feitos: string[]
-        {
-          feitos = await atribuirEntregadorEmLote(supabase!, ids, motoboy!.id)
-          for (const id of feitos) notificarPedido(id, 'em_rota')
-        }
-        if (feitos.length < ids.length) setError(MSG_PEDIDO_MUDOU)
-        setMarcados(new Set())
-        setMotoboyId(null)
+      let feitos: string[]
+      {
+        feitos = await atribuirEntregadorEmLote(supabase!, ids, motoboy.id)
+        for (const id of feitos) notificarPedido(id, 'em_rota')
       }
+      if (feitos.length < ids.length) setError(MSG_PEDIDO_MUDOU)
+      setMarcados(new Set())
+      setMotoboyId(null)
       setConfirming(false)
       await refetch()
     } catch {
@@ -565,60 +465,40 @@ function RotaPanelBase({ supabase, restauranteId, apiKey, onClose }: RotaPanelPr
                 </div>
               )}
               {listaEsquerda.map((p) => {
-                const entregaNexta = nextaPorPedido.get(p.id)
-                // Já está com o Nexta: card informativo, sem marcar nem arrastar.
-                const noNexta = Boolean(entregaNexta)
                 const ativo = marcados.has(p.id)
-                const falhou = falhasNexta.has(p.id)
                 const idx = ordenados.findIndex((o) => o.id === p.id)
-                // Ordenar por arrasto é rota de motoboy próprio; no Nexta cada pedido é
-                // uma corrida independente e a ordem não significa nada.
-                const arrastavel = !noNexta && !nextaSelecionado
                 return (
                   <div
                     key={p.id}
-                    draggable={arrastavel}
-                    onDragStart={() => arrastavel && onDragStart(idx)}
-                    onDragOver={(e) => arrastavel && onDragOver(e, idx)}
+                    draggable
+                    onDragStart={() => onDragStart(idx)}
+                    onDragOver={(e) => onDragOver(e, idx)}
                     onDragEnd={onDragEnd}
                     onClick={() => toggleMarcado(p.id)}
                     className={[
                       'select-none overflow-hidden rounded-menuzia border-l-4 shadow-md transition-all',
-                      noNexta ? 'cursor-default border-l-primary opacity-90' : 'cursor-pointer',
-                      falhou ? 'border-l-danger ring-2 ring-danger' : ativo ? 'border-l-yellow-500 ring-2 ring-yellow-400' : noNexta ? '' : 'border-l-green-600',
+                      'cursor-pointer',
+                      ativo ? 'border-l-yellow-500 ring-2 ring-yellow-400' : 'border-l-green-600',
                     ].join(' ')}
                   >
                     <div className="flex items-center justify-between gap-2 bg-[#003755] px-2.5 py-1.5">
                       <div className="flex min-w-0 items-center gap-1.5">
-                        <span className="text-white/40">{arrastavel ? '⠿' : ''}</span>
+                        <span className="text-white/40">⠿</span>
                         <span className="rounded-menuzia bg-status-pending px-1.5 py-0.5 text-xs font-bold text-white">#{p.numero}</span>
                         <span className="truncate text-[13px] font-semibold text-white">{p.clienteNome || 'Cliente'}</span>
                       </div>
                       <span className="flex-shrink-0 text-[11px] font-semibold text-white/70">{tempoDesde(p.criadoEm)}</span>
                     </div>
-                    <div className={falhou ? 'bg-danger-bg px-2.5 py-2' : noNexta ? 'bg-primary/10 px-2.5 py-2' : ativo ? 'bg-yellow-200 px-2.5 py-2' : 'bg-green-200 px-2.5 py-2'}>
+                    <div className={ativo ? 'bg-yellow-200 px-2.5 py-2' : 'bg-green-200 px-2.5 py-2'}>
                       <div className="flex flex-wrap items-center gap-1.5">
                         {p.enderecoRua && <span className="text-xs font-medium text-text-main">{p.enderecoRua}, {p.enderecoNumero}</span>}
                         {p.enderecoBairro && (
                           <span className="flex-shrink-0 rounded bg-green-700 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">{p.enderecoBairro}</span>
                         )}
                       </div>
-                      {noNexta && (
-                        <div className="mt-1.5 inline-flex items-center gap-1 rounded-menuzia bg-primary px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
-                          Nexta · {nextaEventoTexto(entregaNexta!.status)}
-                        </div>
-                      )}
-                      {falhou && (
-                        <div className="mt-1.5 text-[11px] font-bold text-danger">O Nexta não aceitou esta corrida. Tente de novo ou use um entregador.</div>
-                      )}
                       <div className="mt-1.5 flex items-center gap-1.5">
                         <Badge tone={p.formaPagamento === 'dinheiro' ? 'pending' : 'alert'}>{PAY_LABEL[p.formaPagamento]}</Badge>
                         {p.formaPagamento === 'dinheiro' && p.trocoPara !== null && <Badge tone="paused">Troco {brl(p.trocoPara)}</Badge>}
-                        {nextaSelecionado && ativo && cotacoesNexta[p.id]?.status === 'ok' && (
-                          <span className="rounded bg-price-bg px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-price-text">
-                            {brl((cotacoesNexta[p.id] as { preco: number }).preco)}
-                          </span>
-                        )}
                         <span className="ml-auto text-[13px] font-extrabold text-green-700">{brl(p.total)}</span>
                       </div>
                     </div>
@@ -635,44 +515,7 @@ function RotaPanelBase({ supabase, restauranteId, apiKey, onClose }: RotaPanelPr
               <span className="rounded-full bg-white/15 px-2 py-0.5 text-[11px] font-bold text-white">{disponiveis.length} online</span>
             </div>
             <div className="min-h-0 space-y-2 overflow-y-auto p-2.5">
-              {/* Nexta primeiro e sempre visível: é a saída quando não há motoboy próprio
-                  online — justamente a hora em que ele mais importa. */}
-              {nextaAtivo && (
-                <>
-                  <div
-                    onClick={() => setMotoboyId(nextaSelecionado ? null : NEXTA_ID)}
-                    className={[
-                      'flex cursor-pointer items-center gap-2 rounded-menuzia border-2 border-l-4 p-1.5 shadow-sm transition-colors',
-                      nextaSelecionado ? 'border-yellow-500 border-l-primary bg-yellow-200 ring-2 ring-yellow-400' : 'border-primary/40 border-l-primary bg-white hover:border-primary',
-                    ].join(' ')}
-                  >
-                    <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-menuzia bg-primary text-white">
-                      <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
-                        <path d="M11 21h-1l1-7H7.5c-.58 0-.57-.32-.38-.66.19-.34.05-.08.07-.12C8.48 10.94 10.42 7.54 13 3h1l-1 7h3.5c.49 0 .56.33.47.51l-.07.15C12.96 17.55 11 21 11 21z" />
-                      </svg>
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-text-main">Nexta</span>
-                    <span className="flex-shrink-0 text-right text-[11px] font-semibold leading-tight text-text-subtle">
-                      {idsMarcados.length === 0 ? (
-                        'selecione pedidos'
-                      ) : totalNexta.cotados === 0 ? (
-                        'cotando…'
-                      ) : (
-                        <>
-                          <span className="block text-[13px] font-extrabold text-green-700">{brl(totalNexta.total)}</span>
-                          <span>
-                            {totalNexta.cotados < idsMarcados.length
-                              ? `${totalNexta.cotados} de ${idsMarcados.length} cotados`
-                              : `${idsMarcados.length} corrida${idsMarcados.length > 1 ? 's' : ''}`}
-                          </span>
-                        </>
-                      )}
-                    </span>
-                  </div>
-                  <div className="!my-2.5 border-t border-white/20" />
-                </>
-              )}
-              {disponiveis.length === 0 && !nextaAtivo && (
+              {disponiveis.length === 0 && (
                 <div className="m-1 rounded-menuzia bg-black/50 px-2 py-6 text-center text-xs text-white">Nenhum entregador online no momento.</div>
               )}
               {disponiveis.map((d) => {
@@ -745,22 +588,13 @@ function RotaPanelBase({ supabase, restauranteId, apiKey, onClose }: RotaPanelPr
           </aside>
 
           {/* Botão despachar centralizado embaixo */}
-          {marcadosNaOrdem.length > 0 && (motoboy || nextaSelecionado) && (
+          {marcadosNaOrdem.length > 0 && motoboy && (
             <div className="pointer-events-none absolute inset-x-0 bottom-5 flex justify-center">
               <button
                 onClick={() => setConfirming(true)}
                 className="pointer-events-auto inline-flex items-center gap-2 rounded-menuzia bg-[#DC0101] px-6 py-3 text-[13px] font-bold uppercase tracking-wide text-white shadow-2xl transition-colors hover:bg-[#b00101]"
               >
-                {nextaSelecionado ? (
-                  <>
-                    Despachar {marcadosNaOrdem.length} pedido{marcadosNaOrdem.length > 1 ? 's' : ''} via Nexta
-                    {totalNexta.cotados > 0 && ` · ${brl(totalNexta.total)}`}
-                  </>
-                ) : (
-                  <>
-                    Despachar {marcadosNaOrdem.length} pedido{marcadosNaOrdem.length > 1 ? 's' : ''} → {motoboy!.nome}
-                  </>
-                )}
+                Despachar {marcadosNaOrdem.length} pedido{marcadosNaOrdem.length > 1 ? 's' : ''} → {motoboy.nome}
               </button>
             </div>
           )}
@@ -768,7 +602,7 @@ function RotaPanelBase({ supabase, restauranteId, apiKey, onClose }: RotaPanelPr
       </div>
 
       {/* Modal de confirmação */}
-      {confirming && (motoboy || nextaSelecionado) && (
+      {confirming && motoboy && (
         <div className="absolute inset-0 z-[90] flex items-center justify-center bg-[#111827]/60 p-4" onClick={() => !despachando && setConfirming(false)}>
           <div className="flex max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-menuzia bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-border px-4.5 py-4">
@@ -776,14 +610,7 @@ function RotaPanelBase({ supabase, restauranteId, apiKey, onClose }: RotaPanelPr
                 <h2 className="text-[15px] font-bold">Confirmar despacho</h2>
                 <p className="mt-0.5 text-xs text-text-subtle">
                   {marcadosNaOrdem.length} pedido{marcadosNaOrdem.length > 1 ? 's' : ''} para{' '}
-                  <b className="text-text-main">{nextaSelecionado ? 'o Nexta' : motoboy!.nome}</b>
-                  {nextaSelecionado && totalNexta.cotados > 0 && (
-                    <>
-                      {' '}
-                      — <b className="text-price-text">{brl(totalNexta.total)}</b> em {marcadosNaOrdem.length} corrida
-                      {marcadosNaOrdem.length > 1 ? 's' : ''}
-                    </>
-                  )}
+                  <b className="text-text-main">{motoboy.nome}</b>
                 </p>
               </div>
               <button onClick={() => !despachando && setConfirming(false)} className="flex h-[30px] w-[30px] items-center justify-center rounded-menuzia bg-page text-lg text-text-subtle hover:bg-border">
@@ -793,16 +620,11 @@ function RotaPanelBase({ supabase, restauranteId, apiKey, onClose }: RotaPanelPr
             <div className="flex-1 overflow-y-auto p-4.5">
               <ol className="space-y-2.5">
                 {marcadosNaOrdem.map((p, i) => {
-                  const cotacao = cotacoesNexta[p.id]
                   return (
                     <li key={p.id} className="rounded-menuzia border border-border p-3">
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex min-w-0 items-center gap-1.5">
-                          {/* Ordem só importa pra rota de motoboy próprio. No Nexta cada
-                              pedido é uma corrida independente — numerar seria mentira. */}
-                          {!nextaSelecionado && (
-                            <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-white">{i + 1}</span>
-                          )}
+                          <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-white">{i + 1}</span>
                           <span className="rounded-menuzia bg-text-main px-1.5 py-0.5 text-xs font-bold text-white">#{p.numero}</span>
                           <span className="truncate text-[13px] font-semibold">{p.clienteNome || 'Cliente'}</span>
                         </div>
@@ -812,11 +634,6 @@ function RotaPanelBase({ supabase, restauranteId, apiKey, onClose }: RotaPanelPr
                       <div className="mt-1.5 flex items-center gap-1.5">
                         <Badge tone={p.formaPagamento === 'dinheiro' ? 'pending' : 'alert'}>{PAY_LABEL[p.formaPagamento]}</Badge>
                         {p.formaPagamento === 'dinheiro' && p.trocoPara !== null && <Badge tone="paused">Troco {brl(p.trocoPara)}</Badge>}
-                        {nextaSelecionado && (
-                          <span className="rounded-menuzia bg-price-bg px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-price-text">
-                            {cotacao?.status === 'ok' ? `Corrida ${brl(cotacao.preco)}` : cotacao?.status === 'erro' ? 'Sem cotação' : 'Cotando…'}
-                          </span>
-                        )}
                         <span className="ml-auto text-[13px] font-bold text-price-text">{brl(p.total)}</span>
                       </div>
                     </li>

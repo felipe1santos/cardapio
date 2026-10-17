@@ -374,7 +374,6 @@ secao('5. garçom digitando URL proibida')
     ['/api/admin/pedidos/00000000-0000-4000-8000-000000000000/cancelar', 'POST'],
     ['/api/admin/campanhas', 'GET'],
     ['/api/admin/whatsapp/status', 'GET'],
-    ['/api/admin/nexta/config', 'GET'],
   ]
   for (const [rota, metodo] of APIS) {
     const r = await api(garcom.page, rota, metodo, metodo === 'POST' ? {} : undefined)

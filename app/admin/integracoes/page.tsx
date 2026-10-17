@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
 import { AlertTriangle, ChevronRight, Lightbulb, Loader2 } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { ModalCentral } from '@/components/ui/flutuante'
@@ -23,13 +22,13 @@ import { BotaoAjudaIntegracao } from '@/components/admin/integracoes/ajuda-integ
  * - Ativas no topo (o que a loja já ligou/conectou), com o selo "Ativa"; Disponíveis embaixo, por tipo.
  *   Disponível não é erro: sem aviso vermelho/amarelo.
  * - Só integrações que existem de verdade. O Mercado Pago só aparece na loja com o Pix online liberado.
- * - Clicar abre a configuração que já existia (na janela central); a Nexta tem página própria.
+ * - Clicar abre a configuração que já existia (na janela central).
  * - Integrações é só CONECTAR. Os dois robôs (simples e autoatendimento) ficam em Ajustes › Robô de atendimento; os números e quem aguarda
  *   atendente ficam só na central do WhatsApp (canto inferior direito).
  */
 
-type IdIntegracao = 'whatsapp' | 'mercadopago' | 'facebook' | 'capi' | 'google' | 'nexta'
-type Grupo = 'Mensagens' | 'Pagamentos' | 'Marketing e medição' | 'Entregas'
+type IdIntegracao = 'whatsapp' | 'mercadopago' | 'facebook' | 'capi' | 'google'
+type Grupo = 'Mensagens' | 'Pagamentos' | 'Marketing e medição'
 interface Definicao { id: IdIntegracao; nome: string; grupo: Grupo; logo: string; resumo: string }
 
 const INTEGRACOES: Definicao[] = [
@@ -38,9 +37,8 @@ const INTEGRACOES: Definicao[] = [
   { id: 'facebook', nome: 'Facebook Pixel', grupo: 'Marketing e medição', logo: '/icons/integracoes/facebook.svg', resumo: 'Mede o cardápio para os anúncios do Facebook e do Instagram.' },
   { id: 'capi', nome: 'API de Conversões (Meta)', grupo: 'Marketing e medição', logo: '/icons/integracoes/meta-icon.svg', resumo: 'Manda a compra pelo servidor, com o mesmo código do pixel.' },
   { id: 'google', nome: 'Google Analytics / Tag Manager', grupo: 'Marketing e medição', logo: '/icons/integracoes/google-analytics.svg', resumo: 'Google Analytics 4 (G-…) ou Tag Manager (GTM-…).' },
-  { id: 'nexta', nome: 'Nexta Delivery', grupo: 'Entregas', logo: '/integracoes/nexta-icone.png', resumo: 'Rede de motoboys terceirizada no despacho.' },
 ]
-const ORDEM_GRUPOS: Grupo[] = ['Mensagens', 'Pagamentos', 'Marketing e medição', 'Entregas']
+const ORDEM_GRUPOS: Grupo[] = ['Mensagens', 'Pagamentos', 'Marketing e medição']
 
 interface WaStatus { configurado: boolean; connected: boolean; state: string | null; numero?: string | null }
 interface Situacao {
@@ -49,7 +47,6 @@ interface Situacao {
   pixels: { facebook: string; google: string } | null
   capi: boolean | null
   mp: { liberada: boolean; conectada: boolean } | null
-  nexta: boolean | null
 }
 
 const FONTE_MODELO = { fontFamily: 'var(--font-submenu), var(--font-painel), system-ui, sans-serif' }
@@ -77,9 +74,7 @@ function CardIntegracao({ def, ativa, onAbrir }: { def: Definicao; ativa: boolea
       </div>
     )
   }
-  return def.id === 'nexta'
-    ? <Link href="/admin/integracoes/nexta" className={classe} data-testid={`integracao-${def.id}`} data-ativa={ativa ? 'sim' : 'nao'}>{conteudo}</Link>
-    : <button type="button" onClick={onAbrir} className={classe} data-testid={`integracao-${def.id}`} data-ativa={ativa ? 'sim' : 'nao'}>{conteudo}</button>
+  return <button type="button" onClick={onAbrir} className={classe} data-testid={`integracao-${def.id}`} data-ativa={ativa ? 'sim' : 'nao'}>{conteudo}</button>
 }
 
 /** Título da janela: o logo e o nome da integração. */
@@ -185,7 +180,7 @@ export default function IntegracoesPage() {
   // lerWhatsapp a cada render e o efeito de leitura entrava em loop (centenas de requisições/s).
   const mostrarToast = toasts.mostrar
   const [restauranteId, setRestauranteId] = useState<string | null>(null)
-  const [sit, setSit] = useState<Situacao>({ wa: null, waFalhou: false, pixels: null, capi: null, mp: null, nexta: null })
+  const [sit, setSit] = useState<Situacao>({ wa: null, waFalhou: false, pixels: null, capi: null, mp: null })
   const [aberta, setAberta] = useState<IdIntegracao | null>(null)
 
   useEffect(() => { buscarRestauranteIdDoUsuario(supabase).then(setRestauranteId) }, [supabase])
@@ -207,16 +202,14 @@ export default function IntegracoesPage() {
   }, [mostrarToast])
 
   const lerOutras = useCallback(async () => {
-    const [capi, mp, nexta] = await Promise.all([
+    const [capi, mp] = await Promise.all([
       fetch('/api/admin/integracoes/meta-capi', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
       fetch('/api/admin/pix-online', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
-      fetch('/api/admin/nexta/config').then((r) => (r.ok ? r.json() : null)).catch(() => null),
     ])
     setSit((s) => ({
       ...s,
       capi: Boolean(capi?.configurado),
       mp: mp ? { liberada: Boolean(mp.lojaLiberada), conectada: Boolean(mp.conta?.conectada) } : { liberada: false, conectada: false },
-      nexta: Boolean(nexta?.config?.ativo),
     }))
   }, [])
 
@@ -250,7 +243,6 @@ export default function IntegracoesPage() {
     facebook: Boolean(sit.pixels?.facebook),
     capi: Boolean(sit.capi),
     google: Boolean(sit.pixels?.google),
-    nexta: Boolean(sit.nexta),
   }
   // Mercado Pago só onde o Pix online foi liberado (mesma regra do card de antes).
   const existentes = INTEGRACOES.filter((i) => i.id !== 'mercadopago' || sit.mp?.liberada)

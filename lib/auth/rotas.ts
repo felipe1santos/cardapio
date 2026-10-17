@@ -62,12 +62,8 @@ const APIS: [prefixo: string, permissao: Permissao][] = [
   ['/api/admin/campanhas', 'campanhas.gerenciar'],
   ['/api/admin/agente-ia', 'integracoes.gerenciar'],
   ['/api/admin/fidelidade', 'fidelidade.gerenciar'],
-  // Nexta: configurar é integração; despachar e cotar é operação de logística.
   // Token da API de Conversões do Meta (0138): credencial, só o dono.
   ['/api/admin/integracoes', 'integracoes.gerenciar'],
-  ['/api/admin/nexta/config', 'integracoes.gerenciar'],
-  ['/api/admin/nexta/testar', 'integracoes.gerenciar'],
-  ['/api/admin/nexta', 'logistica.operar'],
   ['/api/admin/caixa', 'logistica.operar'],
   ['/api/admin/financeiro', 'pedidos.delivery.ver'],
   // Conversas em atendimento humano: dono e gerente. Antes do genérico do WhatsApp.

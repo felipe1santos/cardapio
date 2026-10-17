@@ -1,0 +1,3 @@
+-- Volta da 0198 (só se um dia a Nexta voltar): recriar as tabelas e a coluna com supabase/migrations/0042_nexta.sql,
+-- restaurar o conteúdo de ~/menuzia-backups/nexta-0198-*.json (fora do git: tem a chave da API) e regravar
+-- entrega_registrar com a versão da 0137 (v_nexta := exists (... nexta_entregas ...)).

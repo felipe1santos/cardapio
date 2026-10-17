@@ -74,7 +74,7 @@ try {
   secao('c) conectar uma conta SEM chave Pix')
   const d = await sessao('dono.finint')
   let leituras = 0
-  d.p.on('request', (r) => { if (/\/api\/admin\/(pix-online|whatsapp\/status|integracoes\/meta-capi|nexta\/config)/.test(r.url())) leituras++ })
+  d.p.on('request', (r) => { if (/\/api\/admin\/(pix-online|whatsapp\/status|integracoes\/meta-capi)/.test(r.url())) leituras++ })
   await d.p.goto(`${BASE}/api/integracoes/mercadopago/conectar`)
   await d.p.waitForURL((u) => u.search.includes('mercadopago='), { timeout: 20000 }).catch(() => {})
   ok('volta com "conectado_sem_chave"', d.p.url().includes('mercadopago=conectado_sem_chave'), d.p.url())

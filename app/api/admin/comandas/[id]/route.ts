@@ -248,7 +248,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       const motivo = texto(corpo.motivo, 200)
       if (motivo.length < 5) return NextResponse.json({ error: 'Informe o motivo (mínimo 5 letras).', codigo: 'motivo_obrigatorio' }, { status: 400 })
       if (c.status !== 'aberta') return NextResponse.json({ error: 'Esta conta já foi encerrada.', codigo: 'comanda_nao_aberta' }, { status: 409 })
-      // Motoboy na rua: cancelar aqui não chama ele de volta nem avisa o Nexta.
+      // Motoboy na rua: cancelar aqui não chama ele de volta.
       const naRua = c.pedidos.find((p) => p.status === 'em_rota')
       if (naRua) {
         return NextResponse.json(

@@ -41,11 +41,10 @@ export function ehGravacaoDoUsuario(
   if (/^\/api\/loja\/[^/]+\/eventos/.test(caminho)) return false
   // Consulta de endereço/frete usa POST mas não grava nada.
   if (caminho.startsWith('/api/geo/') || /^\/api\/loja\/[^/]+\/frete/.test(caminho)) return false
-  // Efeitos colaterais que saem junto com a gravação, não a gravação: o aviso de WhatsApp
-  // ao cliente (fogo-e-esquece, cai se a instância da loja estiver fora) e a cotação do
-  // Nexta (POST de leitura, refeita a cada atualização da Logística). Contá-los fazia o
+  // Efeito colateral que sai junto com a gravação, não a gravação: o aviso de WhatsApp
+  // ao cliente (fogo-e-esquece, cai se a instância da loja estiver fora). Contá-lo fazia o
   // despacho mostrar "Não foi possível salvar" com o pedido já atribuído.
-  if (/^\/api\/pedidos\/[^/]+\/notificar$/.test(caminho) || caminho === '/api/admin/nexta/cotacao') return false
+  if (/^\/api\/pedidos\/[^/]+\/notificar$/.test(caminho)) return false
   // Central de atendimento do WhatsApp: tem o próprio retorno (balão enviando/enviado,
   // avisos) e um "Salvando…" no meio da tela a cada mensagem cobriria a conversa.
   if (caminho.startsWith('/api/admin/whatsapp/atendimento/')) return false

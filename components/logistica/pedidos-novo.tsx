@@ -193,8 +193,8 @@ function minutosDesde(iso: string, agora: number) {
  * Pedidos na rua, uma linha cada. O título é "Saíram para entrega" e não "Em rota agora" — esse número já está no
  * cartão do topo; antes o mesmo rótulo aparecia duas vezes. Sem pedido na rua a seção some (o cartão já diz 0).
  */
-export function EmRotaNovo({ pedidos, drivers, agora, nexta, onEntregue, onNaoEntregue, onMapa }: {
-  pedidos: Pedido[]; drivers: Entregador[]; agora: number; nexta: (id: string) => { entregadorNome: string | null } | undefined
+export function EmRotaNovo({ pedidos, drivers, agora, onEntregue, onNaoEntregue, onMapa }: {
+  pedidos: Pedido[]; drivers: Entregador[]; agora: number
   onEntregue: (id: string) => void; onNaoEntregue: (id: string) => void; onMapa: (entregadorId: string) => void
 }) {
   if (pedidos.length === 0) return null
@@ -204,7 +204,6 @@ export function EmRotaNovo({ pedidos, drivers, agora, nexta, onEntregue, onNaoEn
       <ul className="divide-y divide-[var(--adm-borda)]">
         {pedidos.map((o) => {
           const parado = pedidoParado(o, agora)
-          const viaNexta = nexta(o.id)
           const motoboy = drivers.find((d) => d.id === o.entregadorId) ?? null
           const saiu = o.etapas?.emRota ?? o.atualizadoEm
           return (
@@ -224,23 +223,17 @@ export function EmRotaNovo({ pedidos, drivers, agora, nexta, onEntregue, onNaoEn
                 <span className="truncate">{o.enderecoBairro || 'Sem bairro'}</span>
               </p>
               <div className="flex min-w-0 items-center gap-[8px] text-[13px]">
-                {viaNexta ? (
-                  <span className="truncate font-semibold text-[#0369A1]">Nexta{viaNexta.entregadorNome && ` · ${viaNexta.entregadorNome}`}</span>
-                ) : (
-                  <>
-                    <Avatar nome={motoboy?.nome ?? '?'} fotoUrl={motoboy?.fotoUrl ?? null} tamanho={20} />
-                    <span className="truncate font-medium text-[var(--adm-texto)]">{motoboy?.nome ?? o.entregadorNome ?? '—'}</span>
-                    {motoboy?.telefone && (
-                      <a href={`tel:${motoboy.telefone}`} aria-label={`Ligar para ${motoboy.nome}`} className="text-[var(--adm-texto-suave)] hover:text-[var(--adm-azul)]"><Phone className="h-[14px] w-[14px]" aria-hidden="true" /></a>
-                    )}
-                  </>
+                <Avatar nome={motoboy?.nome ?? '?'} fotoUrl={motoboy?.fotoUrl ?? null} tamanho={20} />
+                <span className="truncate font-medium text-[var(--adm-texto)]">{motoboy?.nome ?? o.entregadorNome ?? '—'}</span>
+                {motoboy?.telefone && (
+                  <a href={`tel:${motoboy.telefone}`} aria-label={`Ligar para ${motoboy.nome}`} className="text-[var(--adm-texto-suave)] hover:text-[var(--adm-azul)]"><Phone className="h-[14px] w-[14px]" aria-hidden="true" /></a>
                 )}
               </div>
               <span className="hidden text-[12.5px] tabular-nums text-[var(--adm-texto-medio)] lg:block">
                 {parado ? <Etiqueta tom="vermelho" title="Saiu há muito tempo e ninguém fechou.">Parado {tempoParado(o.criadoEm, agora)}</Etiqueta> : `há ${minutosDesde(saiu, agora)}`}
               </span>
               <div className="col-span-2 flex items-center gap-[8px] lg:col-span-1 max-lg:[&>*]:flex-1">
-                {!viaNexta && o.entregadorId && (
+                {o.entregadorId && (
                   <button type="button" onClick={() => onMapa(o.entregadorId!)} className={BOTAO_CONTORNO} data-testid="em-rota-mapa"><MapPin className="h-[14px] w-[14px]" aria-hidden="true" /> Mapa</button>
                 )}
                 <button type="button" onClick={() => onEntregue(o.id)} className={`${BOTAO} bg-[#10B981] text-white hover:bg-[#059669]`} data-testid="em-rota-entregue">Entregue</button>

@@ -4,7 +4,7 @@ import { ROTULO_IMPRESSORA, SUPORTE_MENUZIA, caminhoSeguro, estadoDaImpressora, 
 const AGORA = new Date(2026, 8, 23, 15, 0, 0).getTime()
 
 describe('número do suporte', () => {
-  it('é o oficial da Menuzia, fixo (não o da Nexta nem de variável de ambiente)', () => {
+  it('é o oficial da Menuzia, fixo (não de outra integração nem de variável de ambiente)', () => {
     expect(SUPORTE_MENUZIA.whatsapp).toBe('5527992534407')
     expect(SUPORTE_MENUZIA.exibicao).toBe('(27) 99253-4407')
   })
@@ -21,7 +21,7 @@ describe('caminho seguro da tela', () => {
   })
   it('mantém os nomes de tela', () => {
     expect(caminhoSeguro('/admin/ajustes')).toBe('/admin/ajustes')
-    expect(caminhoSeguro('/admin/integracoes/nexta')).toBe('/admin/integracoes/nexta')
+    expect(caminhoSeguro('/admin/ajustes/impressao')).toBe('/admin/ajustes/impressao')
   })
   it('vazio vira a raiz e segmento estranho vira :id', () => {
     expect(caminhoSeguro(undefined)).toBe('/')

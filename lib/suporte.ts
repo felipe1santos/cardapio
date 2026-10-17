@@ -1,11 +1,10 @@
 /**
  * Canal de suporte da Menuzia no painel administrativo — o ÚNICO lugar do número.
  *
- * Antes o número vinha de NEXT_PUBLIC_SUPORTE_WHATSAPP com um padrão copiado da tela
- * da integração Nexta (5527998925966), que é o suporte da Nexta, não o da Menuzia:
- * o "Dúvidas?" abria a conversa errada. Sem variável de ambiente agora — um valor
- * esquecido no servidor voltaria a mandar a loja para o número errado.
- * (O contato da Nexta, na tela da integração, continua lá: é o suporte deles.)
+ * Antes o número vinha de NEXT_PUBLIC_SUPORTE_WHATSAPP com um padrão copiado de outra
+ * integração (5527998925966), que não é o suporte da Menuzia: o "Dúvidas?" abria a
+ * conversa errada. Sem variável de ambiente agora — um valor esquecido no servidor
+ * voltaria a mandar a loja para o número errado.
  */
 export const SUPORTE_MENUZIA = {
   exibicao: '(27) 99253-4407',

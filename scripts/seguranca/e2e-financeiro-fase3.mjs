@@ -1,8 +1,7 @@
 /**
  * E2E — Financeiro Fase 3: MOTOBOY (app com login, pagamento na entrega, troco e acerto cego) — 0136.
  * Loja descartável `fin-int` (semear-demo-mesas E2E_LOJA=fin-int E2E_VIZINHA=fin-int-viz E2E_SUFIXO=finint).
- * Só caminhos reais (as rotas e telas de verdade). Nexta e "entrega sem entregador" são simulados no
- * banco (sem chamar o Nexta de verdade).
+ * Só caminhos reais (as rotas e telas de verdade). "Entrega sem entregador" é simulada no banco.
  *
  *   node scripts/seguranca/e2e-financeiro-fase3.mjs [pasta-de-prints]
  */
@@ -356,28 +355,17 @@ try {
   const acF = await api(ate.p, '/api/admin/financeiro/motoboys', 'POST', { acao: 'acertar', entregadorId: mB.id, contadoCentavos: esperadoFundo, chave: `f3-${uuid()}` })
   ok('acerto único do turno (fundo + recebido − troco): bateu', acF.s === 200 && acF.j?.diferenca_centavos === 0 && (await saldoMoto(mB.id)) === 0, texto(acF.j))
 
-  secao('11. Entrega SEM motoboy e NEXTA: registro pelo operador')
+  secao('11. Entrega SEM motoboy: registro pelo operador')
   const p12 = await delivery('F3 Sem Motoboy', 'dinheiro')
   for (const st of ['preparando', 'pronto']) await sbGer.from('pedidos').update({ status: st }).eq('id', p12.id)
   await db.query(`update pedidos set status='entregue', entregue_em=now() where id=$1`, [p12.id]) // "entrega sem entregador" (simulado)
-  const p13 = await delivery('F3 Nexta', 'dinheiro')
-  for (const st of ['preparando', 'pronto']) await sbGer.from('pedidos').update({ status: st }).eq('id', p13.id)
-  await db.query(`insert into nexta_entregas (restaurante_id, pedido_id, status) values ($1, $2, 'DELIVERED')`, [loja.id, p13.id]) // webhook do Nexta (simulado)
-  await db.query(`update pedidos set status='entregue', entregue_em=now() where id=$1`, [p13.id])
   const sr = await api(ate.p, '/api/admin/financeiro/motoboys')
-  ok('entregas sem registro aparecem para o operador (Nexta marcada)', sr.j?.semRegistro?.some((s) => s.pedidoId === p12.id) && sr.j?.semRegistro?.find((s) => s.pedidoId === p13.id)?.nexta === true)
+  ok('entregas sem registro aparecem para o operador', sr.j?.semRegistro?.some((s) => s.pedidoId === p12.id))
   await ir(ate.p, `${BASE}/admin/financeiro?secao=motoboys`)
-  await foto(ate.p, '12-sem-registro-nexta')
+  await foto(ate.p, '12-sem-registro')
   const r12 = await api(ate.p, '/api/admin/financeiro/motoboys', 'POST', { acao: 'registrar', pedidoId: p12.id, forma: 'dinheiro', recebidoCentavos: p12.totalC, chave: `f3-${uuid()}` })
   const l12 = await linhas(p12.id)
   ok('sem motoboy, dinheiro: entra direto na gaveta do turno', r12.s === 200 && l12.some((l) => l.carteira === 'gaveta' && Number(l.v) === p12.totalC && l.turno_id === turno.id), texto(l12))
-  const r13 = await api(ate.p, '/api/admin/financeiro/motoboys', 'POST', { acao: 'registrar', pedidoId: p13.id, forma: 'dinheiro', recebidoCentavos: p13.totalC, chave: `f3-${uuid()}` })
-  const nx = await api(ger.p, '/api/admin/financeiro/motoboys')
-  const nx13 = nx.j?.nexta?.find((n) => n.pedidoId === p13.id)
-  ok('Nexta em dinheiro: fica "a receber" do Nexta', r13.s === 200 && !!nx13 && nx13.valorCentavos === p13.totalC, texto(nx13))
-  const rp = await api(ger.p, '/api/admin/financeiro/motoboys', 'POST', { acao: 'repasse_nexta', lancamentoIds: [nx13?.id], chave: `f3-${uuid()}` })
-  const nx2 = await api(ger.p, '/api/admin/financeiro/motoboys')
-  ok('repasse do Nexta: sai do "a receber", entra na gaveta', rp.s === 200 && !nx2.j?.nexta?.some((n) => n.pedidoId === p13.id), texto(rp.j))
   ok('❌ esperado: registrar a mesma entrega duas vezes', (await api(ate.p, '/api/admin/financeiro/motoboys', 'POST', { acao: 'registrar', pedidoId: p12.id, forma: 'pix', chave: `f3-${uuid()}` })).s === 409)
 
   secao('11b. Pedido do PDV (balcão → entrega) pago na entrega quita a comanda (0137)')

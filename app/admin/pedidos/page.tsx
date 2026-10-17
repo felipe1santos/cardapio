@@ -57,9 +57,11 @@ import { pedidoParado, tempoParado } from '@/lib/pedido-parado'
 import { AvisosPedidos, type Aviso } from '@/components/pedidos/avisos-pedidos'
 import { useAlarme } from '@/components/admin/alarme-global'
 import { cancelarPedidoRequest } from '@/lib/cancelamento'
+import { pode, podeNotificarCanal } from '@/lib/auth/permissoes'
 import { atualizarConfigImpressao, buscarConfigImpressao, solicitarReimpressao } from '@/lib/queries/impressao'
 import {
   avancarStatusPedido,
+  entregarPedidoEmRota,
   listarPedidosConcluidos,
   listarPedidosKanban,
   listarPedidosLogistica,
@@ -176,11 +178,18 @@ const FLUXO_TONE: Record<'transit' | 'done' | 'failed', { accent: string; bg: st
  * o botão precisa estar aqui. O corpo continua sendo um botão (abre os detalhes),
  * mas o container virou div — botão dentro de botão é HTML inválido.
  */
-function FluxoCard({ order, tone, onClick, onConcluir, rotulo }: { order: Pedido; tone: 'transit' | 'done' | 'failed'; onClick: () => void; onConcluir?: () => void; rotulo?: string }) {
+function FluxoCard({ order, tone, onClick, onConcluir, rotulo, acoes }: {
+  order: Pedido; tone: 'transit' | 'done' | 'failed'; onClick: () => void; onConcluir?: () => void; rotulo?: string
+  /** Em trânsito (17/10): tocar no card abre Entregue / Não entregue — as MESMAS chamadas da tela Pedidos. */
+  acoes?: { onEntregue?: () => void; onNaoEntregue?: (motivo: string) => void }
+}) {
   const t = FLUXO_TONE[tone]
+  const [aberto, setAberto] = useState(false)
+  const [naoEntregue, setNaoEntregue] = useState<string | null>(null)
+  const temAcoes = !!(acoes?.onEntregue || acoes?.onNaoEntregue)
   return (
     <div className={`rounded-menuzia border border-border border-l-[3px] shadow-sm transition-shadow hover:shadow-md ${t.accent} ${t.bg}`} data-testid={`fluxo-${order.numero}`}>
-      <button onClick={onClick} className="w-full p-3 text-left">
+      <button onClick={temAcoes ? () => setAberto((v) => !v) : onClick} aria-expanded={temAcoes ? aberto : undefined} className="w-full p-3 text-left">
         <div className="flex items-center justify-between">
           <span className="text-sm font-semibold">#{order.numero}</span>
           <div className="flex items-center gap-1.5">
@@ -199,11 +208,37 @@ function FluxoCard({ order, tone, onClick, onConcluir, rotulo }: { order: Pedido
         </div>
         <div className="mt-1 text-[11px] font-medium text-price-text">{brl(order.total)}</div>
       </button>
-      {onConcluir && (
+      {onConcluir && !temAcoes && (
         <div className="px-3 pb-3">
           <Button variant="success" className="w-full" onClick={onConcluir}>
             Entregue
           </Button>
+        </div>
+      )}
+      {temAcoes && aberto && (
+        <div className="space-y-2 px-3 pb-3" data-testid={`fluxo-acoes-${order.numero}`}>
+          {naoEntregue === null ? (
+            <div className="flex gap-2">
+              {acoes?.onEntregue && <Button variant="success" className="flex-1" onClick={acoes.onEntregue} data-testid="fluxo-entregue">Entregue</Button>}
+              {acoes?.onNaoEntregue && (
+                <button type="button" onClick={() => setNaoEntregue('')} data-testid="fluxo-nao-entregue"
+                  className="flex-1 rounded-menuzia border border-border bg-white px-2 text-[11px] font-semibold uppercase tracking-wide text-[#B91C1C] hover:border-[#FCA5A5] hover:bg-[#FEF2F2]">
+                  Não entregue
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <input autoFocus value={naoEntregue} onChange={(e) => setNaoEntregue(e.target.value)} maxLength={200} placeholder="Motivo (ex.: cliente não atendeu)"
+                aria-label="Motivo de não entregue" data-testid="fluxo-motivo" className="h-[36px] w-full rounded-menuzia border border-border bg-white px-2 text-[13px]" />
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setNaoEntregue(null)} className="flex-1 rounded-menuzia border border-border bg-white px-2 py-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Voltar</button>
+                <button type="button" disabled={naoEntregue.trim().length < 3} onClick={() => acoes?.onNaoEntregue?.(naoEntregue.trim())} data-testid="fluxo-confirmar-nao-entregue"
+                  className="flex-1 rounded-menuzia bg-[#B91C1C] px-2 py-2 text-[11px] font-semibold uppercase tracking-wide text-white hover:bg-[#991B1B] disabled:opacity-50">Confirmar</button>
+              </div>
+            </div>
+          )}
+          <button type="button" onClick={onClick} className="w-full text-[12px] font-semibold text-primary hover:underline">Ver pedido</button>
         </div>
       )}
     </div>
@@ -592,6 +627,46 @@ export default function PedidosPage() {
    * "Entregue" do pedido pronto pula o "em rota" (loja que entrega na hora, sem
    * rota nenhuma pra registrar).
    */
+  // Papel de quem está no painel (17/10): só mostra Entregue / Não entregue a quem pode (a mesma regra do servidor).
+  const [papelPainel, setPapelPainel] = useState<string | null>(null)
+  useEffect(() => {
+    void supabase.auth.getUser().then(async ({ data }) => {
+      if (!data.user) return
+      const { data: u } = await supabase.from('usuarios').select('papel').eq('id', data.user.id).maybeSingle()
+      setPapelPainel((u?.papel as string | undefined) ?? null)
+    })
+  }, [supabase])
+  const podeEntregarRota = !!papelPainel && podeNotificarCanal(papelPainel, 'delivery')
+  const podeNaoEntregar = !!papelPainel && pode(papelPainel, 'pedidos.delivery.cancelar')
+
+  /** Em trânsito → Entregue: a MESMA chamada da tela Pedidos (entregarPedidoEmRota + aviso ao cliente). */
+  async function entregueDaRota(p: Pedido) {
+    setTransit((prev) => prev.filter((o) => o.id !== p.id))
+    setConcluded((prev) => (prev.some((o) => o.id === p.id) ? prev : [{ ...p, status: 'entregue' }, ...prev]))
+    try {
+      // Já entregue pelo motoboy: não avisa o cliente de novo.
+      if (await entregarPedidoEmRota(supabase, p.id)) notificarPedido(p.id, 'entregue')
+    } catch {
+      setError('Não foi possível marcar como entregue.')
+    } finally {
+      if (restauranteId) refetch(restauranteId)
+    }
+  }
+
+  /** Em trânsito → Não entregue: a MESMA rota de cancelamento da tela Pedidos (motivo nao_entregue + observação). */
+  async function naoEntregueDaRota(p: Pedido, motivo: string) {
+    setTransit((prev) => prev.filter((o) => o.id !== p.id))
+    setConcluded((prev) => (prev.some((o) => o.id === p.id) ? prev : [{ ...p, status: 'cancelado' }, ...prev]))
+    try {
+      await cancelarPedidoRequest(p.id, 'nao_entregue', motivo)
+      notificarPedido(p.id, 'cancelado')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Não foi possível marcar como não entregue.')
+    } finally {
+      if (restauranteId) refetch(restauranteId)
+    }
+  }
+
   async function moverPara(p: Pedido, novo: StatusPedido | null) {
     if (!novo || !restauranteId) return
     cancelarAutoAceite(p.id)
@@ -1175,7 +1250,10 @@ export default function PedidosPage() {
                       order={o}
                       tone="transit"
                       onClick={() => setDetail(o)}
-                      onConcluir={fluxo.usaLogistica ? undefined : () => moverPara(o, 'entregue')}
+                      acoes={{
+                        onEntregue: podeEntregarRota ? () => void entregueDaRota(o) : undefined,
+                        onNaoEntregue: podeNaoEntregar ? (motivo) => void naoEntregueDaRota(o, motivo) : undefined,
+                      }}
                     />
                   ))}
                 </SubSecao>

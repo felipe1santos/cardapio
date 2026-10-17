@@ -10,13 +10,12 @@ import { formatarReal } from '@/lib/moeda'
 
 /**
  * Despachar UM pedido pelo card do Kanban (item 58): menu pequeno (Flutuante, por cima de tudo)
- * com os entregadores disponíveis, "Entregar sem entregador" e o Nexta (se a loja usa). Escolhe →
+ * com os entregadores disponíveis, "Entregar sem entregador". Escolhe →
  * confirma → o pedido vai para "Em rota" na hora, pelas MESMAS funções do despacho de hoje
- * (atribuirEntregador / avancarStatusPedido + aviso ao cliente "saiu para entrega"; Nexta pela
- * rota de sempre). Com o Financeiro ligado e troco por pedido, o passo seguinte registra o troco
+ * (atribuirEntregador / avancarStatusPedido + aviso ao cliente "saiu para entrega"). Com o Financeiro ligado e troco por pedido, o passo seguinte registra o troco
  * entregue ao motoboy — o mesmo "Registrar troco" da tela Pedidos (/api/admin/caixa).
  */
-type Escolha = { tipo: 'entregador'; e: Entregador } | { tipo: 'sem' } | { tipo: 'nexta' }
+type Escolha = { tipo: 'entregador'; e: Entregador } | { tipo: 'sem' }
 interface TrocoFin { pedidoId: string; entregadorId: string; trocoCentavos: number }
 
 export function DespacharNoCard({ pedido, supabase, restauranteId, onDespachado, onErro, seta }: {
@@ -31,7 +30,6 @@ export function DespacharNoCard({ pedido, supabase, restauranteId, onDespachado,
   const botao = useRef<HTMLButtonElement>(null)
   const [aberto, setAberto] = useState(false)
   const [lista, setLista] = useState<Entregador[] | null>(null)
-  const [nexta, setNexta] = useState(false)
   const [escolha, setEscolha] = useState<Escolha | null>(null)
   const [enviando, setEnviando] = useState(false)
   const [troco, setTroco] = useState<TrocoFin | null>(null)
@@ -42,8 +40,6 @@ export function DespacharNoCard({ pedido, supabase, restauranteId, onDespachado,
     if (!aberto) return
     let vivo = true
     listarEntregadores(supabase, restauranteId).then((l) => { if (vivo) setLista(l) }).catch(() => { if (vivo) setLista([]) })
-    fetch('/api/admin/nexta/config', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null))
-      .then((d: { config?: { ativo: boolean } | null } | null) => { if (vivo) setNexta(Boolean(d?.config?.ativo)) }).catch(() => {})
     return () => { vivo = false }
   }, [aberto, supabase, restauranteId])
 
@@ -69,14 +65,9 @@ export function DespacharNoCard({ pedido, supabase, restauranteId, onDespachado,
           }
           if (t) { setTroco(t); setValorTroco((t.trocoCentavos / 100).toFixed(2).replace('.', ',')); setEscolha(null); return }
         }
-      } else if (escolha.tipo === 'sem') {
+      } else {
         await avancarStatusPedido(supabase, pedido.id, 'em_rota', 'pronto')
         notificarPedido(pedido.id, 'em_rota')
-        onDespachado(pedido, null)
-      } else {
-        const res = await fetch('/api/admin/nexta/despachar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pedidoId: pedido.id }) })
-        const j = await res.json().catch(() => ({})) as { error?: string }
-        if (!res.ok) throw new Error(j.error ?? 'O Nexta não aceitou a corrida.')
         onDespachado(pedido, null)
       }
       fechar()
@@ -126,7 +117,7 @@ export function DespacharNoCard({ pedido, supabase, restauranteId, onDespachado,
         ) : escolha ? (
           <div className="space-y-2 p-1.5" data-testid="despachar-confirmar">
             <p className="text-[13px] text-text-main">
-              {escolha.tipo === 'entregador' ? <>Despachar <b>#{pedido.numero}</b> com <b>{escolha.e.nome}</b>?</> : escolha.tipo === 'sem' ? <>Entregar <b>#{pedido.numero}</b> sem entregador?</> : <>Chamar o <b>Nexta</b> para o <b>#{pedido.numero}</b>?</>}
+              {escolha.tipo === 'entregador' ? <>Despachar <b>#{pedido.numero}</b> com <b>{escolha.e.nome}</b>?</> : <>Entregar <b>#{pedido.numero}</b> sem entregador?</>}
             </p>
             {pedido.formaPagamento === 'dinheiro' && pedido.trocoPara ? <p className="text-[12px] text-[#B45309]">Troco para {formatarReal(pedido.trocoPara)}.</p> : null}
             <div className="flex justify-end gap-2">
@@ -147,7 +138,6 @@ export function DespacharNoCard({ pedido, supabase, restauranteId, onDespachado,
               </button>
             ))}
             <div className="mt-1 border-t border-border pt-1">
-              {nexta && <button type="button" role="menuitem" className={ITEM} onClick={() => setEscolha({ tipo: 'nexta' })} data-testid="despachar-nexta">Nexta (corrida)</button>}
               <button type="button" role="menuitem" className={ITEM} onClick={() => setEscolha({ tipo: 'sem' })} data-testid="despachar-sem-entregador">Entregar sem entregador</button>
             </div>
           </div>

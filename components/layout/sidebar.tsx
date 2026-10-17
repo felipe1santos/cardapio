@@ -211,7 +211,7 @@ export function Sidebar({
           ícone Material preenchido cinza, item ativo com fundo cinza-claro arredondado. */}
       <nav data-menu-principal="" style={FONTE_MENU} className="flex flex-1 flex-col gap-[2px] overflow-y-auto px-2 py-3">
         {items.map((item) => {
-          // Prefixo, não igualdade: seções com subpáginas (ex.: /admin/integracoes/nexta)
+          // Prefixo, não igualdade: seções com subpáginas (ex.: /admin/ajustes/impressao)
           // precisam manter o item do menu destacado.
           const isActive = activeHref === item.href || activeHref.startsWith(`${item.href}/`)
           const iconPath = NAV_ICONS[item.href]

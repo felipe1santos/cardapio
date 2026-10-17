@@ -106,7 +106,7 @@ describe('useRealtimeComFallback', () => {
     renderHook(() =>
       useRealtimeComFallback({
         supabase, canal: 'multi',
-        tabelas: [{ tabela: 'pedidos' }, { tabela: 'entregadores' }, { tabela: 'nexta_entregas' }],
+        tabelas: [{ tabela: 'pedidos' }, { tabela: 'entregadores' }, { tabela: 'pedido_itens' }],
         aoEvento: vi.fn(), aoSincronizar: vi.fn(),
       })
     )

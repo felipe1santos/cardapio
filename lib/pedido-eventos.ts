@@ -7,10 +7,10 @@ import { notificarPedido } from '@/lib/whatsapp'
  * Efeitos colaterais de uma etapa do pedido: avisa o cliente no WhatsApp e roda o motor
  * de fidelidade nos marcos que importam.
  *
- * Existe porque o status do pedido passou a ter DOIS disparadores: o painel (que chama
- * /api/pedidos/[id]/notificar) e o webhook do Nexta (que move o pedido sozinho quando o
- * motoboy coleta/entrega). Sem um ponto único, uma entrega feita pelo Nexta deixaria de
- * pontuar fidelidade — regressão silenciosa e cara.
+ * Existe porque o status do pedido tem mais de um disparador: o painel (que chama
+ * /api/pedidos/[id]/notificar) e o app do motoboy (que move o pedido sozinho quando ele
+ * coleta/entrega). Sem um ponto único, uma entrega feita pelo app deixaria de pontuar
+ * fidelidade — regressão silenciosa e cara.
  *
  * Fogo-e-esquece por natureza: nenhum destes efeitos pode derrubar a transição de status
  * que já aconteceu, então tudo aqui é try/catch + log.

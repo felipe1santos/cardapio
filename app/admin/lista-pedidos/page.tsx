@@ -2,21 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRealtimeComFallback } from '@/lib/realtime-fallback'
-import { Bike, Phone, MapPin, Zap, RefreshCw, Volume2, VolumeX, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react'
+import { Bike, ChevronDown, ChevronUp } from 'lucide-react'
 import { avisoDePedidosParados } from '@/lib/pedido-parado'
 import { TopBar } from '@/components/layout/topbar'
-import { TONS_PAINEL, type TomPainel } from '@/components/admin/cartao-numero'
 import { ICONES } from '@/lib/icones-painel'
 import { mascararTelefoneBR, telefoneCompleto } from '@/lib/telefone'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { RouteMap } from '@/components/maps/route-map'
 import { buscarLojaNoMapa, type LojaDoMapa } from '@/lib/maps/loja-mapa'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { notificarPedido } from '@/lib/notificar'
-import { nextaEntregaAtiva, nextaEventoTexto } from '@/lib/nexta-eventos'
-import { listarNextaEntregas, type NextaEntregaLinha } from '@/lib/queries/nexta'
 import {
   atualizarPerfilEntregador,
   criarEntregador,
@@ -37,8 +33,6 @@ import { DinheiroComMotoboys } from '@/components/logistica/motoboy-financeiro'
 import { AcessoMotoboy } from '@/components/logistica/acesso-motoboy'
 import { buscarFluxoLoja } from '@/lib/queries/ajustes'
 import { formatarReal } from '@/lib/moeda'
-import { AlertaTroco } from '@/components/pedidos/info-pagamento'
-import { rotuloForma } from '@/lib/pdv-pagamento'
 import { PainelPedido } from '@/components/pedidos/painel-pedido'
 import { solicitarReimpressao } from '@/lib/queries/impressao'
 import { useCoordenadasPedidos } from '@/lib/mapa/cliente'
@@ -103,108 +97,11 @@ function tempoRelativo(iso: string) {
   return `há ${Math.floor(min / 60)}h`
 }
 
-function endereco(p: Pedido) {
-  // A referência entra aqui porque é aqui que o operador lê o endereço antes de
-  // despachar — é o dado que evita a ligação "não achei a casa".
-  const partes = [p.enderecoBairro, p.enderecoRua && `${p.enderecoRua}, ${p.enderecoNumero}`, p.enderecoReferencia].filter(Boolean)
-  return partes.join(' · ') || 'Entrega'
-}
-
-
-// Painel do lojista Nexta — não tem deep link por entrega (o id que eles usam na UI deles
-// é interno e nunca chega até nós), então o atalho abre o monitor geral.
-const NEXTA_PAINEL_URL = 'https://nexta-est.flutterflow.app/monitor'
-
-/** Etapas mostradas na timeline do card "Com o Nexta", na ordem do ciclo. */
-const TIMELINE_NEXTA: { status: string; label: string }[] = [
-  { status: 'PENDING', label: 'Aguardando aceite' },
-  { status: 'ACCEPTED', label: 'Aceito' },
-  { status: 'PICKUP_ONGOING', label: 'Indo coletar' },
-  { status: 'ARRIVED_AT_MERCHANT', label: 'Na loja' },
-]
-
-/**
- * Alerta sonoro dos marcos do Nexta. Mesmo padrão de Web Audio do Kanban
- * (`playNewOrderSound`), com timbres distintos por tipo de evento:
- * subindo = entregador vindo buscar; descendo = deu problema.
- */
-function playNextaSound(tipo: 'indo_coletar' | 'aviso' | 'erro') {
-  try {
-    const AudioCtx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
-    const ctx = new AudioCtx()
-    const beep = (freq: number, start: number) => {
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      osc.type = 'sine'
-      osc.frequency.value = freq
-      gain.gain.setValueAtTime(0.0001, ctx.currentTime + start)
-      gain.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + start + 0.02)
-      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + start + 0.25)
-      osc.connect(gain)
-      gain.connect(ctx.destination)
-      osc.start(ctx.currentTime + start)
-      osc.stop(ctx.currentTime + start + 0.25)
-    }
-    const notas: Record<typeof tipo, [number, number]> = {
-      indo_coletar: [660, 990], // sobe: o motoboy está vindo
-      aviso: [880, 880],
-      erro: [660, 440], // desce: rejeição/cancelamento
-    }
-    const [a, b] = notas[tipo]
-    beep(a, 0)
-    beep(b, 0.18)
-    setTimeout(() => ctx.close(), 600)
-  } catch {
-    /* navegador sem suporte a Web Audio — silencioso */
-  }
-}
 
 /* ── Peças da tela ─────────────────────────────────────────────────────────
    Mesmo vocabulário do Dashboard: cartão branco de borda fina, cabeçalho
    branco com ícone em bolha colorida (a cor diz o assunto, não pinta o bloco
    inteiro) e estados vazios com uma frase que diz o que fazer. */
-
-function CabecalhoSecao({
-  icone,
-  tom,
-  titulo,
-  contador,
-  descricao,
-  acoes,
-  antes,
-  fixo = false,
-}: {
-  icone: React.ReactNode
-  tom: TomPainel
-  titulo: string
-  contador?: number
-  descricao?: React.ReactNode
-  acoes?: React.ReactNode
-  /** Controle à esquerda do ícone (o "selecionar todos"). */
-  antes?: React.ReactNode
-  /** Gruda no topo da coluna rolável. */
-  fixo?: boolean
-}) {
-  const t = TONS_PAINEL[tom]
-  return (
-    <div className={`flex-shrink-0 border-b border-[var(--adm-borda)] bg-white px-4 py-3 ${fixo ? 'sticky top-0 z-20 rounded-t-[6px]' : ''}`}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2.5">
-          {antes}
-          <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full" style={{ backgroundColor: t.fundo, color: t.cor }}>
-            {icone}
-          </span>
-          <h3 className="truncate text-[14px] font-semibold text-[var(--adm-texto-forte)]">{titulo}</h3>
-          {contador !== undefined && (
-            <span className="rounded-full bg-[#f1f2f4] px-2 py-[1px] text-[11px] font-semibold text-[var(--adm-texto-medio)]">{contador}</span>
-          )}
-        </div>
-        {acoes && <div className="flex flex-wrap items-center gap-2">{acoes}</div>}
-      </div>
-      {descricao && <p className="mt-1.5 text-[12px] text-[var(--adm-texto-suave)]">{descricao}</p>}
-    </div>
-  )
-}
 
 /** Foto do entregador ou a inicial num círculo com cor estável pelo nome. */
 const CORES_AVATAR = ['#A855F7', '#F97316', '#10B981', '#3B82F6', '#F59E0B', '#EF4444']
@@ -236,32 +133,6 @@ function Avatar({ nome, fotoUrl, tamanho = 40 }: { nome: string; fotoUrl: string
   )
 }
 
-/** Número, cliente, endereço e pagamento de um pedido — igual em todas as listas. */
-function ResumoPedido({ order, selo, extra }: { order: Pedido; selo?: React.ReactNode; extra?: React.ReactNode }) {
-  return (
-    <>
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[14px] font-semibold tabular-nums">#{order.numero}</span>
-        <span className="truncate text-[13.5px] font-semibold text-[var(--adm-texto)]">{order.clienteNome || 'Cliente'}</span>
-        {selo}
-        <span className="text-[11px] text-[var(--adm-texto-suave)]">{tempoRelativo(order.criadoEm)}</span>
-      </div>
-      <div className="mt-1 flex items-start gap-1.5 text-[12.5px] text-[var(--adm-texto-medio)]">
-        <MapPin className="mt-[2px] h-3.5 w-3.5 flex-shrink-0 text-[var(--adm-texto-suave)]" />
-        <span>{endereco(order)}</span>
-      </div>
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Badge tone={order.formaPagamento === 'dinheiro' ? 'pending' : 'alert'}>{rotuloForma(order.formaPagamento, order.cartaoTipo, order.pagamentoOnline)}</Badge>
-        {order.formaPagamento === 'dinheiro' && order.trocoPara !== null && <Badge tone="paused">Troco para {brl(order.trocoPara)}</Badge>}
-        {!order.pago && <Badge tone="paused">{order.tipo === 'entrega' ? 'A receber' : 'A pagar'}</Badge>}
-        <span className="text-[13.5px] font-semibold tabular-nums text-price-text">{brl(order.total)}</span>
-        {extra}
-      </div>
-      <div className="mt-1.5"><AlertaTroco p={order} /></div>
-    </>
-  )
-}
-
 const CLASSE_CAMPO =
   'h-[38px] w-full rounded-[4px] border border-[var(--adm-borda)] bg-white px-2.5 font-sans text-[13px] outline-none transition-colors focus:border-[var(--adm-azul)]'
 
@@ -281,7 +152,7 @@ function CampoEntregador({ rotulo, obrigatorio, dica, children }: { rotulo: stri
 /**
  * "Pedidos" (item 58, antes "Logística"): indicadores do dia, a lista de pedidos finalizados
  * (entregues, retirados e cancelados) com busca, status, valor e período, e o detalhe ao clicar;
- * "Em rota agora" (marcar entregue / não entregue, Nexta) e a aba Entregadores de sempre. O
+ * "Em rota agora" (marcar entregue / não entregue) e a aba Entregadores de sempre. O
  * despacho saiu daqui para o Kanban (botão "Despachar" e despacho pelo card).
  */
 export default function PedidosFinalizadosPage() {
@@ -341,29 +212,18 @@ export default function PedidosFinalizadosPage() {
   const [addDriverOpen, setAddDriverOpen] = useState(false)
 
 
-  const [nextaAtivo, setNextaAtivo] = useState(false)
-  const [nextaEntregas, setNextaEntregas] = useState<NextaEntregaLinha[]>([])
-  const [nextaBusy, setNextaBusy] = useState<string | null>(null)
-  const [cancelandoNexta, setCancelandoNexta] = useState<string | null>(null)
-  const [somNexta, setSomNexta] = useState(false)
-  // Status já visto por entrega — é a comparação com ele que decide se toca o som.
-  const statusNextaVisto = useRef<Map<string, string>>(new Map())
 
   const refetchAgora = useCallback(
     async (id: string) => {
       try {
-        const [pedidos, entregadores, finalizados, entregasNexta] = await Promise.all([
+        const [pedidos, entregadores, finalizados] = await Promise.all([
           listarPedidosLogistica(supabase, id),
           listarEntregadores(supabase, id),
           listarPedidosConcluidos(supabase, id, inicioDoDiaISO()),
-          // Janela curta: além das entregas em andamento, precisamos das recém-recusadas
-          // pra avisar o lojista por que aquele pedido voltou pra fila.
-          listarNextaEntregas(supabase, id, new Date(Date.now() - 12 * 3600 * 1000).toISOString()).catch(() => []),
         ])
         setOrders(pedidos)
         setDrivers(entregadores)
         setConcluidos(finalizados)
-        setNextaEntregas(entregasNexta)
       } catch {
         setError('Não foi possível carregar a logística.')
       }
@@ -371,7 +231,7 @@ export default function PedidosFinalizadosPage() {
     [supabase]
   )
 
-  // Rajada de eventos (heartbeat de cada motoboy a 30s, webhook do Nexta, a própria
+  // Rajada de eventos (heartbeat de cada motoboy a 30s, a própria
   // atribuição) disparava uma recarga completa por evento, várias ao mesmo tempo — a
   // tela ficava lenta. Agora roda no máximo uma por vez e junta o que chegar no meio
   // numa única recarga ao final.
@@ -423,14 +283,12 @@ export default function PedidosFinalizadosPage() {
   // Canal Realtime num effect próprio: o cleanup retornado por uma função
   // async nunca é chamado pelo React, então o canal ficava aberto pra sempre
   // a cada remontagem da página, vazando conexões Realtime ao longo do turno.
-  // Eventos do Nexta chegam por webhook e viram UPDATE em `nexta_entregas` — é
-  // assim que "entregador a caminho" aparece na tela sem ninguém dar refresh.
   const { intervaloMs } = useRealtimeComFallback({
     supabase,
     canal: restauranteId ? `logistica-${restauranteId}` : null,
     tabelas: useMemo(() => {
       const filtro = restauranteId ? `restaurante_id=eq.${restauranteId}` : undefined
-      return [{ tabela: 'pedidos', filtro }, { tabela: 'entregadores', filtro }, { tabela: 'nexta_entregas', filtro }]
+      return [{ tabela: 'pedidos', filtro }, { tabela: 'entregadores', filtro }]
     }, [restauranteId]),
     aoEvento: useCallback(() => { if (restauranteId) refetch(restauranteId) }, [refetch, restauranteId]),
     aoSincronizar: useCallback(() => { if (restauranteId) refetch(restauranteId) }, [refetch, restauranteId]),
@@ -439,15 +297,6 @@ export default function PedidosFinalizadosPage() {
   useEffect(() => {
     const inicial = tabDaUrl()
     if (inicial) setTab(inicial)
-  }, [])
-
-  // A config do Nexta mora numa tabela sem RLS pra `authenticated` (guarda o segredo),
-  // então quem responde é o route handler.
-  useEffect(() => {
-    fetch('/api/admin/nexta/config')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d: { config?: { ativo: boolean } | null } | null) => setNextaAtivo(Boolean(d?.config?.ativo)))
-      .catch(() => setNextaAtivo(false))
   }, [])
 
   function irParaTab(proxima: Tab) {
@@ -484,28 +333,9 @@ export default function PedidosFinalizadosPage() {
   }, [supabase, restauranteId, periodo, intervalo, concluidos])
   useEffect(() => { setReimpEstado('idle'); setEditandoPag(false) }, [detalhe?.id])
 
-  /** Prontos sem entregador próprio — inclui os que já foram mandados pro Nexta. */
-  const unassignedTodos = useMemo(() => orders.filter((o) => o.status === 'pronto' && !o.entregadorId), [orders])
   const inRoute = orders.filter((o) => o.status === 'em_rota')
   // Pedido aberto há mais de 12h: um dia alguém não marcou "entregue" e ele ficou.
   const avisoParados = avisoDePedidosParados(orders, Date.now())
-
-  // Entrega ativa do Nexta por pedido — é o que tira o pedido da fila de despacho.
-  const nextaPorPedido = useMemo(() => {
-    const mapa = new Map<string, NextaEntregaLinha>()
-    for (const e of nextaEntregas) if (nextaEntregaAtiva(e.status)) mapa.set(e.pedidoId, e)
-    return mapa
-  }, [nextaEntregas])
-
-  /** Pedidos "Com o Nexta": solicitados e ainda não coletados (depois disso viram "Em rota"). */
-  const comNexta = useMemo(
-    () => unassignedTodos.filter((o) => nextaPorPedido.has(o.id)),
-    [unassignedTodos, nextaPorPedido]
-  )
-
-  useEffect(() => {
-    setSomNexta(localStorage.getItem('menuzia:logistica-som') !== 'off')
-  }, [])
 
   useEffect(() => {
     setResumoVisivel(localStorage.getItem(RESUMO_KEY) !== 'oculto')
@@ -519,65 +349,6 @@ export default function PedidosFinalizadosPage() {
     })
   }
 
-  function alternarSomNexta() {
-    setSomNexta((atual) => {
-      const proximo = !atual
-      localStorage.setItem('menuzia:logistica-som', proximo ? 'on' : 'off')
-      return proximo
-    })
-  }
-
-  // Som nos marcos do Nexta. Compara com o status já visto pra tocar uma vez por
-  // transição — os eventos de movimento repetem sozinhos e apitariam sem parar.
-  useEffect(() => {
-    const vistos = statusNextaVisto.current
-    const primeiraCarga = vistos.size === 0
-    for (const e of nextaEntregas) {
-      const antes = vistos.get(e.id)
-      vistos.set(e.id, e.status)
-      // Na primeira carga da página tudo é "novo" — apitar aqui seria só barulho.
-      if (primeiraCarga || antes === undefined || antes === e.status || !somNexta) continue
-      if (e.status === 'PICKUP_ONGOING') playNextaSound('indo_coletar')
-      else if (e.status === 'ARRIVED_AT_MERCHANT' || e.status === 'RETURNING_TO_MERCHANT' || e.status === 'RETURNED_TO_MERCHANT') playNextaSound('aviso')
-      else if (e.status === 'REJECTED' || e.status === 'CANCELLED') playNextaSound('erro')
-    }
-  }, [nextaEntregas, somNexta])
-
-  async function cancelarNexta(orderId: string) {
-    setNextaBusy(orderId)
-    setCancelandoNexta(null)
-    try {
-      const res = await fetch('/api/admin/nexta/cancelar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pedidoId: orderId, reason: 'PROBLEM_AT_MERCHANT', action: 'CANCEL_DELIVERY' }),
-      })
-      const data = (await res.json()) as { error?: string; additionalCharges?: boolean }
-      if (!res.ok) throw new Error(data.error ?? 'Falha ao cancelar no Nexta.')
-      if (data.additionalCharges) setError('Corrida cancelada — o Nexta informou que este cancelamento tem cobrança adicional.')
-      if (restauranteId) await refetch(restauranteId)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Não foi possível cancelar no Nexta.')
-    } finally {
-      setNextaBusy(null)
-    }
-  }
-
-  async function reconciliarNexta(orderId: string) {
-    setNextaBusy(orderId)
-    try {
-      await fetch('/api/admin/nexta/reconciliar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pedidoId: orderId }),
-      })
-      if (restauranteId) await refetch(restauranteId)
-    } catch {
-      setError('Não foi possível atualizar a entrega no Nexta.')
-    } finally {
-      setNextaBusy(null)
-    }
-  }
   const locationDriver = drivers.find((d) => d.id === locationDriverId) ?? null
   const profileDriver = drivers.find((d) => d.id === profileDriverId) ?? null
   // Mapa da localização: coordenadas pelo servidor (gravadas no pedido), uma vez por pedido; o navegador nunca
@@ -834,7 +605,7 @@ export default function PedidosFinalizadosPage() {
             <div className="min-w-0 max-md:w-full" data-testid="indicadores-pedidos">
               <LinhaResumos itens={[
                 { rotulo: 'Entregues hoje', valor: <>{entreguesHoje.length} <span className="font-normal text-[var(--adm-texto-suave)]">· {brl(entreguesHoje.reduce((s, o) => s + o.total, 0))}</span></>, icone: ICONES.concluido, tom: 'verde', testid: 'resumo-entregues' },
-                { rotulo: 'Em rota agora', valor: inRoute.length + comNexta.length, icone: ICONES.logistica, tom: 'roxo', testid: 'resumo-em-rota', dica: comNexta.length ? `${comNexta.length} com o Nexta` : 'com seus entregadores' },
+                { rotulo: 'Em rota agora', valor: inRoute.length, icone: ICONES.logistica, tom: 'roxo', testid: 'resumo-em-rota', dica: 'com seus entregadores' },
                 { rotulo: 'Online agora', valor: <>{onlineAgora.online} <span className="font-normal text-[var(--adm-texto-suave)]">de {onlineAgora.total}</span></>, icone: ICONES.entregador, tom: 'azul', testid: 'resumo-online', dica: 'com o app aberto' },
               ]} />
             </div>
@@ -875,143 +646,10 @@ export default function PedidosFinalizadosPage() {
             <div className="flex flex-col gap-4" data-testid="aba-pedidos">
             <div className="flex flex-col gap-4" data-testid="em-rota-agora">
 
-            {/* Com o Nexta: solicitado, ainda não coletado. Depois da coleta vai pra "Em rota". */}
-            {nextaAtivo && comNexta.length > 0 && (
-              <div className="rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white">
-                <CabecalhoSecao
-                  fixo
-                  icone={<Zap className="h-4 w-4" strokeWidth={2.2} />}
-                  tom="azul"
-                  titulo="Com o Nexta"
-                  contador={comNexta.length}
-                  descricao="O Nexta já foi chamado e avisado que está pronto para coleta."
-                  acoes={
-                    <button
-                      onClick={alternarSomNexta}
-                      title={somNexta ? 'Desligar o alerta sonoro do Nexta' : 'Ligar o alerta sonoro do Nexta'}
-                      className={`inline-flex items-center gap-1.5 rounded-[4px] border px-2.5 py-1.5 text-[12px] font-semibold transition-colors ${
-                        somNexta
-                          ? 'border-[var(--adm-azul)] bg-[var(--adm-azul-claro)] text-[var(--adm-azul-escuro)]'
-                          : 'border-[var(--adm-borda)] bg-white text-[var(--adm-texto-medio)] hover:border-[var(--adm-borda-forte)]'
-                      }`}
-                    >
-                      {somNexta ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />} Som
-                    </button>
-                  }
-                />
-                <div className="divide-y divide-[var(--adm-borda)]">
-                  {comNexta.map((order) => {
-                    const entrega = nextaPorPedido.get(order.id)!
-                    const etapaAtual = TIMELINE_NEXTA.findIndex((e) => e.status === entrega.status)
-                    const ocupado = nextaBusy === order.id
-                    return (
-                      <div key={order.id} className="p-4">
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                          <div className="min-w-0">
-                            <ResumoPedido
-                              order={order}
-                              selo={
-                                <>
-                                  <span className="inline-flex items-center gap-1 rounded-[4px] bg-[#E0F2FE] px-1.5 py-0.5 text-[11px] font-semibold text-[#0369A1]">
-                                    <Zap className="h-3 w-3" /> Nexta
-                                  </span>
-                                  <Badge tone="alert">{nextaEventoTexto(entrega.status)}</Badge>
-                                </>
-                              }
-                              extra={
-                                entrega.preco !== null && (
-                                  <span className="rounded-[4px] bg-price-bg px-1.5 py-0.5 text-[11px] font-semibold text-price-text">
-                                    Corrida {brl(entrega.preco)}
-                                  </span>
-                                )
-                              }
-                            />
-
-                            {/* Timeline compacta: cada etapa acesa até a atual. Etapa
-                                desconhecida (enum novo) some com a timeline, não quebra. */}
-                            {etapaAtual >= 0 && (
-                              <div className="mt-2.5 flex items-center gap-1">
-                                {TIMELINE_NEXTA.map((etapa, i) => (
-                                  <div key={etapa.status} className="flex min-w-0 flex-1 flex-col gap-1">
-                                    <span className={`h-1 rounded-full ${i <= etapaAtual ? 'bg-[var(--adm-azul)]' : 'bg-[#e5e7eb]'}`} />
-                                    <span className={`truncate text-[10px] font-semibold ${i <= etapaAtual ? 'text-[var(--adm-azul-escuro)]' : 'text-[var(--adm-texto-suave)]'}`}>
-                                      {etapa.label}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            {entrega.entregadorNome && (
-                              <div className="mt-2.5 flex items-center gap-2">
-                                <Avatar nome={entrega.entregadorNome} fotoUrl={entrega.entregadorFotoUrl} tamanho={28} />
-                                <span className="text-[13px] font-semibold">{entrega.entregadorNome}</span>
-                                {entrega.entregadorTelefone && (
-                                  <a href={`tel:${entrega.entregadorTelefone}`} className="inline-flex items-center gap-1 text-[12px] text-[var(--adm-azul)] hover:underline">
-                                    <Phone className="h-3.5 w-3.5" /> {entrega.entregadorTelefone}
-                                  </a>
-                                )}
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="flex flex-shrink-0 flex-wrap gap-2">
-                            <Button variant="outline" onClick={() => reconciliarNexta(order.id)} disabled={ocupado} title="Buscar o status atual no Nexta">
-                              <RefreshCw className="h-4 w-4" />
-                            </Button>
-                            <a
-                              href={NEXTA_PAINEL_URL}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title="Abrir o painel do Nexta (código de coleta, ocorrências etc.)"
-                              className="inline-flex items-center justify-center gap-1.5 rounded-menuzia border border-border bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-main hover:border-primary hover:text-primary"
-                            >
-                              <ExternalLink className="h-3.5 w-3.5" /> Nexta
-                            </a>
-                            {entrega.trackingUrl && (
-                              <a
-                                href={entrega.trackingUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center justify-center gap-1.5 rounded-menuzia border border-border bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-main hover:border-primary hover:text-primary"
-                              >
-                                Rastrear
-                              </a>
-                            )}
-                            <Button variant="ghost" className="text-danger hover:bg-danger-bg" onClick={() => setCancelandoNexta(order.id)} disabled={ocupado}>
-                              Cancelar
-                            </Button>
-                          </div>
-                        </div>
-
-                        {cancelandoNexta === order.id && (
-                          <div className="mt-3 rounded-[6px] border border-danger bg-danger-bg p-3">
-                            <p className="mb-2.5 text-[12px] font-medium text-danger">
-                              Cancelar a corrida do pedido #{order.numero} no Nexta? Dependendo do estágio, o Nexta pode cobrar pelo
-                              cancelamento — avisamos aqui se houver cobrança. O pedido volta para a fila de despacho.
-                            </p>
-                            <div className="flex gap-2">
-                              <Button variant="secondary" onClick={() => setCancelandoNexta(null)}>
-                                Voltar
-                              </Button>
-                              <Button variant="outline" className="border-danger text-danger hover:bg-white" onClick={() => cancelarNexta(order.id)} disabled={ocupado}>
-                                {ocupado ? 'Cancelando…' : 'Cancelar corrida'}
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-
               <EmRotaNovo
                 pedidos={inRoute}
                 drivers={drivers}
                 agora={Date.now()}
-                nexta={(id) => nextaPorPedido.get(id)}
                 onEntregue={deliver}
                 onNaoEntregue={naoEntregue}
                 onMapa={setLocationDriverId}

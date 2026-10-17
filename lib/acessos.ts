@@ -21,7 +21,7 @@ export const AREAS = [
   { chave: 'clientes', rotulo: 'Clientes', href: '/admin/clientes', prefixos: ['/admin/clientes', '/api/admin/clientes'] },
   { chave: 'campanhas', rotulo: 'Campanhas', href: '/admin/campanhas', prefixos: ['/admin/campanhas', '/api/admin/campanhas'] },
   { chave: 'fidelidade', rotulo: 'Fidelidade', href: '/admin/fidelidade', prefixos: ['/admin/fidelidade', '/api/admin/fidelidade'] },
-  { chave: 'integracoes', rotulo: 'Integrações', href: '/admin/integracoes', prefixos: ['/admin/integracoes', '/api/admin/nexta', '/api/admin/whatsapp/robo', '/api/admin/whatsapp/conectar', '/api/admin/whatsapp/desconectar', '/api/admin/whatsapp/status'] },
+  { chave: 'integracoes', rotulo: 'Integrações', href: '/admin/integracoes', prefixos: ['/admin/integracoes', '/api/admin/whatsapp/robo', '/api/admin/whatsapp/conectar', '/api/admin/whatsapp/desconectar', '/api/admin/whatsapp/status'] },
   { chave: 'equipe', rotulo: 'Equipe', href: '/admin/equipe', prefixos: ['/admin/equipe', '/api/admin/equipe'] },
   { chave: 'impressao', rotulo: 'Impressão', href: '/admin/ajustes/impressao', prefixos: ['/admin/ajustes/impressao', '/admin/impressao', '/api/admin/impressao'] },
   { chave: 'ajustes', rotulo: 'Ajustes', href: '/admin/ajustes', prefixos: ['/admin/ajustes', '/api/admin/modulos'] },
@@ -146,7 +146,7 @@ export function resumoAcessos(papel: string, acessos: Acessos | null): string {
 export function sensivelDaRequisicao(metodo: string, pathname: string, corpo: unknown): Sensivel | null {
   if (metodo !== 'POST' && metodo !== 'PATCH' && metodo !== 'PUT') return null
   const c = (corpo && typeof corpo === 'object' ? corpo : {}) as Record<string, unknown>
-  if (/^\/api\/admin\/(pedidos|pdv\/pedido)\/[^/]+\/cancelar\/?$/.test(pathname) || pathname === '/api/admin/nexta/cancelar') return 'cancelar_pedido'
+  if (/^\/api\/admin\/(pedidos|pdv\/pedido)\/[^/]+\/cancelar\/?$/.test(pathname)) return 'cancelar_pedido'
   if (/^\/api\/admin\/(comandas\/[^/]+|mesas\/[^/]+\/conta)\/?$/.test(pathname)) {
     const acao = String(c.acao ?? '')
     if (['cancelar_conta', 'cancelar_comanda', 'cancelar_pedido', 'cancelar_item', 'decidir_cancelamento'].includes(acao)) return 'cancelar_pedido'
