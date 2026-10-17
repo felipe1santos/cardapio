@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
+import { lojasComFinanceiro } from '@/lib/financeiro/nivel'
 import { varrerLoja } from '@/lib/financeiro/vigia'
 
 // Cron (Coolify), a cada 15 min: POST /api/cron/financeiro-vigia com header "x-cron-secret: <CRON_SECRET>".
@@ -15,7 +16,8 @@ export async function POST(request: Request) {
   const relogio = process.env.VIGIA_RELOGIO_TESTE === '1' ? Date.parse(request.headers.get('x-vigia-agora') ?? '') : NaN
   const agora = Number.isFinite(relogio) ? relogio : Date.now()
   const admin = getAdminSupabase()
-  const { data: lojas } = await admin.from('restaurantes').select('id').eq('financeiro_ativo', true)
+  // Só com o módulo Financeiro liberado no Super Admin (16/10).
+  const lojas = (await lojasComFinanceiro(admin)).map((id) => ({ id }))
   const total: Record<string, number> = {}
   let falhas = 0
   for (const l of lojas ?? []) {

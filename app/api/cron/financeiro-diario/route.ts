@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
+import { lojasComFinanceiro } from '@/lib/financeiro/nivel'
 import { alertasDeVencimento, gerarRecorrencias } from '@/lib/financeiro/contas'
 
 // Cron (Coolify), de hora em hora: POST /api/cron/financeiro-diario com header "x-cron-secret: <CRON_SECRET>".
@@ -10,7 +11,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
   const admin = getAdminSupabase()
-  const { data: lojas } = await admin.from('restaurantes').select('id').eq('financeiro_ativo', true)
+  // Só com o módulo Financeiro liberado no Super Admin (16/10).
+  const lojas = (await lojasComFinanceiro(admin)).map((id) => ({ id }))
   const out = { lojas: 0, recorrencias: 0, alertas: 0, falhas: 0 }
   for (const l of lojas ?? []) {
     try {

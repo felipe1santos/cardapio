@@ -25,3 +25,16 @@ export async function nivelFinanceiro(admin: SupabaseClient, restauranteId: stri
 export async function controleCaixaAtivo(admin: SupabaseClient, restauranteId: string | null | undefined): Promise<boolean> {
   return (await nivelFinanceiro(admin, restauranteId)).controleCaixa
 }
+
+/**
+ * Lojas onde o Financeiro FUNCIONA (crons de alertas e contas): financeiro ligado E módulo liberado no Super Admin
+ * (16/10/2026: o módulo é a única chave; desligado, nenhum efeito automático do Financeiro roda na loja).
+ */
+export async function lojasComFinanceiro(admin: import('@supabase/supabase-js').SupabaseClient): Promise<string[]> {
+  const [{ data: lojas }, { data: libs }] = await Promise.all([
+    admin.from('restaurantes').select('id').eq('financeiro_ativo', true),
+    admin.from('loja_modulos').select('restaurante_id').eq('modulo', 'financeiro').eq('liberado', true),
+  ])
+  const liberadas = new Set(((libs ?? []) as { restaurante_id: string }[]).map((x) => x.restaurante_id))
+  return ((lojas ?? []) as { id: string }[]).map((l) => l.id).filter((id) => liberadas.has(id))
+}

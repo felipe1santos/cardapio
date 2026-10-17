@@ -92,7 +92,10 @@ export function useEstadoSessao(): EstadoSessao | null {
     // Várias instâncias do hook ouvem o mesmo evento: só a primeira relê, as outras pegam a mesma resposta.
     const aoFocar = () => { if (document.visibilityState === 'visible') { if (!emVoo || Date.now() - emVoo.em > 2000) emVoo = null; carregar() } }
     document.addEventListener('visibilitychange', aoFocar)
-    return () => { vivo = false; window.removeEventListener(EVENTO_ESTADO, carregar); document.removeEventListener('visibilitychange', aoFocar) }
+    // Módulo ligado/desligado no Super Admin com o painel aberto e sem trocar de aba: relê a cada 1 min (16/10). As rotas e
+    // APIs já bloqueiam na hora pelo servidor; isto só atualiza o menu (cadeado). Leitura do banco, sem custo de API.
+    const relogio = setInterval(() => { if (document.visibilityState === 'visible') aoFocar() }, 60_000)
+    return () => { vivo = false; clearInterval(relogio); window.removeEventListener(EVENTO_ESTADO, carregar); document.removeEventListener('visibilitychange', aoFocar) }
   }, [])
   return estado
 }
