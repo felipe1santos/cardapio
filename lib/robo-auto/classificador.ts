@@ -22,7 +22,7 @@ export type Assunto =
  * 'pix_chave' (16/10): quer a CHAVE Pix para pagar ("já me manda a chave pix que pago") — vai a chave, não a lista de formas.
  * 'resumo_pedido' (16/10): o resumo que a própria vitrine abre no WhatsApp depois do pedido ("Acabei de fazer um pedido…").
  */
-export type Intencao = Assunto | 'pedir' | 'pix_chave' | 'resumo_pedido' | 'ok' | 'voltar' | 'outro'
+export type Intencao = Assunto | 'pedir' | 'pix_chave' | 'resumo_pedido' | 'tempo_entrega' | 'duvida' | 'ok' | 'voltar' | 'outro'
 
 export const ASSUNTOS: Assunto[] = [
   'atendente', 'reclamacao', 'parar', 'status_pedido', 'entrega', 'pagamento_pix', 'horario', 'endereco_retirada', 'cardapio', 'saudacao',
@@ -69,11 +69,16 @@ export const PALAVRAS_PADRAO: Record<Assunto, string[]> = {
   atendente: [
     'atendente', 'atendimento humano', 'humano', 'pessoa', 'alguem', 'falar com', 'quero falar', 'me atende', 'gerente', 'dono', 'responsavel',
     'cancelar', 'cancela', 'me liga', 'ligar pra', 'ligacao',
+    // 16/10: assuntos de pessoa (emprego, fiado, parceria, mexer em pedido já feito) vão direto para o atendente.
+    'emprego', 'vaga', 'vagas', 'curriculo', 'trabalhar ai', 'trabalhar com voces', 'fiado', 'pendura', 'pendurar', 'parceria', 'proposta', 'fornecedor',
+    'mudar meu pedido', 'mudar o pedido', 'alterar meu pedido', 'alterar o pedido', 'trocar meu pedido', 'trocar o pedido', 'tirar do pedido',
+    'acrescentar no pedido', 'acrescentar no meu pedido', 'adicionar no pedido', 'adicionar no meu pedido', 'esqueci de pedir', 'esqueci de colocar',
   ],
   reclamacao: [
     'reclamacao', 'reclamar', 'reclamo', 'errado', 'errada', 'fria', 'frio', 'veio cru', 'veio crua', 'faltando', 'faltou', 'veio sem', 'nao veio',
     'atrasado', 'atrasada', 'atrasou', 'demorou demais', 'demorou muito', 'demorando demais', 'demorando muito', 'pessimo', 'pessima', 'horrivel',
     'absurdo', 'vergonha', 'estragado', 'estragada', 'cabelo', 'nunca mais', 'dinheiro de volta', 'estorno', 'reembolso', 'devolucao', 'decepcionado',
+    'nao recebi', 'nao recebemos', 'nunca chegou',
   ],
   parar: [
     'para de mandar', 'pare de mandar', 'parar de mandar', 'para de enviar', 'pare de enviar', 'nao quero mais receber', 'parar de receber',
@@ -84,6 +89,7 @@ export const PALAVRAS_PADRAO: Record<Assunto, string[]> = {
     'saiu pra entrega', 'saiu para entrega', 'vai demorar', 'demorando', 'chegando', 'vai chegar', 'falta muito', 'tempo falta', 'status', 'acompanhar',
     'rastrear', 'onde esta meu', 'onde ta meu', 'meu lanche', 'minha pizza', 'meu hamburguer', 'minha comida', 'meu acai', 'minha marmita', 'motoboy',
     'entregador', 'ja entregou', 'ja entregaram', 'ta pronto', 'esta pronto', 'ficou pronto', 'ja ta pronto',
+    'fiz um pedido', 'fiz pedido', 'fiz o pedido', 'fiz meu pedido', 'ja fiz', 'acabei de pedir', 'ja pedi',
   ],
   entrega: [
     'taxa', 'taxas', 'frete', 'entrega', 'entregam', 'entregar', 'entregao', 'delivery', 'chegam ate', 'chega ate', 'atendem', 'atende o bairro',
@@ -100,7 +106,7 @@ export const PALAVRAS_PADRAO: Record<Assunto, string[]> = {
     'trabalhando', 'trabalham hoje', 'funcionando', 'abrir', 'abriu', 'abriram',
   ],
   endereco_retirada: [
-    'endereco', 'onde fica', 'onde voces ficam', 'onde e a loja', 'onde e ai', 'localizacao', 'retirar', 'retirada', 'retiro', 'buscar', 'busco',
+    'endereco', 'onde fica', 'onde ficam', 'onde voces ficam', 'onde voces e', 'onde voces sao', 'onde e a loja', 'onde e ai', 'onde e voces', 'localizacao', 'retirar', 'retirada', 'retiro', 'buscar', 'busco',
     'pegar ai', 'pegar na loja', 'balcao', 'como chego', 'ponto de referencia',
   ],
   cardapio: [
@@ -110,7 +116,7 @@ export const PALAVRAS_PADRAO: Record<Assunto, string[]> = {
   ],
   saudacao: [
     'oi', 'oie', 'ola', 'opa', 'eai', 'e ai', 'bom dia', 'boa tarde', 'boa noite', 'bao noite', 'bao dia', 'salve', 'hello', 'hey', 'tudo bem',
-    'tudo bom', 'boa',
+    'tudo bom', 'boa', 'ei', 'fala comigo', 'fala ai', 'alo',
   ],
 }
 
@@ -221,6 +227,26 @@ function pedidoFraco(palavras: string[]): boolean {
   return false
 }
 
+/** Tempo de entrega (16/10): "quanto tempo pra entrega?", "tempo de espera" — antes da entrega, que perguntava o bairro. */
+const TEMPO_ENTREGA = ['quanto tempo', 'tempo de espera', 'tempo de entrega', 'tempo pra entrega', 'tempo para entrega', 'tempo pra entregar', 'demora quanto', 'quanto demora', 'tempo medio']
+  .map((e) => e.split(' '))
+
+/** Botão "Dúvidas" da vitrine: "Olá! Vim pelo cardápio online e tenho uma dúvida." */
+const DUVIDA = ['tenho uma duvida', 'tenho duvida', 'uma duvida', 'vim pelo cardapio'].map((e) => e.split(' '))
+
+/**
+ * Pedido escrito na conversa, sem verbo ("1 x-bacon caprichado", "2 x burgão e uma coca", "um x tudo"): começa com
+ * quantidade seguida de algo que não é número de menu/pedido. Vai para o Agente de IA (ou atendente sem ela).
+ */
+function pareceItens(palavras: string[]): boolean {
+  const QTD = new Set(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'um', 'uma', 'dois', 'duas', 'tres'])
+  if (palavras.length < 2 || !QTD.has(palavras[0])) return false
+  const resto = palavras.slice(1)
+  if (resto[0] === 'x' || /^x[a-z]/.test(resto[0])) return true
+  return resto.some((p) => p.length >= 3 && !/^d+$/.test(p) && !['hora', 'horas', 'min', 'minutos', 'reais', 'real', 'pessoas', 'dias', 'opcao'].includes(p))
+    && !palavras.some((p) => ['troco', 'pedido', 'pedidos', 'numero', 'mesa'].includes(p))
+}
+
 /** "Estão abertos agora?" escrito com palavras de entrega/trabalho — vem antes da entrega ("tá entregando ainda?"). */
 const ESTA_ABERTO = [
   'ta entregando', 'esta entregando', 'tao entregando', 'estao entregando', 'entregando hoje', 'entregando ainda', 'entregando agora', 'vao entregar hoje',
@@ -258,6 +284,7 @@ export function classificar(texto: string | null, extras?: PalavrasExtras): Clas
   const r = (intencao: Intencao, porNumero = false): Classificacao => ({ intencao, assunto: intencao, porNumero, normalizado })
   if (!normalizado) return r(bruto.trim() ? 'ok' : 'outro') // só emoji (👍) = ok
   if (ehResumoDaVitrine(bruto, normalizado)) return r('resumo_pedido')
+  if (DUVIDA.some((e) => contem(normalizado.split(' '), e, false)) && !normalizado.includes('pedido')) return r('duvida')
 
   const opcao = opcaoDoMenu(bruto)
   if (opcao !== null) return r(MENU_NUMEROS[opcao], true)
@@ -277,12 +304,14 @@ export function classificar(texto: string | null, extras?: PalavrasExtras): Clas
           const b = bairroDaFrase(bruto)
           if (!b || ['ainda', 'hoje', 'agora', 'ai'].includes(b)) return r('horario')
         }
+        if (!tolerante && TEMPO_ENTREGA.some((e) => contem(palavras, e, false))) return r('tempo_entrega')
         if (!tolerante && pedeChavePix(palavras)) return r('pix_chave')
         if (!tolerante && palavras.includes('pix')) return r('pagamento_pix') // "pix na entrega?"
         if (PEDIR_SEM_LINK.some((e) => contem(palavras, e, tolerante))) return pedir(true)
         // "quero fazer um pedido POR AQUI / pelo whats" (14/10): já disse que é pela conversa — a IA atende, sem o link.
         if (PEDIR_FORTE.some((e) => contem(palavras, e, tolerante))) return pedir(palavras.some((p) => PELA_CONVERSA.has(p)))
       }
+      if (assunto === 'cardapio' && !tolerante && pareceItens(palavras)) return pedir(true)
       if (assunto === 'cardapio' && !tolerante && pedidoFraco(palavras)) return pedir(false)
       if (listaDo(assunto, extras).some((e) => contem(palavras, e, tolerante))) return r(assunto)
     }

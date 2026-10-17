@@ -13,6 +13,9 @@ export interface PedidoAuto {
   total: number
   itens: { quantidade: number; nome: string }[]
   previsao?: string | null
+  /** Forma de pagamento e se já foi pago (resumo da vitrine com Pix manda a chave; 16/10). */
+  formaPagamento?: string | null
+  pago?: boolean
 }
 
 export interface DadosLojaAuto {
@@ -94,11 +97,33 @@ export function menu(l: DadosLojaAuto, curto = false): string {
   return linhas.join('\n')
 }
 
+/** "Minas"/"Minas Gerais" = MG, "Espírito Santo" = ES ("Mauá Minas" = "Maua MG"; 16/10). */
+function comSiglaDoEstado(t: string): string {
+  return t.replace(/\bminas gerais\b/g, 'mg').replace(/\bminas\b/g, 'mg').replace(/\bespirito santo\b/g, 'es')
+}
+
+/**
+ * Bairros da lista que podem ser o que o cliente escreveu: 1 = achou; 2 ou mais = ambíguo ("Centro" com "Centro Aimorés"
+ * e "Centro Baixo Guandu") e o robô pergunta qual; vazio = não achou (16/10).
+ */
+export function acharBairros(escrito: string, bairros: { bairro: string; taxa: number }[]): { bairro: string; taxa: number }[] {
+  const alvo = comSiglaDoEstado(normalizarTexto(escrito).replace(/^(bairro|o|a) /, ''))
+  if (!alvo) return []
+  const lista = bairros.map((b) => ({ bairro: b.bairro, taxa: b.taxa, n: comSiglaDoEstado(normalizarTexto(b.bairro)) }))
+  const tirar = ({ bairro, taxa }: { bairro: string; taxa: number }) => ({ bairro, taxa })
+  const exatos = lista.filter((b) => b.n === alvo)
+  if (exatos.length) return exatos.map(tirar)
+  const comecam = alvo.length >= 4 ? lista.filter((b) => b.n.startsWith(`${alvo} `)) : []
+  if (comecam.length > 1) return comecam.map(tirar)
+  const um = acharBairro(escrito, bairros)
+  return um ? [tirar(um)] : []
+}
+
 /** Bairro da lista da loja que bate com o que o cliente escreveu (com tolerância a erro de digitação). */
 export function acharBairro(escrito: string, bairros: { bairro: string; taxa: number }[]): { bairro: string; taxa: number } | null {
-  const alvo = normalizarTexto(escrito).replace(/^(bairro|o|a) /, '')
+  const alvo = comSiglaDoEstado(normalizarTexto(escrito).replace(/^(bairro|o|a) /, ''))
   if (!alvo) return null
-  const lista = bairros.map((b) => ({ ...b, n: normalizarTexto(b.bairro) }))
+  const lista = bairros.map((b) => ({ ...b, n: comSiglaDoEstado(normalizarTexto(b.bairro)) }))
   const exato = lista.find((b) => b.n === alvo)
   if (exato) return exato
   let melhor: (typeof lista)[number] | null = null
@@ -175,7 +200,12 @@ export function responder(decisao: Decisao, l: DadosLojaAuto, ctx: ContextoRespo
       return { mensagens: [t('entrega_pergunta')], autoEstado: 'aguardando_bairro' }
     case 'entrega': {
       if (!l.aceitaEntrega) return { mensagens: [t('entrega_sem_entrega', { retirada: retirada(l) })], autoEstado: null }
-      const achado = acharBairro(decisao.bairro ?? '', l.bairros)
+      const candidatos = acharBairros(decisao.bairro ?? '', l.bairros)
+      if (candidatos.length > 1) {
+        const linhas = candidatos.map((b) => `- ${b.bairro}: \`${b.taxa > 0 ? brl(b.taxa) : 'Grátis'}\``).join('\n')
+        return { mensagens: [`*🛵 Qual deles?*\n\n${linhas}\n\nMe manda o nome certinho do seu bairro.`], autoEstado: 'aguardando_bairro' }
+      }
+      const achado = candidatos[0] ?? null
       const ck = ctx.taxaCheckout
       if (ck?.entregavel) {
         return { mensagens: [t('entrega_taxa', { bairro: achado?.bairro ?? decisao.bairro ?? '', taxa: ck.taxa > 0 ? brl(ck.taxa) : 'Grátis' })], autoEstado: null }
@@ -215,6 +245,7 @@ export function responder(decisao: Decisao, l: DadosLojaAuto, ctx: ContextoRespo
     case 'reclamacao':
       return { mensagens: [t('reclamacao')] }
     case 'atendente':
+      if (decisao.porPedido) return { mensagens: ['*📝 Pedido pela conversa*\n\nJá chamei alguém da loja para anotar seu pedido por aqui. Só um instante! 🙏'] }
       if (decisao.porSemPix) return { mensagens: ['*💠 Pix*\n\nJá chamei alguém da loja para te passar a chave Pix. Só um instante! 🙏'] }
       return { mensagens: [t(decisao.porNaoEntender ? 'atendente_nao_entendeu' : 'atendente')] }
     case 'parar':
@@ -235,8 +266,19 @@ export function responder(decisao: Decisao, l: DadosLojaAuto, ctx: ContextoRespo
     case 'resumo_pedido': {
       // O cliente mandou o resumo que a vitrine abre no WhatsApp: confirma o pedido. Nunca manda o link (16/10).
       const p = ctx.pedido
-      if (!p) return { mensagens: ['*👍 Recebemos sua mensagem!*\n\nAssim que o pedido aparecer aqui, você recebe a confirmação.'] }
-      return { mensagens: [`*👍 Recebemos seu pedido \`#${p.numero}\`!*\n\n> ${p.rotuloStatus}`] }
+      if (!p) return { mensagens: ['*✅ Recebemos sua mensagem!*\n\nAssim que o pedido aparecer aqui, você recebe a confirmação.'] }
+      const confirmado = `*Recebemos seu pedido \`#${p.numero}\` ✅*\n\n> ${p.rotuloStatus}`
+      // Pix ainda não pago e a loja tem chave: a chave vai junto, numa mensagem separada (fácil de copiar).
+      if (p.formaPagamento === 'pix' && !p.pago && temPix(l)) {
+        const tipo = TIPOS_CHAVE[l.pixTipo ?? ''] ?? 'Pix'
+        return { mensagens: [confirmado, `*💠 Chave Pix (${tipo})*\nValor: *${brl(p.total)}*\n\nCopie a chave abaixo 👇 e mande o comprovante aqui.`, l.pixChave!.trim()] }
+      }
+      return { mensagens: [confirmado] }
     }
+    case 'tempo_entrega':
+      // O motor só chega aqui com o tempo cadastrado (sem ele, a pergunta vai para a IA ou o atendente).
+      return { mensagens: [`*⏱️ TEMPO DE ENTREGA*\n\nEm média *${l.tempoEntrega ?? ''}*.\n\n> Pode variar com o movimento.`] }
+    case 'duvida':
+      return { mensagens: ['Claro! Qual a sua dúvida? 😊'] }
   }
 }

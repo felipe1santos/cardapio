@@ -12,7 +12,7 @@ import { normalizarForaDaLista, resolverFrete } from '@/lib/frete'
 import { composeEndereco } from '@/lib/endereco'
 import { rotuloStatusPedidoCliente } from '@/lib/status-pedido-cliente'
 import { lojaEstaAberta, textoProximaAbertura, turnosDoDia, type HorarioFuncionamento, type StatusLoja } from '@/lib/timezone'
-import { classificar, ASSUNTOS, type Assunto, type PalavrasExtras } from './classificador'
+import { classificar, normalizarTexto, ASSUNTOS, type Assunto, type Classificacao, type PalavrasExtras } from './classificador'
 import { decidir, ESTADO_VALIDADE_MS, type EstadoAuto } from './decisao'
 import { responder, type DadosLojaAuto, type PedidoAuto } from './respostas'
 import type { ChaveTexto } from './textos'
@@ -110,13 +110,15 @@ export async function carregarLojaAuto(admin: SupabaseClient, restauranteId: str
   }
 }
 
-async function montarPedido(admin: SupabaseClient, p: { id: string; numero: number; status: string; tipo: string; total: number }, semEntregador: boolean): Promise<PedidoAuto> {
+async function montarPedido(admin: SupabaseClient, p: { id: string; numero: number; status: string; tipo: string; total: number; forma_pagamento?: string | null; pago?: boolean | null }, semEntregador: boolean): Promise<PedidoAuto> {
   const { data: itens } = await admin.from('pedido_itens').select('nome, quantidade, cancelado_em').eq('pedido_id', p.id)
   return {
     numero: p.numero,
     status: p.status,
     rotuloStatus: rotuloStatusPedidoCliente({ status: p.status, saidaSemConfirmacao: semEntregador && p.tipo === 'entrega' }),
     total: Number(p.total) || 0,
+    formaPagamento: p.forma_pagamento ?? null,
+    pago: p.pago === true,
     itens: ((itens ?? []) as { nome: string; quantidade: number; cancelado_em: string | null }[])
       .filter((i) => !i.cancelado_em)
       .map((i) => ({ quantidade: Number(i.quantidade) || 1, nome: String(i.nome) })),
@@ -129,7 +131,7 @@ export async function pedidosAbertosDoTelefone(admin: SupabaseClient, restaurant
   if (!variantes.length) return []
   const { data } = await admin
     .from('pedidos')
-    .select('id, numero, status, tipo, total')
+    .select('id, numero, status, tipo, total, forma_pagamento, pago')
     .eq('restaurante_id', restauranteId)
     .in('cliente_telefone', variantes)
     .in('status', STATUS_ABERTOS)
@@ -169,6 +171,9 @@ async function registrarNaoEntendida(admin: SupabaseClient, restauranteId: strin
     /* registro auxiliar: nunca derruba a resposta */
   }
 }
+
+/** "troco pra 50", "troco para 100", "troco de 20" (texto normalizado; 16/10). */
+const TROCO_PARA = /\btroco (pra|para|de) (r )?\d+/
 
 export interface ResultadoAuto {
   respostas: number
@@ -252,7 +257,13 @@ export async function processarMensagemAuto(
   }
 
   // Mídia (11/10): a decisão trata pelo tipo — foto/vídeo/documento não respondem, áudio avisa 1× a cada 6 h.
-  const classificacao = c ?? { intencao: 'outro' as const, assunto: 'outro' as const, porNumero: false, normalizado: '' }
+  let classificacao: Classificacao = c ?? { intencao: 'outro' as const, assunto: 'outro' as const, porNumero: false, normalizado: '' }
+  // 16/10: "quanto tempo pra entrega?" sem tempo cadastrado na loja = o robô não sabe → IA (se ligada) ou atendente.
+  if (classificacao.intencao === 'tempo_entrega' && !loja.tempoEntrega) classificacao = { ...classificacao, intencao: 'outro', assunto: 'outro' }
+  // "troco pra 50" com pedido em aberto = mexer no pedido já feito → atendente direto.
+  if (m.tipo === 'texto' && TROCO_PARA.test(normalizarTexto(m.texto ?? '')) && (await pedidosAbertosDoTelefone(admin, restauranteId, telefone, ctx.semEntregador)).length) {
+    classificacao = { ...classificacao, intencao: 'atendente', assunto: 'atendente' }
+  }
   const estado: EstadoAuto = {
     autoEstado: e.auto_estado ?? null,
     autoEstadoEm: e.auto_estado_em ?? null,

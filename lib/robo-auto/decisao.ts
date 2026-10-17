@@ -9,7 +9,7 @@ import type { TipoMensagem } from '@/lib/mensageria/provedor'
 export type AcaoAuto =
   | 'saudacao' | 'menu_curto' | 'cardapio' | 'entrega' | 'entrega_perguntar_bairro' | 'status' | 'status_numero'
   | 'horario' | 'pagamento' | 'endereco' | 'reclamacao' | 'atendente' | 'parar' | 'nao_entendeu' | 'audio' | 'nada'
-  | 'pix_chave' | 'resumo_pedido'
+  | 'pix_chave' | 'resumo_pedido' | 'tempo_entrega' | 'duvida'
   | 'pedir_link' | 'pedir_sem_link'
 
 export interface EstadoAuto {
@@ -43,6 +43,8 @@ export interface Decisao {
   porNaoEntender?: boolean
   /** Pediu a chave Pix e a loja não cadastrou: vai para o atendente (16/10). */
   porSemPix?: boolean
+  /** Quer pedir pela conversa e a IA não atendeu: o atendente anota (16/10; nunca o link de novo). */
+  porPedido?: boolean
 }
 
 export interface EntradaDecisao {
@@ -70,7 +72,7 @@ export function decidir(e: EntradaDecisao): Decisao {
   const { classificacao, texto, agora } = e
   const desligados = e.assuntosDesligados ?? new Set<Assunto>()
   let intencao = classificacao.intencao
-  if (intencao !== 'ok' && intencao !== 'voltar' && intencao !== 'outro' && intencao !== 'pedir' && intencao !== 'pix_chave' && intencao !== 'resumo_pedido'
+  if (intencao !== 'ok' && intencao !== 'voltar' && intencao !== 'outro' && intencao !== 'pedir' && intencao !== 'pix_chave' && intencao !== 'resumo_pedido' && intencao !== 'tempo_entrega' && intencao !== 'duvida'
     && desligados.has(intencao) && !SEMPRE_LIGADOS.includes(intencao)) intencao = 'outro'
   // Pedir a chave é parte do assunto Pix: desligado pelo dono, desliga junto.
   if (intencao === 'pix_chave' && desligados.has('pagamento_pix')) intencao = 'outro'
@@ -100,7 +102,8 @@ export function decidir(e: EntradaDecisao): Decisao {
 
   // Esperando o número do pedido: um número na mensagem (que não seja pedido de atendente/reclamação).
   if (emEspera === 'aguardando_numero' && !['atendente', 'reclamacao', 'parar'].includes(intencao)) {
-    const n = /\d{1,7}/.exec(texto)?.[0]
+    // Só número solto ("67", "#67", "é o 67"): código de outro sistema ("#FQ67XK") não é número de pedido (16/10).
+    const n = /(?:^|[\s#nº°])(\d{1,7})(?=$|[\s.,!?)])/.exec(texto)?.[1]
     if (n && !classificacao.porNumero) return { acao: 'status_numero', intencao: 'status_pedido', numeroPedido: Number(n), estado: entendido(limpo), naoEntendida: false }
   }
 
@@ -110,10 +113,10 @@ export function decidir(e: EntradaDecisao): Decisao {
     if (bairro) return { acao: 'entrega', intencao: 'entrega', bairro, estado: entendido({ ...e.estado, autoEstadoEm: agoraIso }), naoEntendida: false }
   }
 
-  // Quer pedir pela conversa e o Agente de IA não atendeu (desligado, sem módulo ou indisponível): link gentil;
-  // se insistir em 15 min ou disser que não consegue usar o link, oferece o atendente (11/10).
+  // Quer pedir pela conversa e o Agente de IA não atendeu (desligado, sem módulo ou indisponível): 1ª vez, o link;
+  // itens escritos na conversa, "não consigo usar o link" ou insistiu: chama o atendente (16/10; nunca o link de novo).
   if (intencao === 'pedir') {
-    if (classificacao.pedidoSemLink || emEspera === 'pedir_link') return { acao: 'pedir_sem_link', intencao, estado: entendido(limpo), naoEntendida: false }
+    if (classificacao.pedidoSemLink || emEspera === 'pedir_link') return { acao: 'atendente', intencao, estado: entendido(limpo), silenciar: 'atendente', naoEntendida: false, porPedido: true }
     return { acao: 'pedir_link', intencao, estado: { ...entendido(limpo), autoEstado: 'pedir_link', autoEstadoEm: agoraIso }, naoEntendida: false }
   }
 
@@ -124,6 +127,8 @@ export function decidir(e: EntradaDecisao): Decisao {
   }
   // Resumo que a vitrine mandou depois do pedido (16/10): confirma o pedido; nunca manda o link.
   if (intencao === 'resumo_pedido') return { acao: 'resumo_pedido', intencao, estado: entendido(limpo), naoEntendida: false }
+  if (intencao === 'tempo_entrega') return { acao: 'tempo_entrega', intencao, estado: entendido(limpo), naoEntendida: false }
+  if (intencao === 'duvida') return { acao: 'duvida', intencao, estado: entendido(limpo), naoEntendida: false }
 
   if (intencao === 'outro') {
     const vezes = e.estado.naoEntendeu + 1

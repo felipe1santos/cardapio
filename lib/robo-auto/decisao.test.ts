@@ -117,18 +117,18 @@ describe('mídia (diagnóstico 11/10: álbum de fotos virou "não entendi" 2× �
 })
 
 describe('quer pedir pela conversa, sem Agente de IA (11/10)', () => {
-  it('1ª vez: link do cardápio e guarda o estado; insistir em 15 min: oferece atendente', () => {
+  it('1ª vez: link do cardápio e guarda o estado; insistir em 15 min: chama o atendente (16/10)', () => {
     const a = d('quero fazer um pedido')
     expect(a.acao).toBe('pedir_link')
     expect(a.estado.autoEstado).toBe('pedir_link')
     expect(a.naoEntendida).toBe(false)
     const b = d('quero pedir por aqui mesmo', a.estado)
-    expect(b.acao).toBe('pedir_sem_link')
+    expect(b.acao).toBe('atendente')
     expect(b.estado.autoEstado).toBeNull()
     // passou de 15 min: volta a mandar o link
     expect(d('quero pedir', { ...a.estado, autoEstadoEm: min(16) }).acao).toBe('pedir_link')
   })
-  it('"não consigo usar o link" já oferece o atendente', () => {
-    expect(d('o link não abre').acao).toBe('pedir_sem_link')
+  it('"não consigo usar o link" já chama o atendente (16/10)', () => {
+    expect(d('o link não abre').acao).toBe('atendente')
   })
 })
