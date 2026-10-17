@@ -3,6 +3,7 @@ import { chamarClaude, type BlocoUsoFerramenta } from '@/lib/custo/anthropic'
 import { moduloLiberado } from '@/lib/modulos'
 import { ASSUNTOS, normalizarTexto, type Assunto } from './classificador'
 import type { Sugestao } from './aprender'
+import { prepararPendentes } from './revisao'
 
 /**
  * Sugestão pela IA para "Perguntas que o robô não entendeu" (16/10/2026). As regras sugerem primeiro (sem custo); a IA só
@@ -55,10 +56,9 @@ export async function sugerirComIa(admin: SupabaseClient, restauranteId: string,
   if (!(await moduloLiberado(admin, restauranteId, 'agente_ia'))) return { feitas: 0, motivo: 'sem_modulo' }
   // Marca o dia ANTES de chamar: falhou ou não, a loja só tenta de novo amanhã (nunca repete no mesmo dia).
   await admin.from('whatsapp_robo_config').update({ auto_sugestao_ia_em: dia }).eq('restaurante_id', restauranteId)
-  const { data } = await admin.from('whatsapp_auto_nao_entendidas').select('id, texto, exemplo, sugestao')
-    .eq('restaurante_id', restauranteId).is('acao', null).order('vezes', { ascending: false }).limit(60)
-  const lote = ((data ?? []) as { id: string; texto: string; exemplo: string | null; sugestao: Sugestao | null }[])
-    .filter((l) => l.sugestao?.fonte === 'regras' && l.sugestao.acao === 'ia').slice(0, MAX_LOTE)
+  // Reprocessa e calcula as regras primeiro (sem custo): a IA só revê o que as regras mandaram para "IA responde".
+  const { ficam } = await prepararPendentes(admin, restauranteId)
+  const lote = ficam.filter((l) => l.sugestao?.fonte === 'regras' && l.sugestao.acao === 'ia').slice(0, MAX_LOTE)
   if (!lote.length) return { feitas: 0, motivo: 'nada' }
   const lista = lote.map((l, i) => `${i + 1}. ${(l.exemplo || l.texto).slice(0, 160)}`).join('\n')
   const r = await chamarClaude(admin, { loja: restauranteId, conversa: 'sugestao-nao-entendidas', tetoLojaUsd: cfg.ia_teto_usd_dia === null ? null : Number(cfg.ia_teto_usd_dia) }, {

@@ -4,8 +4,8 @@ import { getAdminSupabase } from '@/lib/supabase/admin'
 import { getCurrentSession } from '@/lib/auth/session'
 import { pode } from '@/lib/auth/permissoes'
 import { ASSUNTOS, normalizarTexto, type Assunto } from '@/lib/robo-auto/classificador'
-import { jaEntende, palavraEhDaLoja, palavrasDaFrase, sugestaoPorRegras, type Sugestao } from '@/lib/robo-auto/aprender'
-import { extrasComGlobais } from '@/lib/robo-auto/motor'
+import { palavraEhDaLoja, palavrasDaFrase } from '@/lib/robo-auto/aprender'
+import { prepararPendentes } from '@/lib/robo-auto/revisao'
 
 /**
  * "Perguntas que o robô não entendeu" (refeito em 16/10/2026): o dono revisa uma frase por vez.
@@ -23,34 +23,13 @@ async function contexto() {
   return { sessao, admin: getAdminSupabase() }
 }
 
-interface Linha { id: string; texto: string; exemplo: string | null; vezes: number; ultima_em: string; contexto: string | null; sugestao: Sugestao | null }
-
 export async function GET() {
   const ctx = await contexto()
   if ('erro' in ctx) return ctx.erro
-  const { sessao, admin } = ctx
-  const desde = new Date(Date.now() - 30 * 24 * 3600_000).toISOString()
-  const [{ data }, { data: cfg }] = await Promise.all([
-    admin.from('whatsapp_auto_nao_entendidas').select('id, texto, exemplo, vezes, ultima_em, contexto, sugestao')
-      .eq('restaurante_id', sessao.restauranteId).is('acao', null).gte('ultima_em', desde).order('vezes', { ascending: false }).order('ultima_em', { ascending: false }).limit(200),
-    admin.from('whatsapp_robo_config').select('auto_palavras').eq('restaurante_id', sessao.restauranteId).maybeSingle(),
-  ])
-  const extras = await extrasComGlobais(admin, { auto_palavras: (cfg?.auto_palavras as Record<string, string[]> | null) ?? null })
-  const linhas = (data ?? []) as Linha[]
-  const entende = linhas.filter((l) => jaEntende(l.exemplo || l.texto, extras))
-  if (entende.length) {
-    await admin.from('whatsapp_auto_nao_entendidas').update({ acao: 'ja_entende', resolvido_em: new Date().toISOString(), resolvido_por: 'reprocessado' })
-      .in('id', entende.map((l) => l.id)).eq('restaurante_id', sessao.restauranteId)
-  }
-  const ficam = linhas.filter((l) => !entende.includes(l))
-  const semSugestao = ficam.filter((l) => !l.sugestao)
-  for (const l of semSugestao) {
-    l.sugestao = sugestaoPorRegras(l.exemplo || l.texto, extras)
-    await admin.from('whatsapp_auto_nao_entendidas').update({ sugestao: l.sugestao }).eq('id', l.id).eq('restaurante_id', sessao.restauranteId)
-  }
+  const { ficam, reprocessadas } = await prepararPendentes(ctx.admin, ctx.sessao.restauranteId)
   return NextResponse.json({
     total: ficam.length,
-    reprocessadas: entende.length,
+    reprocessadas,
     itens: ficam.map((l) => ({ ...l, palavras: palavrasDaFrase(l.exemplo || l.texto) })),
   }, { headers: { 'Cache-Control': 'no-store' } })
 }
