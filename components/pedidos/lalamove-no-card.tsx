@@ -1,7 +1,11 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
-import { Bike, ExternalLink, Loader2, RefreshCw } from 'lucide-react'
+import { ExternalLink, Loader2, RefreshCw } from 'lucide-react'
+
+/** Logo oficial da Lalamove (beija-flor), a mesma do card em Integrações. */
+// eslint-disable-next-line @next/next/no-img-element
+const Logo = ({ className }: { className: string }) => <img src="/icons/integracoes/lalamove.svg" alt="" className={className} aria-hidden />
 import { Flutuante } from '@/components/ui/flutuante'
 import { formatarReal } from '@/lib/moeda'
 import type { Pedido } from '@/lib/queries/pedidos'
@@ -60,7 +64,7 @@ export function ChamarLalamove({ pedido, onChamada, onErro, className = '' }: { 
       <button ref={botao} type="button" onClick={() => (aberto ? fechar() : void cotar())} aria-haspopup="dialog" aria-expanded={aberto} title="Chamar um entregador da Lalamove"
         className={`inline-flex min-h-[40px] items-center justify-center gap-1.5 whitespace-nowrap rounded-menuzia border border-[#F16622] bg-white px-2 text-[11px] font-semibold uppercase tracking-wide text-[#C2410C] hover:bg-[#FFF7ED] lg:min-h-0 lg:py-2 ${className}`}
         data-testid="card-lalamove">
-        <Bike className="h-4 w-4" aria-hidden /> Lalamove
+        <Logo className="h-4 w-4" /> Lalamove
       </button>
       <Flutuante ancora={botao} aberto={aberto} onFechar={fechar} alinhar="inicio" largura={300} testid={`lalamove-menu-${pedido.numero}`} rotulo={`Chamar Lalamove para o pedido #${pedido.numero}`} className="p-3">
         {ocupado && !cotacao && <p className="flex items-center gap-2 py-2 text-[13px] text-text-subtle" data-testid="lalamove-cotando"><Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Cotando a corrida…</p>}
@@ -107,7 +111,7 @@ export function CorridaLalamoveNoCard({ corrida, onMudou, onErro, compacto = fal
     <div className="space-y-1.5" data-testid={`lalamove-corrida-${corrida.status}`} onClick={(e) => e.stopPropagation()}>
       <div className="flex flex-wrap items-center gap-1.5">
         <span className={`inline-flex items-center gap-1 rounded-[4px] px-2 py-0.5 text-[11.5px] font-semibold ${ETIQUETA[tom]}`}>
-          <Bike className="h-3.5 w-3.5" aria-hidden /> Lalamove · {textoStatusLalamove(corrida.status)}
+          <Logo className="h-3.5 w-3.5" /> Lalamove · {textoStatusLalamove(corrida.status)}
         </span>
         {corrida.motoristaNome && <span className="truncate text-[12px] font-medium text-text-main">{corrida.motoristaNome}{corrida.motoristaPlaca ? ` · ${corrida.motoristaPlaca}` : ''}</span>}
         {corrida.shareLink && (
