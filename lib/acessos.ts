@@ -11,7 +11,7 @@
  */
 export const AREAS = [
   { chave: 'dashboard', rotulo: 'Dashboard', href: '/admin/dashboard', prefixos: ['/admin/dashboard', '/api/admin/dashboard'] },
-  { chave: 'pedidos', rotulo: 'Painel de Pedidos', href: '/admin/pedidos', prefixos: ['/admin/pedidos', '/api/admin/pedidos'] },
+  { chave: 'pedidos', rotulo: 'Painel de Pedidos', href: '/admin/pedidos', prefixos: ['/admin/pedidos', '/api/admin/pedidos', '/api/admin/entregas/lalamove/cotacao', '/api/admin/entregas/lalamove/chamar', '/api/admin/entregas/lalamove/corrida'] },
   { chave: 'pdv', rotulo: 'PDV', href: '/admin/pdv', prefixos: ['/admin/pdv', '/api/admin/pdv', '/api/admin/balcao', '/api/admin/comandas'] },
   { chave: 'mesas', rotulo: 'Mesas e Comandas', href: '/admin/mesas', prefixos: ['/admin/mesas', '/api/admin/mesas'] },
   // KDS único: a tela da cozinha (todas as lojas desde 13/10, quando a Cozinha antiga por QR saiu).
@@ -21,7 +21,7 @@ export const AREAS = [
   { chave: 'clientes', rotulo: 'Clientes', href: '/admin/clientes', prefixos: ['/admin/clientes', '/api/admin/clientes'] },
   { chave: 'campanhas', rotulo: 'Campanhas', href: '/admin/campanhas', prefixos: ['/admin/campanhas', '/api/admin/campanhas'] },
   { chave: 'fidelidade', rotulo: 'Fidelidade', href: '/admin/fidelidade', prefixos: ['/admin/fidelidade', '/api/admin/fidelidade'] },
-  { chave: 'integracoes', rotulo: 'Integrações', href: '/admin/integracoes', prefixos: ['/admin/integracoes', '/api/admin/whatsapp/robo', '/api/admin/whatsapp/conectar', '/api/admin/whatsapp/desconectar', '/api/admin/whatsapp/status'] },
+  { chave: 'integracoes', rotulo: 'Integrações', href: '/admin/integracoes', prefixos: ['/admin/integracoes', '/api/admin/entregas/lalamove/config', '/api/admin/entregas/lalamove/testar', '/api/admin/whatsapp/robo', '/api/admin/whatsapp/conectar', '/api/admin/whatsapp/desconectar', '/api/admin/whatsapp/status'] },
   { chave: 'equipe', rotulo: 'Equipe', href: '/admin/equipe', prefixos: ['/admin/equipe', '/api/admin/equipe'] },
   { chave: 'impressao', rotulo: 'Impressão', href: '/admin/ajustes/impressao', prefixos: ['/admin/ajustes/impressao', '/admin/impressao', '/api/admin/impressao'] },
   { chave: 'ajustes', rotulo: 'Ajustes', href: '/admin/ajustes', prefixos: ['/admin/ajustes', '/api/admin/modulos'] },

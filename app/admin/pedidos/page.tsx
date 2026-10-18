@@ -52,6 +52,9 @@ import { etiquetasDoPedido, origemVisivelNoCard, rotuloOrigemPedido as origemDoC
 import { SeloOrigem } from '@/components/icones/origens'
 import { EtiquetaAtendimento } from '@/components/pedidos/etiquetas-pedido'
 import { Capacete } from '@/components/icones/capacete'
+import { ChamarLalamove, CorridaLalamoveNoCard } from '@/components/pedidos/lalamove-no-card'
+import { CORRIDA_ATIVA, ENTREGA_PROVEDOR_SELECT, mapEntregaProvedor, type EntregaProvedorLinha } from '@/lib/entregas/lalamove-status'
+import { useEstadoSessao } from '@/lib/sessao-cliente'
 import { Dica, Flutuante } from '@/components/ui/flutuante'
 import { pedidoParado, tempoParado } from '@/lib/pedido-parado'
 import { AvisosPedidos, type Aviso } from '@/components/pedidos/avisos-pedidos'
@@ -178,10 +181,14 @@ const FLUXO_TONE: Record<'transit' | 'done' | 'failed', { accent: string; bg: st
  * o botão precisa estar aqui. O corpo continua sendo um botão (abre os detalhes),
  * mas o container virou div — botão dentro de botão é HTML inválido.
  */
-function FluxoCard({ order, tone, onClick, onConcluir, rotulo, acoes }: {
+function FluxoCard({ order, tone, onClick, onConcluir, rotulo, acoes, corrida, onCorridaMudou, onErro }: {
   order: Pedido; tone: 'transit' | 'done' | 'failed'; onClick: () => void; onConcluir?: () => void; rotulo?: string
   /** Em trânsito (17/10): tocar no card abre Entregue / Não entregue — as MESMAS chamadas da tela Pedidos. */
   acoes?: { onEntregue?: () => void; onNaoEntregue?: (motivo: string) => void }
+  /** Lalamove (0199): corrida do pedido (status, entregador, rastreio). */
+  corrida?: EntregaProvedorLinha
+  onCorridaMudou?: () => void
+  onErro?: (m: string) => void
 }) {
   const t = FLUXO_TONE[tone]
   const [aberto, setAberto] = useState(false)
@@ -208,6 +215,11 @@ function FluxoCard({ order, tone, onClick, onConcluir, rotulo, acoes }: {
         </div>
         <div className="mt-1 text-[11px] font-medium text-price-text">{brl(order.total)}</div>
       </button>
+      {corrida && (
+        <div className="px-3 pb-2">
+          <CorridaLalamoveNoCard corrida={corrida} compacto={!CORRIDA_ATIVA.includes(corrida.status)} onMudou={() => onCorridaMudou?.()} onErro={(m) => onErro?.(m)} />
+        </div>
+      )}
       {onConcluir && !temAcoes && (
         <div className="px-3 pb-3">
           <Button variant="success" className="w-full" onClick={onConcluir}>
@@ -289,6 +301,18 @@ export default function PedidosPage() {
   // Loja sem entregador fecha a entrega aqui mesmo (Ajustes › Entrega). Começa
   // no default antigo pra não mostrar botões que a loja não pediu.
   const [fluxo, setFluxo] = useState(FLUXO_LOJA_PADRAO)
+  // Lalamove (0199): corridas por pedido (realtime em entregas_provedor) e se o botão aparece (módulo + chaves + ligada).
+  const [corridas, setCorridas] = useState<Record<string, EntregaProvedorLinha>>({})
+  const [lalamoveAtiva, setLalamoveAtiva] = useState(false)
+  const estadoSessao = useEstadoSessao()
+  const moduloLalamove = estadoSessao?.modulos?.entregas_lalamove === true
+  useEffect(() => {
+    if (!restauranteId || !moduloLalamove) { setLalamoveAtiva(false); return }
+    let vivo = true
+    fetch('/api/admin/entregas/lalamove/corrida', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((j) => { if (vivo) setLalamoveAtiva(j?.ativo === true) }).catch(() => {})
+    return () => { vivo = false }
+  }, [restauranteId, moduloLalamove])
+  const aoChamarLalamove = useCallback((c: EntregaProvedorLinha) => { setCorridas((m) => ({ ...m, [c.pedidoId]: c })) }, [])
   const [lojaMenuOpen, setLojaMenuOpen] = useState(false)
   const [maisAberto, setMaisAberto] = useState(false)
   // Item 58: "Despacho aberto" e "Entregar sem entregador" vieram da Logística para o menu "⋯".
@@ -463,10 +487,14 @@ export default function PedidosPage() {
       const seq = ++refetchSeq.current
       try {
         // eslint-disable-next-line prefer-const
-        let [kanban, logistica, finalizados] = await Promise.all([
+        let [kanban, logistica, finalizados, corridasHoje] = await Promise.all([
           listarPedidosKanban(supabase, id),
           listarPedidosLogistica(supabase, id),
           listarPedidosConcluidos(supabase, id, inicioDoDiaISO()),
+          // Corridas da Lalamove: as ativas (de qualquer dia) e as de hoje (para o card concluído). Falha aqui não derruba o Kanban.
+          supabase.from('entregas_provedor').select(ENTREGA_PROVEDOR_SELECT).eq('restaurante_id', id)
+            .or(`status.in.(${CORRIDA_ATIVA.join(',')}),criado_em.gte.${inicioDoDiaISO()}`).order('criado_em', { ascending: false }).limit(300)
+            .then((r) => (r.error ? [] : (r.data ?? []).map((l) => mapEntregaProvedor(l as Record<string, unknown>))), () => [] as EntregaProvedorLinha[]),
         ])
         // uma chamada mais nova já começou e vai vencer — descarta esta resposta
         // desatualizada em vez de deixá-la sobrescrever o estado por último.
@@ -480,6 +508,10 @@ export default function PedidosPage() {
         setOrders(kanban)
         setTransit(logistica.filter((p) => p.status === 'em_rota'))
         setConcluded(finalizados)
+        // Uma corrida por pedido: a ativa vence; senão a mais recente (a lista vem da mais nova para a mais antiga).
+        const porPedido: Record<string, EntregaProvedorLinha> = {}
+        for (const c of corridasHoje) if (!porPedido[c.pedidoId] || (CORRIDA_ATIVA.includes(c.status) && !CORRIDA_ATIVA.includes(porPedido[c.pedidoId].status))) porPedido[c.pedidoId] = c
+        setCorridas(porPedido)
 
 
         // com o aceite automático ligado, agenda o avanço dos pedidos pendentes
@@ -566,7 +598,11 @@ export default function PedidosPage() {
     supabase,
     canal: restauranteId ? `pedidos-kanban-${restauranteId}` : null,
     tabelas: useMemo(
-      () => [{ tabela: 'pedidos', filtro: restauranteId ? `restaurante_id=eq.${restauranteId}` : undefined }],
+      () => [
+        { tabela: 'pedidos', filtro: restauranteId ? `restaurante_id=eq.${restauranteId}` : undefined },
+        // Lalamove (0199): o webhook grava aqui; o card muda na hora, sem consultar a API.
+        { tabela: 'entregas_provedor', filtro: restauranteId ? `restaurante_id=eq.${restauranteId}` : undefined },
+      ],
       [restauranteId]
     ),
     aoEvento: useCallback(() => { if (restauranteId) refetch(restauranteId) }, [refetch, restauranteId]),
@@ -1217,14 +1253,22 @@ export default function PedidosPage() {
                               Entregue <ArrowRight className="h-4 w-4" aria-hidden />
                             </Button>
                           )}
-                          {order.status === 'pronto' && order.tipo === 'entrega' && !usaDespachoDeRotas(fluxo) && (
-                            <Button variant="dispatch" className="w-full gap-1.5" onClick={() => saiuSemEntregador(order)} title="Avisa o cliente no WhatsApp e conclui o pedido" data-testid="card-etapa">
-                              Saiu p/ entrega <ArrowRight className="h-4 w-4" aria-hidden />
-                            </Button>
-                          )}
-                          {order.status === 'pronto' && order.tipo === 'entrega' && usaDespachoDeRotas(fluxo) && restauranteId && (
-                            <DespacharNoCard pedido={order} supabase={supabase} restauranteId={restauranteId} onDespachado={aoDespachar} onErro={setError} />
-                          )}
+                          {/* Lalamove (0199): corrida em andamento ocupa a linha (sem Despachar junto, para não sair duas vezes). */}
+                          {order.status === 'pronto' && order.tipo === 'entrega' && corridas[order.id] && CORRIDA_ATIVA.includes(corridas[order.id].status) ? (
+                            <CorridaLalamoveNoCard corrida={corridas[order.id]} onMudou={() => { if (restauranteId) refetch(restauranteId) }} onErro={setError} />
+                          ) : order.status === 'pronto' && order.tipo === 'entrega' ? (
+                            <div className="flex w-full gap-1.5">
+                              {!usaDespachoDeRotas(fluxo) && (
+                                <Button variant="dispatch" className="min-w-0 flex-1 gap-1.5" onClick={() => saiuSemEntregador(order)} title="Avisa o cliente no WhatsApp e conclui o pedido" data-testid="card-etapa">
+                                  Saiu p/ entrega <ArrowRight className="h-4 w-4" aria-hidden />
+                                </Button>
+                              )}
+                              {usaDespachoDeRotas(fluxo) && restauranteId && (
+                                <div className="min-w-0 flex-1 [&>button]:w-full"><DespacharNoCard pedido={order} supabase={supabase} restauranteId={restauranteId} onDespachado={aoDespachar} onErro={setError} /></div>
+                              )}
+                              {lalamoveAtiva && <ChamarLalamove pedido={order} onChamada={aoChamarLalamove} onErro={setError} className="flex-1" />}
+                            </div>
+                          ) : null}
                         </div>
                       </div>
                     )
@@ -1254,6 +1298,9 @@ export default function PedidosPage() {
                         onEntregue: podeEntregarRota ? () => void entregueDaRota(o) : undefined,
                         onNaoEntregue: podeNaoEntregar ? (motivo) => void naoEntregueDaRota(o, motivo) : undefined,
                       }}
+                      corrida={corridas[o.id]}
+                      onCorridaMudou={() => { if (restauranteId) refetch(restauranteId) }}
+                      onErro={setError}
                     />
                   ))}
                 </SubSecao>
@@ -1290,6 +1337,7 @@ export default function PedidosPage() {
           reimpEstado={reimpEstado}
           onReimprimir={() => reimprimir(detail)}
           onCancelar={() => pedirCancelamento(detail)}
+          corrida={corridas[detail.id] ?? null}
         />
       )}
       </div>

@@ -99,6 +99,16 @@ o limite (verde ≤ 50%, amarela ≤ 80%, vermelha acima), chamadas bloqueadas p
 gráfico de 7 dias por API. Lê `api_uso_dia`; os mapas carregados são avisados pelo navegador em `/api/mapa/carregou`
 (uma vez por carregamento do script, só conta). Código: `lib/custo/uso.ts`, `components/superadmin/uso-apis.tsx`.
 
+## Lalamove — Entregas (18/10/2026)
+
+A corrida é cobrada na **conta Lalamove da loja** (a Menuzia não paga nada), mas a chamada segue a guarda: um loop aqui
+criaria corridas de verdade. **A única requisição à Lalamove está em `lib/custo/lalamove.ts`**, sempre dentro de
+`chamarApiPaga` (api `lalamove`); a Regra nº 1 barra `rest.lalamove.com` fora de `lib/custo/`. Limite diário
+`LIMITE_LALAMOVE_DIA` (padrão 600 chamadas ≈ 100 corridas × 6). Só o clique no card cota e chama (nunca em render, lista ou
+intervalo); o status chega pelo **webhook** (`/api/entregas/lalamove/webhook/<token>`) e cada evento faz 1 consulta à API
+(`GET /v3/orders/{id}`) antes de mudar o pedido — sem polling. Estimativa por entrega: cotação + corrida + 3–4 webhooks +
+1 motorista ≈ 6–7 chamadas. Detalhes em `docs/integracoes/lalamove.md`.
+
 ## IA de atendimento (Claude) — Agente de IA no WhatsApp (11/10/2026)
 
 O módulo pago "Agente de IA" usa o **Claude (Anthropic)**, em modo híbrido com o robô padrão (decisões D25–D37 em

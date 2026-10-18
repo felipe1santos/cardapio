@@ -14,6 +14,8 @@ import { MercadoPagoCard } from '@/components/admin/mercadopago-card'
 import { CartaoPixel, Selo } from '@/components/admin/integracoes/cartao-pixel'
 import { SUPORTE_MENUZIA } from '@/lib/suporte'
 import { BotaoAjudaIntegracao } from '@/components/admin/integracoes/ajuda-integracao'
+import { LalamoveCard } from '@/components/admin/lalamove-card'
+import { useEstadoSessao } from '@/lib/sessao-cliente'
 
 /**
  * Integrações (repaginada em 2026-10-06, no modelo do dono — integracoes-modelo.png): faixa "Sentiu falta de
@@ -27,8 +29,8 @@ import { BotaoAjudaIntegracao } from '@/components/admin/integracoes/ajuda-integ
  *   atendente ficam só na central do WhatsApp (canto inferior direito).
  */
 
-type IdIntegracao = 'whatsapp' | 'mercadopago' | 'facebook' | 'capi' | 'google'
-type Grupo = 'Mensagens' | 'Pagamentos' | 'Marketing e medição'
+type IdIntegracao = 'whatsapp' | 'mercadopago' | 'facebook' | 'capi' | 'google' | 'lalamove'
+type Grupo = 'Mensagens' | 'Pagamentos' | 'Marketing e medição' | 'Entregas'
 interface Definicao { id: IdIntegracao; nome: string; grupo: Grupo; logo: string; resumo: string }
 
 const INTEGRACOES: Definicao[] = [
@@ -37,8 +39,10 @@ const INTEGRACOES: Definicao[] = [
   { id: 'facebook', nome: 'Facebook Pixel', grupo: 'Marketing e medição', logo: '/icons/integracoes/facebook.svg', resumo: 'Mede o cardápio para os anúncios do Facebook e do Instagram.' },
   { id: 'capi', nome: 'API de Conversões (Meta)', grupo: 'Marketing e medição', logo: '/icons/integracoes/meta-icon.svg', resumo: 'Manda a compra pelo servidor, com o mesmo código do pixel.' },
   { id: 'google', nome: 'Google Analytics / Tag Manager', grupo: 'Marketing e medição', logo: '/icons/integracoes/google-analytics.svg', resumo: 'Google Analytics 4 (G-…) ou Tag Manager (GTM-…).' },
+  // Lalamove (0199): só aparece com o módulo "Entregas Lalamove" liberado no Super Admin.
+  { id: 'lalamove', nome: 'Lalamove', grupo: 'Entregas', logo: '/icons/integracoes/lalamove.svg', resumo: 'Chame um entregador da Lalamove pelo Kanban, com o preço antes de confirmar.' },
 ]
-const ORDEM_GRUPOS: Grupo[] = ['Mensagens', 'Pagamentos', 'Marketing e medição']
+const ORDEM_GRUPOS: Grupo[] = ['Mensagens', 'Pagamentos', 'Marketing e medição', 'Entregas']
 
 interface WaStatus { configurado: boolean; connected: boolean; state: string | null; numero?: string | null }
 interface Situacao {
@@ -47,6 +51,7 @@ interface Situacao {
   pixels: { facebook: string; google: string } | null
   capi: boolean | null
   mp: { liberada: boolean; conectada: boolean } | null
+  lalamove: boolean | null
 }
 
 const FONTE_MODELO = { fontFamily: 'var(--font-submenu), var(--font-painel), system-ui, sans-serif' }
@@ -180,8 +185,9 @@ export default function IntegracoesPage() {
   // lerWhatsapp a cada render e o efeito de leitura entrava em loop (centenas de requisições/s).
   const mostrarToast = toasts.mostrar
   const [restauranteId, setRestauranteId] = useState<string | null>(null)
-  const [sit, setSit] = useState<Situacao>({ wa: null, waFalhou: false, pixels: null, capi: null, mp: null })
+  const [sit, setSit] = useState<Situacao>({ wa: null, waFalhou: false, pixels: null, capi: null, mp: null, lalamove: null })
   const [aberta, setAberta] = useState<IdIntegracao | null>(null)
+  const moduloLalamove = useEstadoSessao()?.modulos?.entregas_lalamove === true
 
   useEffect(() => { buscarRestauranteIdDoUsuario(supabase).then(setRestauranteId) }, [supabase])
 
@@ -202,14 +208,16 @@ export default function IntegracoesPage() {
   }, [mostrarToast])
 
   const lerOutras = useCallback(async () => {
-    const [capi, mp] = await Promise.all([
+    const [capi, mp, lalamove] = await Promise.all([
       fetch('/api/admin/integracoes/meta-capi', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
       fetch('/api/admin/pix-online', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      fetch('/api/admin/entregas/lalamove/config', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
     ])
     setSit((s) => ({
       ...s,
       capi: Boolean(capi?.configurado),
       mp: mp ? { liberada: Boolean(mp.lojaLiberada), conectada: Boolean(mp.conta?.conectada) } : { liberada: false, conectada: false },
+      lalamove: Boolean(lalamove?.config?.ativo),
     }))
   }, [])
 
@@ -243,9 +251,10 @@ export default function IntegracoesPage() {
     facebook: Boolean(sit.pixels?.facebook),
     capi: Boolean(sit.capi),
     google: Boolean(sit.pixels?.google),
+    lalamove: Boolean(sit.lalamove),
   }
-  // Mercado Pago só onde o Pix online foi liberado (mesma regra do card de antes).
-  const existentes = INTEGRACOES.filter((i) => i.id !== 'mercadopago' || sit.mp?.liberada)
+  // Mercado Pago só onde o Pix online foi liberado (mesma regra do card de antes); Lalamove só com o módulo liberado.
+  const existentes = INTEGRACOES.filter((i) => (i.id !== 'mercadopago' || sit.mp?.liberada) && (i.id !== 'lalamove' || moduloLalamove))
   const carregando = sit.wa === null && !sit.waFalhou || sit.pixels === null || sit.mp === null
   const ativas = existentes.filter((i) => ativa[i.id])
   const disponiveis = existentes.filter((i) => !ativa[i.id])
@@ -318,7 +327,7 @@ export default function IntegracoesPage() {
         onFechar={fechar}
         titulo={def ? <TituloJanela def={def} /> : ''}
         subtitulo={def?.resumo}
-        largura={def?.id === 'mercadopago' || def?.id === 'capi' ? 720 : 520}
+        largura={def?.id === 'mercadopago' || def?.id === 'capi' || def?.id === 'lalamove' ? 720 : 520}
         testid="janela-integracao"
         classeCorpo="p-4 sm:p-5 [&>section]:border-0 [&>section]:p-0 [&>section]:shadow-none"
       >
@@ -337,6 +346,7 @@ export default function IntegracoesPage() {
         )}
         {def?.id === 'capi' && <MetaCapiCard temPixel={!!sit.pixels?.facebook} avisar={avisarERecarregar} />}
         {def?.id === 'mercadopago' && <MercadoPagoCard avisar={avisarERecarregar} />}
+        {def?.id === 'lalamove' && <LalamoveCard avisar={avisarERecarregar} />}
       </ModalCentral>
       <PilhaToasts itens={toasts.itens} />
     </div>

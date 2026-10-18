@@ -9,6 +9,8 @@ import { fileURLToPath } from 'node:url'
 export const PAGAS = [
   /maps\.googleapis\.com/, /places\.googleapis\.com/, /routes\.googleapis\.com/, /addressvalidation\.googleapis\.com/,
   /generativelanguage\.googleapis\.com/, /aiplatform\.googleapis\.com/, /api\.openai\.com/, /api\.anthropic\.com/,
+  // Lalamove (18/10): a corrida é paga pela loja; só lib/custo/lalamove.ts fala com a API.
+  /rest(\.sandbox)?\.lalamove\.com/,
   /\bnew\s+google\.maps\.(Geocoder|DirectionsService|DistanceMatrixService|ElevationService)\b/,
   /\bgoogle\.maps\.places\b/, /\b(PlacesService|AutocompleteService|DistanceMatrixService)\b/,
   /\bnew\s+(OpenAI|Anthropic|GoogleGenerativeAI)\s*\(/, /from\s+['"](openai|@anthropic-ai\/sdk|@google\/generative-ai|@google\/genai)['"]/,

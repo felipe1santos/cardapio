@@ -16,10 +16,12 @@ import { avisarSuporte } from './alerta-whatsapp'
  * Limites (Coolify): LIMITE_GEOCODING_DIA (300), LIMITE_DIRECTIONS_DIA (300), LIMITE_PLACES_DIA (100),
  * LIMITE_IA_CENTAVOS_DIA (500 = R$ 5/dia).
  */
-export type ApiPaga = 'geocoding' | 'directions' | 'places' | 'ia'
+// 'lalamove' (18/10): a corrida é paga pela LOJA (conta dela), mas a chamada segue a mesma guarda — loop aqui criaria
+// corridas de verdade. Limite de chamadas/dia em LIMITE_LALAMOVE_DIA (padrão 600 ≈ 100 corridas × 6 chamadas).
+export type ApiPaga = 'geocoding' | 'directions' | 'places' | 'ia' | 'lalamove'
 
-const PADRAO: Record<ApiPaga, number> = { geocoding: 300, directions: 300, places: 100, ia: 2000 }
-const ENV: Record<ApiPaga, string> = { geocoding: 'LIMITE_GEOCODING_DIA', directions: 'LIMITE_DIRECTIONS_DIA', places: 'LIMITE_PLACES_DIA', ia: 'LIMITE_IA_CHAMADAS_DIA' }
+const PADRAO: Record<ApiPaga, number> = { geocoding: 300, directions: 300, places: 100, ia: 2000, lalamove: 600 }
+const ENV: Record<ApiPaga, string> = { geocoding: 'LIMITE_GEOCODING_DIA', directions: 'LIMITE_DIRECTIONS_DIA', places: 'LIMITE_PLACES_DIA', ia: 'LIMITE_IA_CHAMADAS_DIA', lalamove: 'LIMITE_LALAMOVE_DIA' }
 
 export function limiteDiario(api: ApiPaga, env: Record<string, string | undefined> = process.env): number {
   const v = Number(env[ENV[api]])

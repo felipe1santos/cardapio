@@ -64,6 +64,10 @@ const APIS: [prefixo: string, permissao: Permissao][] = [
   ['/api/admin/fidelidade', 'fidelidade.gerenciar'],
   // Token da API de Conversões do Meta (0138): credencial, só o dono.
   ['/api/admin/integracoes', 'integracoes.gerenciar'],
+  // Lalamove (0199): configurar é integração (dono); cotar/chamar/cancelar é despachar (a rota confere podeNotificarCanal).
+  ['/api/admin/entregas/lalamove/config', 'integracoes.gerenciar'],
+  ['/api/admin/entregas/lalamove/testar', 'integracoes.gerenciar'],
+  ['/api/admin/entregas/lalamove', 'pedidos.delivery.avancar'],
   ['/api/admin/caixa', 'logistica.operar'],
   ['/api/admin/financeiro', 'pedidos.delivery.ver'],
   // Conversas em atendimento humano: dono e gerente. Antes do genérico do WhatsApp.

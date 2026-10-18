@@ -13,6 +13,7 @@ import { textoAgendado } from '@/lib/agendamento'
 import { mascararTelefoneBR } from '@/lib/telefone'
 import { rotuloForma, statusAReceber, trocoLevar } from '@/lib/pdv-pagamento'
 import { textoTempoPedido } from '@/lib/tempo-pedido'
+import { textoStatusLalamove, type EntregaProvedorLinha } from '@/lib/entregas/lalamove-status'
 
 /**
  * Painel do pedido no Painel de Pedidos (2026-10-03). Fica AO LADO do quadro (sem escurecer nem
@@ -74,10 +75,12 @@ function Obs({ texto, testid }: { texto: string; testid: string }) {
 
 export function PainelPedido({
   pedido, agora, onFechar, editandoPag, setEditandoPag, onPagamentoAlterado,
-  reimpEstado, onReimprimir, onCancelar,
+  reimpEstado, onReimprimir, onCancelar, corrida,
 }: {
   pedido: Pedido
   agora: number
+  /** Lalamove (0199): corrida do pedido, quando houve. */
+  corrida?: EntregaProvedorLinha | null
   onFechar: () => void
   editandoPag: boolean
   setEditandoPag: (v: boolean) => void
@@ -233,8 +236,26 @@ export function PainelPedido({
           {p.preparadoPor && <div className="flex justify-between gap-3"><span className="text-text-subtle">Preparado por</span><span className="font-semibold">{p.preparadoPor}</span></div>}
         </div>
 
+        {/* Entrega pela Lalamove (0199) */}
+        {corrida && (
+          <>
+            <p className={TITULO}>Entrega · Lalamove{corrida.ambiente === 'sandbox' ? ' (teste)' : ''}</p>
+            <div className="mb-4 space-y-2 rounded-[3px] border border-border p-3" data-testid="painel-lalamove">
+              <div className="flex justify-between gap-3"><span className="text-text-subtle">Situação</span><span className="text-right font-semibold">{textoStatusLalamove(corrida.status)}</span></div>
+              {corrida.motoristaNome && <div className="flex justify-between gap-3"><span className="text-text-subtle">Entregador</span><span className="text-right font-semibold">{corrida.motoristaNome}{corrida.motoristaPlaca ? ` · ${corrida.motoristaPlaca}` : ''}</span></div>}
+              {corrida.motoristaTelefone && (
+                <div className="flex justify-between gap-3"><span className="text-text-subtle">Telefone</span>
+                  <a href={`tel:${corrida.motoristaTelefone.replace(/[^\d+]/g, '')}`} className="inline-flex items-center gap-1.5 font-semibold text-primary hover:underline"><Phone className="h-4 w-4" aria-hidden /> {corrida.motoristaTelefone}</a>
+                </div>
+              )}
+              {corrida.preco !== null && <div className="flex justify-between gap-3"><span className="text-text-subtle">Custo da corrida</span><span className="text-right font-semibold tabular-nums">{brl(corrida.preco)}</span></div>}
+              {corrida.shareLink && <a href={corrida.shareLink} target="_blank" rel="noopener noreferrer" className="block text-[13px] font-semibold text-primary underline" data-testid="painel-lalamove-rastreio">Acompanhar a entrega (Lalamove)</a>}
+            </div>
+          </>
+        )}
+
         {/* Entrega */}
-        {p.tipo === 'entrega' && (p.entregadorId || p.status === 'em_rota') && (
+        {p.tipo === 'entrega' && !corrida && (p.entregadorId || p.status === 'em_rota') && (
           <>
             <p className={TITULO}>Entrega</p>
             <div className="mb-4 flex items-center justify-between gap-3 rounded-[3px] border border-border p-3" data-testid="painel-entrega">

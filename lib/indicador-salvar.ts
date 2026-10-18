@@ -45,6 +45,8 @@ export function ehGravacaoDoUsuario(
   // ao cliente (fogo-e-esquece, cai se a instância da loja estiver fora). Contá-lo fazia o
   // despacho mostrar "Não foi possível salvar" com o pedido já atribuído.
   if (/^\/api\/pedidos\/[^/]+\/notificar$/.test(caminho)) return false
+  // Cotação da Lalamove: POST de leitura (mostra o preço), não grava nada.
+  if (caminho === '/api/admin/entregas/lalamove/cotacao') return false
   // Central de atendimento do WhatsApp: tem o próprio retorno (balão enviando/enviado,
   // avisos) e um "Salvando…" no meio da tela a cada mensagem cobriria a conversa.
   if (caminho.startsWith('/api/admin/whatsapp/atendimento/')) return false

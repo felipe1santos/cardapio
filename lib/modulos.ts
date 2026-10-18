@@ -8,7 +8,9 @@ import { SUPORTE_MENUZIA } from '@/lib/suporte'
  *   · /api/sessao/estado: o menu mostra o item meio apagado com cadeado;
  *   · lib/financeiro/contexto.ts e o cron de campanhas: nada roda para loja bloqueada.
  */
-export const MODULOS = ['financeiro', 'agente_ia', 'disparos'] as const
+// 'entregas_lalamove' (0199, 18/10): chamar entregador da Lalamove pelo Kanban. Liberado em todas as lojas por padrão
+// (a corrida é paga pela própria loja); o Super Admin desliga por loja se precisar.
+export const MODULOS = ['financeiro', 'agente_ia', 'disparos', 'entregas_lalamove'] as const
 export type Modulo = (typeof MODULOS)[number]
 export type ModulosDaLoja = Record<Modulo, boolean>
 
@@ -16,6 +18,7 @@ export const INFO_MODULO: Record<Modulo, { nome: string; frase: string; href: st
   financeiro: { nome: 'Financeiro', href: '/admin/financeiro', frase: 'Caixa, contas, compras, DRE e lucro: todo o dinheiro que entra e sai da loja num lugar só.' },
   agente_ia: { nome: 'Agente de IA', href: '/admin/agente-ia', frase: 'Um atendente com inteligência artificial que conversa com o cliente no WhatsApp e tira o pedido sozinho.' },
   disparos: { nome: 'Disparo de mensagens', href: '/admin/campanhas', frase: 'Campanhas de WhatsApp para a sua base de clientes: promoções, cupons e reativação de quem sumiu.' },
+  entregas_lalamove: { nome: 'Entregas Lalamove', href: '/admin/integracoes?abrir=lalamove', frase: 'Chame um entregador da Lalamove pelo Kanban, com preço antes de confirmar. A corrida é paga pela conta Lalamove da loja.' },
 }
 
 /** Páginas e APIs de cada módulo (prefixos). O robô simples do WhatsApp (/api/admin/whatsapp) é livre. */
@@ -23,6 +26,7 @@ const PREFIXOS: Record<Modulo, string[]> = {
   financeiro: ['/admin/financeiro', '/api/admin/financeiro'],
   agente_ia: ['/admin/agente-ia', '/api/admin/agente-ia'],
   disparos: ['/admin/campanhas', '/api/admin/campanhas'],
+  entregas_lalamove: ['/api/admin/entregas/lalamove'],
 }
 
 /** Livres mesmo dentro de um prefixo pago: as mensagens automáticas de STATUS do pedido (Ajustes) usam a API de Campanhas. */
@@ -36,7 +40,7 @@ export function moduloDoCaminho(pathname: string): Modulo | null {
   return null
 }
 
-export const nenhumLiberado = (): ModulosDaLoja => ({ financeiro: false, agente_ia: false, disparos: false })
+export const nenhumLiberado = (): ModulosDaLoja => ({ financeiro: false, agente_ia: false, disparos: false, entregas_lalamove: false })
 
 /** A checagem única no servidor (service_role). Erro de banco = bloqueado (falha para o lado fechado). */
 export async function moduloLiberado(admin: SupabaseClient, restauranteId: string, modulo: Modulo): Promise<boolean> {
@@ -44,7 +48,7 @@ export async function moduloLiberado(admin: SupabaseClient, restauranteId: strin
   return !error && data === true
 }
 
-/** Os três de uma vez (menu, Super Admin). Usa a mesma regra: sem linha = bloqueado. */
+/** Todos de uma vez (menu, Super Admin). Usa a mesma regra: sem linha = bloqueado. */
 export async function modulosDaLoja(admin: SupabaseClient, restauranteId: string): Promise<ModulosDaLoja> {
   const r = await Promise.all(MODULOS.map((m) => moduloLiberado(admin, restauranteId, m)))
   return Object.fromEntries(MODULOS.map((m, i) => [m, r[i]])) as ModulosDaLoja
