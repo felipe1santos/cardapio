@@ -44,6 +44,7 @@ import { CORRIDA_ATIVA, ENTREGA_PROVEDOR_SELECT, mapEntregaProvedor, type Entreg
 import { useEstadoSessao } from '@/lib/sessao-cliente'
 import { CardPedido, CARD_BOTAO_PRINCIPAL } from '@/components/pedidos/card-pedido'
 import { MenuMaisInfo, ModalInfoPedido, type AbaInfo } from '@/components/pedidos/mais-info'
+import { EditarPedidoModal } from '@/components/pedidos/editar-pedido'
 import { avisarStatusLoja } from '@/lib/status-loja-cliente'
 import { Dica, Flutuante } from '@/components/ui/flutuante'
 import { pedidoParado, tempoParado } from '@/lib/pedido-parado'
@@ -304,6 +305,8 @@ export default function PedidosPage() {
   const [maisInfo, setMaisInfo] = useState<{ pedidoId: string; ancora: HTMLButtonElement } | null>(null)
   const maisInfoAncora = useRef<HTMLButtonElement | null>(null)
   const [modalInfo, setModalInfo] = useState<{ pedidoId: string; aba: AbaInfo } | null>(null)
+  // Editar pedido (18/10): lápis do card e botão do painel abrem a mesma janela (itens, endereço, pagamento).
+  const [editando, setEditando] = useState<string | null>(null)
   const fecharMaisInfo = useCallback(() => setMaisInfo(null), [])
   const [lojaMenuOpen, setLojaMenuOpen] = useState(false)
   const [maisAberto, setMaisAberto] = useState(false)
@@ -1197,7 +1200,7 @@ export default function PedidosPage() {
                           avancar: avancarCard,
                           principal,
                           onImprimir: () => void reimprimir(order),
-                          onEditar: order.canal !== 'mesa' && order.status !== 'cancelado' ? () => setModalInfo({ pedidoId: order.id, aba: 'pagamento' }) : undefined,
+                          onEditar: order.canal !== 'mesa' && order.status !== 'cancelado' ? () => setEditando(order.id) : undefined,
                           onMais: (ancora) => { maisInfoAncora.current = ancora; setMaisInfo((m) => (m?.pedidoId === order.id ? null : { pedidoId: order.id, ancora })) },
                           maisAberto: maisInfo?.pedidoId === order.id,
                         }}
@@ -1271,6 +1274,7 @@ export default function PedidosPage() {
           onCancelar={() => pedirCancelamento(detail)}
           corrida={corridas[detail.id] ?? null}
           lado={ladoPainel}
+          onEditar={detail.canal !== 'mesa' && detail.status !== 'cancelado' ? () => setEditando(detail.id) : undefined}
         />
       )}
       </div>
@@ -1297,6 +1301,10 @@ export default function PedidosPage() {
       {/* "Mais informações" (redesign 18/10): menu sobre o card + modal central por assunto. */}
       {maisInfo && (() => { const p = acharPedido(maisInfo.pedidoId); return p ? (
         <MenuMaisInfo ancora={maisInfoAncora} aberto onFechar={fecharMaisInfo} numero={p.numero} onEscolher={(aba) => setModalInfo({ pedidoId: p.id, aba })} />
+      ) : null })()}
+      {editando && restauranteId && (() => { const p = [...orders, ...agendados, ...transit, ...concluded].find((o) => o.id === editando); return p ? (
+        <EditarPedidoModal pedido={p} corrida={corridas[p.id] ?? null} supabase={supabase} restauranteId={restauranteId} onFechar={() => setEditando(null)}
+          onSalvo={(r) => { setEditando(null); setAvisoSaida({ tom: 'ok', texto: `Pedido #${r.numero} alterado: ${r.mudancas.join(' · ')}. Novo total ${brl(r.total)}.` }); refetch(restauranteId) }} />
       ) : null })()}
       {modalInfo && (() => { const p = [...orders, ...agendados, ...transit, ...concluded].find((o) => o.id === modalInfo.pedidoId); return p ? (
         <ModalInfoPedido pedido={p} aba={modalInfo.aba} corrida={corridas[p.id] ?? null} onFechar={() => setModalInfo(null)} onPagamentoAlterado={() => { setModalInfo(null); if (restauranteId) refetch(restauranteId) }} />

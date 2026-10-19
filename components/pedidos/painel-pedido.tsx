@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { AlertTriangle, ArrowLeft, Banknote, Bike, CreditCard, MapPin, Phone, PrinterCheck, X } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Banknote, Bike, CreditCard, MapPin, Pencil, Phone, PrinterCheck, X } from 'lucide-react'
 import type { Pedido } from '@/lib/queries/pedidos'
 import { EtiquetasPedido } from '@/components/pedidos/etiquetas-pedido'
 import { EditorPagamento } from '@/components/pedidos/editor-pagamento'
@@ -79,10 +79,12 @@ function Obs({ texto, testid }: { texto: string; testid: string }) {
 
 export function PainelPedido({
   pedido, agora, onFechar, editandoPag, setEditandoPag, onPagamentoAlterado,
-  reimpEstado, onReimprimir, onCancelar, corrida, lado = 'direita',
+  reimpEstado, onReimprimir, onCancelar, corrida, lado = 'direita', onEditar,
 }: {
   pedido: Pedido
   agora: number
+  /** Editar pedido (18/10): abre a janela de edição (itens, endereço, pagamento). Ausente = sem botão. */
+  onEditar?: () => void
   /** Lalamove (0199): corrida do pedido, quando houve. */
   corrida?: EntregaProvedorLinha | null
   /** Lado em que abre (o oposto ao card clicado). */
@@ -131,6 +133,11 @@ export function PainelPedido({
           <h2 className="text-[17px] font-bold leading-tight text-[#111827]">Pedido #{p.numero}</h2>
           <IconesDoPedido order={p} tamanho="painel" />
           <div className="ml-auto flex items-center gap-1.5">
+            {onEditar && (
+              <button type="button" onClick={onEditar} className={`${BOTAO} border-[#D1D5DB] bg-white text-[#1F2937] hover:bg-[#D1D5DB]`} data-testid="painel-editar" title="Editar itens, endereço ou pagamento">
+                <Pencil className="h-4 w-4" aria-hidden /> Editar
+              </button>
+            )}
             <button type="button" onClick={onReimprimir} disabled={reimpEstado === 'enviando' || reimpEstado === 'ok'}
               className={`${BOTAO} border-[#D1D5DB] bg-white text-[#1F2937] hover:bg-[#D1D5DB]`} data-testid="painel-reimprimir" title="Reimprimir o pedido">
               <PrinterCheck className="h-4 w-4" aria-hidden /> {reimpEstado === 'enviando' ? 'Enviando…' : reimpEstado === 'ok' ? 'Enviado' : 'Reimprimir'}
@@ -154,6 +161,11 @@ export function PainelPedido({
           {p.agendadoPara && <span className="ml-1 font-semibold" style={{ color: AZUL_DESTAQUE }}>· agendado para {textoAgendado(p.agendadoPara)}</span>}
         </p>
         <div className="mt-2.5"><BarrasEtapas pedido={p} /></div>
+        {p.editadoEm && p.edicoes && p.edicoes.length > 0 && (
+          <p className="mt-2 rounded-[2px] bg-[#FEF3C7] px-2 py-1.5 text-[12px] text-[#92400E]" data-testid="painel-editado">
+            <b>Alterado às {hora(p.editadoEm)}{p.editadoPorNome ? ` por ${p.editadoPorNome}` : ''}:</b> {p.edicoes[p.edicoes.length - 1].mudancas.join(' · ')}
+          </p>
+        )}
         {reimpEstado === 'ok' && <p className="mt-1.5 text-[11.5px] text-[#6B7280]">Sai na próxima varredura do Assistente (impressão automática precisa estar ligada).</p>}
         {reimpEstado === 'erro' && <p className="mt-1.5 text-[11.5px] text-[#B91C1C]">Não foi possível solicitar a reimpressão. Tente de novo.</p>}
       </div>

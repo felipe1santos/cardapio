@@ -682,15 +682,16 @@ export async function marcarPedidoFidelidadeProcessado(admin: SupabaseClient, re
     .eq('restaurante_id', restauranteId)
     .eq('status', 'entregue')
     .eq('fidelidade_processado', false)
-    .select('id, restaurante_id, cliente_telefone, origem, subtotal, criado_em, pedido_itens ( quantidade )')
+    .select('id, restaurante_id, cliente_telefone, origem, subtotal, criado_em, pedido_itens ( quantidade, cancelado_em )')
     .maybeSingle()
   if (error) throw error
   if (!data) return null
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const row = data as any
+  // Item removido numa edição (cancelado_em, 18/10) não conta.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const qtdItens = (row.pedido_itens ?? []).reduce((soma: number, item: any) => soma + Number(item.quantidade), 0)
+  const qtdItens = (row.pedido_itens ?? []).filter((item: any) => !item.cancelado_em).reduce((soma: number, item: any) => soma + Number(item.quantidade), 0)
 
   return {
     id: row.id,

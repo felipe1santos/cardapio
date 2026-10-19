@@ -8,7 +8,7 @@
  * original (montarMensagemStatus / montarResumoPedido).
  */
 
-export const ETAPAS = ['recebido', 'agendado', 'aceito', 'pronto_retirada', 'pronto_entrega', 'em_rota', 'entregue'] as const
+export const ETAPAS = ['recebido', 'agendado', 'aceito', 'pronto_retirada', 'pronto_entrega', 'em_rota', 'entregue', 'alterado'] as const
 export type Etapa = (typeof ETAPAS)[number]
 
 export type TipoAutomatico = 'entrega' | 'retirada' | 'local'
@@ -28,6 +28,8 @@ export const INFO_ETAPA: Record<Etapa, { titulo: string; quando: string; persona
   pronto_entrega: { titulo: 'Pronto (entrega)', quando: 'Pedido de entrega marcado como pronto, antes de sair.', personalizavel: true },
   em_rota: { titulo: 'Saiu para entrega', quando: 'Quando o entregador sai com o pedido.', personalizavel: true },
   entregue: { titulo: 'Pedido entregue', quando: 'Quando o pedido é marcado como entregue.', personalizavel: true },
+  // Edição de pedido (18/10): a loja (ou uma solicitação do cliente aplicada) mudou itens, endereço ou pagamento.
+  alterado: { titulo: 'Pedido alterado', quando: 'Quando a loja altera itens, endereço ou pagamento de um pedido já feito.', personalizavel: true },
 }
 
 /** Textos padrão em forma de modelo — renderizados dão exatamente o texto de lib/whatsapp.ts. */
@@ -38,6 +40,7 @@ export const PADRAO: Record<Exclude<Etapa, 'aceito'>, string> = {
   pronto_entrega: '✅ Seu pedido *#{numero}* está *pronto* e logo sairá para entrega!',
   em_rota: '🛵 Seu pedido *#{numero}* *saiu para entrega*! Chega rapidinho 🚀',
   entregue: '🎉 Pedido *#{numero}* entregue! Bom apetite 😋',
+  alterado: '✏️ Seu pedido *#{numero}* foi alterado:\n{mudancas}\nNovo total: *{total}*',
 }
 
 /**
@@ -52,6 +55,7 @@ export const PADRAO_FORMATADO: Record<Exclude<Etapa, 'aceito'>, string> = {
   pronto_entrega: ['*✅ PEDIDO PRONTO!*', '', 'Olá, _{nome}_! Seu pedido `#{numero}` está *pronto* e logo sai para entrega.'].join('\n'),
   em_rota: ['*🛵 SAIU PARA ENTREGA!*', '', 'Olá, _{nome}_! Seu pedido `#{numero}` está a caminho.', '', '> Chega rapidinho 🚀'].join('\n'),
   entregue: ['*🎉 PEDIDO ENTREGUE!*', '', 'Bom apetite, _{nome}_! Obrigado por pedir na *{loja}*.'].join('\n'),
+  alterado: ['*✏️ PEDIDO ALTERADO*', '', 'Olá, _{nome}_! Seu pedido `#{numero}` foi alterado:', '{mudancas}', '', 'Novo total: `{total}`'].join('\n'),
 }
 
 /** Modelo formatado: sem nome do cliente, some o ", _{nome}_" junto (nada de "Olá, __!"). */
@@ -78,6 +82,7 @@ export const VARIAVEIS:{ chave: string; rotulo: string; exemplo: string }[] = [
   { chave: 'tipo', rotulo: 'entrega ou retirada', exemplo: 'entrega' },
   { chave: 'horario', rotulo: 'Horário agendado (só no agendado)', exemplo: 'hoje às 19:30' },
   { chave: 'total', rotulo: 'Total do pedido', exemplo: 'R$ 58,00' },
+  { chave: 'mudancas', rotulo: 'O que mudou (só no pedido alterado)', exemplo: '• −1× Coca 2L' },
 ]
 
 /**

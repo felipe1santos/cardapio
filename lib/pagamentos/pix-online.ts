@@ -363,35 +363,45 @@ export type ResultadoDevolucao = { ok: true; devolucaoId: string } | { ok: false
  */
 export async function devolverPix(admin: SupabaseClient, p: {
   restauranteId: string; pagamentoId: string; solicitante: { id: string; nome: string }; aprovacao: Aprovacao; motivo: string
+  /** Estorno PARCIAL (edição de pedido, 18/10): só este valor volta; o pagamento continua "pago" pelo resto. Ausente = total. */
+  valorCentavos?: number
 }): Promise<ResultadoDevolucao> {
   const motivo = p.motivo?.trim()
   if (!motivo || motivo.length < 3) return { ok: false, erro: 'Escreva o motivo da devolução.', status: 400 }
   const { data: reg } = await admin.from('pagamentos_online').select('*').eq('id', p.pagamentoId).eq('restaurante_id', p.restauranteId).maybeSingle()
   if (!reg) return { ok: false, erro: 'Pagamento não encontrado.', status: 404 }
-  if (!['pago', 'a_devolver'].includes(reg.status)) return { ok: false, erro: `Só dá para devolver um ${ehCartao(reg) ? 'cartão' : 'Pix'} pago.`, status: 409 }
-  const apr = await conferirAprovacao(admin, { restauranteId: p.restauranteId, solicitante: p.solicitante, aprovacao: p.aprovacao, acao: 'pix_online_devolver', valorCentavos: centavos(Number(reg.valor)), motivo, contexto: { pagamento: reg.id, pedido: reg.pedido_id } })
+  if (!['pago', 'a_devolver', 'devolvido_parcial'].includes(reg.status)) return { ok: false, erro: `Só dá para devolver um ${ehCartao(reg) ? 'cartão' : 'Pix'} pago.`, status: 409 }
+  // Valor que ainda pode voltar: o pago menos o que já foi devolvido em estornos parciais anteriores.
+  const jaDevolvido = centavos(Number(reg.devolucao_valor ?? 0))
+  const restante = centavos(Number(reg.valor)) - jaDevolvido
+  const parcial = p.valorCentavos !== undefined && p.valorCentavos < restante
+  const valorEstorno = parcial ? Math.round(p.valorCentavos!) : restante
+  if (valorEstorno <= 0) return { ok: false, erro: 'Não há valor a devolver.', status: 409 }
+  const apr = await conferirAprovacao(admin, { restauranteId: p.restauranteId, solicitante: p.solicitante, aprovacao: p.aprovacao, acao: 'pix_online_devolver', valorCentavos: valorEstorno, motivo, contexto: { pagamento: reg.id, pedido: reg.pedido_id } })
   if (!apr.ok) return { ok: false, erro: apr.erro, status: apr.status }
   let reembolso
   try {
-    reembolso = await comTokenDaLoja(admin, p.restauranteId, (t) => provedorMp().reembolsar(t, reg.mp_payment_id, `devolucao:${reg.id}`))
+    // Chave de idempotência própria por estorno parcial (o total continua a de sempre).
+    const idem = parcial ? `devolucao:${reg.id}:${jaDevolvido + valorEstorno}` : `devolucao:${reg.id}`
+    reembolso = await comTokenDaLoja(admin, p.restauranteId, (t) => provedorMp().reembolsar(t, reg.mp_payment_id, idem, parcial ? valorEstorno / 100 : undefined))
   } catch (e) {
     return { ok: false, erro: e instanceof ErroMp ? `O Mercado Pago recusou a devolução (${e.status}).` : 'Falha ao falar com o Mercado Pago.', status: 502 }
   }
   await admin.from('pagamentos_online').update({
-    status: 'devolvido', devolucao_id: reembolso.id, devolvido_em: new Date().toISOString(), devolucao_pedida_por: p.solicitante.nome,
-    aprovado_por_nome: apr.aprovadorNome, motivo_devolucao: motivo.slice(0, 300),
+    status: parcial ? 'devolvido_parcial' : 'devolvido', devolucao_id: reembolso.id, devolvido_em: new Date().toISOString(), devolucao_pedida_por: p.solicitante.nome,
+    aprovado_por_nome: apr.aprovadorNome, motivo_devolucao: motivo.slice(0, 300), devolucao_valor: (jaDevolvido + valorEstorno) / 100,
   }).eq('id', reg.id)
   const { data: loja } = await admin.from('restaurantes').select('financeiro_ativo').eq('id', p.restauranteId).maybeSingle()
   if (loja?.financeiro_ativo) {
     const { data: original } = await admin.from('fin_lancamentos').select('id').eq('restaurante_id', p.restauranteId).eq('chave_idempotencia', `${CHAVE(reg)}:${reg.mp_payment_id}`).eq('linha', 1).maybeSingle()
     await lancar(admin, {
-      restauranteId: p.restauranteId, turnoId: await turnoAberto(admin, p.restauranteId), chave: `${CHAVE(reg)}-devolucao:${reg.mp_payment_id}`, origem: 'online',
+      restauranteId: p.restauranteId, turnoId: await turnoAberto(admin, p.restauranteId), chave: parcial ? `${CHAVE(reg)}-devolucao:${reg.mp_payment_id}:${jaDevolvido + valorEstorno}` : `${CHAVE(reg)}-devolucao:${reg.mp_payment_id}`, origem: 'online',
       usuario: { id: p.solicitante.id, nome: p.solicitante.nome }, motivo, aprovacao: { id: apr.id, nome: apr.aprovadorNome },
-      linhas: [{ carteira: 'online', tipo: 'estorno', valorCentavos: -centavos(Number(reg.valor)), forma: FORMA(reg), pedidoId: reg.pedido_id, pagamentoId: reg.id, referenciaId: original?.id ?? null, dados: { mp_payment_id: reg.mp_payment_id, devolucao_id: reembolso.id } }],
+      linhas: [{ carteira: 'online', tipo: 'estorno', valorCentavos: -valorEstorno, forma: FORMA(reg), pedidoId: reg.pedido_id, pagamentoId: reg.id, referenciaId: original?.id ?? null, dados: { mp_payment_id: reg.mp_payment_id, devolucao_id: reembolso.id } }],
     })
   }
   await registrarAuditoria(admin, { restauranteId: p.restauranteId, usuarioId: p.solicitante.id, usuarioNome: p.solicitante.nome, acao: ehCartao(reg) ? 'cartao_online.devolvido' : 'pix_online.devolvido', entidade: 'pagamento_online', entidadeId: reg.id,
-    dados: { valor: reg.valor, motivo, aprovado_por: apr.aprovadorNome, devolucao_id: reembolso.id, pedido: reg.pedido_id } })
+    dados: { valor: valorEstorno / 100, parcial, motivo, aprovado_por: apr.aprovadorNome, devolucao_id: reembolso.id, pedido: reg.pedido_id } })
   return { ok: true, devolucaoId: reembolso.id }
 }
 

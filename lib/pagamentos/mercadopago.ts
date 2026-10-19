@@ -46,7 +46,8 @@ export interface ProvedorMp {
   criarPix(accessToken: string, p: { valor: number; descricao: string; referencia: string; expiraEm: string; email: string; notificacaoUrl: string | null; idempotencia: string }): Promise<CobrancaPix>
   consultar(accessToken: string, pagamentoId: string): Promise<PagamentoMp>
   cancelar(accessToken: string, pagamentoId: string): Promise<void>
-  reembolsar(accessToken: string, pagamentoId: string, idempotencia: string): Promise<ReembolsoMp>
+  /** Estorno total (sem valor) ou PARCIAL (`amount` em reais; doc do MP: POST /v1/payments/{id}/refunds). */
+  reembolsar(accessToken: string, pagamentoId: string, idempotencia: string, valor?: number): Promise<ReembolsoMp>
   /** Cartão online (12/10): cria o pagamento com o token do Brick. Devolve o pagamento já com o status (aprovado/recusado/em análise). */
   pagarCartao(accessToken: string, p: PagamentoCartao): Promise<PagamentoMp>
 }
@@ -146,8 +147,8 @@ const provedorReal: ProvedorMp = {
       ...(p.notificacaoUrl ? { notification_url: p.notificacaoUrl } : {}),
     } }))
   },
-  async reembolsar(token, id, idem) {
-    const j = await chamar(`/v1/payments/${encodeURIComponent(id)}/refunds`, { metodo: 'POST', token, idempotencia: idem, corpo: {} })
+  async reembolsar(token, id, idem, valor) {
+    const j = await chamar(`/v1/payments/${encodeURIComponent(id)}/refunds`, { metodo: 'POST', token, idempotencia: idem, corpo: valor && valor > 0 ? { amount: Math.round(valor * 100) / 100 } : {} })
     return { id: String(j.id), status: String(j.status ?? 'approved'), valor: Number(j.amount ?? 0) }
   },
 }
@@ -233,13 +234,16 @@ const provedorSimulado: ProvedorMp = {
     e.pagamentos[pg.id] = pg; gravarSim(e)
     return this.consultar(token, pg.id)
   },
-  async reembolsar(token, id, idem) {
+  async reembolsar(token, id, idem, valor) {
     contaSim(token); const e = lerSim(); const pg = e.pagamentos[id]
     if (!pg || pg.status !== 'approved') throw new ErroMp(400, 'MP 400: payment not refundable (simulado)')
+    if (valor !== undefined && (valor <= 0 || valor > pg.valor)) throw new ErroMp(400, 'MP 400: invalid refund amount (simulado)')
     const rid = `R${pg.id}-${createHash('sha1').update(idem).digest('hex').slice(0, 6)}`
     if (!pg.reembolsos.includes(rid)) pg.reembolsos.push(rid)
-    pg.status = 'refunded'; gravarSim(e)
-    return { id: rid, status: 'approved', valor: pg.valor }
+    // Parcial: o pagamento continua aprovado pelo resto (como no MP); total vira refunded.
+    if (valor === undefined || valor >= pg.valor) pg.status = 'refunded'
+    gravarSim(e)
+    return { id: rid, status: 'approved', valor: valor ?? pg.valor }
   },
 }
 

@@ -141,6 +141,7 @@ export function CardPedido({ order, now, selecionado, destaqueNovo, somBloqueado
         {/* Linha 2: tipo · bairro · forma — hora e tempo à direita */}
         <div className="mt-0.5 flex items-center justify-between gap-2 text-[11.5px] leading-[15px] text-[#6B7280]">
           <span className="min-w-0 truncate">
+            {order.editadoEm && <span className="mr-1 rounded-[2px] bg-[#FEF3C7] px-1 py-[1px] text-[10.5px] font-semibold text-[#92400E]" title={`Alterado às ${hora(order.editadoEm)}${order.editadoPorNome ? ` por ${order.editadoPorNome}` : ''}`} data-testid="card-editado">editado</span>}
             <span data-testid="card-tipo">{tipo}</span>
             {local && <> · {local}</>}
             {order.canal !== 'mesa' && <> · {pag}</>}
