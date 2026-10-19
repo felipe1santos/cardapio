@@ -18,6 +18,9 @@ import { responder, type DadosLojaAuto, type PedidoAuto } from './respostas'
 import type { ChaveTexto } from './textos'
 import { itemCitado, modoIaAtivo, nomesDoCardapio, rotaDaMensagem } from '@/lib/agente-ia/gatilho'
 import { carregarCardapioIa } from '@/lib/agente-ia/cardapio'
+import { abrirSolicitacao } from '@/lib/pedidos/solicitacoes'
+import { corridaAtivaDoPedido } from '@/lib/entregas/queries'
+import { pedidoEditavel } from '@/lib/pedido-editavel'
 import { categoriasDoCardapio, escolherOpcao, itemEscolhidoNaLista, linkJaEnviado, pedeOpcoes, respondeuSimAoPedido, textoCategorias, textoItensDaCategoria } from './categorias'
 import {
   agenteLigadoNaLoja, atenderComIa, estadoIaDaConversa, historicoDaConversa, iaEsgotadaNaConversa, registrarFalhaIa, registrarRespostaIa,
@@ -138,6 +141,7 @@ export async function carregarLojaAuto(admin: SupabaseClient, restauranteId: str
 async function montarPedido(admin: SupabaseClient, p: { id: string; numero: number; status: string; tipo: string; total: number; forma_pagamento?: string | null; pago?: boolean | null }, semEntregador: boolean): Promise<PedidoAuto> {
   const { data: itens } = await admin.from('pedido_itens').select('nome, quantidade, cancelado_em').eq('pedido_id', p.id)
   return {
+    id: p.id,
     numero: p.numero,
     status: p.status,
     rotuloStatus: rotuloStatusPedidoCliente({ status: p.status, saidaSemConfirmacao: semEntregador && p.tipo === 'entrega' }),
@@ -148,6 +152,23 @@ async function montarPedido(admin: SupabaseClient, p: { id: string; numero: numb
       .filter((i) => !i.cancelado_em)
       .map((i) => ({ quantidade: Number(i.quantidade) || 1, nome: String(i.nome) })),
   }
+}
+
+/**
+ * 18/10: o pedido aberto mais recente deste telefone que AINDA pode ser alterado (lib/pedido-editavel: sem motoboy, sem
+ * "saiu p/ entrega", sem corrida Lalamove). Null = nada a alterar (o robô segue como antes).
+ */
+export async function pedidoEditavelDoTelefone(admin: SupabaseClient, restauranteId: string, telefone: string): Promise<string | null> {
+  const variantes = variantesTelefone(telefone)
+  if (!variantes.length) return null
+  const { data } = await admin.from('pedidos').select('id, status, canal, entregador_id, saiu_para_entrega_em, origem_canal')
+    .eq('restaurante_id', restauranteId).in('cliente_telefone', variantes).in('status', ['recebido', 'preparando', 'pronto'])
+    .gte('criado_em', new Date(Date.now() - 36 * 3600_000).toISOString()).order('criado_em', { ascending: false }).limit(3)
+  for (const p of (data ?? []) as { id: string; status: string; canal: string | null; entregador_id: string | null; saiu_para_entrega_em: string | null; origem_canal: string | null }[]) {
+    const corrida = await corridaAtivaDoPedido(admin, p.id).catch(() => null)
+    if (pedidoEditavel({ status: p.status, canal: p.canal, entregadorId: p.entregador_id, saiuParaEntregaEm: p.saiu_para_entrega_em, origemCanal: p.origem_canal }, !!corrida).ok) return p.id
+  }
+  return null
 }
 
 /** Pedidos em aberto do telefone (últimas 36 h). */
@@ -413,7 +434,9 @@ export async function processarMensagemAuto(
   }
 
   const temPix = !!loja.pixChave?.trim()
-  const decidido = decidir({ classificacao: classif, texto: m.texto ?? '', estado, agora, assuntosDesligados: loja.assuntosDesligados, tipo: m.tipo, temPix })
+  // 18/10: pedido aberto e ainda editável deste telefone → "7 Alterar ou cancelar meu pedido" e o fluxo de solicitação.
+  const pedidoEditavelId = m.tipo === 'texto' ? await pedidoEditavelDoTelefone(admin, restauranteId, telefone) : null
+  const decidido = decidir({ classificacao: classif, texto: m.texto ?? '', estado, agora, assuntosDesligados: loja.assuntosDesligados, tipo: m.tipo, temPix, pedidoEditavelId })
   // IA falhou numa mensagem que o robô sozinho não responderia ("sim", foto): o cliente recebe o "não entendi" com o
   // link e a oferta de atendente — nunca fica sem resposta.
   const d = iaFalhou && decidido.acao === 'nada'
@@ -448,7 +471,16 @@ export async function processarMensagemAuto(
   if (d.acao === 'entrega' && d.bairro && loja.temRaio && loja.aceitaEntrega) {
     taxaCheckout = await resolverFrete(admin, restauranteId, { bairro: d.bairro, cidade: loja.cidade ?? undefined }).catch(() => null)
   }
-  const r = responder(d, loja, { agora, nomeCliente: e.nome, pedido, abertos, taxaCheckout })
+  // Solicitação do cliente (18/10): registra no servidor e responde com a mensagem dele (anotado / cancelado / não dá mais).
+  let solicitacaoMensagem: string | null = null
+  if (d.acao === 'alterar_pedido_registrar' && d.pedidoId) {
+    const texto = (m.texto ?? '').trim()
+    const cancelar = /\bcancel/.test(classif.normalizado)
+    const r = await abrirSolicitacao(admin, { restauranteId, pedidoId: d.pedidoId, origem: 'robo', tipo: cancelar ? 'cancelar' : 'alterar', texto, conversaId: e.conversa_id })
+    solicitacaoMensagem = r.mensagem
+  }
+  if (d.acao === 'alterar_pedido_perguntar' && d.pedidoId) pedido = (await pedidosAbertosDoTelefone(admin, restauranteId, telefone, ctx.semEntregador)).find((x) => x.id === d.pedidoId) ?? null
+  const r = responder(d, loja, { agora, nomeCliente: e.nome, pedido, abertos, taxaCheckout, temAlteracao: !!pedidoEditavelId, solicitacaoMensagem })
   const novo = { ...d.estado }
   if (r.autoEstado !== undefined) {
     novo.autoEstado = r.autoEstado

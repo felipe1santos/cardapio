@@ -245,7 +245,7 @@ const CardKds = memo(function CardKds({ p, agora, prefs, riscados, fichas, ocupa
         ))}
       </ul>
       {/* Edição de pedido (18/10): a observação já traz o bloco "PEDIDO ALTERADO (hh:mm): …"; a faixa só chama a atenção. */}
-      {p.editadoEm && <p className="mx-3 mb-1 rounded-[3px] bg-[#B45309] px-2 py-1 text-center text-[0.9em] font-bold uppercase tracking-wide text-white" data-testid="kds-alterado">⚠ Alterado</p>}
+      {p.editadoEm && <p className="mx-3 mb-1 rounded-[3px] bg-[#B45309] px-2 py-1 text-center text-[0.9em] font-semibold uppercase tracking-wide text-white" data-testid="kds-alterado">⚠ Alterado</p>}
       {p.observacao && <p className="mx-3 mb-2 rounded-[3px] bg-[#FEF3C7] px-2 py-1 text-[0.95em] font-semibold text-[#92400E]" data-testid="kds-obs-pedido">⚠ Pedido: {p.observacao}</p>}
       <button type="button" onClick={() => onPronto(p)} disabled={ocupado}
         className="flex h-[56px] items-center justify-center gap-2 bg-[#047857] text-[1em] font-semibold uppercase tracking-wide text-white hover:bg-[#065F46] active:bg-[#064E3B] disabled:opacity-60" data-testid="kds-pronto">

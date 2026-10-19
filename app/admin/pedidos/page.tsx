@@ -45,6 +45,7 @@ import { useEstadoSessao } from '@/lib/sessao-cliente'
 import { CardPedido, CARD_BOTAO_PRINCIPAL } from '@/components/pedidos/card-pedido'
 import { MenuMaisInfo, ModalInfoPedido, type AbaInfo } from '@/components/pedidos/mais-info'
 import { EditarPedidoModal } from '@/components/pedidos/editar-pedido'
+import { mapSolicitacaoCard, SOLICITACAO_SELECT, SolicitacaoNoCard, type SolicitacaoCard } from '@/components/pedidos/solicitacao-no-card'
 import { avisarStatusLoja } from '@/lib/status-loja-cliente'
 import { Dica, Flutuante } from '@/components/ui/flutuante'
 import { pedidoParado, tempoParado } from '@/lib/pedido-parado'
@@ -183,25 +184,25 @@ function FluxoCard({ order, tone, onClick, onConcluir, rotulo, acoes, corrida, o
   const [naoEntregue, setNaoEntregue] = useState<string | null>(null)
   const temAcoes = !!(acoes?.onEntregue || acoes?.onNaoEntregue)
   return (
-    <div className={`rounded-[2px] border border-[#E3E6EA] border-l-[3px] bg-[#FBFBFC] transition-[border-color] hover:border-[#C9CED6] ${t.accent}`} data-testid={`fluxo-${order.numero}`}>
-      <button onClick={(e) => (temAcoes ? setAberto((v) => !v) : onClick(e.currentTarget))} aria-expanded={temAcoes ? aberto : undefined} className="w-full p-3 text-left">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold">#{order.numero}</span>
-          <div className="flex items-center gap-1.5">
-            {/* Em rota há dias é pedido esquecido, não entrega em andamento. */}
-            {pedidoParado(order, Date.now()) && (
-              <Badge tone="danger" title="Ninguém fechou este pedido. Conclua ou cancele.">
-                Parado há {tempoParado(order.criadoEm, Date.now())}
-              </Badge>
-            )}
-            <Badge tone={t.badge}>{rotulo ?? t.label}</Badge>
-          </div>
+    // Redesign 18/10 (pedido do dono): o mesmo padrão do card das outras colunas — branco, sombra, nº · cliente em
+    // negrito, valor verde à direita, linha cinza com tipo · bairro · hora, etiqueta de situação.
+    <div className={`rounded-[2px] border border-[#DFE3E8] bg-white shadow-[0_2px_4px_rgba(16,24,40,0.10),0_1px_2px_rgba(16,24,40,0.06)] transition-[border-color] hover:border-[#C9CED6] ${t.accent} border-l-[3px]`} data-testid={`fluxo-${order.numero}`}>
+      <button onClick={(e) => (temAcoes ? setAberto((v) => !v) : onClick(e.currentTarget))} aria-expanded={temAcoes ? aberto : undefined} className="w-full px-2.5 pb-1.5 pt-2 text-left">
+        <div className="flex items-start justify-between gap-2">
+          <span className="min-w-0 truncate text-[12.5px] font-semibold leading-[16px] text-[#111827]"><span className="text-[#374151]">#{order.numero}</span> · {order.clienteNome || 'Cliente'}</span>
+          <span className="whitespace-nowrap text-[12.5px] font-semibold leading-[16px] tabular-nums text-[#15803D]">{brl(order.total)}</span>
         </div>
-        <div className="mt-1 text-xs text-text-subtle">
-          {order.clienteNome || 'Cliente'}
-          {order.tipo === 'entrega' && order.enderecoBairro ? ` · ${order.enderecoBairro}` : ''}
+        <div className="mt-0.5 flex items-center justify-between gap-2 text-[11.5px] leading-[15px] text-[#6B7280]">
+          <span className="min-w-0 truncate">{order.tipo === 'entrega' ? 'Entrega' : order.canal === 'mesa' ? 'Mesa' : 'Retirada'}{order.tipo === 'entrega' && order.enderecoBairro ? ` · ${order.enderecoBairro}` : ''}{order.entregadorNome ? ` · ${order.entregadorNome}` : ''}</span>
+          <span className="flex-shrink-0 tabular-nums">{new Date(order.criadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
         </div>
-        <div className="mt-1 text-[11px] font-medium text-price-text">{brl(order.total)}</div>
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+          <Badge tone={t.badge}>{rotulo ?? t.label}</Badge>
+          {/* Em rota há dias é pedido esquecido, não entrega em andamento. */}
+          {pedidoParado(order, Date.now()) && (
+            <Badge tone="danger" title="Ninguém fechou este pedido. Conclua ou cancele.">Parado há {tempoParado(order.criadoEm, Date.now())}</Badge>
+          )}
+        </div>
       </button>
       {corrida && (
         <div className="px-3 pb-2">
@@ -291,6 +292,14 @@ export default function PedidosPage() {
   const [fluxo, setFluxo] = useState(FLUXO_LOJA_PADRAO)
   // Lalamove (0199): corridas por pedido (realtime em entregas_provedor) e se o botão aparece (módulo + chaves + ligada).
   const [corridas, setCorridas] = useState<Record<string, EntregaProvedorLinha>>({})
+  // Solicitações do cliente pendentes (Fase 2, 18/10): por pedido; realtime em pedido_solicitacoes.
+  const [solicitacoes, setSolicitacoes] = useState<Record<string, SolicitacaoCard>>({})
+  async function decidirSolicitacao(s: SolicitacaoCard, acao: 'aplicar' | 'recusar' | 'concluir', motivo?: string | null) {
+    const r = await fetch(`/api/admin/pedidos/${s.pedidoId}/solicitacao`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ acao, solicitacaoId: s.id, motivo }) }).catch(() => null)
+    const j = (await r?.json().catch(() => ({}))) as { error?: string; codigo?: string; mudancas?: string[] }
+    if (r?.ok) { setSolicitacoes((m) => { const c = { ...m }; delete c[s.pedidoId]; return c }); if (acao === 'aplicar') setAvisoSaida({ tom: 'ok', texto: `Solicitação do cliente aplicada${j.mudancas?.length ? `: ${j.mudancas.join(' · ')}` : ''}.` }); if (restauranteId) refetch(restauranteId) }
+    return { ok: !!r?.ok, semProposta: j.codigo === 'sem_proposta', erro: j.error }
+  }
   const [lalamoveAtiva, setLalamoveAtiva] = useState(false)
   const estadoSessao = useEstadoSessao()
   const moduloLalamove = estadoSessao?.modulos?.entregas_lalamove === true
@@ -507,6 +516,10 @@ export default function PedidosPage() {
         const porPedido: Record<string, EntregaProvedorLinha> = {}
         for (const c of corridasHoje) if (!porPedido[c.pedidoId] || (CORRIDA_ATIVA.includes(c.status) && !CORRIDA_ATIVA.includes(porPedido[c.pedidoId].status))) porPedido[c.pedidoId] = c
         setCorridas(porPedido)
+        // Solicitações pendentes do cliente (uma por pedido). Falha aqui não derruba o Kanban.
+        const { data: sols } = await supabase.from('pedido_solicitacoes').select(SOLICITACAO_SELECT).eq('restaurante_id', id).eq('status', 'pendente').limit(100)
+        if (seq !== refetchSeq.current) return
+        setSolicitacoes(Object.fromEntries(((sols ?? []) as Record<string, unknown>[]).map(mapSolicitacaoCard).map((s) => [s.pedidoId, s])))
 
 
         // com o aceite automático ligado, agenda o avanço dos pedidos pendentes
@@ -597,6 +610,7 @@ export default function PedidosPage() {
         { tabela: 'pedidos', filtro: restauranteId ? `restaurante_id=eq.${restauranteId}` : undefined },
         // Lalamove (0199): o webhook grava aqui; o card muda na hora, sem consultar a API.
         { tabela: 'entregas_provedor', filtro: restauranteId ? `restaurante_id=eq.${restauranteId}` : undefined },
+        { tabela: 'pedido_solicitacoes', filtro: restauranteId ? `restaurante_id=eq.${restauranteId}` : undefined },
       ],
       [restauranteId]
     ),
@@ -887,14 +901,20 @@ export default function PedidosPage() {
   // 44 px, ícone + texto, estado ligado/desligado visível e no tooltip. Abaixo de xl, os menos
   // usados (Métricas, Entregas, Tela cheia) vão para "Mais ⋯".
   const parados = [...orders, ...transit].filter((p) => pedidoParado(p, now))
-  const avisos: Aviso[] = parados.length
+  const pendentesSol = Object.values(solicitacoes)
+  const avisos: Aviso[] = [...(pendentesSol.length ? [{
+        id: 'solicitacoes',
+        titulo: pendentesSol.length === 1 ? '1 cliente pediu alteração ou cancelamento' : `${pendentesSol.length} clientes pediram alteração ou cancelamento`,
+        texto: 'Veja a faixa amarela no card e toque em Aplicar ou Recusar. Sem resposta em 5 min, a conversa vai para o atendente.',
+        pedidos: pendentesSol.map((s) => { const p = [...orders, ...agendados].find((o) => o.id === s.pedidoId); return { id: s.pedidoId, numero: p?.numero ?? 0, cliente: `${p?.clienteNome ?? ''} — ${s.tipo === 'cancelar' ? 'cancelar' : s.texto}`.slice(0, 120), status: p?.status ?? '', aberto: `${Math.max(0, Math.round((now - new Date(s.criadoEm).getTime()) / 60_000))} min` } }),
+      }] : []), ...(parados.length
     ? [{
         id: 'parados',
         titulo: parados.length === 1 ? '1 pedido aberto há mais de 12 horas' : `${parados.length} pedidos abertos há mais de 12 horas`,
         texto: 'Marque como entregue, não entregue ou cancele. Enquanto isso, contam como pendentes na taxa de conclusão.',
         pedidos: parados.map((p) => ({ id: p.id, numero: p.numero, cliente: p.clienteNome, status: p.status, aberto: tempoParado(p.criadoEm, now) })),
       }]
-    : []
+    : [])]
   const acharPedido = (id: string) => [...orders, ...transit].find((o) => o.id === id)
   /** "Ver no kanban": abre a coluna certa, rola até o card e pisca a borda. */
   function verNoKanban(id: string) {
@@ -1193,7 +1213,7 @@ export default function PedidosPage() {
                         order={order}
                         now={now}
                         selecionado={selecionado}
-                        destaqueNovo={novo}
+                        destaqueNovo={novo || !!solicitacoes[order.id]}
                         somBloqueado={alarme.somAtivo && alarme.bloqueado}
                         onAbrir={(el) => (selecionado ? setDetail(null) : abrirPainel(order, el))}
                         acoes={{
@@ -1204,7 +1224,9 @@ export default function PedidosPage() {
                           onMais: (ancora) => { maisInfoAncora.current = ancora; setMaisInfo((m) => (m?.pedidoId === order.id ? null : { pedidoId: order.id, ancora })) },
                           maisAberto: maisInfo?.pedidoId === order.id,
                         }}
-                        rodape={corridaAtiva ? <CorridaLalamoveNoCard corrida={corridaAtiva} onMudou={() => { if (restauranteId) refetch(restauranteId) }} onErro={setError} /> : (order.agendadoPara ? <Badge tone="alert">Agendado {textoAgendado(order.agendadoPara)}</Badge> : undefined)}
+                        rodape={solicitacoes[order.id] ? (
+                          <SolicitacaoNoCard s={solicitacoes[order.id]} onAplicar={() => decidirSolicitacao(solicitacoes[order.id], 'aplicar')} onRecusar={(motivo) => decidirSolicitacao(solicitacoes[order.id], 'recusar', motivo).then(() => {})} onEditarAMao={() => setEditando(order.id)} />
+                        ) : corridaAtiva ? <CorridaLalamoveNoCard corrida={corridaAtiva} onMudou={() => { if (restauranteId) refetch(restauranteId) }} onErro={setError} /> : (order.agendadoPara ? <Badge tone="alert">Agendado {textoAgendado(order.agendadoPara)}</Badge> : undefined)}
                       />
                     )
                   })}
@@ -1304,7 +1326,7 @@ export default function PedidosPage() {
       ) : null })()}
       {editando && restauranteId && (() => { const p = [...orders, ...agendados, ...transit, ...concluded].find((o) => o.id === editando); return p ? (
         <EditarPedidoModal pedido={p} corrida={corridas[p.id] ?? null} supabase={supabase} restauranteId={restauranteId} onFechar={() => setEditando(null)}
-          onSalvo={(r) => { setEditando(null); setAvisoSaida({ tom: 'ok', texto: `Pedido #${r.numero} alterado: ${r.mudancas.join(' · ')}. Novo total ${brl(r.total)}.` }); refetch(restauranteId) }} />
+          onSalvo={(r) => { const s = solicitacoes[p.id]; setEditando(null); setAvisoSaida({ tom: 'ok', texto: `Pedido #${r.numero} alterado: ${r.mudancas.join(' · ')}. Novo total ${brl(r.total)}.` }); if (s) void decidirSolicitacao(s, 'concluir'); else refetch(restauranteId) }} />
       ) : null })()}
       {modalInfo && (() => { const p = [...orders, ...agendados, ...transit, ...concluded].find((o) => o.id === modalInfo.pedidoId); return p ? (
         <ModalInfoPedido pedido={p} aba={modalInfo.aba} corrida={corridas[p.id] ?? null} onFechar={() => setModalInfo(null)} onPagamentoAlterado={() => { setModalInfo(null); if (restauranteId) refetch(restauranteId) }} />

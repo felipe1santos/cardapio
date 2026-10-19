@@ -7,6 +7,8 @@ import type { Decisao } from './decisao'
 import { renderizar, textoDe, type ChaveTexto, type Valores } from './textos'
 
 export interface PedidoAuto {
+  /** Id do pedido (18/10, para o fluxo de alteração). */
+  id?: string
   numero: number
   status: string
   rotuloStatus: string
@@ -51,13 +53,17 @@ export interface ContextoResposta {
   abertos?: number
   /** Taxa calculada no servidor com a MESMA regra do checkout (bairro × raio, o menor) — vence a da lista (12/10). */
   taxaCheckout?: { taxa: number; entregavel: boolean; motivo?: string } | null
+  /** 18/10: o telefone tem pedido aberto editável → o menu ganha "7 Alterar ou cancelar meu pedido". */
+  temAlteracao?: boolean
+  /** 18/10: resposta do servidor ao registrar a solicitação (abrirSolicitacao). */
+  solicitacaoMensagem?: string | null
 }
 
 export interface Resposta {
   /** Mensagens na ordem (a chave Pix sai sozinha na 2ª). */
   mensagens: string[]
   /** Estado que a resposta pede (ex.: bairro achado limpa a espera; status pede o número). */
-  autoEstado?: 'aguardando_bairro' | 'aguardando_numero' | 'pedir_link' | null
+  autoEstado?: 'aguardando_bairro' | 'aguardando_numero' | 'pedir_link' | `alterar_pedido:${string}` | null
 }
 
 export const brl = (v: number) => `R$ ${v.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')}`
@@ -88,11 +94,13 @@ export function semLinhaDoZero(texto: string): string {
   return texto.split('\n').filter((linha) => !/^\s*[-•]?\s*\*?0\*?\s*[-–]?\s*Falar com (um )?atendente\s*$/i.test(linha)).join('\n').replace(/\n{3,}/g, '\n\n').trim()
 }
 
-export function menu(l: DadosLojaAuto, curto = false): string {
+export function menu(l: DadosLojaAuto, curto = false, comAlterar = false): string {
   const desl = l.assuntosDesligados ?? new Set<Assunto>()
   const linhas = OPCOES_MENU
     .filter(([n, a]) => !desl.has(a) && (!curto || [1, 2, 3].includes(n)))
     .map(([n, a, r]) => `- *${n}* ${a === 'pagamento_pix' && !temPix(l) ? 'Formas de pagamento' : r}`)
+  // 18/10: só quando o número tem pedido aberto que ainda dá para alterar.
+  if (comAlterar) linhas.push('- *7* Alterar ou cancelar meu pedido')
   // 12/10: sem "0 Falar com atendente" no menu — atendente só a pedido ou após 2 "não entendi" seguidos.
   return linhas.join('\n')
 }
@@ -188,11 +196,19 @@ export function responder(decisao: Decisao, l: DadosLojaAuto, ctx: ContextoRespo
     case 'nada':
       return { mensagens: [] }
     case 'saudacao':
-      return { mensagens: [t('saudacao', { menu: menu(l, true) })] }
+      return { mensagens: [t('saudacao', { menu: menu(l, true, ctx.temAlteracao) })] }
     case 'menu_curto':
-      return { mensagens: [t('menu_curto', { menu: menu(l, true) })] }
+      return { mensagens: [t('menu_curto', { menu: menu(l, true, ctx.temAlteracao) })] }
     case 'nao_entendeu':
-      return { mensagens: [t('nao_entendeu', { menu: menu(l) })] }
+      return { mensagens: [t('nao_entendeu', { menu: menu(l, false, ctx.temAlteracao) })] }
+    case 'alterar_pedido_perguntar': {
+      const p = ctx.pedido
+      return { mensagens: [`*✏️ Alterar o pedido${p ? ` #${p.numero}` : ''}*
+
+Me diga aqui o que você quer mudar (ex.: _tirar a cebola_, _mais 1 Coca 2L_, _outro endereço_) ou escreva *cancelar* para cancelar o pedido.`], autoEstado: decisao.pedidoId ? `alterar_pedido:${decisao.pedidoId}` : null }
+    }
+    case 'alterar_pedido_registrar':
+      return { mensagens: [ctx.solicitacaoMensagem ?? 'Anotei! A loja vai confirmar em instantes 🙏'], autoEstado: null }
     case 'cardapio':
       return { mensagens: [t('cardapio')] }
     case 'entrega_perguntar_bairro':

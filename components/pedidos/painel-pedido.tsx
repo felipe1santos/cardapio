@@ -71,7 +71,7 @@ function BarrasEtapas({ pedido }: { pedido: Pedido }) {
 
 function Obs({ texto, testid }: { texto: string; testid: string }) {
   return (
-    <p className="mt-0.5 flex items-start gap-1.5 text-[12.5px] font-semibold text-[#B91C1C]" data-testid={testid}>
+    <p className="mt-1 flex items-start gap-1.5 rounded-[2px] bg-[#FEE2E2] px-2 py-1.5 text-[12.5px] font-semibold text-[#B91C1C]" data-testid={testid}>
       <AlertTriangle className="mt-[2px] h-3.5 w-3.5 flex-shrink-0" aria-hidden /> <span>{texto}</span>
     </p>
   )
@@ -130,7 +130,7 @@ export function PainelPedido({
           <button type="button" onClick={onFechar} className="-ml-1 flex h-[32px] items-center gap-1 px-2 text-[13px] font-semibold hover:bg-[#E5E7EB] lg:hidden" style={{ color: AZUL_DESTAQUE }} data-testid="painel-voltar">
             <ArrowLeft className="h-4 w-4" /> Voltar
           </button>
-          <h2 className="text-[17px] font-bold leading-tight text-[#111827]">Pedido #{p.numero}</h2>
+          <h2 className="text-[17px] font-semibold leading-tight text-[#111827]">Pedido #{p.numero}</h2>
           <IconesDoPedido order={p} tamanho="painel" />
           <div className="ml-auto flex items-center gap-1.5">
             {onEditar && (
@@ -260,7 +260,7 @@ export function PainelPedido({
             <div className="flex justify-between text-[#6B7280]"><span>Subtotal</span><span className="tabular-nums">{brl(p.subtotal)}</span></div>
             {p.taxaEntrega > 0 && <div className="flex justify-between text-[#6B7280]"><span>Taxa de entrega</span><span className="tabular-nums">{brl(p.taxaEntrega)}</span></div>}
             {p.desconto > 0 && <div className="flex justify-between text-[#6B7280]"><span>Desconto</span><span className="tabular-nums">−{brl(p.desconto)}</span></div>}
-            <div className="flex items-baseline justify-between pt-1"><span className="text-[13.5px] font-bold text-[#111827]">Total</span><span className="text-[17px] font-bold tabular-nums text-[#15803D]" data-testid="painel-total">{brl(p.total)}</span></div>
+            <div className="flex items-baseline justify-between pt-1"><span className="text-[13.5px] font-semibold text-[#111827]">Total</span><span className="text-[17px] font-semibold tabular-nums text-[#15803D]" data-testid="painel-total">{brl(p.total)}</span></div>
           </div>
         </div>
 

@@ -30,6 +30,8 @@ export interface PedidoPos {
 
 export type PlanoAlteracao =
   | { tipo: 'atendente'; motivo: string }
+  /** 18/10: registra a solicitação para a loja aplicar/recusar no card (ou cancela sozinho em Recebido não pago online). */
+  | { tipo: 'solicitacao'; tipoSol: 'alterar' | 'cancelar' }
   | { tipo: 'pix_para_entrega' }
   | { tipo: 'cancelar_pix_pendente' }
   | { tipo: 'trocar_simples'; reimprimir: boolean }
@@ -38,8 +40,14 @@ export type PlanoAlteracao =
   | { tipo: 'info'; texto: string }
 
 /** O que fazer com o pedido criado. Puro. */
-export function planoAlteracao(p: PedidoPos, acao: AcaoPosPedido, pagamento: FormaPagamento | undefined, loja: { pixOnline: boolean; pixChave: boolean }): PlanoAlteracao {
+export function planoAlteracao(p: PedidoPos, acao: AcaoPosPedido, pagamento: FormaPagamento | undefined, loja: { pixOnline: boolean; pixChave: boolean }, editavel = false): PlanoAlteracao {
   const alteracao = { tipo: 'atendente' as const, motivo: `Alteração do pedido #${p.numero}` }
+  // Solicitações (18/10): pedido ainda não despachado → itens/endereço/outro viram solicitação para a loja; cancelar fora
+  // do Pix pendente também (automático em Recebido não pago online — decidido em abrirSolicitacao).
+  if (editavel && p.status !== 'cancelado' && p.status !== 'entregue') {
+    if (acao === 'cancelar' && p.status !== 'aguardando_pagamento') return { tipo: 'solicitacao', tipoSol: 'cancelar' }
+    if (acao === 'alterar_itens' || acao === 'alterar_endereco' || acao === 'outro') return { tipo: 'solicitacao', tipoSol: 'alterar' }
+  }
   if (p.status === 'cancelado') {
     if (p.cancelado_motivo === 'pix_expirado' && acao === 'trocar_pagamento' && pagamento) return { tipo: 'remontar' }
     return { tipo: 'info', texto: `O pedido #${p.numero} está cancelado. Se o cliente quiser, monte um pedido novo.` }
@@ -118,7 +126,11 @@ export async function alterarPedidoFeito(ctx: ContextoAlteracao, input: Record<s
     if (troco !== null && troco < p.total) return { conteudo: `O troco tem que ser para um valor maior que o total (${brl(p.total)}). Pergunte de novo.`, erro: true }
   }
 
-  const plano = planoAlteracao(p, acao, pagamento, { pixOnline: ctx.pixOnlineAtivo, pixChave: !!ctx.loja.pixChave })
+  const { pedidoEditavel } = await import('@/lib/pedido-editavel')
+  const { corridaAtivaDoPedido } = await import('@/lib/entregas/queries')
+  const { data: pe } = await ctx.admin.from('pedidos').select('canal, entregador_id, saiu_para_entrega_em, origem_canal').eq('id', p.id).maybeSingle()
+  const editavel = !!pe && pedidoEditavel({ status: p.status, canal: pe.canal, entregadorId: pe.entregador_id, saiuParaEntregaEm: pe.saiu_para_entrega_em, origemCanal: pe.origem_canal }, !!(await corridaAtivaDoPedido(ctx.admin, p.id).catch(() => null))).ok
+  const plano = planoAlteracao(p, acao, pagamento, { pixOnline: ctx.pixOnlineAtivo, pixChave: !!ctx.loja.pixChave }, editavel)
   const atendente = (motivo: string): ResultadoAlteracao => ({
     conteudo: JSON.stringify({ ok: true, aviso: 'O sistema chamou um atendente e avisou o cliente. Não escreva mais nada.' }),
     mensagens: [TEXTO_CHAMEI_ATENDENTE], atendente: motivo,
@@ -130,6 +142,17 @@ export async function alterarPedidoFeito(ctx: ContextoAlteracao, input: Record<s
       return { conteudo: JSON.stringify({ ok: false, aviso: plano.texto }) }
     case 'atendente':
       return atendente(plano.motivo)
+    case 'solicitacao': {
+      const { abrirSolicitacao } = await import('@/lib/pedidos/solicitacoes')
+      const detalhes = String(input.detalhes ?? '').trim().slice(0, 1000)
+      if (plano.tipoSol === 'alterar' && !detalhes) return { conteudo: 'Pergunte ao cliente exatamente o que ele quer mudar e chame de novo com `detalhes`.', erro: true }
+      // Itens a adicionar (ids do cardápio) viram proposta estruturada; o preço é do servidor na hora de aplicar.
+      const adicionar = Array.isArray(input.adicionar) ? (input.adicionar as { item_id?: unknown; quantidade?: unknown; observacao?: unknown }[])
+        .filter((a) => typeof a.item_id === 'string' && /^[0-9a-f-]{36}$/i.test(a.item_id) && Number.isFinite(Number(a.quantidade)) && Number(a.quantidade) >= 1)
+        .map((a) => ({ itemId: a.item_id as string, quantidade: Math.min(99, Math.floor(Number(a.quantidade))), observacao: String(a.observacao ?? '').slice(0, 200), complementos: [] })) : []
+      const r = await abrirSolicitacao(ctx.admin, { restauranteId: ctx.restauranteId, pedidoId: p.id, origem: 'ia', tipo: plano.tipoSol, texto: detalhes || (plano.tipoSol === 'cancelar' ? 'Cliente pediu para cancelar' : ''), proposta: adicionar.length ? { itens: { adicionar } } : null, conversaId: ctx.conversaId })
+      return pronto([r.mensagem])
+    }
     case 'cancelar_pix_pendente': {
       const c = await cancelarCobrancaPendente(ctx.admin, ctx.restauranteId, p.id)
       if (c === 'paga' || c === 'erro') return atendente(`Cancelamento do pedido #${p.numero}${c === 'paga' ? ' (Pix já pago)' : ''}`)

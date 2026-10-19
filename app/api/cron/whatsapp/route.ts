@@ -3,6 +3,7 @@ import { getAdminSupabase } from '@/lib/supabase/admin'
 import { processarFila } from '@/lib/mensageria/fila'
 import { garantirWebhookDeTempoEmTempo } from '@/lib/mensageria/webhook-loja'
 import { avisarAtendentesPendentes } from '@/lib/agente-ia/avisos'
+import { escalarSolicitacoesPendentes } from '@/lib/pedidos/solicitacoes'
 import { sugerirComIaUmaLoja } from '@/lib/robo-auto/sugestao-ia'
 
 /**
@@ -17,6 +18,8 @@ export async function POST(request: Request) {
   const admin = getAdminSupabase()
   // Pediu atendente pela IA e ninguém respondeu em 10 min: avisa o cliente uma vez (12/10). Antes da fila: sai nesta mesma rodada.
   await avisarAtendentesPendentes(admin).catch((e) => console.error('[whatsapp] aviso de atendente:', (e as Error).message))
+  // Solicitação de alteração/cancelamento do cliente sem resposta da loja há 5 min (18/10): vai para o atendente.
+  await escalarSolicitacoesPendentes(admin).catch((e) => console.error('[whatsapp] escalar solicitações:', (e as Error).message))
   const fila = await processarFila(admin, { limite: 20 })
   const { data: limpeza, error } = await admin.rpc('whatsapp_limpar_antigos')
   if (error) console.error('[whatsapp] limpeza falhou:', error.message)

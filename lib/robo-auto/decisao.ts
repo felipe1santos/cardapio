@@ -11,10 +11,12 @@ export type AcaoAuto =
   | 'horario' | 'pagamento' | 'endereco' | 'reclamacao' | 'atendente' | 'parar' | 'nao_entendeu' | 'audio' | 'nada'
   | 'pix_chave' | 'resumo_pedido' | 'tempo_entrega' | 'duvida'
   | 'pedir_link' | 'pedir_sem_link'
+  // 18/10: "Alterar ou cancelar meu pedido" (só com pedido aberto): pergunta o que mudar; a mensagem seguinte vira solicitação.
+  | 'alterar_pedido_perguntar' | 'alterar_pedido_registrar'
 
 export interface EstadoAuto {
   /** 12/10: escolhendo categoria / item da categoria N (cardápio pelo robô, sem IA). */
-  autoEstado: 'aguardando_bairro' | 'aguardando_numero' | 'pedir_link' | 'escolher_categoria' | `escolher_item:${number}` | null
+  autoEstado: 'aguardando_bairro' | 'aguardando_numero' | 'pedir_link' | 'escolher_categoria' | `escolher_item:${number}` | `alterar_pedido:${string}` | null
   autoEstadoEm: string | null
   naoEntendeu: number
   saudacaoEm: string | null
@@ -45,6 +47,13 @@ export interface Decisao {
   porSemPix?: boolean
   /** Quer pedir pela conversa e a IA não atendeu: o atendente anota (16/10; nunca o link de novo). */
   porPedido?: boolean
+  /** 18/10: pedido alvo de "alterar ou cancelar meu pedido". */
+  pedidoId?: string
+}
+
+/** "cancelar", "mudar/alterar/trocar o pedido", "tirar", "acrescentar", "esqueci de pedir" (as mesmas palavras que iam para o atendente). */
+export function ehAlteracaoDePedido(normalizado: string): boolean {
+  return /\b(cancel|mudar|alterar|trocar|tirar|acrescentar|adicionar|esqueci)/.test(normalizado)
 }
 
 export interface EntradaDecisao {
@@ -57,6 +66,8 @@ export interface EntradaDecisao {
   tipo?: TipoMensagem
   /** A loja cadastrou a chave Pix do robô (padrão: sim). */
   temPix?: boolean
+  /** 18/10: id do pedido aberto e ainda editável deste telefone (o motor consulta). Sem ele, "alterar/cancelar" vai para o atendente como antes. */
+  pedidoEditavelId?: string | null
 }
 
 const ACAO_DO_ASSUNTO: Record<Assunto, AcaoAuto> = {
@@ -99,6 +110,15 @@ export function decidir(e: EntradaDecisao): Decisao {
   const entendido = (est: EstadoAuto): EstadoAuto => ({ ...est, naoEntendeu: 0 })
 
   if (intencao === 'ok' || intencao === 'voltar') return { acao: 'nada', intencao, estado: e.estado, naoEntendida: false }
+
+  // Esperando o que mudar no pedido (18/10): a mensagem vira a solicitação (o motor registra), a não ser que seja atendente/parar.
+  if (emEspera?.startsWith('alterar_pedido:') && intencao !== 'atendente' && intencao !== 'parar' && intencao !== 'reclamacao') {
+    return { acao: 'alterar_pedido_registrar', intencao: 'status_pedido', estado: entendido(limpo), naoEntendida: false, pedidoId: emEspera.slice('alterar_pedido:'.length) }
+  }
+  // "7" do menu, ou "mudar/cancelar o pedido" com pedido aberto editável: pergunta o que mudar (em vez do atendente).
+  if (e.pedidoEditavelId && (/^(?:opcao )?7$/.test(classificacao.normalizado) || (intencao === 'atendente' && ehAlteracaoDePedido(classificacao.normalizado)))) {
+    return { acao: 'alterar_pedido_perguntar', intencao: 'status_pedido', estado: { ...entendido(limpo), autoEstado: `alterar_pedido:${e.pedidoEditavelId}`, autoEstadoEm: agoraIso }, naoEntendida: false, pedidoId: e.pedidoEditavelId }
+  }
 
   // Esperando o número do pedido: um número na mensagem (que não seja pedido de atendente/reclamação).
   if (emEspera === 'aguardando_numero' && !['atendente', 'reclamacao', 'parar'].includes(intencao)) {

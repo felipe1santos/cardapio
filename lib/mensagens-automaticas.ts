@@ -133,7 +133,7 @@ export function problemaNoTexto(texto: string): string | null {
 }
 
 export function renderizar(texto: string, vars: Record<string, string>): string {
-  return texto.replace(/\{(nome|numero|loja|tipo|horario|total)\}/g, (_, k: string) => vars[k] ?? '')
+  return texto.replace(/\{(nome|numero|loja|tipo|horario|total|mudancas)\}/g, (_, k: string) => vars[k] ?? '')
 }
 
 /** Etapa da mensagem para a transição de status. Null = nenhuma mensagem nessa transição. */

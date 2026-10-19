@@ -52,6 +52,9 @@ export interface SidebarProps {
   onModuloBloqueado?: (m: import('@/lib/modulos').Modulo) => void
   /** Redesign 18/10: tag "Aberto"/"Fechado" no card da loja, no lugar do endereço (null = ainda não lido). */
   statusLoja?: { aberta: boolean; modo: 'manual' | 'automatico' } | null
+  /** Menu recolhido (18/10): só os ícones; a setinha do card da loja abre e fecha. Só a partir de lg. */
+  recolhido?: boolean
+  onRecolher?: () => void
 }
 
 /**
@@ -109,6 +112,8 @@ export function Sidebar({
   aberta = false,
   onFechar,
   statusLoja,
+  recolhido = false,
+  onRecolher,
 }: SidebarProps) {
   const v = VISUAL.novo
   const ITEM_ATIVO = v.ativo
@@ -148,7 +153,8 @@ export function Sidebar({
       {aberta && <div className="fixed inset-0 z-30 bg-black/40 lg:hidden" onClick={onFechar} aria-hidden="true" />}
       <aside
         className={[
-          'z-40 flex h-screen w-[var(--adm-lateral)] flex-shrink-0 flex-col lg:h-full border-r border-[var(--adm-borda)] bg-[var(--adm-superficie)]',
+          'z-40 flex h-screen flex-shrink-0 flex-col lg:h-full border-r border-[var(--adm-borda)] bg-[var(--adm-superficie)] transition-[width] duration-200',
+          recolhido ? 'w-[var(--adm-lateral)] lg:w-[64px]' : 'w-[var(--adm-lateral)]',
           'fixed inset-y-0 left-0 transition-transform duration-200 lg:static lg:translate-x-0',
           // `invisible` e não só `-translate-x-full`: deslocada, ela continuaria no
           // caminho do Tab e do leitor de tela. `lg:visible` devolve a coluna fixa.
@@ -157,7 +163,23 @@ export function Sidebar({
       >
       {/* O menu começa direto no card da loja (2026-09-30): sem a faixa da marca. Os avisos
           (sino de notificações e alerta de pendências) moram no card, antes da seta. */}
-      {loja ? (
+      {loja && recolhido ? (
+        // Recolhido (desktop): o logo, o sino e o alerta (só os ícones) e a setinha para abrir de novo.
+        <div data-testid="menu-card-loja" data-recolhido="1" className="flex min-h-[var(--adm-topo)] flex-shrink-0 flex-col items-center justify-center gap-0.5 border-b border-[var(--adm-borda)] py-2">
+          <button type="button" onClick={onAbrirLoja} aria-label={`Ver os dados de ${loja.nome}`} className="grid place-items-center">
+            {loja.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={loja.logoUrl} alt="" className="h-8 w-8 rounded-[3px] border border-[var(--adm-borda)] object-cover" />
+            ) : (
+              <span className="flex h-8 w-8 items-center justify-center rounded-[3px] bg-[var(--adm-azul-claro)] text-[13px] font-semibold text-[var(--adm-azul-escuro)]">{loja.nome.charAt(0).toUpperCase()}</span>
+            )}
+          </button>
+          <div className="flex items-center">{avisos}</div>
+          <button type="button" onClick={onRecolher} aria-label="Abrir o menu" title="Abrir o menu" className="grid h-[24px] w-[32px] place-items-center rounded-[4px] hover:bg-[var(--adm-hover)]" data-testid="menu-recolher">
+            <svg viewBox="0 0 24 24" className="h-4 w-4 rotate-180 fill-[var(--adm-texto-suave)]" aria-hidden="true">{ICONES.seta.map((d) => (<path key={d} d={d} />))}</svg>
+          </button>
+        </div>
+      ) : loja ? (
         <div data-testid="menu-card-loja" className="flex min-h-[var(--adm-topo)] flex-shrink-0 items-center gap-1 border-b border-[var(--adm-borda)] py-2 pl-4 pr-2">
           <button
             type="button"
@@ -199,8 +221,8 @@ export function Sidebar({
             </span>
           </button>
           {avisos}
-          {/* Área de toque de 44×44 (pendência 7); as margens negativas mantêm o lugar de 18×32 no layout. */}
-          <button type="button" onClick={onAbrirLoja} aria-label={`Abrir a ficha de ${loja.nome}`} className="-mx-[13px] -my-[6px] hidden h-[44px] w-[44px] flex-shrink-0 place-items-center lg:grid">
+          {/* Setinha (18/10): recolhe o menu (só os ícones); clicar de novo abre. A ficha da loja abre pelo nome/logo. */}
+          <button type="button" onClick={onRecolher ?? onAbrirLoja} aria-label="Recolher o menu" title="Recolher o menu" className="-mx-[13px] -my-[6px] hidden h-[44px] w-[44px] flex-shrink-0 place-items-center lg:grid" data-testid="menu-recolher">
             <svg viewBox="0 0 24 24" className="h-4 w-4 fill-[var(--adm-texto-suave)]" aria-hidden="true">
               {ICONES.seta.map((d) => (<path key={d} d={d} />))}
             </svg>
@@ -224,7 +246,7 @@ export function Sidebar({
 
       {/* Mesmo desenho dos submenus (components/admin/submenu-vertical.tsx, noite 5): fonte Nunito,
           ícone Material preenchido cinza, item ativo com fundo cinza-claro arredondado. */}
-      <nav data-menu-principal="" style={FONTE_MENU} className="flex flex-1 flex-col gap-[2px] overflow-y-auto px-2 py-3">
+      <nav data-menu-principal="" style={FONTE_MENU} className={`flex flex-1 flex-col gap-[2px] overflow-y-auto py-3 ${recolhido ? 'px-2 lg:px-[10px] lg:[&_a]:justify-center lg:[&_a]:px-0 lg:[&_button]:justify-center lg:[&_button]:px-0 lg:[&_.rotulo-menu]:hidden lg:[&_.extra-menu]:hidden' : 'px-2'}`} data-recolhido={recolhido ? '1' : undefined}>
         {items.map((item) => {
           // Prefixo, não igualdade: seções com subpáginas (ex.: /admin/ajustes/impressao)
           // precisam manter o item do menu destacado.
@@ -247,8 +269,8 @@ export function Sidebar({
                     {iconPath.map((d) => (<path key={d} d={d} />))}
                   </svg>
                 )}
-                <span className="truncate">{item.label}</span>
-                <svg viewBox="0 0 24 24" className={`ml-auto h-[15px] w-[15px] flex-shrink-0 fill-current ${v.cadeado}`} aria-hidden="true" data-testid="menu-cadeado">
+                <span className="rotulo-menu truncate">{item.label}</span>
+                <svg viewBox="0 0 24 24" className={`extra-menu ml-auto h-[15px] w-[15px] flex-shrink-0 fill-current ${v.cadeado}`} aria-hidden="true" data-testid="menu-cadeado">
                   {ICONES.cadeado.map((d) => (<path key={d} d={d} />))}
                 </svg>
               </button>
@@ -259,7 +281,8 @@ export function Sidebar({
               key={item.href}
               href={item.href}
               aria-current={isActive ? 'page' : undefined}
-              className={[ITEM_MENU, isActive ? ITEM_ATIVO : ITEM_INATIVO].join(' ')}
+              className={[ITEM_MENU, isActive ? ITEM_ATIVO : ITEM_INATIVO, recolhido ? 'relative' : ''].join(' ')}
+              title={recolhido ? item.label : undefined}
             >
               {iconPath && (
                 <svg viewBox="0 0 24 24" className={['h-[20px] w-[20px] flex-shrink-0 fill-current', isActive ? v.iconeAtivo : v.icone].join(' ')} aria-hidden="true">
@@ -268,14 +291,14 @@ export function Sidebar({
                   ))}
                 </svg>
               )}
-              <span className="truncate">{item.label}</span>
+              <span className="rotulo-menu truncate">{item.label}</span>
               {item.novidade && (
-                <span className="flex-shrink-0 rounded-[4px] bg-[#e6f6ec] px-1.5 py-[2px] text-[10.5px] font-semibold leading-[14px] text-[var(--adm-alta)]">
+                <span className="extra-menu flex-shrink-0 rounded-[4px] bg-[#e6f6ec] px-1.5 py-[2px] text-[10.5px] font-semibold leading-[14px] text-[var(--adm-alta)]">
                   Novo
                 </span>
               )}
               {item.badge !== undefined && item.badge > 0 && (
-                <span className="ml-auto flex h-[20px] min-w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--adm-azul)] px-1.5 text-[11px] font-semibold text-white">
+                <span className={`${recolhido ? 'lg:absolute lg:right-1 lg:top-0' : 'ml-auto'} flex h-[20px] min-w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--adm-azul)] px-1.5 text-[11px] font-semibold text-white`}>
                   {item.badge > 99 ? '99+' : item.badge}
                 </span>
               )}
@@ -285,7 +308,7 @@ export function Sidebar({
       </nav>
 
       {storeSlug && (
-        <div style={FONTE_MENU} className="mb-1 mt-1 flex items-center gap-0.5 border-t border-[var(--adm-borda)] px-2 pt-2">
+        <div style={FONTE_MENU} className={`mb-1 mt-1 flex items-center gap-0.5 border-t border-[var(--adm-borda)] px-2 pt-2 ${recolhido ? 'lg:[&_a]:justify-center lg:[&_a]:px-0 lg:[&_.rotulo-menu]:hidden lg:[&>*:not(a)]:hidden' : ''}`}>
         <a
           href={`/loja/${storeSlug}`}
           target="_blank"
@@ -295,7 +318,7 @@ export function Sidebar({
           <svg viewBox="0 0 24 24" className={`h-[20px] w-[20px] flex-shrink-0 fill-current ${v.icone}`} aria-hidden="true">
             {ICONES.abrirFora.map((d) => (<path key={d} d={d} />))}
           </svg>
-          <span className="truncate">Ver meu cardápio</span>
+          <span className="rotulo-menu truncate">Ver meu cardápio</span>
         </a>
         {/* O "copiar link" saiu do topo junto com a faixa da marca e mora aqui. */}
         <CopiarLinkCardapio slug={storeSlug} />
@@ -306,12 +329,13 @@ export function Sidebar({
         <button
           type="button"
           onClick={onSignOut}
-          className="mx-3 mb-3 flex items-center justify-center gap-2 rounded-[3px] border border-[var(--adm-borda)] px-3 py-2 text-[12px] font-semibold text-[var(--adm-texto-suave)] transition-colors hover:border-[var(--adm-borda-forte)] hover:bg-[var(--adm-superficie-2)] hover:text-[var(--adm-texto)]"
+          title="Sair"
+          className={`mb-3 flex items-center justify-center gap-2 rounded-[3px] border border-[var(--adm-borda)] py-2 text-[12px] font-semibold text-[var(--adm-texto-suave)] transition-colors hover:border-[var(--adm-borda-forte)] hover:bg-[var(--adm-superficie-2)] hover:text-[var(--adm-texto)] ${recolhido ? 'mx-3 px-3 lg:mx-2 lg:px-0 lg:[&>span]:hidden' : 'mx-3 px-3'}`}
         >
           <svg viewBox="0 0 24 24" className="h-[14px] w-[14px] fill-current">
             {ICONES.sair.map((d) => (<path key={d} d={d} />))}
           </svg>
-          Sair
+          <span>Sair</span>
         </button>
       )}
       </aside>

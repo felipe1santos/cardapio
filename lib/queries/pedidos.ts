@@ -382,9 +382,13 @@ export async function listarRecebidosParaAlarme(supabase: SupabaseClient, restau
     .or(`agendado_para.is.null,agendado_para.lte.${corte}`)
     .order('criado_em', { ascending: true })
   if (error) throw error
-  return ((data ?? []) as { id: string; numero: number; preparando_notificado: boolean | null }[])
+  const recebidos = ((data ?? []) as { id: string; numero: number; preparando_notificado: boolean | null }[])
     .filter((p) => !p.preparando_notificado)
     .map((p) => ({ id: p.id, numero: p.numero }))
+  // Solicitação do cliente pendente (18/10) toca o mesmo alarme, uma vez (id próprio "sol:…"). Falha aqui não cala o alarme.
+  const { data: sols } = await supabase.from('pedido_solicitacoes').select('id, pedido:pedidos ( numero )').eq('restaurante_id', restauranteId).eq('status', 'pendente').limit(50)
+  const solicitacoes = ((sols ?? []) as { id: string; pedido: { numero: number } | { numero: number }[] | null }[]).map((s) => ({ id: `sol:${s.id}`, numero: Number((Array.isArray(s.pedido) ? s.pedido[0] : s.pedido)?.numero) || 0 }))
+  return [...recebidos, ...solicitacoes]
 }
 
 /** Pedidos de uma loja num conjunto de status — usado pelo portal da cozinha (admin client). */

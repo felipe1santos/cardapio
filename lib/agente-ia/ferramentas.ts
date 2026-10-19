@@ -77,11 +77,13 @@ export const FERRAMENTAS: FerramentaClaude[] = [
   },
   {
     name: 'alterar_pedido_feito',
-    description: 'Cliente quer mudar ou cancelar um pedido JÁ CRIADO (trocar a forma de pagamento, cancelar, mudar itens ou endereço). O SISTEMA decide o que pode (troca o pagamento, cancela o Pix ou chama alguém da loja) e responde ao cliente. Para dinheiro, pergunte ANTES se precisa de troco e para quanto.',
+    description: 'Cliente quer mudar ou cancelar um pedido JÁ CRIADO (trocar a forma de pagamento, cancelar, mudar itens ou endereço). O SISTEMA decide o que pode (troca o pagamento, cancela, registra a alteração para a loja confirmar, ou chama alguém da loja) e responde ao cliente. Para dinheiro, pergunte ANTES se precisa de troco e para quanto. Para mudar itens/endereço, mande em `detalhes` o que o cliente quer; itens a adicionar vão em `adicionar` com o item_id de consultar_cardapio.',
     input_schema: {
       type: 'object',
       properties: {
         acao: { type: 'string', enum: ACOES_POS_PEDIDO },
+        detalhes: { type: 'string', description: 'Para alterar_itens / alterar_endereco / outro / cancelar: o que o cliente quer, nas palavras dele (ex.: "tirar a cebola do X-Tudo", "mais 1 Coca 2L", "endereço: Rua X, 10, Centro")' },
+        adicionar: { type: 'array', description: 'Só alterar_itens: itens a ADICIONAR, com o item_id de consultar_cardapio (nunca inventar id)', items: { type: 'object', properties: { item_id: { type: 'string' }, quantidade: { type: 'integer' }, observacao: { type: 'string' } }, required: ['item_id', 'quantidade'] } },
         pagamento: { type: 'string', enum: ['pix', 'dinheiro', 'cartao'], description: 'Só para trocar_pagamento' },
         troco_para: { type: 'number', description: 'Só para dinheiro: troco para quanto (0 = sem troco)' },
         numero: { type: 'integer', description: 'Número do pedido, se o cliente disser (senão, o último pedido desta conversa)' },

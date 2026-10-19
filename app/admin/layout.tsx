@@ -113,6 +113,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [alertaAberto, setAlertaAberto] = useState(false)
   // Gaveta do menu: só existe abaixo de `lg`, onde a sidebar sai do fluxo.
   const [menuAberto, setMenuAberto] = useState(false)
+  // Menu recolhido (18/10): preferência do navegador; a setinha do card da loja alterna.
+  const [menuRecolhido, setMenuRecolhido] = useState(false)
+  useEffect(() => { try { setMenuRecolhido(localStorage.getItem('menuzia:menu-recolhido') === '1') } catch { /* sem storage */ } }, [])
+  const alternarRecolhido = () => setMenuRecolhido((v) => { const n = !v; try { localStorage.setItem('menuzia:menu-recolhido', n ? '1' : '0') } catch { /* sem storage */ } return n })
   const valorDoMenu = useMemo(() => ({ abrir: () => setMenuAberto(true) }), [])
   // Notificação de pedido novo: estado do navegador + disparo. A permissão só é
   // pedida no clique do item do menu (components/admin/notificacoes-pedidos.tsx).
@@ -376,6 +380,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           storeSlug={storeSlug}
           loja={loja}
           statusLoja={statusLoja}
+          recolhido={menuRecolhido}
+          onRecolher={alternarRecolhido}
           onSignOut={handleSignOut}
           aberta={menuAberto}
           onFechar={() => setMenuAberto(false)}

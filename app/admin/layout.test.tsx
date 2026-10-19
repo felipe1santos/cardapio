@@ -34,7 +34,7 @@ vi.mock('@/lib/queries/cardapio', () => ({ buscarRestauranteIdDoUsuario: vi.fn()
 vi.mock('@/lib/queries/pedidos', () => ({
   contarBadgesNav: vi.fn().mockResolvedValue({ novosPedidos: 0, logisticaPendente: 0 }),
 }))
-vi.mock('@/lib/queries/ajustes', () => ({ buscarConfigLoja: vi.fn() }))
+vi.mock('@/lib/queries/ajustes', () => ({ buscarConfigLoja: vi.fn(), buscarStatusELoja: vi.fn(async () => null) }))
 vi.mock('@/lib/queries/setup', () => ({ carregarDadosSetup: vi.fn() }))
 
 /** Config mínima que o layout consome (slug e o toggle de Logística). */
