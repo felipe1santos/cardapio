@@ -11,6 +11,8 @@ export const PAGAS = [
   /generativelanguage\.googleapis\.com/, /aiplatform\.googleapis\.com/, /api\.openai\.com/, /api\.anthropic\.com/,
   // Lalamove (18/10): a corrida é paga pela loja; só lib/custo/lalamove.ts fala com a API.
   /rest(\.sandbox)?\.lalamove\.com/,
+  // Entregador iFood (Sob Demanda) e Foody/Open Delivery Logistics (19/10): a corrida é paga pela loja; só lib/custo/.
+  /\/shipping\/v1\.0\//, /\/v1\/logistics\//,
   /\bnew\s+google\.maps\.(Geocoder|DirectionsService|DistanceMatrixService|ElevationService)\b/,
   /\bgoogle\.maps\.places\b/, /\b(PlacesService|AutocompleteService|DistanceMatrixService)\b/,
   /\bnew\s+(OpenAI|Anthropic|GoogleGenerativeAI)\s*\(/, /from\s+['"](openai|@anthropic-ai\/sdk|@google\/generative-ai|@google\/genai)['"]/,

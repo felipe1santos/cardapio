@@ -16,6 +16,7 @@ import { SUPORTE_MENUZIA } from '@/lib/suporte'
 import { BotaoAjudaIntegracao } from '@/components/admin/integracoes/ajuda-integracao'
 import { LalamoveCard } from '@/components/admin/lalamove-card'
 import { CanalCard } from '@/components/admin/integracoes/canal-card'
+import { EntregadorCard } from '@/components/admin/integracoes/entregador-card'
 import { useEstadoSessao } from '@/lib/sessao-cliente'
 
 /**
@@ -30,7 +31,7 @@ import { useEstadoSessao } from '@/lib/sessao-cliente'
  *   atendente ficam só na central do WhatsApp (canto inferior direito).
  */
 
-type IdIntegracao = 'whatsapp' | 'mercadopago' | 'facebook' | 'capi' | 'google' | 'lalamove' | 'keeta' | '99food' | 'ifood'
+type IdIntegracao = 'whatsapp' | 'mercadopago' | 'facebook' | 'capi' | 'google' | 'lalamove' | 'keeta' | '99food' | 'ifood' | 'entregas-ifood' | 'foody'
 type Grupo = 'Mensagens' | 'Pagamentos' | 'Marketing e medição' | 'Entregas' | 'Pedidos de apps'
 interface Definicao { id: IdIntegracao; nome: string; grupo: Grupo; logo: string; resumo: string }
 
@@ -42,6 +43,9 @@ const INTEGRACOES: Definicao[] = [
   { id: 'google', nome: 'Google Analytics / Tag Manager', grupo: 'Marketing e medição', logo: '/icons/integracoes/google-analytics.svg', resumo: 'Google Analytics 4 (G-…) ou Tag Manager (GTM-…).' },
   // Lalamove (0199): só aparece com o módulo "Entregas Lalamove" liberado no Super Admin.
   { id: 'lalamove', nome: 'Lalamove', grupo: 'Entregas', logo: '/icons/integracoes/lalamove.svg', resumo: 'Chame um entregador da Lalamove pelo Kanban, com o preço antes de confirmar.' },
+  // Entregadores (0208, 19/10): só com o módulo liberado (entregas_ifood / entregas_foody).
+  { id: 'entregas-ifood', nome: 'Entregador iFood (Sob Demanda)', grupo: 'Entregas', logo: '/origens/ifood.svg', resumo: 'Chame um entregador do iFood para pedidos de fora do iFood, com cotação antes de confirmar.' },
+  { id: 'foody', nome: 'Foody Delivery', grupo: 'Entregas', logo: '/icons/integracoes/opendelivery.svg', resumo: 'Entregador da Foody pelo padrão Open Delivery, com cotação antes de confirmar.' },
   // Canais externos (0207, 19/10): só aparecem com o módulo liberado no Super Admin (canal_opendelivery / canal_ifood).
   { id: 'ifood', nome: 'iFood', grupo: 'Pedidos de apps', logo: '/origens/ifood.svg', resumo: 'Pedidos do iFood entram no Painel de Pedidos; aceite, pronto e despacho voltam ao iFood.' },
   { id: 'keeta', nome: 'Keeta', grupo: 'Pedidos de apps', logo: '/icons/integracoes/opendelivery.svg', resumo: 'Pedidos da Keeta pelo padrão Open Delivery (Abrasel).' },
@@ -196,6 +200,8 @@ export default function IntegracoesPage() {
   const moduloLalamove = modulosSessao?.entregas_lalamove === true
   const moduloOpenDelivery = modulosSessao?.canal_opendelivery === true
   const moduloIfood = modulosSessao?.canal_ifood === true
+  const moduloEntregasIfood = modulosSessao?.entregas_ifood === true
+  const moduloFoody = modulosSessao?.entregas_foody === true
 
   useEffect(() => { buscarRestauranteIdDoUsuario(supabase).then(setRestauranteId) }, [supabase])
 
@@ -264,10 +270,13 @@ export default function IntegracoesPage() {
     keeta: false,
     '99food': false,
     ifood: false,
+    'entregas-ifood': false,
+    foody: false,
   }
   // Mercado Pago só onde o Pix online foi liberado (mesma regra do card de antes); Lalamove só com o módulo liberado.
   const existentes = INTEGRACOES.filter((i) => (i.id !== 'mercadopago' || sit.mp?.liberada) && (i.id !== 'lalamove' || moduloLalamove)
-    && ((i.id !== 'keeta' && i.id !== '99food') || moduloOpenDelivery) && (i.id !== 'ifood' || moduloIfood))
+    && ((i.id !== 'keeta' && i.id !== '99food') || moduloOpenDelivery) && (i.id !== 'ifood' || moduloIfood)
+    && (i.id !== 'entregas-ifood' || moduloEntregasIfood) && (i.id !== 'foody' || moduloFoody))
   const carregando = sit.wa === null && !sit.waFalhou || sit.pixels === null || sit.mp === null
   const ativas = existentes.filter((i) => ativa[i.id])
   const disponiveis = existentes.filter((i) => !ativa[i.id])
@@ -361,6 +370,8 @@ export default function IntegracoesPage() {
         {def?.id === 'mercadopago' && <MercadoPagoCard avisar={avisarERecarregar} />}
         {def?.id === 'lalamove' && <LalamoveCard avisar={avisarERecarregar} />}
         {(def?.id === 'keeta' || def?.id === '99food' || def?.id === 'ifood') && <CanalCard canal={def.id} avisar={avisarERecarregar} />}
+        {def?.id === 'entregas-ifood' && <EntregadorCard provedor="ifood" avisar={avisarERecarregar} />}
+        {def?.id === 'foody' && <EntregadorCard provedor="foody" avisar={avisarERecarregar} />}
       </ModalCentral>
       <PilhaToasts itens={toasts.itens} />
     </div>

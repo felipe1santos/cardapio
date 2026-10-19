@@ -18,10 +18,11 @@ import { avisarSuporte } from './alerta-whatsapp'
  */
 // 'lalamove' (18/10): a corrida é paga pela LOJA (conta dela), mas a chamada segue a mesma guarda — loop aqui criaria
 // corridas de verdade. Limite de chamadas/dia em LIMITE_LALAMOVE_DIA (padrão 600 ≈ 100 corridas × 6 chamadas).
-export type ApiPaga = 'geocoding' | 'directions' | 'places' | 'ia' | 'lalamove'
+// 'ifood_entrega' e 'foody' (19/10, Etapa 3): entregador do iFood (Sob Demanda) e Foody (Open Delivery Logistics), mesma regra.
+export type ApiPaga = 'geocoding' | 'directions' | 'places' | 'ia' | 'lalamove' | 'ifood_entrega' | 'foody'
 
-const PADRAO: Record<ApiPaga, number> = { geocoding: 300, directions: 300, places: 100, ia: 2000, lalamove: 600 }
-const ENV: Record<ApiPaga, string> = { geocoding: 'LIMITE_GEOCODING_DIA', directions: 'LIMITE_DIRECTIONS_DIA', places: 'LIMITE_PLACES_DIA', ia: 'LIMITE_IA_CHAMADAS_DIA', lalamove: 'LIMITE_LALAMOVE_DIA' }
+const PADRAO: Record<ApiPaga, number> = { geocoding: 300, directions: 300, places: 100, ia: 2000, lalamove: 600, ifood_entrega: 600, foody: 600 }
+const ENV: Record<ApiPaga, string> = { geocoding: 'LIMITE_GEOCODING_DIA', directions: 'LIMITE_DIRECTIONS_DIA', places: 'LIMITE_PLACES_DIA', ia: 'LIMITE_IA_CHAMADAS_DIA', lalamove: 'LIMITE_LALAMOVE_DIA', ifood_entrega: 'LIMITE_IFOOD_ENTREGA_DIA', foody: 'LIMITE_FOODY_DIA' }
 
 export function limiteDiario(api: ApiPaga, env: Record<string, string | undefined> = process.env): number {
   const v = Number(env[ENV[api]])

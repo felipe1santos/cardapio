@@ -8,6 +8,8 @@ import { ENTREGA_PROVEDOR_SELECT, mapEntregaProvedor, type EntregaProvedorLinha 
  * SERVER-ONLY: decifra as chaves da loja. O navegador recebe só `ConfigPublica`.
  */
 export const PROVEDOR = 'lalamove'
+/** Provedores de entrega (0208): a Lalamove e, pela MESMA tabela/vocabulário de status, iFood Sob Demanda e Foody. */
+export type ProvedorEntrega = 'lalamove' | 'ifood' | 'foody'
 
 export interface ConfigProvedor {
   restauranteId: string
@@ -21,6 +23,9 @@ export interface ConfigProvedor {
   servico: string
   webhookToken: string
   webhookRegistradoEm: string | null
+  /** Foody (Open Delivery): URL base da API do provedor. */
+  baseUrl: string
+  provedor: ProvedorEntrega
 }
 
 export interface ConfigPublica {
@@ -33,9 +38,11 @@ export interface ConfigPublica {
   servico: string
   webhookToken: string
   webhookRegistradoEm: string | null
+  baseUrl: string
+  provedor: ProvedorEntrega
 }
 
-const SELECT = 'restaurante_id, ativo, ambiente, api_key_cifrada, api_secret_cifrada, api_key_final, cidade_locode, cidade_nome, servico, webhook_token, webhook_registrado_em'
+const SELECT = 'restaurante_id, ativo, ambiente, api_key_cifrada, api_secret_cifrada, api_key_final, cidade_locode, cidade_nome, servico, webhook_token, webhook_registrado_em, base_url'
 
 function mapConfig(r: Record<string, unknown>): ConfigProvedor {
   let chaves: ChavesLalamove | null = null
@@ -46,22 +53,23 @@ function mapConfig(r: Record<string, unknown>): ConfigProvedor {
     restauranteId: String(r.restaurante_id), ativo: r.ativo === true, ambiente: r.ambiente === 'producao' ? 'producao' : 'sandbox', chaves,
     apiKeyFinal: String(r.api_key_final ?? ''), cidadeLocode: String(r.cidade_locode ?? ''), cidadeNome: String(r.cidade_nome ?? ''),
     servico: String(r.servico ?? 'MOTORCYCLE'), webhookToken: String(r.webhook_token), webhookRegistradoEm: (r.webhook_registrado_em as string | null) ?? null,
+    baseUrl: String(r.base_url ?? ''), provedor: (r.provedor as ProvedorEntrega) ?? 'lalamove',
   }
 }
 
 export function paraPublica(c: ConfigProvedor): ConfigPublica {
-  return { ativo: c.ativo, ambiente: c.ambiente, temChaves: !!c.chaves, apiKeyFinal: c.apiKeyFinal, cidadeLocode: c.cidadeLocode, cidadeNome: c.cidadeNome, servico: c.servico, webhookToken: c.webhookToken, webhookRegistradoEm: c.webhookRegistradoEm }
+  return { ativo: c.ativo, ambiente: c.ambiente, temChaves: !!c.chaves, apiKeyFinal: c.apiKeyFinal, cidadeLocode: c.cidadeLocode, cidadeNome: c.cidadeNome, servico: c.servico, webhookToken: c.webhookToken, webhookRegistradoEm: c.webhookRegistradoEm, baseUrl: c.baseUrl, provedor: c.provedor }
 }
 
-export async function buscarConfig(admin: SupabaseClient, restauranteId: string): Promise<ConfigProvedor | null> {
-  const { data, error } = await admin.from('entregas_provedor_config').select(SELECT).eq('restaurante_id', restauranteId).eq('provedor', PROVEDOR).maybeSingle()
+export async function buscarConfig(admin: SupabaseClient, restauranteId: string, provedor: ProvedorEntrega = PROVEDOR): Promise<ConfigProvedor | null> {
+  const { data, error } = await admin.from('entregas_provedor_config').select(SELECT).eq('restaurante_id', restauranteId).eq('provedor', provedor).maybeSingle()
   if (error) throw error
   return data ? mapConfig(data as Record<string, unknown>) : null
 }
 
-export async function buscarConfigPorToken(admin: SupabaseClient, token: string): Promise<ConfigProvedor | null> {
+export async function buscarConfigPorToken(admin: SupabaseClient, token: string, provedor: ProvedorEntrega = PROVEDOR): Promise<ConfigProvedor | null> {
   if (!/^[\w-]{10,80}$/.test(token)) return null
-  const { data, error } = await admin.from('entregas_provedor_config').select(SELECT).eq('webhook_token', token).eq('provedor', PROVEDOR).maybeSingle()
+  const { data, error } = await admin.from('entregas_provedor_config').select(SELECT).eq('webhook_token', token).eq('provedor', provedor).maybeSingle()
   if (error) throw error
   return data ? mapConfig(data as Record<string, unknown>) : null
 }
@@ -76,10 +84,12 @@ export interface ConfigPatch {
   servico?: string
   webhookRegistradoEm?: string | null
   porNome?: string
+  baseUrl?: string
 }
 
-export async function salvarConfig(admin: SupabaseClient, restauranteId: string, p: ConfigPatch): Promise<ConfigProvedor> {
-  const linha: Record<string, unknown> = { restaurante_id: restauranteId, provedor: PROVEDOR }
+export async function salvarConfig(admin: SupabaseClient, restauranteId: string, p: ConfigPatch, provedor: ProvedorEntrega = PROVEDOR): Promise<ConfigProvedor> {
+  const linha: Record<string, unknown> = { restaurante_id: restauranteId, provedor }
+  if (p.baseUrl !== undefined) linha.base_url = p.baseUrl.trim().replace(/\/+$/, '').slice(0, 300)
   if (p.ativo !== undefined) linha.ativo = p.ativo
   if (p.ambiente) linha.ambiente = p.ambiente
   if (p.chaves === null) { linha.api_key_cifrada = null; linha.api_secret_cifrada = null; linha.api_key_final = ''; linha.ativo = false }
@@ -111,20 +121,20 @@ export async function buscarCorrida(admin: SupabaseClient, id: string): Promise<
   return data ? mapEntregaProvedor(data as Record<string, unknown>) : null
 }
 
-export async function buscarCorridaPorExterno(admin: SupabaseClient, externoId: string): Promise<EntregaProvedorLinha | null> {
-  const { data, error } = await admin.from('entregas_provedor').select(ENTREGA_PROVEDOR_SELECT).eq('provedor', PROVEDOR).eq('externo_id', externoId).maybeSingle()
+export async function buscarCorridaPorExterno(admin: SupabaseClient, externoId: string, provedor: ProvedorEntrega = PROVEDOR): Promise<EntregaProvedorLinha | null> {
+  const { data, error } = await admin.from('entregas_provedor').select(ENTREGA_PROVEDOR_SELECT).eq('provedor', provedor).eq('externo_id', externoId).maybeSingle()
   if (error) throw error
   return data ? mapEntregaProvedor(data as Record<string, unknown>) : null
 }
 
 /** Reserva a linha ANTES de chamar a Lalamove: o índice único por pedido ativo barra o 2º clique. */
-export async function criarCorrida(admin: SupabaseClient, p: { restauranteId: string; pedidoId: string; ambiente: AmbienteLalamove; cotacaoId: string; preco: number; distanciaM: number | null; porNome: string }): Promise<EntregaProvedorLinha> {
+export async function criarCorrida(admin: SupabaseClient, p: { restauranteId: string; pedidoId: string; ambiente: AmbienteLalamove; cotacaoId: string; preco: number; distanciaM: number | null; porNome: string; provedor?: ProvedorEntrega }): Promise<EntregaProvedorLinha> {
   const { data, error } = await admin.from('entregas_provedor').insert({
-    restaurante_id: p.restauranteId, pedido_id: p.pedidoId, provedor: PROVEDOR, ambiente: p.ambiente, cotacao_id: p.cotacaoId, preco: p.preco,
+    restaurante_id: p.restauranteId, pedido_id: p.pedidoId, provedor: p.provedor ?? PROVEDOR, ambiente: p.ambiente, cotacao_id: p.cotacaoId, preco: p.preco,
     distancia_m: p.distanciaM, status: 'ASSIGNING_DRIVER', criado_por_nome: p.porNome,
   }).select(ENTREGA_PROVEDOR_SELECT).single()
   if (error) {
-    if (error.code === '23505') throw new Error('Este pedido já tem uma corrida da Lalamove em andamento.')
+    if (error.code === '23505') throw new Error('Este pedido já tem uma corrida de entregador em andamento.')
     throw error
   }
   return mapEntregaProvedor(data as Record<string, unknown>)

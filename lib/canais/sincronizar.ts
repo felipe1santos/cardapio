@@ -7,6 +7,8 @@ import { acknowledgmentOd, detalheDoPedidoOd, enviarStatusOd, pollingOd, type Ev
 import { mapearPedidoOpenDelivery } from './opendelivery/mapear'
 import { acknowledgmentIfood, detalheDoPedidoIfood, enviarStatusIfood, EVENTO_IFOOD, pollingIfood, type EventoIfood } from './ifood/cliente'
 import { mapearPedidoIfood } from './ifood/mapear'
+import { buscarCorridaPorExterno } from '@/lib/entregas/queries'
+import { aplicarEventoCorrida, statusDeEventoIfood } from '@/lib/entregas/provedores'
 
 /**
  * O que o cron `/api/cron/canais` faz a cada minuto, por loja com canal ligado E módulo liberado:
@@ -57,7 +59,17 @@ async function tratarEventoIfood(admin: SupabaseClient, c: ConfigCanal, e: Event
   } else if (code === EVENTO_IFOOD.CANCELLED) {
     resultado = (await cancelarPeloApp(admin, c.restauranteId, 'ifood', e.orderId, e.fullCode ?? 'CANCELLED')) ? 'cancelado' : 'ignorado'
   } else {
-    await admin.from('pedidos_externos').update({ status_externo: e.fullCode ?? code, atualizado_em: new Date().toISOString() }).eq('canal', 'ifood').eq('externo_id', e.orderId)
+    // Entregador iFood (Etapa 3): o pedido "de fora" que criamos no iFood manda eventos de entrega por aqui também.
+    const corrida = await buscarCorridaPorExterno(admin, e.orderId, 'ifood').catch(() => null)
+    if (corrida && corrida.restauranteId === c.restauranteId) {
+      const novo = statusDeEventoIfood(e.fullCode ?? code)
+      if (novo) {
+        const md = (e.metadata ?? {}) as { driverName?: string; driverPhone?: string; vehiclePlate?: string; trackingUrl?: string }
+        await aplicarEventoCorrida(admin, corrida, novo, { motorista: md.driverName ? { nome: md.driverName, telefone: md.driverPhone ?? null, placa: md.vehiclePlate ?? null } : null, shareLink: md.trackingUrl ?? null, evento: { code: e.fullCode ?? code, em: e.createdAt }, origem: 'polling' })
+      }
+    } else {
+      await admin.from('pedidos_externos').update({ status_externo: e.fullCode ?? code, atualizado_em: new Date().toISOString() }).eq('canal', 'ifood').eq('externo_id', e.orderId)
+    }
   }
   await lembrarEvento(admin, c, e.id, e.fullCode ?? code, e.orderId)
   return resultado

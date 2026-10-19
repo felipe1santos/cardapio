@@ -160,6 +160,13 @@ export const ROTULO_EVENTO: Record<string, string> = {
   'canal.pedido_importado': 'Pedido de app externo entrou no Painel',
   'canal.config': 'Alterou a configuração do canal de pedidos (app externo)',
   'canal.autorizado': 'Autorizou a loja no iFood',
+  // Entregadores iFood Sob Demanda e Foody (0208, 19/10).
+  'entregas.ifood_chamada': 'Chamou entregador do iFood para um pedido',
+  'entregas.ifood_cancelada': 'Cancelou a corrida do entregador do iFood',
+  'entregas.ifood_config': 'Alterou a configuração do entregador do iFood',
+  'entregas.foody_chamada': 'Chamou entregador da Foody para um pedido',
+  'entregas.foody_cancelada': 'Cancelou a corrida da Foody',
+  'entregas.foody_config': 'Alterou a configuração da Foody',
   'pix_online.devolvido': 'Devolveu Pix online ao cliente',
   'pix_online.conta_conectada': 'Conectou a conta do Mercado Pago',
   'pix_online.conexao_recusada': 'Conexão com o Mercado Pago recusada',

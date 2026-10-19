@@ -304,15 +304,16 @@ export default function PedidosPage() {
     if (r?.ok) { setSolicitacoes((m) => { const c = { ...m }; delete c[s.pedidoId]; return c }); if (acao === 'aplicar') setAvisoSaida({ tom: 'ok', texto: `Solicitação do cliente aplicada${j.mudancas?.length ? `: ${j.mudancas.join(' · ')}` : ''}.` }); if (restauranteId) refetch(restauranteId) }
     return { ok: !!r?.ok, semProposta: j.codigo === 'sem_proposta', erro: j.error }
   }
-  const [lalamoveAtiva, setLalamoveAtiva] = useState(false)
+  // Entregadores (0199 Lalamove; 0208 iFood Sob Demanda e Foody): o servidor diz quais botões mostrar (módulo + ligado + credenciais).
+  const [entregadoresAtivos, setEntregadoresAtivos] = useState<('lalamove' | 'ifood' | 'foody')[]>([])
   const estadoSessao = useEstadoSessao()
-  const moduloLalamove = estadoSessao?.modulos?.entregas_lalamove === true
+  const algumModuloEntrega = estadoSessao?.modulos?.entregas_lalamove === true || estadoSessao?.modulos?.entregas_ifood === true || estadoSessao?.modulos?.entregas_foody === true
   useEffect(() => {
-    if (!restauranteId || !moduloLalamove) { setLalamoveAtiva(false); return }
+    if (!restauranteId || !algumModuloEntrega) { setEntregadoresAtivos([]); return }
     let vivo = true
-    fetch('/api/admin/entregas/lalamove/corrida', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((j) => { if (vivo) setLalamoveAtiva(j?.ativo === true) }).catch(() => {})
+    fetch('/api/admin/entregas/ativos', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((j) => { if (vivo) setEntregadoresAtivos(Array.isArray(j?.ativos) ? j.ativos : []) }).catch(() => {})
     return () => { vivo = false }
-  }, [restauranteId, moduloLalamove])
+  }, [restauranteId, algumModuloEntrega])
   const aoChamarLalamove = useCallback((c: EntregaProvedorLinha) => { setCorridas((m) => ({ ...m, [c.pedidoId]: c })) }, [])
   // "Mais informações" do card (redesign 18/10): menu sobre o card e modal central por assunto.
   const [maisInfo, setMaisInfo] = useState<{ pedidoId: string; ancora: HTMLButtonElement } | null>(null)
@@ -1206,7 +1207,7 @@ export default function PedidosPage() {
                       if (!usaDespachoDeRotas(fluxo)) avancarCard = { rotulo: 'Saiu p/ entrega', onClick: () => saiuSemEntregador(order) }
                       principal = (
                         <>
-                          {lalamoveAtiva && <ChamarLalamove pedido={order} onChamada={aoChamarLalamove} onErro={setError} className="!h-[26px] !min-h-0 !rounded-[2px] !py-0 !text-[11.5px] !normal-case !tracking-normal" />}
+                          {entregadoresAtivos.map((prov) => <ChamarLalamove key={prov} provedor={prov} pedido={order} onChamada={aoChamarLalamove} onErro={setError} className="!h-[26px] !min-h-0 !rounded-[2px] !py-0 !text-[11.5px] !normal-case !tracking-normal" />)}
                           {usaDespachoDeRotas(fluxo) && restauranteId && (
                             <DespacharNoCard pedido={order} supabase={supabase} restauranteId={restauranteId} onDespachado={aoDespachar} onErro={setError}
                               seta={{ className: CARD_BOTAO_PRINCIPAL, children: <>Despachar <IcoSeguir className="h-[14px] w-[14px]" /></> }} />
