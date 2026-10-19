@@ -62,7 +62,7 @@ describe('menu lateral: limpeza', () => {
 describe('Financeiro no menu (0132)', () => {
   const hrefs = (o: Partial<Parameters<typeof itensDoMenu>[0]>) =>
     itensDoMenu({ papel: 'dono', moduloMesas: false, usaLogistica: true, ...o }).map((i) => i.href)
-  const liberado = { financeiro: true, agente_ia: true, disparos: true, entregas_lalamove: true }
+  const liberado = { financeiro: true, agente_ia: true, disparos: true, entregas_lalamove: true, canal_opendelivery: true, canal_ifood: true, entregas_ifood: true, entregas_foody: true }
   it('módulo liberado e flag desligada: some (sem módulo liberado aparece com cadeado — 0176)', () => {
     expect(hrefs({ modulos: liberado })).not.toContain('/admin/financeiro')
     expect(hrefs({ financeiro: false, modulos: liberado })).not.toContain('/admin/financeiro')
@@ -77,7 +77,7 @@ describe('Módulos pagos no menu (0176)', () => {
   const itens = (modulos: Parameters<typeof itensDoMenu>[0]['modulos'], financeiro = true) =>
     itensDoMenu({ papel: 'dono', moduloMesas: false, usaLogistica: true, financeiro, modulos })
   it('bloqueado: o item continua no menu, marcado com cadeado', () => {
-    const l = itens({ financeiro: false, agente_ia: false, disparos: false, entregas_lalamove: false })
+    const l = itens({ financeiro: false, agente_ia: false, disparos: false, entregas_lalamove: false, canal_opendelivery: false, canal_ifood: false, entregas_ifood: false, entregas_foody: false })
     expect(l.find((i) => i.href === '/admin/financeiro')?.bloqueado).toBe('financeiro')
     expect(l.find((i) => i.href === '/admin/campanhas')?.bloqueado).toBe('disparos')
     // Agente de IA fica em Ajustes (com cadeado lá), não no menu principal.
@@ -87,9 +87,9 @@ describe('Módulos pagos no menu (0176)', () => {
     expect(itens(null).find((i) => i.href === '/admin/campanhas')?.bloqueado).toBe('disparos')
   })
   it('liberado: item normal; Financeiro liberado mas desligado na loja some como antes', () => {
-    const l = itens({ financeiro: true, agente_ia: true, disparos: true, entregas_lalamove: true })
+    const l = itens({ financeiro: true, agente_ia: true, disparos: true, entregas_lalamove: true, canal_opendelivery: true, canal_ifood: true, entregas_ifood: true, entregas_foody: true })
     expect(l.find((i) => i.href === '/admin/financeiro')?.bloqueado).toBeUndefined()
-    expect(itens({ financeiro: true, agente_ia: true, disparos: true, entregas_lalamove: true }, false).some((i) => i.href === '/admin/financeiro')).toBe(false)
+    expect(itens({ financeiro: true, agente_ia: true, disparos: true, entregas_lalamove: true, canal_opendelivery: true, canal_ifood: true, entregas_ifood: true, entregas_foody: true }, false).some((i) => i.href === '/admin/financeiro')).toBe(false)
   })
   it('garçom não vê Financeiro bloqueado nem Campanhas (permissão vem antes do cadeado)', () => {
     const h = itensDoMenu({ papel: 'garcom', moduloMesas: true, usaLogistica: true, modulos: null }).map((i) => i.href)
@@ -100,7 +100,7 @@ describe('Módulos pagos no menu (0176)', () => {
 
 describe('Reorganização dos menus (10/10/2026; todas as lojas desde 16/10)', () => {
   it('Agente de IA e Impressão saíram do menu principal', () => {
-    const l = itensDoMenu({ papel: 'dono', moduloMesas: true, usaLogistica: true, financeiro: true, modulos: { financeiro: true, agente_ia: true, disparos: true, entregas_lalamove: true } })
+    const l = itensDoMenu({ papel: 'dono', moduloMesas: true, usaLogistica: true, financeiro: true, modulos: { financeiro: true, agente_ia: true, disparos: true, entregas_lalamove: true, canal_opendelivery: true, canal_ifood: true, entregas_ifood: true, entregas_foody: true } })
     expect(l.map((i) => i.href)).not.toContain('/admin/agente-ia')
     expect(l.map((i) => i.href)).not.toContain('/admin/impressao')
     expect(l.find((i) => i.label === 'Ajustes')?.href).toBe('/admin/ajustes')
@@ -122,7 +122,7 @@ describe('todo item do menu tem ícone', () => {
     const fs = await import('node:fs')
     const src = fs.readFileSync('components/layout/sidebar.tsx', 'utf8')
     for (const papel of ['dono', 'gerente']) {
-      const l = itensDoMenu({ papel, moduloMesas: true, usaLogistica: true, financeiro: true, modulos: { financeiro: true, agente_ia: true, disparos: true, entregas_lalamove: true } })
+      const l = itensDoMenu({ papel, moduloMesas: true, usaLogistica: true, financeiro: true, modulos: { financeiro: true, agente_ia: true, disparos: true, entregas_lalamove: true, canal_opendelivery: true, canal_ifood: true, entregas_ifood: true, entregas_foody: true } })
       for (const i of l) expect(src.includes(`'${i.href}': ICONES.`), `${i.href} sem ícone`).toBe(true)
     }
   })
@@ -137,7 +137,7 @@ describe('KDS (prévia, 12/10)', () => {
 })
 
 describe('menu por usuário (12/10, perfis com KDS)', () => {
-  const menu = (papel: string, areas: string[]) => itensDoMenu({ papel, moduloMesas: true, usaLogistica: true, financeiro: true, modulos: { financeiro: true, agente_ia: true, disparos: true, entregas_lalamove: true } })
+  const menu = (papel: string, areas: string[]) => itensDoMenu({ papel, moduloMesas: true, usaLogistica: true, financeiro: true, modulos: { financeiro: true, agente_ia: true, disparos: true, entregas_lalamove: true, canal_opendelivery: true, canal_ifood: true, entregas_ifood: true, entregas_foody: true } })
     .filter((i) => caminhoPermitidoCompleto(i.href, papel, { areas: areas as never, sensiveis: [] }))
     .map((i) => i.href)
   it('Cozinha vê só o KDS', () => expect(menu('atendente', ['kds'])).toEqual(['/admin/kds']))

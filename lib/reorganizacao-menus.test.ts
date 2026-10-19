@@ -62,7 +62,7 @@ describe('cadeados continuam', () => {
 
 describe('menu único em todas as lojas (16/10/2026, sem "Novidades em teste")', () => {
   it('Agente de IA e Impressão ficam em Ajustes, fora do menu principal', () => {
-    const l = itensDoMenu({ papel: 'dono', moduloMesas: true, usaLogistica: true, financeiro: true, modulos: { financeiro: true, agente_ia: true, disparos: true, entregas_lalamove: true } })
+    const l = itensDoMenu({ papel: 'dono', moduloMesas: true, usaLogistica: true, financeiro: true, modulos: { financeiro: true, agente_ia: true, disparos: true, entregas_lalamove: true, canal_opendelivery: true, canal_ifood: true, entregas_ifood: true, entregas_foody: true } })
     expect(l.map((i) => i.href)).not.toContain('/admin/agente-ia')
     expect(l.map((i) => i.href)).not.toContain('/admin/impressao')
   })

@@ -15,6 +15,7 @@ import { CartaoPixel, Selo } from '@/components/admin/integracoes/cartao-pixel'
 import { SUPORTE_MENUZIA } from '@/lib/suporte'
 import { BotaoAjudaIntegracao } from '@/components/admin/integracoes/ajuda-integracao'
 import { LalamoveCard } from '@/components/admin/lalamove-card'
+import { CanalCard } from '@/components/admin/integracoes/canal-card'
 import { useEstadoSessao } from '@/lib/sessao-cliente'
 
 /**
@@ -29,8 +30,8 @@ import { useEstadoSessao } from '@/lib/sessao-cliente'
  *   atendente ficam só na central do WhatsApp (canto inferior direito).
  */
 
-type IdIntegracao = 'whatsapp' | 'mercadopago' | 'facebook' | 'capi' | 'google' | 'lalamove'
-type Grupo = 'Mensagens' | 'Pagamentos' | 'Marketing e medição' | 'Entregas'
+type IdIntegracao = 'whatsapp' | 'mercadopago' | 'facebook' | 'capi' | 'google' | 'lalamove' | 'keeta' | '99food' | 'ifood'
+type Grupo = 'Mensagens' | 'Pagamentos' | 'Marketing e medição' | 'Entregas' | 'Pedidos de apps'
 interface Definicao { id: IdIntegracao; nome: string; grupo: Grupo; logo: string; resumo: string }
 
 const INTEGRACOES: Definicao[] = [
@@ -41,8 +42,12 @@ const INTEGRACOES: Definicao[] = [
   { id: 'google', nome: 'Google Analytics / Tag Manager', grupo: 'Marketing e medição', logo: '/icons/integracoes/google-analytics.svg', resumo: 'Google Analytics 4 (G-…) ou Tag Manager (GTM-…).' },
   // Lalamove (0199): só aparece com o módulo "Entregas Lalamove" liberado no Super Admin.
   { id: 'lalamove', nome: 'Lalamove', grupo: 'Entregas', logo: '/icons/integracoes/lalamove.svg', resumo: 'Chame um entregador da Lalamove pelo Kanban, com o preço antes de confirmar.' },
+  // Canais externos (0207, 19/10): só aparecem com o módulo liberado no Super Admin (canal_opendelivery / canal_ifood).
+  { id: 'ifood', nome: 'iFood', grupo: 'Pedidos de apps', logo: '/origens/ifood.svg', resumo: 'Pedidos do iFood entram no Painel de Pedidos; aceite, pronto e despacho voltam ao iFood.' },
+  { id: 'keeta', nome: 'Keeta', grupo: 'Pedidos de apps', logo: '/icons/integracoes/opendelivery.svg', resumo: 'Pedidos da Keeta pelo padrão Open Delivery (Abrasel).' },
+  { id: '99food', nome: '99Food', grupo: 'Pedidos de apps', logo: '/icons/integracoes/opendelivery.svg', resumo: 'Pedidos do 99Food pelo padrão Open Delivery (Abrasel).' },
 ]
-const ORDEM_GRUPOS: Grupo[] = ['Mensagens', 'Pagamentos', 'Marketing e medição', 'Entregas']
+const ORDEM_GRUPOS: Grupo[] = ['Mensagens', 'Pagamentos', 'Marketing e medição', 'Entregas', 'Pedidos de apps']
 
 interface WaStatus { configurado: boolean; connected: boolean; state: string | null; numero?: string | null }
 interface Situacao {
@@ -187,7 +192,10 @@ export default function IntegracoesPage() {
   const [restauranteId, setRestauranteId] = useState<string | null>(null)
   const [sit, setSit] = useState<Situacao>({ wa: null, waFalhou: false, pixels: null, capi: null, mp: null, lalamove: null })
   const [aberta, setAberta] = useState<IdIntegracao | null>(null)
-  const moduloLalamove = useEstadoSessao()?.modulos?.entregas_lalamove === true
+  const modulosSessao = useEstadoSessao()?.modulos
+  const moduloLalamove = modulosSessao?.entregas_lalamove === true
+  const moduloOpenDelivery = modulosSessao?.canal_opendelivery === true
+  const moduloIfood = modulosSessao?.canal_ifood === true
 
   useEffect(() => { buscarRestauranteIdDoUsuario(supabase).then(setRestauranteId) }, [supabase])
 
@@ -252,9 +260,14 @@ export default function IntegracoesPage() {
     capi: Boolean(sit.capi),
     google: Boolean(sit.pixels?.google),
     lalamove: Boolean(sit.lalamove),
+    // Canais externos: o estado real (ligado/erro) aparece dentro do card; a lista não consulta a API.
+    keeta: false,
+    '99food': false,
+    ifood: false,
   }
   // Mercado Pago só onde o Pix online foi liberado (mesma regra do card de antes); Lalamove só com o módulo liberado.
-  const existentes = INTEGRACOES.filter((i) => (i.id !== 'mercadopago' || sit.mp?.liberada) && (i.id !== 'lalamove' || moduloLalamove))
+  const existentes = INTEGRACOES.filter((i) => (i.id !== 'mercadopago' || sit.mp?.liberada) && (i.id !== 'lalamove' || moduloLalamove)
+    && ((i.id !== 'keeta' && i.id !== '99food') || moduloOpenDelivery) && (i.id !== 'ifood' || moduloIfood))
   const carregando = sit.wa === null && !sit.waFalhou || sit.pixels === null || sit.mp === null
   const ativas = existentes.filter((i) => ativa[i.id])
   const disponiveis = existentes.filter((i) => !ativa[i.id])
@@ -347,6 +360,7 @@ export default function IntegracoesPage() {
         {def?.id === 'capi' && <MetaCapiCard temPixel={!!sit.pixels?.facebook} avisar={avisarERecarregar} />}
         {def?.id === 'mercadopago' && <MercadoPagoCard avisar={avisarERecarregar} />}
         {def?.id === 'lalamove' && <LalamoveCard avisar={avisarERecarregar} />}
+        {(def?.id === 'keeta' || def?.id === '99food' || def?.id === 'ifood') && <CanalCard canal={def.id} avisar={avisarERecarregar} />}
       </ModalCentral>
       <PilhaToasts itens={toasts.itens} />
     </div>

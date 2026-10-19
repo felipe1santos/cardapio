@@ -8,7 +8,7 @@ import { INFO_MODULO, MODULOS, type Modulo, type ModulosDaLoja } from '@/lib/mod
  * Coluna "Módulos" do Super Admin (0176): um interruptor por módulo pago da loja. Só o superadmin vê (a página e a
  * ação conferem no servidor); liberar e bloquear vão para a auditoria da loja e da plataforma.
  */
-const CURTO: Record<Modulo, string> = { financeiro: 'Financeiro', agente_ia: 'Agente de IA', disparos: 'Disparos', entregas_lalamove: 'Lalamove' }
+const CURTO: Record<Modulo, string> = { financeiro: 'Financeiro', agente_ia: 'Agente de IA', disparos: 'Disparos', entregas_lalamove: 'Lalamove', canal_opendelivery: 'Keeta/99Food', canal_ifood: 'iFood', entregas_ifood: 'Entregador iFood', entregas_foody: 'Foody' }
 
 export function ModulosLoja({ restauranteId, loja, inicial }: { restauranteId: string; loja: string; inicial: ModulosDaLoja }) {
   const [estado, setEstado] = useState<ModulosDaLoja>(inicial)
