@@ -115,11 +115,13 @@ export function ajustarTroco(formaPagamento: string, pago: boolean, trocoPara: n
   return { trocoPara, texto: null }
 }
 
-export type EscolhaPagoOnline = 'estorno_parcial' | 'diferenca_entrega'
+export type EscolhaPagoOnline = 'estorno_parcial' | 'diferenca_entrega' | 'diferenca_pix'
 export type DecisaoPagoOnline =
   | { ok: true; acao: 'nada' }
   | { ok: true; acao: 'estorno_parcial'; valor: number }
   | { ok: true; acao: 'diferenca_entrega'; valor: number }
+  /** Fase 3 (19/10): Pix só da diferença pelo Mercado Pago da loja, enviado ao cliente pelo WhatsApp. */
+  | { ok: true; acao: 'diferenca_pix'; valor: number }
   | { ok: false; texto: string; precisa: EscolhaPagoOnline }
 
 /**
@@ -138,7 +140,8 @@ export function decisaoPagoOnline(p: { pago: boolean; pagamentoOnline: boolean; 
     return { ok: false, precisa: 'estorno_parcial', texto: `O cliente já pagou ${brl(pagoDeFato)} online e o novo total é ${brl(p.totalNovo)}. Para salvar, confirme o estorno de ${brl(-delta)} pelo Mercado Pago.` }
   }
   if (p.escolha === 'diferenca_entrega') return { ok: true, acao: 'diferenca_entrega', valor: delta }
-  return { ok: false, precisa: 'diferenca_entrega', texto: `O cliente já pagou ${brl(pagoDeFato)} online e o novo total é ${brl(p.totalNovo)}. Para salvar, marque "receber ${brl(delta)} na entrega".` }
+  if (p.escolha === 'diferenca_pix') return { ok: true, acao: 'diferenca_pix', valor: delta }
+  return { ok: false, precisa: 'diferenca_entrega', texto: `O cliente já pagou ${brl(pagoDeFato)} online e o novo total é ${brl(p.totalNovo)}. Para salvar, escolha como receber a diferença de ${brl(delta)}: Pix pelo WhatsApp ou na entrega.` }
 }
 
 /** Hora local (São Paulo) hh:mm para o bloco. */

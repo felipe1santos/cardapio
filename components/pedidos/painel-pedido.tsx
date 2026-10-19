@@ -15,6 +15,7 @@ import { podeCancelar, rotuloCancelamento } from '@/lib/cancelamento'
 import { textoAgendado } from '@/lib/agendamento'
 import { mascararTelefoneBR } from '@/lib/telefone'
 import { rotuloForma, statusAReceber, trocoLevar } from '@/lib/pdv-pagamento'
+import { etiquetaDiferenca } from '@/lib/pagamentos/diferenca'
 import { textoTempoPedido } from '@/lib/tempo-pedido'
 import { textoStatusLalamove, type EntregaProvedorLinha } from '@/lib/entregas/lalamove-status'
 
@@ -324,6 +325,7 @@ export function PainelPedido({
                 </span>
               </div>
               <div className={LINHA}><span className={ROTULO}>Situação</span>{p.pago ? <span className={`font-semibold ${DINHEIRO}`}>{p.pagamentoOnline ? 'Pago online' : 'Pago'}</span> : <span className="font-semibold text-[#92400E]">{statusAReceber(p.tipo)}</span>}</div>
+              <LinhaDiferenca p={p} onMudou={onPagamentoAlterado} />
               {p.formaPagamento === 'dinheiro' && p.trocoPara ? (
                 <div className={LINHA}><span className={ROTULO}>Troco</span><span className="font-semibold text-[#92400E]" data-testid="painel-troco">para {brl(p.trocoPara)}{levar > 0 ? ` · levar ${brl(levar)}` : ''}</span></div>
               ) : altTroco && p.formaPagamento === 'dinheiro' ? (
@@ -337,5 +339,41 @@ export function PainelPedido({
         </div>
       </div>
     </aside>
+  )
+}
+
+/**
+ * Fase 3 (19/10): diferença de um pedido pago online que aumentou na edição. Mostra o estado (Pix pendente /
+ * vencido / na entrega) e deixa a loja trocar: receber na entrega (cancela o Pix) ou cobrar por Pix de novo.
+ */
+function LinhaDiferenca({ p, onMudou }: { p: Pedido; onMudou?: () => void }) {
+  const [ocupado, setOcupado] = useState<string | null>(null)
+  const [erro, setErro] = useState<string | null>(null)
+  const dif = etiquetaDiferenca(p)
+  if (!dif || p.status === 'cancelado' || p.status === 'entregue') return null
+  async function trocar(modo: 'entrega' | 'pix') {
+    if (ocupado) return
+    setOcupado(modo); setErro(null)
+    const r = await fetch(`/api/admin/pedidos/${p.id}/diferenca`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ modo }) }).catch(() => null)
+    const j = (await r?.json().catch(() => ({}))) as { error?: string; aviso?: string }
+    setOcupado(null)
+    if (!r?.ok) { setErro(j.error ?? 'Não foi possível alterar.'); return }
+    if (j.aviso) setErro(j.aviso)
+    onMudou?.()
+  }
+  const cor = dif.tom === 'vencido' ? 'text-[#B91C1C]' : 'text-[#92400E]'
+  const BOTAO = 'rounded-[3px] border border-[#D1D5DB] bg-white px-2 py-[3px] text-[11px] font-semibold uppercase tracking-wide text-[#1F2937] hover:bg-[#F3F4F6] disabled:opacity-50'
+  return (
+    <div className={LINHA} data-testid="painel-diferenca" data-tom={dif.tom}>
+      <span className={ROTULO}>Diferença</span>
+      <span className="min-w-0">
+        <span className={`font-semibold ${cor}`}>{dif.longo}</span>
+        <span className="mt-1 flex flex-wrap gap-1.5">
+          {dif.tom !== 'entrega' && <button type="button" className={BOTAO} disabled={!!ocupado} onClick={() => void trocar('entrega')} data-testid="painel-diferenca-entrega">{ocupado === 'entrega' ? 'Aguarde…' : 'Receber na entrega'}</button>}
+          {dif.tom !== 'pendente' && <button type="button" className={BOTAO} disabled={!!ocupado} onClick={() => void trocar('pix')} data-testid="painel-diferenca-pix">{ocupado === 'pix' ? 'Aguarde…' : dif.tom === 'vencido' ? 'Cobrar Pix de novo' : 'Cobrar por Pix no WhatsApp'}</button>}
+        </span>
+        {erro && <span className="mt-1 block text-[11.5px] font-medium text-[#B91C1C]">{erro}</span>}
+      </span>
+    </div>
   )
 }

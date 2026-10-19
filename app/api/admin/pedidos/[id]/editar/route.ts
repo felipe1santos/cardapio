@@ -31,7 +31,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       bairro: String(corpo.endereco.bairro ?? '').trim().slice(0, 80), cep: String(corpo.endereco.cep ?? '').replace(/\D/g, '').slice(0, 8), cidade: String(corpo.endereco.cidade ?? '').trim().slice(0, 80), referencia: String(corpo.endereco.referencia ?? '').trim().slice(0, 200),
     } : undefined,
     pagamento: corpo.pagamento,
-    pagoOnline: corpo.pagoOnline && (corpo.pagoOnline.escolha === 'estorno_parcial' || corpo.pagoOnline.escolha === 'diferenca_entrega') ? corpo.pagoOnline : undefined,
+    pagoOnline: corpo.pagoOnline && (corpo.pagoOnline.escolha === 'estorno_parcial' || corpo.pagoOnline.escolha === 'diferenca_entrega' || corpo.pagoOnline.escolha === 'diferenca_pix') ? corpo.pagoOnline : undefined,
     reimprimir: corpo.reimprimir === true,
   }
   if (edicao.endereco && (!edicao.endereco.rua || !edicao.endereco.numero || !edicao.endereco.bairro)) return NextResponse.json({ error: 'Endereço precisa de rua, número e bairro.' }, { status: 400 })
@@ -39,7 +39,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const r = await editarPedido(getAdminSupabase({ correlacao: crypto.randomUUID() }), { restauranteId: sessao.restauranteId, pedidoId: id, por: { id: sessao.userId, nome: sessao.nome }, origem: 'painel', edicao })
     return NextResponse.json({ ok: true, ...r })
   } catch (e) {
-    if (e instanceof EdicaoError) return NextResponse.json({ error: e.message, codigo: e.codigo, precisa: e.precisa }, { status: e.status })
+    if (e instanceof EdicaoError) return NextResponse.json({ error: e.message, codigo: e.codigo, precisa: e.precisa, pixOnline: e.pixOnline }, { status: e.status })
     console.error('[editar pedido]', e)
     return NextResponse.json({ error: (e as Error).message?.slice(0, 200) || 'Não foi possível editar o pedido.' }, { status: 500 })
   }

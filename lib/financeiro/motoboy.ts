@@ -1,3 +1,4 @@
+import { diferencaNaEntrega } from '@/lib/pagamentos/diferenca'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { registrarAuditoria } from '@/lib/auditoria'
 import type { ContextoFin } from './contexto'
@@ -249,7 +250,7 @@ export async function conferirPix(ctx: ContextoFin, p: { lancamentoId: number; c
 export async function entregasSemRegistro(admin: SupabaseClient, loja: string) {
   const { data: primeiro } = await admin.from('fin_lancamentos').select('criado_em').eq('restaurante_id', loja).order('seq').limit(1)
   const desde = new Date(Math.max(Date.now() - 14 * 86_400_000, primeiro?.[0] ? Date.parse(primeiro[0].criado_em as string) : 0)).toISOString()
-  const { data: peds } = await admin.from('pedidos').select('id, numero, total, forma_pagamento, cartao_tipo, troco_para, entregador_id, entregue_em, cliente_nome, pago, comanda_id, entregadores ( nome )')
+  const { data: peds } = await admin.from('pedidos').select('id, numero, total, forma_pagamento, cartao_tipo, troco_para, entregador_id, entregue_em, cliente_nome, pago, comanda_id, diferenca_a_receber, diferenca_modo, entregadores ( nome )')
     .eq('restaurante_id', loja).eq('tipo', 'entrega').in('status', ['entregue', 'em_rota']).gte('criado_em', desde).order('criado_em', { ascending: false }).limit(300)
   const ids = (peds ?? []).map((p) => p.id as string)
   if (!ids.length) return []
@@ -265,8 +266,10 @@ export async function entregasSemRegistro(admin: SupabaseClient, loja: string) {
     for (const r of pend ?? []) comPendencia.add(r.pedido_id as string)
   }
   // Fora: já registrados; já pagos (Pix confirmado, pago no caixa); os que já viraram "a acertar" do motoboy.
-  return (peds ?? []).filter((p) => !registrados.has(p.id as string) && !p.pago && !comPendencia.has(p.id as string)).map((p) => ({
-    pedidoId: p.id as string, numero: p.numero as number, totalCentavos: Math.round(Number(p.total) * 100), forma: p.forma_pagamento as string,
+  // Fase 3 (19/10): pedido pago online com diferença "na entrega" entra só pela diferença (o resto já foi pago no MP).
+  const difEntrega = (p: { pago: unknown; diferenca_a_receber: unknown; diferenca_modo: unknown }) => diferencaNaEntrega({ pago: p.pago === true, diferencaAReceber: p.diferenca_a_receber === null ? null : Number(p.diferenca_a_receber), diferencaModo: (p.diferenca_modo as 'entrega' | 'pix' | 'pix_vencido' | null) ?? null })
+  return (peds ?? []).filter((p) => !registrados.has(p.id as string) && (!p.pago || difEntrega(p) > 0) && !comPendencia.has(p.id as string)).map((p) => ({
+    pedidoId: p.id as string, numero: p.numero as number, totalCentavos: Math.round((p.pago ? difEntrega(p) : Number(p.total)) * 100), forma: p.forma_pagamento as string,
     cartaoTipo: (p.cartao_tipo as string | null) ?? null, trocoPara: p.troco_para === null ? null : Number(p.troco_para), cliente: p.cliente_nome as string,
     entregador: (p.entregadores as unknown as { nome?: string } | null)?.nome ?? null, entregueEm: (p.entregue_em as string | null) ?? null,
   }))

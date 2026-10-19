@@ -5,7 +5,8 @@ import { lancar } from '@/lib/financeiro/ledger'
 import { criarAlerta } from '@/lib/financeiro/alertas'
 import { registrarAuditoria } from '@/lib/auditoria'
 import { reverterBeneficiosPedidoCancelado } from '@/lib/fidelidade'
-import { notificarPedido } from '@/lib/whatsapp'
+import { enviarWhatsapp, formatarTelefoneWhatsapp, notificarPedido } from '@/lib/whatsapp'
+import { DIFERENCA_VALIDADE_MIN, pushDiferencaVencida, textoCobrancaDiferenca, textoDiferencaRecebida, textoDiferencaVencida } from './diferenca'
 import { enviarPurchaseCapi, type ContextoCompra } from '@/lib/meta-capi'
 import { avisarPainelPedidoNovo } from '@/lib/push/painel-pedidos'
 import { conferirAprovacao, type Aprovacao } from '@/lib/financeiro/caixa'
@@ -132,6 +133,109 @@ export async function criarCobrancaPix(admin: SupabaseClient, p: { restauranteId
   return paraCliente(gravada, ped.status)
 }
 
+/**
+ * Pix só da DIFERENÇA de um pedido já pago online que aumentou na edição (Fase 3, 19/10). Linha própria em
+ * pagamentos_online (finalidade 'diferenca', referência = o mesmo pedido, valor = diferença, vale 30 min). Uma nova
+ * edição cancela a cobrança de diferença pendente anterior; se ela tiver sido paga nesse meio-tempo, recusa
+ * ('diferenca_anterior_paga') para o operador reabrir o pedido com o valor certo.
+ */
+export async function criarCobrancaDiferenca(admin: SupabaseClient, p: { restauranteId: string; pedidoId: string; valor: number; motivo: string }): Promise<CobrancaParaCliente> {
+  const { data: ped } = await admin.from('pedidos').select('id, numero, status, pago, pagamento_online, restaurante_id').eq('id', p.pedidoId).eq('restaurante_id', p.restauranteId).maybeSingle()
+  if (!ped) throw new Error('pedido_nao_encontrado')
+  if (!(ped.pago && ped.pagamento_online)) throw new Error('pedido_nao_pago_online')
+  const valor = Math.round(p.valor * 100) / 100
+  if (!(valor > 0)) throw new Error('valor_invalido')
+  const { ativo } = await pixOnlineDaLoja(admin, p.restauranteId)
+  if (!ativo) throw new Error('pix_online_desligado')
+  const anterior = await cancelarCobrancaPendente(admin, p.restauranteId, p.pedidoId)
+  if (anterior === 'paga') throw new Error('diferenca_anterior_paga')
+  if (anterior === 'erro') throw new Error('diferenca_anterior_nao_cancelada')
+  const { data: loja } = await admin.from('restaurantes').select('nome').eq('id', p.restauranteId).maybeSingle()
+  const agora = new Date()
+  const expira = new Date(agora.getTime() + DIFERENCA_VALIDADE_MIN * 60_000)
+  let cob: Awaited<ReturnType<ReturnType<typeof provedorMp>['criarPix']>>
+  try {
+    cob = await comTokenDaLoja(admin, p.restauranteId, (token) => provedorMp().criarPix(token, {
+      valor, descricao: `Diferenca do pedido #${ped.numero} - ${(loja?.nome ?? 'Menuzia').slice(0, 50)}`, referencia: ped.id,
+      expiraEm: expiracaoMp(vencimentoNoMp(expira, agora)), email: `pedido-${ped.id.slice(0, 8)}@pagamentos.menuzia.com.br`,
+      notificacaoUrl: webhookUrlMp(), idempotencia: `diferenca:${ped.id}:${agora.getTime()}`,
+    }))
+  } catch (e) {
+    if (erroDeChavePix(e)) await marcarChavePix(admin, p.restauranteId, false)
+    throw e
+  }
+  const conta = await tokenDaLoja(admin, p.restauranteId)
+  const { data: gravada, error } = await admin.from('pagamentos_online').insert({
+    restaurante_id: p.restauranteId, pedido_id: ped.id, mp_payment_id: cob.id, mp_user_id: conta?.mpUserId ?? null, valor, finalidade: 'diferenca',
+    status: 'pendente', status_mp: cob.status, qr_code: cob.qrCode, qr_code_base64: cob.qrCodeBase64, expira_em: expira.toISOString(), contexto: { motivo: p.motivo.slice(0, 200) },
+  }).select('*').single()
+  if (error) throw error
+  return paraCliente(gravada, ped.status)
+}
+
+/** WhatsApp ao cliente com o Pix da diferença: texto + código sozinho (fácil de copiar). Falha não derruba a edição. */
+export async function enviarPixDiferencaAoCliente(admin: SupabaseClient, restauranteId: string, ped: { numero: number; cliente_telefone: string | null }, cob: CobrancaParaCliente): Promise<boolean> {
+  if (!cob.qrCode) return false
+  const { data: loja } = await admin.from('restaurantes').select('evolution_instance').eq('id', restauranteId).maybeSingle()
+  const numero = formatarTelefoneWhatsapp(ped.cliente_telefone ?? '')
+  if (!numero || !loja?.evolution_instance) return false
+  const ok1 = await enviarWhatsapp(numero, textoCobrancaDiferenca({ numero: ped.numero, valor: cob.valor, expiraEm: cob.expiraEm }), loja.evolution_instance, { admin, origem: 'automatico', restauranteId })
+  const ok2 = ok1 && await enviarWhatsapp(numero, cob.qrCode, loja.evolution_instance, { admin, origem: 'automatico', restauranteId })
+  return ok1 && ok2
+}
+
+async function avisarClienteDiferenca(admin: SupabaseClient, restauranteId: string, ped: { cliente_telefone?: string | null }, texto: string) {
+  const { data: loja } = await admin.from('restaurantes').select('evolution_instance').eq('id', restauranteId).maybeSingle()
+  const numero = formatarTelefoneWhatsapp(ped.cliente_telefone ?? '')
+  if (!numero || !loja?.evolution_instance) return
+  await enviarWhatsapp(numero, texto, loja.evolution_instance, { admin, origem: 'automatico', restauranteId })
+}
+
+/**
+ * Conferência de uma cobrança de DIFERENÇA (Fase 3). Aprovada: pedido limpa a diferença, livro-caixa recebe o valor,
+ * cliente recebe "Recebemos a diferença ✅". Vencida/cancelada no MP sem pagar: pedido vira 'pix_vencido' e a loja é
+ * avisada (alerta grave + push do painel) para decidir. Nunca cancela nem muda o status do pedido.
+ */
+async function conferirDiferenca(admin: SupabaseClient, reg: Reg, pg: PagamentoMp, ped: Reg, contaUserId: string | null, origem: string): Promise<ResultadoConferencia> {
+  const numero = Number(ped.numero)
+  if (pg.status === 'approved') {
+    const div = divergencias(pg, reg as { pedido_id: string; valor: number; mp_user_id: string | null; metodo?: string | null }, contaUserId, Number(reg.valor))
+    if (div.length) {
+      await admin.from('pagamentos_online').update({ status: 'erro', erro: `não confere: ${div.join(', ')}` }).eq('id', reg.id).in('status', ['pendente', 'verificacao_pendente', 'expirado'])
+      await criarAlerta(admin, { restauranteId: reg.restaurante_id, tipo: 'pix_online_divergente', gravidade: 'grave',
+        mensagem: `Pix da diferença do pedido #${numero} NÃO confere (${div.join(', ')}). A diferença continua em aberto.`, dados: { pagamento: reg.id, mp: pg.id, divergencias: div, chave: pg.id }, dedupeMin: 60, dedupeChave: pg.id })
+      return 'divergente'
+    }
+    if (reg.status === 'pago') return 'ja_confirmado'
+    await admin.from('pagamentos_online').update({ status: 'pago', pago_em: pg.aprovadoEm ?? new Date().toISOString(), taxa: pg.taxa, liquido: pg.liquido, erro: null }).eq('id', reg.id)
+    const { data: mudou } = await admin.from('pedidos').update({ diferenca_a_receber: null, diferenca_modo: null }).eq('id', ped.id).in('diferenca_modo', ['pix', 'pix_vencido']).select('id').maybeSingle()
+    await lancarRecebimento(admin, reg, pg, `Diferença do pedido #${numero} (edição)`)
+    await registrarAuditoria(admin, { restauranteId: reg.restaurante_id, usuarioNome: USUARIO_MP.nome, acao: 'pix_online.diferenca_paga', entidade: 'pedido', entidadeId: ped.id, dados: { mp_payment_id: pg.id, valor: pg.valor, origem } })
+    if (mudou) avisarClienteDiferenca(admin, reg.restaurante_id, ped, textoDiferencaRecebida({ numero, valor: Number(reg.valor) })).catch(() => null)
+    return 'confirmado'
+  }
+  if (pg.status === 'refunded' || pg.status === 'charged_back') {
+    if (reg.status !== 'devolvido') await admin.from('pagamentos_online').update({ status: 'devolvido', devolvido_em: reg.devolvido_em ?? new Date().toISOString() }).eq('id', reg.id)
+    return 'devolvido'
+  }
+  if (['cancelled', 'rejected', 'expired'].includes(pg.status)) {
+    // Cancelada por nova edição / "receber na entrega": nada a avisar.
+    if (reg.status === 'cancelado') return 'expirado'
+    await admin.from('pagamentos_online').update({ status: 'expirado' }).eq('id', reg.id).in('status', ['pendente', 'verificacao_pendente'])
+    const { data: venceu } = await admin.from('pedidos').update({ diferenca_modo: 'pix_vencido' }).eq('id', ped.id).eq('diferenca_modo', 'pix').select('id').maybeSingle()
+    if (venceu) {
+      const valor = Number(reg.valor)
+      await criarAlerta(admin, { restauranteId: reg.restaurante_id, tipo: 'pix_diferenca_vencida', gravidade: 'grave', mensagem: textoDiferencaVencida({ numero, valor }),
+        dados: { pagamento: reg.id, pedido: ped.id, chave: reg.id }, dedupeMin: 60, dedupeChave: reg.id })
+      avisarPainelPedidoNovo(admin, reg.restaurante_id, { id: ped.id, numero, canal: ped.tipo }, undefined, pushDiferencaVencida({ numero, valor })).catch(() => null)
+      await registrarAuditoria(admin, { restauranteId: reg.restaurante_id, usuarioNome: 'Sistema', acao: 'pix_online.diferenca_vencida', entidade: 'pedido', entidadeId: ped.id, dados: { pagamento: reg.id, valor } })
+    }
+    return 'expirado'
+  }
+  if (reg.status === 'verificacao_pendente') await admin.from('pagamentos_online').update({ status: 'pendente', erro: null }).eq('id', reg.id)
+  return 'pendente'
+}
+
 function paraCliente(r: Record<string, unknown>, pedidoStatus: string): CobrancaParaCliente {
   return {
     pagamentoId: String(r.id), status: String(r.status), valor: Number(r.valor), qrCode: (r.qr_code as string) ?? null, qrCodeBase64: (r.qr_code_base64 as string) ?? null,
@@ -179,9 +283,11 @@ export async function conferirPagamento(admin: SupabaseClient, mpPaymentId: stri
     }).eq('id', reg.id)
     return semConta ? 'sem_conta' : 'erro_api'
   }
-  const { data: ped } = await admin.from('pedidos').select('id, numero, status, total, restaurante_id, tipo, agendado_para').eq('id', reg.pedido_id).single()
+  const { data: ped } = await admin.from('pedidos').select('id, numero, status, total, restaurante_id, tipo, agendado_para, cliente_telefone, diferenca_a_receber, diferenca_modo').eq('id', reg.pedido_id).single()
   if (!ped) return 'desconhecido'
   await admin.from('pagamentos_online').update({ status_mp: pg.status, verificacoes: (reg.verificacoes ?? 0) + 1, ultima_verificacao_em: new Date().toISOString(), atualizado_em: new Date().toISOString() }).eq('id', reg.id)
+  // Fase 3 (19/10): cobrança da DIFERENÇA de um pedido já pago — caminho próprio (nunca mexe no status do pedido).
+  if (reg.finalidade === 'diferenca') return conferirDiferenca(admin, reg, pg, ped, contaUserId, origem)
 
   if (pg.status === 'approved') {
     const div = divergencias(pg, reg, contaUserId, Number(ped.total))

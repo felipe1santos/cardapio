@@ -61,6 +61,9 @@ describe('decisaoPagoOnline (Q5/estorno)', () => {
     expect(decisaoPagoOnline({ pago: true, pagamentoOnline: true, totalAntigo: 36, totalNovo: 42, escolha: 'diferenca_entrega' })).toEqual({ ok: true, acao: 'diferenca_entrega', valor: 6 })
     // Já tinha R$ 6 a receber (pagou 36, total 42); agora vai para 50 → a receber 14.
     expect(decisaoPagoOnline({ pago: true, pagamentoOnline: true, totalAntigo: 42, totalNovo: 50, jaAReceber: 6, escolha: 'diferenca_entrega' })).toEqual({ ok: true, acao: 'diferenca_entrega', valor: 14 })
+    // Fase 3: cobrar a diferença por Pix é uma escolha explícita, com o mesmo valor.
+    expect(decisaoPagoOnline({ pago: true, pagamentoOnline: true, totalAntigo: 36, totalNovo: 42, escolha: 'diferenca_pix' })).toEqual({ ok: true, acao: 'diferenca_pix', valor: 6 })
+    expect(decisaoPagoOnline({ pago: true, pagamentoOnline: true, totalAntigo: 36, totalNovo: 42 })).toMatchObject({ texto: expect.stringContaining('Pix pelo WhatsApp ou na entrega') })
     // Voltou para 36: nada a receber, nada a estornar.
     expect(decisaoPagoOnline({ pago: true, pagamentoOnline: true, totalAntigo: 42, totalNovo: 36, jaAReceber: 6 })).toEqual({ ok: true, acao: 'nada' })
   })

@@ -12,6 +12,7 @@ import { appIntegradoDoPedido, origemVisivelNoCard, rotuloOrigemPedido } from '@
 import { IconeIaClaude, IconePix, LogoApp, SeloOrigem } from '@/components/icones/origens'
 import { Dica } from '@/components/ui/flutuante'
 import { rotuloForma, statusAReceber } from '@/lib/pdv-pagamento'
+import { etiquetaDiferenca } from '@/lib/pagamentos/diferenca'
 
 /**
  * Card do pedido no Kanban (redesign 18/10/2026, rodada 3 — referência note-imagem.webp do dono): card branco
@@ -121,6 +122,8 @@ export function CardPedido({ order, now, selecionado, destaqueNovo, atencao = fa
   const removidos = order.itensRemovidos ?? []
   const local = order.tipo === 'entrega' ? order.enderecoBairro : null
   const pag = rotuloForma(order.formaPagamento, order.cartaoTipo, order.pagamentoOnline)
+  // Fase 3 (19/10): diferença de pedido pago online (Pix pendente / vencido / na entrega).
+  const dif = etiquetaDiferenca(order)
   const app = appIntegradoDoPedido(order)
   return (
     <div
@@ -159,6 +162,7 @@ export function CardPedido({ order, now, selecionado, destaqueNovo, atencao = fa
             <span data-testid="card-tipo">{tipo}</span>
             {local && <> · {local}</>}
             {order.canal !== 'mesa' && <> · {pag}</>}
+            {dif && <> · <span className={`font-semibold ${dif.tom === 'vencido' ? 'text-[#B91C1C]' : 'text-[#92400E]'}`} data-testid="card-diferenca" data-tom={dif.tom}>{dif.curto}</span></>}
           </span>
           <span className={`flex-shrink-0 whitespace-nowrap tabular-nums ${corTempo}`} data-testid="card-tempo" title="Hora do pedido · tempo desde que chegou">
             {hora(order.criadoEm)} · há {textoTempoPedido(idadeMs)}

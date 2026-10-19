@@ -4,7 +4,8 @@ import { resolverFrete, type EnderecoFrete } from '@/lib/frete'
 import { calcularDesconto } from '@/lib/fidelidade-regras'
 import { gravarCoordenadasDoPedido } from '@/lib/mapa/coordenadas-pedidos'
 import { registrarAuditoria } from '@/lib/auditoria'
-import { devolverPix } from '@/lib/pagamentos/pix-online'
+import { cancelarCobrancaPendente, criarCobrancaDiferenca, devolverPix, enviarPixDiferencaAoCliente, type CobrancaParaCliente } from '@/lib/pagamentos/pix-online'
+import type { DiferencaModo } from '@/lib/pagamentos/diferenca'
 import type { Aprovacao } from '@/lib/financeiro/caixa'
 import { enviarWhatsapp, formatarTelefoneWhatsapp } from '@/lib/whatsapp'
 import { decidirMensagem, normalizarConfig, renderizar, textoPadraoDaEtapa, tipoAutomatico } from '@/lib/mensagens-automaticas'
@@ -43,7 +44,9 @@ export class EdicaoError extends Error {
   readonly status: number
   readonly codigo?: string
   readonly precisa?: EscolhaPagoOnline
-  constructor(mensagem: string, status = 400, extra: { codigo?: string; precisa?: EscolhaPagoOnline } = {}) { super(mensagem); this.name = 'EdicaoError'; this.status = status; this.codigo = extra.codigo; this.precisa = extra.precisa }
+  /** A loja tem Pix online ativo (a janela mostra "cobrar por Pix" só se tiver). */
+  readonly pixOnline?: boolean
+  constructor(mensagem: string, status = 400, extra: { codigo?: string; precisa?: EscolhaPagoOnline; pixOnline?: boolean } = {}) { super(mensagem); this.name = 'EdicaoError'; this.status = status; this.codigo = extra.codigo; this.precisa = extra.precisa; this.pixOnline = extra.pixOnline }
 }
 
 interface Linha { id: string; item_id: string | null; nome: string; preco_unitario: number; quantidade: number; observacao: string; tamanho_nome: string; cancelado_em: string | null }
@@ -60,11 +63,11 @@ export async function editarPedido(admin: SupabaseClient, p: {
 }): Promise<{ numero: number; total: number; mudancas: string[]; diferencaAReceber: number | null }> {
   const { restauranteId, pedidoId, edicao } = p
   const { data: ped, error } = await admin.from('pedidos')
-    .select('id, numero, status, tipo, canal, origem, origem_canal, entregador_id, saiu_para_entrega_em, cliente_nome, cliente_telefone, forma_pagamento, cartao_tipo, troco_para, pago, pagamento_online, subtotal, taxa_entrega, desconto, total, observacao, edicoes, diferenca_a_receber, cupom_codigo, recompensa_id, agendado_para, pizza_calculo_preco:restaurantes!inner ( pizza_calculo_preco, frete_gratis_acima, nome, mensagens_status, evolution_instance ), endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep, endereco_cidade, endereco_referencia, pedido_itens ( id, item_id, nome, preco_unitario, quantidade, observacao, tamanho_nome, cancelado_em )')
+    .select('id, numero, status, tipo, canal, origem, origem_canal, entregador_id, saiu_para_entrega_em, cliente_nome, cliente_telefone, forma_pagamento, cartao_tipo, troco_para, pago, pagamento_online, subtotal, taxa_entrega, desconto, total, observacao, edicoes, diferenca_a_receber, diferenca_modo, cupom_codigo, recompensa_id, agendado_para, pizza_calculo_preco:restaurantes!inner ( pizza_calculo_preco, frete_gratis_acima, nome, mensagens_status, evolution_instance, pix_online_ativo ), endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep, endereco_cidade, endereco_referencia, pedido_itens ( id, item_id, nome, preco_unitario, quantidade, observacao, tamanho_nome, cancelado_em )')
     .eq('id', pedidoId).eq('restaurante_id', restauranteId).maybeSingle()
   if (error) throw error
   if (!ped) throw new EdicaoError('Pedido não encontrado nesta loja.', 404)
-  const loja = (Array.isArray(ped.pizza_calculo_preco) ? ped.pizza_calculo_preco[0] : ped.pizza_calculo_preco) as { pizza_calculo_preco: string | null; frete_gratis_acima: number | null; nome: string; mensagens_status: unknown; evolution_instance: string | null } | null
+  const loja = (Array.isArray(ped.pizza_calculo_preco) ? ped.pizza_calculo_preco[0] : ped.pizza_calculo_preco) as { pizza_calculo_preco: string | null; frete_gratis_acima: number | null; nome: string; mensagens_status: unknown; evolution_instance: string | null; pix_online_ativo: boolean | null } | null
 
   // 1. editável?
   const corrida = await corridaAtivaDoPedido(admin, pedidoId).catch(() => null)
@@ -156,9 +159,28 @@ export async function editarPedido(admin: SupabaseClient, p: {
   if (mudancas.length === 0) throw new EdicaoError('Nada mudou no pedido.', 400, { codigo: 'sem_mudanca' })
 
   const decisao = decisaoPagoOnline({ pago: ped.pago === true, pagamentoOnline: ped.pagamento_online === true, totalAntigo: Number(ped.total), totalNovo: total, escolha: edicao.pagoOnline?.escolha ?? null, jaAReceber: ped.diferenca_a_receber === null ? null : Number(ped.diferenca_a_receber) })
-  if (!decisao.ok) throw new EdicaoError(decisao.texto, 409, { codigo: 'pago_online', precisa: decisao.precisa })
+  if (!decisao.ok) throw new EdicaoError(decisao.texto, 409, { codigo: 'pago_online', precisa: decisao.precisa, pixOnline: loja?.pix_online_ativo === true })
   let diferencaAReceber: number | null = ped.diferenca_a_receber === null || ped.diferenca_a_receber === undefined ? null : Number(ped.diferenca_a_receber)
-  if (decisao.acao === 'diferenca_entrega') { diferencaAReceber = decisao.valor; mudancas.push(`Diferença de R$ ${decisao.valor.toFixed(2).replace('.', ',')} a receber na entrega`); alteracoes.push({ tipo: 'diferenca', para: decisao.valor }) }
+  const modoAntes = (ped.diferenca_modo as DiferencaModo | null) ?? (diferencaAReceber ? 'entrega' : null)
+  let diferencaModo: DiferencaModo | null = modoAntes
+  let cobrancaDiferenca: CobrancaParaCliente | null = null
+  // Havia um Pix da diferença pendente e a decisão mudou (entrega, estorno, nada): cancela a cobrança antiga.
+  const cancelarPixAntigo = async () => { if (modoAntes === 'pix' || modoAntes === 'pix_vencido') await cancelarCobrancaPendente(admin, restauranteId, pedidoId).catch(() => null) }
+  if (decisao.acao === 'diferenca_entrega') { await cancelarPixAntigo(); diferencaAReceber = decisao.valor; diferencaModo = 'entrega'; mudancas.push(`Diferença de R$ ${decisao.valor.toFixed(2).replace('.', ',')} a receber na entrega`); alteracoes.push({ tipo: 'diferenca', para: decisao.valor }) }
+  if (decisao.acao === 'diferenca_pix') {
+    // Fase 3 (19/10): Pix só da diferença, pelo Mercado Pago da loja, mandado ao cliente no WhatsApp depois de gravar.
+    if (loja?.pix_online_ativo !== true) throw new EdicaoError('O Pix online não está ativo nesta loja. Marque "receber na entrega".', 409, { codigo: 'pago_online', precisa: 'diferenca_entrega', pixOnline: false })
+    try {
+      cobrancaDiferenca = await criarCobrancaDiferenca(admin, { restauranteId, pedidoId, valor: decisao.valor, motivo: `Edição do pedido #${ped.numero}: ${mudancas.join(' · ')}` })
+    } catch (e) {
+      const m = (e as Error).message
+      const texto = m === 'diferenca_anterior_paga' ? 'A diferença anterior acabou de ser paga pelo cliente. Feche e abra o pedido de novo para ver o valor atual.'
+        : 'Não consegui gerar o Pix da diferença agora. Tente de novo ou marque "receber na entrega".'
+      throw new EdicaoError(texto, 409, { codigo: 'pago_online', precisa: 'diferenca_entrega', pixOnline: true })
+    }
+    diferencaAReceber = decisao.valor; diferencaModo = 'pix'
+    mudancas.push(`Diferença de R$ ${decisao.valor.toFixed(2).replace('.', ',')} cobrada por Pix (WhatsApp)`); alteracoes.push({ tipo: 'diferenca', para: decisao.valor })
+  }
   if (decisao.acao === 'estorno_parcial') {
     if (!edicao.pagoOnline?.aprovacao) throw new EdicaoError('O estorno precisa da aprovação de um gerente (PIN).', 409, { codigo: 'aprovacao_necessaria', precisa: 'estorno_parcial' })
     const { data: pg } = await admin.from('pagamentos_online').select('id').eq('restaurante_id', restauranteId).eq('pedido_id', pedidoId).in('status', ['pago', 'devolvido_parcial']).order('criado_em', { ascending: false }).limit(1).maybeSingle()
@@ -166,9 +188,11 @@ export async function editarPedido(admin: SupabaseClient, p: {
     const r = await devolverPix(admin, { restauranteId, pagamentoId: pg.id as string, solicitante: { id: p.por.id ?? '', nome: p.por.nome }, aprovacao: edicao.pagoOnline.aprovacao, motivo: `Edição do pedido #${ped.numero}: ${mudancas.join(' · ')}`.slice(0, 300), valorCentavos: Math.round(decisao.valor * 100) })
     if (!r.ok) throw new EdicaoError(r.erro, r.status, { codigo: 'estorno' })
     mudancas.push(`Estorno de R$ ${decisao.valor.toFixed(2).replace('.', ',')} pelo Mercado Pago`); alteracoes.push({ tipo: 'estorno', para: decisao.valor })
-    diferencaAReceber = null
+    await cancelarPixAntigo()
+    diferencaAReceber = null; diferencaModo = null
   }
-  if (decisao.acao === 'nada' && ped.pago && ped.pagamento_online && diferencaAReceber && c2(total - (Number(ped.total) - diferencaAReceber)) <= 0) diferencaAReceber = null
+  if (decisao.acao === 'nada' && ped.pago && ped.pagamento_online && diferencaAReceber && c2(total - (Number(ped.total) - diferencaAReceber)) <= 0) { await cancelarPixAntigo(); diferencaAReceber = null; diferencaModo = null }
+  if (!diferencaAReceber) diferencaModo = null
 
   // 6. grava
   const agora = new Date().toISOString()
@@ -198,7 +222,7 @@ export async function editarPedido(admin: SupabaseClient, p: {
   const edicoes = [...((Array.isArray(ped.edicoes) ? ped.edicoes : []) as EdicaoRegistro[]), registro].slice(-20)
   const patch: Record<string, unknown> = {
     subtotal, taxa_entrega: taxaEntrega, desconto, total, forma_pagamento: formaPagamento, cartao_tipo: cartaoTipo, troco_para: formaPagamento === 'dinheiro' ? trocoPara : null,
-    editado_em: agora, editado_por_nome: p.por.nome, edicoes, diferenca_a_receber: diferencaAReceber,
+    editado_em: agora, editado_por_nome: p.por.nome, edicoes, diferenca_a_receber: diferencaAReceber, diferenca_modo: diferencaModo,
     ...(cupomRemovido ? { cupom_codigo: null } : {}),
     ...(edicao.reimprimir ? { reimprimir: true } : {}),
     ...(enderecoMudou && endereco ? { endereco_rua: endereco.rua, endereco_numero: endereco.numero, endereco_complemento: endereco.complemento ?? '', endereco_bairro: endereco.bairro, endereco_cep: endereco.cep ?? '', endereco_cidade: endereco.cidade ?? '', endereco_referencia: endereco.referencia ?? '', entrega_latitude: null, entrega_longitude: null } : {}),
@@ -224,6 +248,8 @@ export async function editarPedido(admin: SupabaseClient, p: {
       }
     }
   } catch (e) { console.error('[editar pedido] aviso ao cliente:', (e as Error).message) }
+  // Pix da diferença: sai SEMPRE (mesmo com a mensagem "alterado" desligada), depois do aviso.
+  if (cobrancaDiferenca) await enviarPixDiferencaAoCliente(admin, restauranteId, { numero: ped.numero, cliente_telefone: ped.cliente_telefone ?? null }, cobrancaDiferenca).catch((e) => console.error('[editar pedido] Pix da diferença:', (e as Error).message))
 
   return { numero: ped.numero, total, mudancas, diferencaAReceber }
 }

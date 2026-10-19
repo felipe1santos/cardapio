@@ -23,6 +23,8 @@ export async function avisarPainelPedidoNovo(
   restauranteId: string,
   pedido: { id: string; numero: number | null; canal?: string | null },
   remetente: Remetente = remetenteAtual(),
+  /** Texto próprio (ex.: Pix da diferença vencido); sem ele, "Pedido novo". */
+  texto?: { title: string; body: string },
 ): Promise<{ enviados: number; removidas: number }> {
   const res = { enviados: 0, removidas: 0 }
   if (!pushConfigurado() && process.env.PUSH_PROVEDOR !== 'simulado') return res
@@ -31,7 +33,7 @@ export async function avisarPainelPedidoNovo(
     .select('id, endpoint, p256dh, auth, falhas')
     .eq('restaurante_id', restauranteId)
   if (!assinaturas?.length) return res
-  const { title, body } = textoPushPainel(pedido)
+  const { title, body } = texto ?? textoPushPainel(pedido)
   const payload = JSON.stringify({
     title, body, tag: 'menuzia-pedido', painel: true,
     data: { url: '/admin/pedidos', pedido: pedido.id },

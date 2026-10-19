@@ -59,7 +59,7 @@ export function EditarPedidoModal({ pedido: p, corrida, supabase, restauranteId,
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   // Pago online: o servidor pediu uma decisão (estorno parcial com PIN / diferença na entrega).
-  const [pagoOnline, setPagoOnline] = useState<{ precisa: 'estorno_parcial' | 'diferenca_entrega'; texto: string } | null>(null)
+  const [pagoOnline, setPagoOnline] = useState<{ precisa: 'estorno_parcial' | 'diferenca_entrega'; texto: string; pixOnline?: boolean } | null>(null)
   const [erroPin, setErroPin] = useState<string | null>(null)
 
   // Catálogo (só ao adicionar item): o mesmo do PDV.
@@ -111,7 +111,7 @@ export function EditarPedidoModal({ pedido: p, corrida, supabase, restauranteId,
     return t
   }, [linhas, novas, endereco, escolhaPag, trocoTxt, p, pagAtual])
 
-  async function salvar(extra: { escolha?: 'estorno_parcial' | 'diferenca_entrega'; aprovacao?: AprovacaoDada } = {}) {
+  async function salvar(extra: { escolha?: 'estorno_parcial' | 'diferenca_entrega' | 'diferenca_pix'; aprovacao?: AprovacaoDada } = {}) {
     if (salvando) return
     setSalvando(true); setErro(null); setErroPin(null)
     const trocoNovo = escolhaPag === 'dinheiro' && trocoTxt.trim() ? Number(trocoTxt.replace(',', '.')) : null
@@ -129,11 +129,11 @@ export function EditarPedidoModal({ pedido: p, corrida, supabase, restauranteId,
       reimprimir,
     }
     const r = await fetch(`/api/admin/pedidos/${p.id}/editar`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) }).catch(() => null)
-    const j = (await r?.json().catch(() => ({}))) as { error?: string; codigo?: string; precisa?: 'estorno_parcial' | 'diferenca_entrega'; numero?: number; total?: number; mudancas?: string[] }
+    const j = (await r?.json().catch(() => ({}))) as { error?: string; codigo?: string; precisa?: 'estorno_parcial' | 'diferenca_entrega'; pixOnline?: boolean; numero?: number; total?: number; mudancas?: string[] }
     setSalvando(false)
     if (!r) return setErro('Sem conexão com o servidor.')
     if (r.ok) { onSalvo({ numero: j.numero!, total: j.total!, mudancas: j.mudancas ?? [] }); return }
-    if (j.codigo === 'pago_online' && j.precisa) { setPagoOnline({ precisa: j.precisa, texto: j.error ?? '' }); return }
+    if (j.codigo === 'pago_online' && j.precisa) { setPagoOnline({ precisa: j.precisa, texto: j.error ?? '', pixOnline: j.pixOnline === true }); return }
     if (j.codigo === 'aprovacao_necessaria') { setPagoOnline({ precisa: 'estorno_parcial', texto: j.error ?? '' }); return }
     if (extra.aprovacao) { setErroPin(j.error ?? 'Não aprovado.'); return }
     setErro(j.error ?? 'Não foi possível salvar.')
@@ -238,12 +238,16 @@ export function EditarPedidoModal({ pedido: p, corrida, supabase, restauranteId,
               <span className="min-w-0 text-[#4B5563]">{temMudanca ? mudancasPrevia.join(' · ') : 'Nenhuma mudança ainda.'}</span>
               <span className="flex-shrink-0 text-right">Novo total (prévia) <b className="tabular-nums text-[#15803D]" data-testid="editar-total-previa">{formatarReal(totalPrevia)}</b></span>
             </div>
-            {p.pago && p.pagamentoOnline && <p className="text-[12px] text-[#6B7280]">Pago online: se o total mudar, o servidor pede o estorno parcial (PIN) ou a diferença a receber na entrega.</p>}
+            {p.pago && p.pagamentoOnline && <p className="text-[12px] text-[#6B7280]">Pago online: se o total mudar, o servidor pede o estorno parcial (PIN) ou como receber a diferença (Pix no WhatsApp ou na entrega).</p>}
             {pagoOnline && (
               <div className="rounded-[2px] border border-[#FCD34D] bg-[#FEF3C7] p-3 text-[12.5px] text-[#92400E]" data-testid="editar-pago-online">
                 <p className="font-semibold">{pagoOnline.texto}</p>
                 {pagoOnline.precisa === 'diferenca_entrega' ? (
-                  <button type="button" className={`${PRIMARIO} mt-2`} disabled={salvando} onClick={() => void salvar({ escolha: 'diferenca_entrega' })} data-testid="editar-diferenca-entrega">Receber a diferença na entrega e salvar</button>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {/* Fase 3 (19/10): Pix só da diferença pelo WhatsApp (só com o Pix online da loja ativo). */}
+                    {pagoOnline.pixOnline && <button type="button" className={PRIMARIO} disabled={salvando} onClick={() => void salvar({ escolha: 'diferenca_pix' })} data-testid="editar-diferenca-pix">Cobrar por Pix no WhatsApp e salvar</button>}
+                    <button type="button" className={pagoOnline.pixOnline ? SECUNDARIO : PRIMARIO} disabled={salvando} onClick={() => void salvar({ escolha: 'diferenca_entrega' })} data-testid="editar-diferenca-entrega">Receber a diferença na entrega e salvar</button>
+                  </div>
                 ) : (
                   <div className="mt-2 rounded-[2px] bg-white p-2 text-[#1F2937]">
                     <AprovacaoPin titulo="Estorno parcial pelo Mercado Pago — PIN de um gerente" erro={erroPin} ocupado={salvando} onCancelar={() => setPagoOnline(null)} onConfirmar={(a) => void salvar({ escolha: 'estorno_parcial', aprovacao: a })} />

@@ -151,6 +151,11 @@ export const ROTULO_EVENTO: Record<string, string> = {
   'pix_online.expirado': 'Pix online não pago no prazo (pedido cancelado)',
   'pix_online.pago_apos_cancelado': 'Pix online pago depois do cancelamento (a devolver)',
   'pix_online.divergente': 'Pix online não confere (pedido não liberado)',
+  // Fase 3 (19/10): Pix da diferença de pedido pago online editado.
+  'pix_online.diferenca_paga': 'Pix da diferença pago (confirmado pelo Mercado Pago)',
+  'pix_online.diferenca_vencida': 'Pix da diferença não pago em 30 min (loja avisada)',
+  'pedido.diferenca_entrega': 'Diferença do pedido passou a ser recebida na entrega',
+  'pedido.diferenca_pix': 'Gerou novo Pix da diferença e mandou ao cliente',
   'pix_online.devolvido': 'Devolveu Pix online ao cliente',
   'pix_online.conta_conectada': 'Conectou a conta do Mercado Pago',
   'pix_online.conexao_recusada': 'Conexão com o Mercado Pago recusada',
