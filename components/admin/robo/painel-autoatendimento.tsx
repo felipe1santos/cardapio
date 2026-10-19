@@ -24,9 +24,6 @@ const ROTULO_ASSUNTO: Record<Assunto, string> = {
   pagamento_pix: 'Pagamento e Pix', endereco_retirada: 'Endereço e retirada', reclamacao: 'Reclamação', atendente: 'Atendente', parar: 'Parar',
 }
 const SEMPRE_LIGADOS: Assunto[] = ['atendente', 'parar', 'reclamacao']
-const TIPOS_PIX = [
-  { v: 'cpf', r: 'CPF' }, { v: 'cnpj', r: 'CNPJ' }, { v: 'telefone', r: 'Telefone' }, { v: 'email', r: 'E-mail' }, { v: 'aleatoria', r: 'Chave aleatória' },
-]
 
 interface Config {
   ativo: boolean
@@ -36,12 +33,9 @@ interface Config {
   assuntosDesligados: string[]
   textos: Record<string, string>
   palavras: Record<string, string[]>
-  tempoEntrega: string
-  pixChave: string
-  pixTipo: string
   padrao: { textos: Record<string, string>; rotulos: Record<string, string>; palavras: Record<string, string[]>; campos: string[]; assuntos: Assunto[] }
 }
-interface Rascunho { assuntosDesligados: string[]; textos: Record<string, string>; palavras: Record<string, string>; tempoEntrega: string; pixChave: string; pixTipo: string }
+interface Rascunho { assuntosDesligados: string[]; textos: Record<string, string>; palavras: Record<string, string> }
 interface PassoSim { entrada: string; intencao: string; acao: string; respostas: string[] }
 
 const CLASSE_CAMPO = 'w-full rounded-[3px] border border-[#E5E7EB] bg-white px-[10px] py-[8px] text-[14px] text-[#1F2937] outline-none focus:border-[#0688D4]'
@@ -51,9 +45,6 @@ function rascunhoDe(c: Config): Rascunho {
     assuntosDesligados: c.assuntosDesligados,
     textos: c.textos,
     palavras: Object.fromEntries(Object.entries(c.palavras).map(([k, v]) => [k, v.join('\n')])),
-    tempoEntrega: c.tempoEntrega,
-    pixChave: c.pixChave,
-    pixTipo: c.pixTipo,
   }
 }
 
@@ -102,7 +93,7 @@ export function PainelAutoatendimento() {
   async function salvar() {
     if (!r) return
     setSalvando(true)
-    const corpo = { assuntosDesligados: r.assuntosDesligados, palavras: palavrasParaApi(r.palavras), tempoEntrega: r.tempoEntrega, pixChave: r.pixChave, pixTipo: r.pixTipo }
+    const corpo = { assuntosDesligados: r.assuntosDesligados, palavras: palavrasParaApi(r.palavras) }
     const res = await fetch('/api/admin/whatsapp/autoatendimento', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) }).catch(() => null)
     setSalvando(false)
     if (!res?.ok) { mostrar('erro', (await res?.json().catch(() => null))?.error ?? 'Não foi possível salvar.'); return }
@@ -146,23 +137,10 @@ export function PainelAutoatendimento() {
         <div className="grid grid-cols-1 gap-[16px] xl:grid-cols-[minmax(0,1fr)_420px]">
           <div className="min-w-0 space-y-[16px]">
             <Cartao className="p-[16px]">
-              <TituloBloco titulo="Dados que o robô usa" subtitulo="Bairros e taxas, horário e endereço vêm de Ajustes. Aqui só o que é do robô." />
-              <div className="mt-[14px] grid grid-cols-1 gap-[12px] md:grid-cols-3">
-                <label className="block">
-                  <span className="mb-[4px] block text-[12px] font-medium text-[#6B7280]">Tempo de entrega</span>
-                  <input className={CLASSE_CAMPO} value={r.tempoEntrega} maxLength={60} placeholder="ex.: 40 a 60 min" onChange={(e) => setR({ ...r, tempoEntrega: e.target.value })} />
-                </label>
-                <label className="block">
-                  <span className="mb-[4px] block text-[12px] font-medium text-[#6B7280]">Tipo da chave Pix</span>
-                  <select className={CLASSE_CAMPO} value={r.pixTipo} onChange={(e) => setR({ ...r, pixTipo: e.target.value })}>
-                    <option value="">Escolha…</option>
-                    {TIPOS_PIX.map((t) => <option key={t.v} value={t.v}>{t.r}</option>)}
-                  </select>
-                </label>
-                <label className="block">
-                  <span className="mb-[4px] block text-[12px] font-medium text-[#6B7280]">Chave Pix</span>
-                  <input className={CLASSE_CAMPO} value={r.pixChave} maxLength={140} placeholder="Sem chave, o robô não fala de Pix" onChange={(e) => setR({ ...r, pixChave: e.target.value })} />
-                </label>
+              {/* 0205 (Etapa 0): tempo de entrega/retirada e chave Pix moraram aqui; agora o Perfil da loja é a fonte única. */}
+              <TituloBloco titulo="Dados que o robô usa" subtitulo="Esses dados vêm do Perfil da loja: tempo de entrega, tempo de retirada e chave Pix. Bairros e taxas, horário e endereço também vêm de Ajustes." />
+              <div className="mt-[12px]">
+                <Button variant="outline" type="button" onClick={() => { window.location.href = '/admin/ajustes' }}>Editar no Perfil</Button>
               </div>
             </Cartao>
 
@@ -274,9 +252,6 @@ function Simulador({ rascunho }: { rascunho: Rascunho }) {
         auto_assuntos_desligados: rascunho.assuntosDesligados,
         auto_textos: rascunho.textos,
         auto_palavras: palavrasParaApi(rascunho.palavras),
-        auto_tempo_entrega: rascunho.tempoEntrega,
-        pix_chave: rascunho.pixChave,
-        pix_chave_tipo: rascunho.pixTipo || null,
       },
     }
     const res = await fetch('/api/admin/whatsapp/autoatendimento/simular', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) }).catch(() => null)
@@ -388,7 +363,7 @@ const EXPLICA_CAMPO: Record<string, string> = {
   saudacao: 'Bom dia, Boa tarde ou Boa noite, pelo horário', nome_cliente: 'primeiro nome do cliente no WhatsApp', nome_loja: 'nome da loja',
   link_cardapio: 'link do cardápio', numero_pedido: 'número do pedido', itens: 'itens do pedido, um por linha', total: 'total do pedido',
   status: 'situação do pedido (ex.: Em preparo)', previsao: 'previsão de entrega do pedido', bairro: 'bairro que o cliente escreveu', taxa: 'taxa de entrega do bairro',
-  tempo: 'tempo de entrega (campo “Tempo de entrega” acima)', horario: 'horários da semana', endereco: 'endereço da loja',
+  tempo: 'tempo de entrega (Perfil da loja)', horario: 'horários da semana', endereco: 'endereço da loja',
   menu: 'opções numeradas (só os assuntos ligados)', lista_bairros: 'bairros atendidos com a taxa', formas_pagamento: 'formas de pagamento',
   aberto_agora: '“Estamos abertos agora” ou quando abre', retirada: 'se aceita retirada no balcão', tipo_chave: 'tipo da chave Pix (CPF, telefone…)',
 }

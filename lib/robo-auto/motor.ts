@@ -94,7 +94,7 @@ export async function carregarLojaAuto(admin: SupabaseClient, restauranteId: str
   const [{ data: loja }, { data: bairros }, { count: raios }] = await Promise.all([
     admin
       .from('restaurantes')
-      .select('nome, slug, status_loja, horario_funcionamento, taxa_entrega_padrao, frete_fora_da_lista, aceita_entrega, aceita_retirada, endereco, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, pix_online_ativo, tempo_entrega, tempo_retirada')
+      .select('nome, slug, status_loja, horario_funcionamento, taxa_entrega_padrao, frete_fora_da_lista, aceita_entrega, aceita_retirada, endereco, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, pix_online_ativo, tempo_entrega, tempo_retirada, pix_chave, pix_chave_tipo')
       .eq('id', restauranteId)
       .maybeSingle(),
     admin.from('taxas_entrega_bairro').select('bairro, taxa').eq('restaurante_id', restauranteId),
@@ -141,8 +141,9 @@ export async function carregarLojaAuto(admin: SupabaseClient, restauranteId: str
     tempoEntrega: tempos.entrega,
     tempoRetirada: tempos.retirada,
     tempoEntregaOrigem: tempos.origemEntrega,
-    pixChave: cfg.pix_chave?.trim() || null,
-    pixTipo: cfg.pix_chave_tipo ?? null,
+    // 0205: chave Pix do Perfil; o legado da tela do Robô só vale enquanto o Perfil estiver vazio.
+    pixChave: String(l.pix_chave ?? '').trim() || cfg.pix_chave?.trim() || null,
+    pixTipo: String(l.pix_chave ?? '').trim() ? ((l.pix_chave_tipo as string | null) ?? null) : (cfg.pix_chave_tipo ?? null),
     pixOnline: l.pix_online_ativo === true,
     cidade: String(l.endereco_cidade ?? '') || null,
     textos: (cfg.auto_textos ?? null) as Partial<Record<ChaveTexto, string>> | null,

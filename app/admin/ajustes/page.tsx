@@ -27,6 +27,7 @@ import { AgenteIa } from '@/components/admin/agente-ia'
 import { abasDoAjustes, ABAS_MOVIDAS, HREF_IMPRESSAO, type AbaAjustes } from '@/components/admin/ajustes-abas'
 import { PilhaToasts, useToasts } from '@/components/admin/toasts'
 import { normalizarInstagram } from '@/lib/instagram'
+import { PIX_CHAVE_MAX, TIPOS_PIX, tipoPixValido } from '@/lib/pix-chave'
 import { fonteVitrine } from '@/lib/fonte-vitrine'
 import { buscarRestauranteIdDoUsuario, IMAGEM_TAMANHOS, type LayoutCardapio, type ImagemTamanho, type FonteVitrine } from '@/lib/queries/cardapio'
 import { AjustarFoco } from '@/components/ajustar-foco'
@@ -173,6 +174,8 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
     telefone: '',
     tempoEntrega: '',
     tempoRetirada: '',
+    pixChave: '',
+    pixTipo: '',
     instagram: '',
     enderecoRua: '',
     enderecoNumero: '',
@@ -224,6 +227,8 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         telefone: c.telefone,
         tempoEntrega: c.tempoEntrega ?? '',
         tempoRetirada: c.tempoRetirada ?? '',
+        pixChave: c.pixChave ?? '',
+        pixTipo: c.pixTipo ?? '',
         instagram: c.instagramUrl ?? '',
         enderecoRua: c.enderecoRua,
         enderecoNumero: c.enderecoNumero,
@@ -265,7 +270,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
 
   function set(
     key:
-      | 'nome' | 'telefone' | 'instagram' | 'cep' | 'tempoEntrega' | 'tempoRetirada'
+      | 'nome' | 'telefone' | 'instagram' | 'cep' | 'tempoEntrega' | 'tempoRetirada' | 'pixChave' | 'pixTipo'
       | 'enderecoRua' | 'enderecoNumero' | 'enderecoComplemento' | 'enderecoBairro' | 'enderecoCidade' | 'enderecoEstado'
       | 'avaliacaoNota' | 'avaliacaoQtd'
       | 'logoUrl' | 'bannerUrl' | 'bannerMobileUrl' | 'bannerPromocionalUrl',
@@ -431,6 +436,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
   async function save() {
     // 19/10: se a carga falhou (ex.: coluna sem grant, 0204), o formulário está vazio — gravar sobrescreveria a loja.
     if (!config) { setError('Os dados da loja não carregaram. Recarregue a página antes de salvar.'); return }
+    if (form.pixChave.trim() && !tipoPixValido(form.pixTipo)) { setError('Escolha o tipo da chave Pix.'); return }
     if (!form.nome.trim()) { setError('O nome do estabelecimento é obrigatório.'); return }
     const instagram = normalizarInstagram(form.instagram)
     if (!instagram.ok) { setError(`Instagram: ${instagram.erro}`); return }
@@ -450,6 +456,8 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         telefone: form.telefone.trim(),
         tempoEntrega: form.tempoEntrega.trim().slice(0, 60) || null,
         tempoRetirada: form.tempoRetirada.trim().slice(0, 60) || null,
+        pixChave: form.pixChave.trim().slice(0, PIX_CHAVE_MAX) || null,
+        pixTipo: form.pixChave.trim() ? form.pixTipo : null,
         instagramUrl: instagram.url,
         enderecoRua: form.enderecoRua.trim(),
         enderecoNumero: form.enderecoNumero.trim(),
@@ -519,6 +527,16 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
             </Field>
             <Field label="Tempo de retirada" hint="Quanto tempo o pedido leva para ficar pronto no balcão (ex.: 15 min).">
               <Input value={form.tempoRetirada} onChange={(e) => set('tempoRetirada', e.target.value)} placeholder="15 min" maxLength={60} data-testid="perfil-tempo-retirada" />
+            </Field>
+            {/* 0205: a chave Pix saiu da tela do Robô — o robô e a IA leem daqui. Sem chave, não falam de Pix. */}
+            <Field label="Tipo da chave Pix" hint="CPF, CNPJ, telefone, e-mail ou aleatória.">
+              <select value={form.pixTipo} onChange={(e) => set('pixTipo', e.target.value)} data-testid="perfil-pix-tipo" className="w-full rounded-menuzia border border-border bg-white px-3 py-2.5 font-sans text-sm text-text-main outline-none transition-colors focus:border-primary">
+                <option value="">Escolha…</option>
+                {TIPOS_PIX.map((t) => <option key={t.valor} value={t.valor}>{t.rotulo}</option>)}
+              </select>
+            </Field>
+            <Field label="Chave Pix" hint="O robô e a IA mandam esta chave quando o cliente escolhe Pix. Em branco, não oferecem Pix.">
+              <Input value={form.pixChave} onChange={(e) => set('pixChave', e.target.value)} placeholder="Sem chave, o robô não fala de Pix" maxLength={PIX_CHAVE_MAX} data-testid="perfil-pix-chave" />
             </Field>
           </div>
           <Field label="Instagram da loja" hint="Link do perfil (https://instagram.com/sualoja) ou @sualoja. Vira o QR code impresso no fim da comanda da cozinha (Impressão Beta). Em branco: a comanda sai com o QR do seu cardápio.">

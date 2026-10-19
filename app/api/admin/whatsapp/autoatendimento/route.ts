@@ -24,7 +24,6 @@ async function contexto() {
 
 const semCache = { 'Cache-Control': 'no-store' }
 const CHAVES_TEXTO = Object.keys(TEXTOS_PADRAO) as ChaveTexto[]
-const TIPOS_PIX = ['cpf', 'cnpj', 'telefone', 'email', 'aleatoria']
 
 export async function GET() {
   const ctx = await contexto()
@@ -44,9 +43,6 @@ export async function GET() {
     assuntosDesligados: (c.auto_assuntos_desligados as string[] | null) ?? [],
     textos: (c.auto_textos as Record<string, string> | null) ?? {},
     palavras: (c.auto_palavras as Record<string, string[]> | null) ?? {},
-    tempoEntrega: (c.auto_tempo_entrega as string | null) ?? '',
-    pixChave: (c.pix_chave as string | null) ?? '',
-    pixTipo: (c.pix_chave_tipo as string | null) ?? '',
     padrao: { textos: TEXTOS_PADRAO, rotulos: ROTULO_TEXTO, palavras: PALAVRAS_PADRAO, campos: CAMPOS, assuntos: ASSUNTOS },
   }, { headers: semCache })
 }
@@ -106,20 +102,7 @@ export async function PUT(request: Request) {
     patch.auto_palavras = limpo
     resumo.push('palavras-chave')
   }
-  if (corpo.tempoEntrega !== undefined) {
-    if (typeof corpo.tempoEntrega !== 'string' || corpo.tempoEntrega.trim().length > 60) return NextResponse.json({ error: 'Tempo de entrega: até 60 caracteres.' }, { status: 400 })
-    patch.auto_tempo_entrega = corpo.tempoEntrega.trim() || null
-    resumo.push('tempo de entrega')
-  }
-  if (corpo.pixChave !== undefined || corpo.pixTipo !== undefined) {
-    const chave = typeof corpo.pixChave === 'string' ? corpo.pixChave.trim() : ''
-    const tipo = typeof corpo.pixTipo === 'string' ? corpo.pixTipo : ''
-    if (chave.length > 140) return NextResponse.json({ error: 'Chave Pix: até 140 caracteres.' }, { status: 400 })
-    if (chave && !TIPOS_PIX.includes(tipo)) return NextResponse.json({ error: 'Escolha o tipo da chave Pix.' }, { status: 400 })
-    patch.pix_chave = chave || null
-    patch.pix_chave_tipo = chave ? tipo : null
-    resumo.push(chave ? 'chave Pix' : 'chave Pix removida')
-  }
+  // 0205: tempo de entrega e chave Pix agora são do Perfil da loja (lib/queries/ajustes.ts); aqui não se grava mais.
   if (!resumo.length) return NextResponse.json({ error: 'Nada para salvar.' }, { status: 400 })
   const { error } = await admin.from('whatsapp_robo_config').upsert(patch, { onConflict: 'restaurante_id' })
   if (error) return NextResponse.json({ error: 'Não foi possível salvar.' }, { status: 500 })
