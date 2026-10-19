@@ -13,6 +13,8 @@ export interface FalhaHumana {
   resumo?: string
   /** Trocar o tipo do pedido em andamento (retirada ↔ entrega) para a próxima pergunta seguir. */
   ajustarTipo?: 'entrega' | 'retirada'
+  /** 19/10 (dono): loja fechada não recebe pedido — o rascunho em andamento é descartado. */
+  limparRascunho?: boolean
 }
 
 export function falhaDoPedido(err: unknown, loja: { aceitaEntrega: boolean; aceitaRetirada: boolean; proximaAbertura: string | null }, resumoDoPedido?: string | null): FalhaHumana {
@@ -28,7 +30,7 @@ export function falhaDoPedido(err: unknown, loja: { aceitaEntrega: boolean; acei
         ? { codigo, texto: 'No momento estamos só com retirada no balcão 🛍️ Quer retirar?', atendente: false, ajustarTipo: 'retirada' }
         : chamar('Agora não estamos pegando pedidos por aqui 😕 Já chamei alguém da loja para te ajudar, só um instante 🙏', 'Retirada e entrega desligadas')
     case 'fechada':
-      return { codigo, texto: `A loja está fechada agora 😕${loja.proximaAbertura ? ` ${loja.proximaAbertura}.` : ''}\n\nSeu pedido ficou anotado: quando abrir, é só me chamar que eu fecho pra você.`, atendente: false }
+      return { codigo, texto: `A loja está fechada agora 😕${loja.proximaAbertura ? ` ${loja.proximaAbertura}.` : ''}\n\nPor isso não consigo anotar seu pedido agora. Assim que abrirmos, é só me chamar por aqui que eu anoto na hora!`, atendente: false, limparRascunho: true }
     case 'fora_da_area':
       return chamar('Esse endereço fica fora da nossa área de entrega 😕 Já chamei alguém da loja para ver o que dá pra fazer, só um instante 🙏', 'Fora da área de entrega')
     case 'item':

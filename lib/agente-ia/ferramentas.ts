@@ -221,6 +221,7 @@ export async function executarFerramenta(ctx: ContextoFerramentas, efeitos: Efei
           efeitos.mensagens = [...(efeitos.mensagens ?? []), falha.texto]
           if (falha.atendente) efeitos.atendente = falha.resumo ?? falha.texto
           if (falha.ajustarTipo) await ctx.admin.from('whatsapp_conversas').update({ ia_rascunho: { ...m.rascunho, tipo: falha.ajustarTipo } }).eq('id', ctx.conversaId).eq('restaurante_id', ctx.restauranteId)
+          if (falha.limparRascunho) await ctx.admin.from('whatsapp_conversas').update({ ia_rascunho: null }).eq('id', ctx.conversaId).eq('restaurante_id', ctx.restauranteId)
           return { conteudo: json({ ok: false, aviso: 'O sistema já explicou ao cliente. Não escreva mais nada (no máximo uma frase curta, sem erro técnico).' }) }
         }
       }

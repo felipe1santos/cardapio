@@ -14,11 +14,12 @@ describe('falhas do pedido viram texto humano (19/10, auditoria da Ponto 400): n
     expect(f.texto).toBe('No momento estamos só com retirada no balcão 🛍️ Quer retirar?')
     expect(f.ajustarTipo).toBe('retirada')
   })
-  it('loja fechada (AA7 17/10): pedido fica guardado, diz quando abre, sem "não consegui fechar"', () => {
+  it('loja fechada (AA7 17/10; regra do dono 19/10): não anota, diz quando abre, sem "não consegui fechar"', () => {
     const f = falhaDoPedido(new FalhaPedido('fechada', 'A loja está fechada agora; o pedido não pode ser feito.'), loja)
-    expect(f.texto).toBe('A loja está fechada agora 😕 A loja abre amanhã às 18:00.\n\nSeu pedido ficou anotado: quando abrir, é só me chamar que eu fecho pra você.')
+    expect(f.texto).toBe('A loja está fechada agora 😕 A loja abre amanhã às 18:00.\n\nPor isso não consigo anotar seu pedido agora. Assim que abrirmos, é só me chamar por aqui que eu anoto na hora!')
     expect(f.atendente).toBe(false)
-    expect(falhaDoPedido(new FalhaPedido('fechada', 'x'), { ...loja, proximaAbertura: null }).texto).toContain('A loja está fechada agora 😕\n\nSeu pedido ficou anotado')
+    expect(f.limparRascunho).toBe(true)
+    expect(falhaDoPedido(new FalhaPedido('fechada', 'x'), { ...loja, proximaAbertura: null }).texto).toContain('A loja está fechada agora 😕\n\nPor isso não consigo anotar')
   })
   it('fora da área: avisa com educação e chama o atendente com o que o cliente queria', () => {
     const f = falhaDoPedido(new FalhaPedido('fora_da_area', 'Não entregamos nesse bairro.'), loja, 'X-Tudo e Coca 2L, entrega na Rua A, 10')

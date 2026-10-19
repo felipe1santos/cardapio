@@ -388,12 +388,13 @@ export async function processarMensagemAuto(
     const ultimaDaLoja = [...hist].reverse().find((h) => h.direcao === 'loja')?.texto ?? null
     const simAoPedido = !emModoIa && m.tipo === 'texto' && respondeuSimAoPedido(m.texto ?? '', ultimaDaLoja) && estado.autoEstado !== 'pedir_link'
     if (simAoPedido) classif = { ...classificacao, intencao: 'pedir', assunto: 'outro' }
-    const rota = simAoPedido ? 'robo' : escolhendoItem ? 'ia' : iaEsgotadaNaConversa(estIa, antes, agora)
+    const rota = simAoPedido ? 'robo' : escolhendoItem && loja.aberta ? 'ia' : iaEsgotadaNaConversa(estIa, antes, agora)
       ? 'robo'
       : rotaDaMensagem({
           intencao: classificacao.intencao, tipo: m.tipo, emModoIa, itemCitado: m.tipo === 'texto' && itemCitado(m.texto ?? '', nomesDoCardapio(cardapio.itens)),
           normalizado: classificacao.normalizado, pedidoSemLink: classificacao.pedidoSemLink,
           perguntaDeItem: m.tipo === 'texto' && perguntaSobreCardapio(classificacao.normalizado),
+          lojaAberta: loja.aberta,
           // O robô já insistiu no link (12/10): se o cliente pedir de novo, quem responde é a IA.
           jaMandouLink: (estado.autoEstado === 'pedir_link' && !!estado.autoEstadoEm && agora.getTime() - Date.parse(estado.autoEstadoEm) < ESTADO_VALIDADE_MS)
             || linkJaEnviado(hist, agora.getTime()),
@@ -452,7 +453,7 @@ export async function processarMensagemAuto(
   const temPix = !!loja.pixChave?.trim()
   // 18/10: pedido aberto e ainda editável deste telefone → "7 Alterar ou cancelar meu pedido" e o fluxo de solicitação.
   const pedidoEditavelId = m.tipo === 'texto' ? await pedidoEditavelDoTelefone(admin, restauranteId, telefone) : null
-  const decidido = decidir({ classificacao: classif, texto: m.texto ?? '', estado, agora, assuntosDesligados: loja.assuntosDesligados, tipo: m.tipo, temPix, pedidoEditavelId })
+  const decidido = decidir({ classificacao: classif, texto: m.texto ?? '', estado, agora, assuntosDesligados: loja.assuntosDesligados, tipo: m.tipo, temPix, pedidoEditavelId, lojaAberta: loja.aberta })
   // IA falhou numa mensagem que o robô sozinho não responderia ("sim", foto): o cliente recebe o "não entendi" com o
   // link e a oferta de atendente — nunca fica sem resposta.
   const d = iaFalhou && decidido.acao === 'nada'

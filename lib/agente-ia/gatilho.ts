@@ -30,7 +30,10 @@ export function rotaDaMensagem(p: {
   jaMandouLink?: boolean
   /** "esse combo não tem refrigerante?" (19/10): pergunta sobre item/cardápio — o link não responde; a IA sim. */
   perguntaDeItem?: boolean
+  /** 19/10 (dono): loja fechada não recebe pedido pela IA — quem quer pedir ouve do robô que está fechada. */
+  lojaAberta?: boolean
 }): RotaMensagem {
+  if (p.lojaAberta === false && p.tipo === 'texto' && (p.intencao === 'pedir' || p.pedidoSemLink || p.itemCitado)) return 'robo'
   if (p.emModoIa && p.tipo === 'texto') {
     // O resumo que a vitrine manda depois do pedido é sempre do robô (confirma o pedido, sem custo; 16/10).
     if (p.intencao === 'parar' || p.intencao === 'voltar' || p.intencao === 'resumo_pedido') return 'robo'

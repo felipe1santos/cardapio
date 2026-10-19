@@ -274,6 +274,13 @@ Me diga aqui o que você quer mudar (ex.: _tirar a cebola_, _mais 1 Coca 2L_, _o
       return { mensagens: [t('parar')] }
     case 'audio':
       return { mensagens: [t('audio')] }
+    case 'pedir_fechada': {
+      // 19/10 (dono): com a loja fechada, nada de link nem de "anotar": fechada + quando abre.
+      const fechada = `> Estamos fechados ${l.fechadaHojeForaDoNormal ? 'hoje (fora do horário normal)' : 'agora'}.${l.proximaAbertura ? ` ${l.proximaAbertura}.` : ''}`
+      return { mensagens: [`${fechada}
+
+Por isso não consigo anotar seu pedido agora 😕 Assim que abrirmos, é só me chamar por aqui que eu anoto na hora!`], autoEstado: null }
+    }
     case 'pedir_link':
       return { mensagens: [t('pedir_link')], autoEstado: 'pedir_link' }
     case 'pedir_sem_link':

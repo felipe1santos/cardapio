@@ -11,6 +11,8 @@ export type AcaoAuto =
   | 'horario' | 'pagamento' | 'endereco' | 'reclamacao' | 'atendente' | 'parar' | 'nao_entendeu' | 'audio' | 'nada'
   | 'pix_chave' | 'resumo_pedido' | 'tempo_entrega' | 'duvida'
   | 'pedir_link' | 'pedir_sem_link'
+  // 19/10 (dono): loja fechada — quem quer pedir ouve que está fechada e quando abre; nada é anotado.
+  | 'pedir_fechada'
   // 18/10: "Alterar ou cancelar meu pedido" (só com pedido aberto): pergunta o que mudar; a mensagem seguinte vira solicitação.
   | 'alterar_pedido_perguntar' | 'alterar_pedido_registrar'
 
@@ -68,6 +70,8 @@ export interface EntradaDecisao {
   temPix?: boolean
   /** 18/10: id do pedido aberto e ainda editável deste telefone (o motor consulta). Sem ele, "alterar/cancelar" vai para o atendente como antes. */
   pedidoEditavelId?: string | null
+  /** 19/10: loja aberta agora (padrão: sim). Fechada, "quero pedir" vira `pedir_fechada`. */
+  lojaAberta?: boolean
 }
 
 const ACAO_DO_ASSUNTO: Record<Assunto, AcaoAuto> = {
@@ -139,6 +143,7 @@ export function decidir(e: EntradaDecisao): Decisao {
   // Quer pedir pela conversa e o Agente de IA não atendeu (desligado, sem módulo ou indisponível): 1ª vez, o link;
   // itens escritos na conversa, "não consigo usar o link" ou insistiu: chama o atendente (16/10; nunca o link de novo).
   if (intencao === 'pedir') {
+    if (e.lojaAberta === false) return { acao: 'pedir_fechada', intencao, estado: entendido(limpo), naoEntendida: false }
     if (classificacao.pedidoSemLink || emEspera === 'pedir_link') return { acao: 'atendente', intencao, estado: entendido(limpo), silenciar: 'atendente', naoEntendida: false, porPedido: true }
     return { acao: 'pedir_link', intencao, estado: { ...entendido(limpo), autoEstado: 'pedir_link', autoEstadoEm: agoraIso }, naoEntendida: false }
   }
