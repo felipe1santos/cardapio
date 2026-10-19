@@ -1,4 +1,5 @@
 import { Bell, Globe, Link2, Megaphone, MessageCircle, Monitor, QrCode, Sparkles, Store, UtensilsCrossed } from 'lucide-react'
+import { APPS_INTEGRADOS } from '@/lib/pedido-origem'
 
 /**
  * Ícones das origens (item 55/56): marcas desenhadas em SVG simples (sem pacote de logos) + lucide.
@@ -109,7 +110,21 @@ const COR_SELO: Record<string, string> = {
   instagram: '#C13584', facebook: '#0B5FCC', meta: '#0064E0', google_anuncio: '#B06000', google_busca: '#1967D2',
   whatsapp: '#0E7569', whatsapp_ia: '#7E22CE', push: '#9333EA', qrcode: '#C2410C', outros: '#4B5563', direto: '#4B5563', sem_origem: '#6B7280',
 }
+/**
+ * Logo de um app integrado (Bloco E, 19/10): a imagem oficial de public/origens quando existe (iFood); sem arquivo,
+ * selo com o nome na cor da marca. `altura` em px (o card usa 24, o painel 20, o selo pequeno 18).
+ */
+export function LogoApp({ canal, altura = 24, testid }: { canal: string; altura?: number; testid?: string }) {
+  const app = APPS_INTEGRADOS[canal]
+  if (!app) return null
+  // eslint-disable-next-line @next/next/no-img-element
+  if (app.logo) return <img src={app.logo} alt={app.nome} title={`Pedido do ${app.nome}`} style={{ height: altura }} className="inline-block w-auto flex-shrink-0 select-none" draggable={false} data-testid={testid} data-app={canal} />
+  return <span title={`Pedido do ${app.nome}`} style={{ height: altura, backgroundColor: app.cor, fontSize: Math.round(altura * 0.5) }} className="inline-flex flex-shrink-0 items-center rounded-[2px] px-1.5 font-bold leading-none text-white" data-testid={testid} data-app={canal}>{app.nome}</span>
+}
+
 export function SeloOrigem({ canal }: { canal: string }) {
+  // App integrado (19/10): o logo (pequeno) no lugar do quadradinho.
+  if (canal in APPS_INTEGRADOS) return <span className="inline-flex h-[18px] flex-shrink-0 items-center" data-selo-origem={canal}><LogoApp canal={canal} altura={18} /></span>
   // WhatsApp (18/10): o logo oficial no lugar do quadradinho desenhado.
   if (canal === 'whatsapp') return <span className="inline-flex h-[18px] w-[18px] flex-shrink-0" data-selo-origem={canal}><IconeWhatsapp className="h-[18px] w-[18px]" /></span>
   const cor = COR_SELO[canal] ?? '#4B5563'

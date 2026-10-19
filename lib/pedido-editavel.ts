@@ -27,7 +27,7 @@ export const TEXTO_NAO_EDITAVEL: Record<MotivoNaoEditavel, string> = {
   app_externo: 'Este pedido veio de outro aplicativo: edite no app de origem.',
 }
 
-const ORIGENS_EXTERNAS: readonly string[] = ['ifood', '99food', 'rappi']
+const ORIGENS_EXTERNAS: readonly string[] = ['ifood', '99food', 'rappi', 'keeta', 'aiqfome']
 
 /** Pode editar itens/endereço/pagamento? `corridaAtiva` = há corrida da Lalamove chamada para o pedido. */
 export function pedidoEditavel(p: PedidoParaEditar, corridaAtiva = false): Editavel {

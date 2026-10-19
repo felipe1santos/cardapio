@@ -11,13 +11,16 @@
  *    veio do anúncio ontem e voltou digitando o endereço hoje conta como anúncio).
  */
 /** 'whatsapp_ia' (0183): pedido tirado pelo Agente de IA na conversa — gravado só pelo servidor, nunca vem do navegador. */
-export type CanalOrigem = 'direto' | 'instagram' | 'facebook' | 'meta' | 'google_anuncio' | 'google_busca' | 'whatsapp' | 'qrcode' | 'outros' | 'whatsapp_ia' | 'push'
+/** Apps de delivery integrados (0202, 19/10): o card mostra o logo grande. Nenhuma integração grava isso ainda. */
+export type CanalApp = 'ifood' | 'keeta' | '99food' | 'aiqfome'
+export type CanalOrigem = 'direto' | 'instagram' | 'facebook' | 'meta' | 'google_anuncio' | 'google_busca' | 'whatsapp' | 'qrcode' | 'outros' | 'whatsapp_ia' | 'push' | CanalApp
 
-export const CANAIS: readonly CanalOrigem[] = ['direto', 'instagram', 'facebook', 'meta', 'google_anuncio', 'google_busca', 'whatsapp', 'whatsapp_ia', 'push', 'qrcode', 'outros']
+export const CANAIS: readonly CanalOrigem[] = ['direto', 'instagram', 'facebook', 'meta', 'google_anuncio', 'google_busca', 'whatsapp', 'whatsapp_ia', 'push', 'qrcode', 'outros', 'ifood', 'keeta', '99food', 'aiqfome']
 
 export const ROTULO_CANAL: Record<CanalOrigem, string> = {
   direto: 'Direto', instagram: 'Instagram', facebook: 'Facebook', meta: 'Anúncio Meta', google_anuncio: 'Anúncio Google',
   google_busca: 'Google Busca', whatsapp: 'WhatsApp', qrcode: 'QR Code', outros: 'Outros', whatsapp_ia: 'WhatsApp IA', push: 'Notificação do app',
+  ifood: 'iFood', keeta: 'Keeta', '99food': '99Food', aiqfome: 'aiqfome',
 }
 
 /** Janela da atribuição: a última origem não-direta vale por 7 dias. */

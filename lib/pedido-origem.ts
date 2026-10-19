@@ -134,6 +134,23 @@ export function origemVisivelNoCard(pedido: PedidoParaRotulo & { origemCanal?: s
 const ROTULOS_CANAL_CARD: Record<string, string> = {
   instagram: 'Instagram', facebook: 'Facebook', meta: 'Meta', google_anuncio: 'Google', google_busca: 'Google',
   whatsapp: 'WhatsApp', qrcode: 'QR Code', outros: 'Outros', whatsapp_ia: 'WhatsApp IA',
+  ifood: 'iFood', keeta: 'Keeta', '99food': '99Food', aiqfome: 'aiqfome',
+}
+
+/**
+ * Apps de delivery integrados (Bloco E, 19/10): o card mostra o LOGO GRANDE entre o nome e o valor; pedido próprio
+ * (vitrine, WhatsApp, PDV) mantém o ícone pequeno. `logo` = arquivo em public/origens (sem arquivo oficial → selo
+ * com o nome na cor da marca, até o dono mandar o SVG).
+ */
+export const APPS_INTEGRADOS: Record<string, { nome: string; cor: string; logo: string | null }> = {
+  ifood: { nome: 'iFood', cor: '#EA1D2C', logo: '/origens/ifood.svg' },
+  keeta: { nome: 'Keeta', cor: '#1C1C1C', logo: null },
+  '99food': { nome: '99Food', cor: '#F7B500', logo: null },
+  aiqfome: { nome: 'aiqfome', cor: '#7B2CBF', logo: null },
+}
+export function appIntegradoDoPedido(pedido: { origemCanal?: string | null }): { canal: string; nome: string; cor: string; logo: string | null } | null {
+  const c = pedido.origemCanal
+  return c && c in APPS_INTEGRADOS ? { canal: c, ...APPS_INTEGRADOS[c] } : null
 }
 
 /** Atendimento do card: ENTREGA / RETIRADA / MESA, e BALCÃO para a retirada lançada no balcão (item 56). */

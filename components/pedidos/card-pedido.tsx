@@ -8,8 +8,8 @@ import { Editado, EtiquetaEdicao } from '@/components/pedidos/marcas-edicao'
 import { BOTAO_NEUTRO, classeBotao, DINHEIRO, type TomBotao } from '@/components/ui/botoes'
 import { corTempoPedido, textoTempoPedido } from '@/lib/tempo-pedido'
 import { formatarReal } from '@/lib/moeda'
-import { origemVisivelNoCard, rotuloOrigemPedido } from '@/lib/pedido-origem'
-import { IconeIaClaude, IconePix, SeloOrigem } from '@/components/icones/origens'
+import { appIntegradoDoPedido, origemVisivelNoCard, rotuloOrigemPedido } from '@/lib/pedido-origem'
+import { IconeIaClaude, IconePix, LogoApp, SeloOrigem } from '@/components/icones/origens'
 import { Dica } from '@/components/ui/flutuante'
 import { rotuloForma, statusAReceber } from '@/lib/pdv-pagamento'
 
@@ -50,6 +50,9 @@ export function IconesDoPedido({ order, tamanho = 'card' }: { order: Pedido; tam
   const origem = origemVisivelNoCard(order)
   const posto = rotuloOrigemPedido(order).posto
   const ia = order.origemCanal === 'whatsapp_ia'
+  // App integrado (Bloco E): no card o logo GRANDE já está na linha do título — o rodapé não repete; no painel vai aqui.
+  const app = appIntegradoDoPedido(order)
+  if (app && tamanho === 'card') return <span className="inline-flex items-center" data-testid="icones-pedido" />
   // Pela IA: o selo é o do WhatsApp (de onde veio) e o ícone da IA mostra quem tirou.
   const selo = ia ? 'whatsapp' : origem ? origem.icone : posto === 'Delivery' ? 'direto' : null
   const dicaOrigem = ia ? 'Origem: WhatsApp — pedido tirado pelo Agente de IA' : origem?.dica ?? 'Pedido do cardápio (direto)'
@@ -119,6 +122,7 @@ export function CardPedido({ order, now, selecionado, destaqueNovo, somBloqueado
   const removidos = order.itensRemovidos ?? []
   const local = order.tipo === 'entrega' ? order.enderecoBairro : null
   const pag = rotuloForma(order.formaPagamento, order.cartaoTipo, order.pagamentoOnline)
+  const app = appIntegradoDoPedido(order)
   return (
     <div
       data-testid={`pedido-${order.numero}`}
@@ -142,6 +146,8 @@ export function CardPedido({ order, now, selecionado, destaqueNovo, somBloqueado
           <span className="min-w-0 truncate text-[12.5px] font-semibold leading-[16px] text-[#111827]" title={order.clienteNome || undefined}>
             <span className="text-[#374151]">#{order.numero}</span> · {order.clienteNome || 'Cliente'}
           </span>
+          {/* App integrado (Bloco E): logo GRANDE no espaço entre o nome e o valor. */}
+          {app && <span className="ml-auto mr-1 inline-flex flex-shrink-0 items-center" data-testid="card-app" data-app={app.canal}><LogoApp canal={app.canal} altura={24} /></span>}
           <span className={`whitespace-nowrap text-[12.5px] font-semibold leading-[16px] tabular-nums ${DINHEIRO}`} data-testid="card-preco">{formatarReal(order.total)}</span>
         </div>
         {/* Linha 2: tipo · bairro · forma — hora e tempo à direita */}
