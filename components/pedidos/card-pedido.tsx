@@ -101,12 +101,14 @@ export interface AcoesCard {
   maisAberto?: boolean
 }
 
-export function CardPedido({ order, now, selecionado, destaqueNovo, somBloqueado, onAbrir, acoes, rodape }: {
+export function CardPedido({ order, now, selecionado, destaqueNovo, atencao = false, somBloqueado, onAbrir, acoes, rodape }: {
   order: Pedido
   now: number
   selecionado: boolean
-  /** Pedido recebido ainda não visto: piscar amarelo como hoje. */
+  /** Pedido recebido ainda não aceito: animação de pedido novo (Bloco F — entrada sutil, amarelo↔verde 3×, verde claro ~15 s). */
   destaqueNovo: boolean
+  /** Solicitação do cliente pendente (Aplicar/Recusar): destaque fixo em amarelo, sem piscar. */
+  atencao?: boolean
   somBloqueado: boolean
   /** Recebe o card clicado: o painel abre do lado oposto ao card, para não cobrir o que se quer clicar. */
   onAbrir: (card: HTMLElement) => void
@@ -137,6 +139,7 @@ export function CardPedido({ order, now, selecionado, destaqueNovo, somBloqueado
         'cursor-pointer rounded-[2px] border bg-white shadow-[0_2px_4px_rgba(16,24,40,0.10),0_1px_2px_rgba(16,24,40,0.06)] transition-[box-shadow,border-color] hover:shadow-[0_4px_10px_rgba(16,24,40,0.14),0_1px_2px_rgba(16,24,40,0.06)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#0688D4]',
         selecionado ? 'border-[#0688D4] ring-1 ring-[#0688D4]/40' : 'border-[#DFE3E8]',
         destaqueNovo ? 'animate-new-order' : '',
+        atencao ? 'card-atencao' : '',
         destaqueNovo && somBloqueado ? 'animate-pulse ring-4 ring-[#DC2626]' : '',
       ].join(' ')}
     >

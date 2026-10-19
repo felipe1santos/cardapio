@@ -161,22 +161,39 @@ html:has(.vitrine-sem-zoom) {
   }
 }
 
-/* Card de pedido novo no Kanban: pisca alternando azul/vermelho enquanto
-   estiver aguardando aceite (para assim que alguém aceita ou o aceite
-   automático avança o pedido). */
-@keyframes new-order-blink {
-  0%, 100% {
-    background-color: #DBEAFE;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.55);
-  }
-  50% {
-    background-color: #FEE2E2;
-    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.55);
+/* Card de pedido novo no Kanban (Bloco F, 19/10/2026): entra com um deslize/vibrada sutil, pisca AMARELO ↔ VERDE
+   3 vezes (os 3 s do som do pedido novo), fica VERDE CLARO por ~15 s e volta ao normal. Tudo por tempo, uma vez só
+   por card (a classe pode ficar; a animação não repete). Com prefers-reduced-motion: só acende em verde claro. */
+@keyframes card-novo-entrada {
+  0% { opacity: 0; transform: translateY(-6px); }
+  55% { opacity: 1; transform: translateY(0) translateX(-1.5px); }
+  75% { transform: translateX(1.5px); }
+  100% { transform: translateX(0); }
+}
+@keyframes card-novo-pisca {
+  0%, 100% { background-color: #FEF3C7; box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.55); }
+  50% { background-color: #DCFCE7; box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.55); }
+}
+@keyframes card-novo-aceso {
+  0%, 85% { background-color: #DCFCE7; box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.35); }
+  100% { background-color: #FFFFFF; box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); }
+}
+.animate-new-order {
+  /* ordem importa: a que vem por último manda enquanto roda — o pisca (3 s) vence o aceso nos primeiros 3 s. */
+  animation:
+    card-novo-aceso 15s linear 3s both,
+    card-novo-pisca 1s ease-in-out 3,
+    card-novo-entrada 0.45s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-new-order {
+    animation: card-novo-aceso 15s linear both;
   }
 }
 
-.animate-new-order {
-  animation: new-order-blink 0.9s ease-in-out infinite;
+/* Pedido com solicitação do cliente pendente (Aplicar/Recusar): destaque fixo em amarelo, sem piscar. */
+.card-atencao {
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.6);
 }
 
 /* Alerta de configuração pendente no painel: o ícone pisca até o dono resolver

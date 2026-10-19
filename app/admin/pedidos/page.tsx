@@ -1220,7 +1220,8 @@ export default function PedidosPage() {
                         order={order}
                         now={now}
                         selecionado={selecionado}
-                        destaqueNovo={novo || !!solicitacoes[order.id]}
+                        destaqueNovo={novo}
+                        atencao={!!solicitacoes[order.id]}
                         somBloqueado={alarme.somAtivo && alarme.bloqueado}
                         onAbrir={(el) => (selecionado ? setDetail(null) : abrirPainel(order, el))}
                         acoes={{
