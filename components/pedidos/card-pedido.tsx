@@ -21,6 +21,8 @@ export const CARD_BOTAO_PRINCIPAL = 'inline-flex h-[26px] min-w-0 items-center j
 const ICONE_BOTAO = 'inline-flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-[2px] text-[#6B7280] transition-colors hover:bg-[#D1D5DB] hover:text-[#111827] disabled:opacity-50'
 const QUADRADO_CLARO = 'inline-flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-[2px] bg-[#E0F2FE] text-[#0369A1] transition-colors hover:bg-[#7DD3FC] disabled:opacity-50'
 const ICONE = 'h-[14px] w-[14px]'
+/** Azul de destaque do redesign (lápis e risco da IA, textos do painel). */
+const AZUL_IA = '#184F95'
 const hora = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 
 /** "2× X-Tudo, 1× Coca 2L" — até `max` itens, depois "+N itens". */
@@ -60,6 +62,11 @@ export function IconesDoPedido({ order, tamanho = 'card' }: { order: Pedido; tam
           <span className="inline-flex items-center gap-1.5" aria-label="Pedido tirado pelo Agente de IA" data-testid="card-ia">
             <span className="h-[14px] w-px bg-[#D1D5DB]" aria-hidden />
             <IconeIaClaude className={g ? 'h-[20px] w-[20px]' : 'h-[18px] w-[18px]'} />
+            {/* Lápis + o "risco" (assinatura) em #184F95, colados: a IA anotou o pedido. */}
+            <span className="-ml-0.5 inline-flex items-center gap-[2px]" style={{ color: AZUL_IA }} aria-hidden>
+              <Pencil className={g ? 'h-[13px] w-[13px]' : 'h-[12px] w-[12px]'} strokeWidth={2.2} />
+              <svg viewBox="0 0 28 12" className={g ? 'h-[12px] w-[28px]' : 'h-[11px] w-[26px]'} fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M1.5 8.5c3-7 6-7 8.5-1.5s5 6 7.5 0 5-6 9 1.5" /></svg>
+            </span>
           </span>
         </Dica>
       )}

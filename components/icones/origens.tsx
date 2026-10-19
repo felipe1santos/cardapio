@@ -23,13 +23,10 @@ export function IconeMeta({ className = 'h-4 w-4' }: P) {
     </svg>
   )
 }
+/** Logo OFICIAL do WhatsApp (public/icons/integracoes/whatsapp-icon.svg, o mesmo de Integrações). Definitivo (18/10). */
 export function IconeWhatsapp({ className = 'h-4 w-4' }: P) {
-  return (
-    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
-      <path fill="#25D366" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Z" />
-      <path fill="#fff" d="M9.2 7c-.2-.5-.4-.5-.6-.5h-.5c-.2 0-.5.1-.7.3-.3.3-1 .9-1 2.3s1 2.7 1.2 2.9c.1.2 2 3.1 4.9 4.3 2.4.9 2.9.8 3.4.7.5 0 1.7-.7 1.9-1.4.2-.7.2-1.2.2-1.4l-.5-.3-1.7-.8c-.3-.1-.5-.1-.7.1l-.8 1c-.1.2-.3.2-.6.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.2-.4.7-1.3.1-.2 0-.3 0-.5l-.8-1.9Z" />
-    </svg>
-  )
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src="/icons/integracoes/whatsapp-icon.svg" alt="" className={className} aria-hidden="true" draggable={false} />
 }
 export function IconeInstagram({ className = 'h-4 w-4' }: P) {
   return (
@@ -113,6 +110,8 @@ const COR_SELO: Record<string, string> = {
   whatsapp: '#0E7569', whatsapp_ia: '#7E22CE', push: '#9333EA', qrcode: '#C2410C', outros: '#4B5563', direto: '#4B5563', sem_origem: '#6B7280',
 }
 export function SeloOrigem({ canal }: { canal: string }) {
+  // WhatsApp (18/10): o logo oficial no lugar do quadradinho desenhado.
+  if (canal === 'whatsapp') return <span className="inline-flex h-[18px] w-[18px] flex-shrink-0" data-selo-origem={canal}><IconeWhatsapp className="h-[18px] w-[18px]" /></span>
   const cor = COR_SELO[canal] ?? '#4B5563'
   const desenho = (() => {
     switch (canal) {
