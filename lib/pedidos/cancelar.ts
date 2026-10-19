@@ -13,12 +13,14 @@ import { aplicarEfeitosStatusPedidoComTrava } from '@/lib/pedido-eventos'
  */
 export async function cancelarPedidoDelivery(admin: SupabaseClient, p: {
   restauranteId: string; pedidoId: string; motivo: MotivoCancelamento; observacao: string; por: { id: string | null; nome: string }; acao?: string
+  /** O que vai em `cancelado_por` (quem cancelou, com o prefixo de lib/cancelamento.ts). Padrão: por.nome. */
+  canceladoPor?: string
 }): Promise<{ ok: true; numero: number } | { ok: false; erro: string; status: number }> {
   const { data: ped } = await admin.from('pedidos').select('id, numero, canal, comanda_id, status').eq('id', p.pedidoId).eq('restaurante_id', p.restauranteId).maybeSingle()
   if (!ped) return { ok: false, erro: 'Pedido não encontrado.', status: 404 }
   if (ped.comanda_id && (ped.canal === 'mesa' || ped.canal === 'balcao')) return { ok: false, erro: 'Pedido de conta se cancela pelo PDV.', status: 409 }
   const { data, error } = await admin.from('pedidos').update({
-    status: 'cancelado', cancelado_motivo: p.motivo, cancelado_observacao: p.observacao.slice(0, 300) || null, cancelado_por: p.por.nome.slice(0, 120),
+    status: 'cancelado', cancelado_motivo: p.motivo, cancelado_observacao: p.observacao.slice(0, 300) || null, cancelado_por: (p.canceladoPor ?? p.por.nome).slice(0, 120),
     cancelado_em: new Date().toISOString(), reimprimir: false,
   }).eq('id', p.pedidoId).eq('restaurante_id', p.restauranteId).not('status', 'in', `(${STATUS_NAO_CANCELAVEIS.join(',')})`).select('id')
   if (error) return { ok: false, erro: 'Erro ao cancelar pedido.', status: 500 }

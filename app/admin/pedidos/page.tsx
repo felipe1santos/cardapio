@@ -51,7 +51,7 @@ import { Dica, Flutuante } from '@/components/ui/flutuante'
 import { pedidoParado, tempoParado } from '@/lib/pedido-parado'
 import { AvisosPedidos, type Aviso } from '@/components/pedidos/avisos-pedidos'
 import { useAlarme } from '@/components/admin/alarme-global'
-import { cancelarPedidoRequest } from '@/lib/cancelamento'
+import { cancelarPedidoRequest, ehNaoEntregue, rotuloCancelamento } from '@/lib/cancelamento'
 import { pode, podeNotificarCanal } from '@/lib/auth/permissoes'
 import { atualizarConfigImpressao, buscarConfigImpressao, solicitarReimpressao } from '@/lib/queries/impressao'
 import {
@@ -161,7 +161,7 @@ function ColunaVazia({ Icon, titulo }: { Icon: LucideIcon; titulo: string }) {
 const FLUXO_TONE: Record<'transit' | 'done' | 'failed', { accent: string; bg: string; badge: 'preparing' | 'ok' | 'danger'; label: string }> = {
   transit: { accent: 'border-l-status-preparing', bg: 'bg-status-preparing/5', badge: 'preparing', label: 'Em rota' },
   done: { accent: 'border-l-status-ready', bg: 'bg-status-ready/5', badge: 'ok', label: 'Entregue' },
-  failed: { accent: 'border-l-danger', bg: 'bg-danger/5', badge: 'danger', label: 'Não entregue' },
+  failed: { accent: 'border-l-danger', bg: 'bg-danger/5', badge: 'danger', label: 'Cancelado' },
 }
 
 /**
@@ -196,8 +196,12 @@ function FluxoCard({ order, tone, onClick, onConcluir, rotulo, acoes, corrida, o
           <span className="min-w-0 truncate">{order.tipo === 'entrega' ? 'Entrega' : order.canal === 'mesa' ? 'Mesa' : 'Retirada'}{order.tipo === 'entrega' && order.enderecoBairro ? ` · ${order.enderecoBairro}` : ''}{order.entregadorNome ? ` · ${order.entregadorNome}` : ''}</span>
           <span className="flex-shrink-0 tabular-nums">{new Date(order.criadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
         </div>
+        {/* Bloco B (19/10): cancelado mostra quem cancelou + motivo; "Não entregue" só quando saiu e não chegou. */}
+        {order.status === 'cancelado' && (() => { const r = rotuloCancelamento(order); return (
+          <p className="mt-1 truncate text-[11px] leading-[15px] text-[#B91C1C]" title={`${r.titulo} ${r.quem} · ${r.motivo}`} data-testid="fluxo-cancelamento">{r.quem} · {r.motivo}</p>
+        ) })()}
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-          <Badge tone={t.badge}>{rotulo ?? t.label}</Badge>
+          <Badge tone={t.badge}>{rotulo ?? (order.status === 'cancelado' ? rotuloCancelamento(order).titulo : t.label)}</Badge>
           {/* Em rota há dias é pedido esquecido, não entrega em andamento. */}
           {pedidoParado(order, Date.now()) && (
             <Badge tone="danger" title="Ninguém fechou este pedido. Conclua ou cancele.">Parado há {tempoParado(order.criadoEm, Date.now())}</Badge>
@@ -932,7 +936,9 @@ export default function PedidosPage() {
   }
   async function avisoNaoEntregue(id: string) {
     try {
-      await cancelarPedidoRequest(id, 'nao_entregue', 'Pedido aberto há mais de 12 horas — marcado como não entregue no aviso do painel.')
+      // Bloco B (19/10): "Não entregue" só para quem saiu para entrega; o resto é cancelado (motivo "outro").
+      const saiu = transit.some((o) => o.id === id)
+      await cancelarPedidoRequest(id, saiu ? 'nao_entregue' : 'outro', saiu ? 'Pedido em rota há mais de 12 horas — marcado como não entregue no aviso do painel.' : 'Pedido aberto há mais de 12 horas — encerrado no aviso do painel.')
       setOrders((prev) => prev.filter((o) => o.id !== id))
       setTransit((prev) => prev.filter((o) => o.id !== id))
       if (restauranteId) refetch(restauranteId)
@@ -1273,8 +1279,14 @@ export default function PedidosPage() {
                     />
                   ))}
                 </SubSecao>
-                <SubSecao titulo="Não concluídos" cor="text-danger" vazio="Nenhum recusado hoje">
-                  {concluded.filter((o) => o.status === 'cancelado').map((o) => (
+                {/* Bloco B (19/10): Cancelados (cliente/loja/sistema) separados dos Não entregues (saiu e não chegou). */}
+                <SubSecao titulo="Cancelados" cor="text-danger" vazio="Nenhum cancelado hoje">
+                  {concluded.filter((o) => o.status === 'cancelado' && !ehNaoEntregue(o)).map((o) => (
+                    <FluxoCard key={o.id} order={o} tone="failed" onClick={(el) => abrirPainel(o, el)} />
+                  ))}
+                </SubSecao>
+                <SubSecao titulo="Não entregues" cor="text-danger" vazio="Nenhuma entrega falhou hoje">
+                  {concluded.filter((o) => ehNaoEntregue(o)).map((o) => (
                     <FluxoCard key={o.id} order={o} tone="failed" onClick={(el) => abrirPainel(o, el)} />
                   ))}
                 </SubSecao>

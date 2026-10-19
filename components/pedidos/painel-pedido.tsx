@@ -10,7 +10,7 @@ import { EditorPagamento } from '@/components/pedidos/editor-pagamento'
 import { IconesDoPedido } from '@/components/pedidos/card-pedido'
 import { IconePix, IconeWhatsapp } from '@/components/icones/origens'
 import { referenciaDoLancamento } from '@/lib/pedido-origem'
-import { rotuloMotivo, podeCancelar } from '@/lib/cancelamento'
+import { podeCancelar, rotuloCancelamento } from '@/lib/cancelamento'
 import { textoAgendado } from '@/lib/agendamento'
 import { mascararTelefoneBR } from '@/lib/telefone'
 import { rotuloForma, statusAReceber, trocoLevar } from '@/lib/pdv-pagamento'
@@ -67,7 +67,7 @@ function BarrasEtapas({ pedido }: { pedido: Pedido }) {
           return <span key={et.id} className={`h-[3px] flex-1 rounded-[1px] ${cancelado ? 'bg-[#FCA5A5]' : feita ? 'bg-[#6FBF8F]' : 'bg-[#DDE1E6]'}`} data-testid={`etapa-${et.id}`} data-estado={cancelado ? 'cancelada' : feita ? 'feita' : 'proxima'} title={`${et.rotulo}${hora(et.quando) ? ` · ${hora(et.quando)}` : ''}`} />
         })}
       </div>
-      <span className="text-[12px] font-semibold" style={{ color: cancelado ? '#B91C1C' : AZUL_DESTAQUE }}>{cancelado ? 'Cancelado' : corrente?.rotulo}</span>
+      <span className="text-[12px] font-semibold" style={{ color: cancelado ? '#B91C1C' : AZUL_DESTAQUE }}>{cancelado ? rotuloCancelamento(pedido).titulo : corrente?.rotulo}</span>
       {!cancelado && <span className="text-[11.5px] text-[#8A94A6]">{Math.min(atual + 1, etapas.length)} de {etapas.length}{corrente && hora(corrente.quando) ? ` · ${hora(corrente.quando)}` : ''}</span>}
     </div>
   )
@@ -200,13 +200,13 @@ export function PainelPedido({
       </div>
 
       <div className="flex-1 divide-y divide-[#EEF0F3] overflow-y-auto">
-        {p.status === 'cancelado' && (
-          <div className={`${SECAO} bg-[#FEF2F2]`} data-testid="painel-cancelado">
-            <div className="text-[13px] font-semibold text-[#B91C1C]">Pedido cancelado · {rotuloMotivo(p.canceladoMotivo)}</div>
-            {p.canceladoObservacao && <div className="mt-0.5 text-[12.5px] text-[#1F2937]">{p.canceladoObservacao}</div>}
-            {p.canceladoPor && <div className="mt-0.5 text-[11.5px] text-[#6B7280]">por {p.canceladoPor}</div>}
+        {p.status === 'cancelado' && (() => { const r = rotuloCancelamento(p); return (
+          <div className={`${SECAO} bg-[#FEF2F2]`} data-testid="painel-cancelado" data-titulo={r.titulo}>
+            {/* Bloco B (19/10): "Cancelado" (quem + motivo) ≠ "Não entregue" (só quem saiu para entrega e não entregou). */}
+            <div className="text-[13px] font-semibold text-[#B91C1C]">{r.titulo} {r.quem}</div>
+            <div className="mt-0.5 text-[12.5px] text-[#1F2937]">{r.motivo}</div>
           </div>
-        )}
+        ) })()}
 
         {/* Cliente */}
         <div className={SECAO} data-testid="painel-cliente">

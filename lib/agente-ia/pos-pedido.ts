@@ -157,7 +157,7 @@ export async function alterarPedidoFeito(ctx: ContextoAlteracao, input: Record<s
       const c = await cancelarCobrancaPendente(ctx.admin, ctx.restauranteId, p.id)
       if (c === 'paga' || c === 'erro') return atendente(`Cancelamento do pedido #${p.numero}${c === 'paga' ? ' (Pix já pago)' : ''}`)
       const { data: mudou, error: erroUpd } = await ctx.admin.from('pedidos').update({
-        status: 'cancelado', cancelado_motivo: 'cliente_desistiu', cancelado_observacao: 'Cliente cancelou pelo WhatsApp (Pix não pago)', cancelado_por: 'Agente de IA',
+        status: 'cancelado', cancelado_motivo: 'cliente_desistiu', cancelado_observacao: 'Cliente cancelou pelo WhatsApp (Pix não pago)', cancelado_por: 'Cliente (WhatsApp IA)',
         cancelado_em: new Date().toISOString(), reimprimir: false,
       }).eq('id', p.id).eq('status', 'aguardando_pagamento').select('id').maybeSingle()
       if (!mudou) { if (erroUpd) console.error('[agente-ia] alterar pedido:', erroUpd.message?.slice(0, 160)); return atendente(`Cancelamento do pedido #${p.numero}`) }

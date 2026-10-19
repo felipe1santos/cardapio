@@ -62,7 +62,7 @@ export async function abrirSolicitacao(admin: SupabaseClient, p: {
 
   // Cancelamento automático: ainda ninguém aceitou e não há dinheiro online no meio (Q3).
   if (p.tipo === 'cancelar' && ped.status === 'recebido' && !(ped.pago && ped.pagamento_online)) {
-    const r = await cancelarPedidoDelivery(admin, { restauranteId: p.restauranteId, pedidoId: p.pedidoId, motivo: 'cliente_desistiu', observacao: p.texto.slice(0, 300) || 'Cliente cancelou pelo WhatsApp', por: { id: null, nome: p.origem === 'ia' ? 'Agente de IA (WhatsApp)' : 'Robô (WhatsApp)' }, acao: p.origem === 'ia' ? 'pedido.cancelado_ia' : 'pedido.cancelou' })
+    const r = await cancelarPedidoDelivery(admin, { restauranteId: p.restauranteId, pedidoId: p.pedidoId, motivo: 'cliente_desistiu', observacao: p.texto.slice(0, 300) || 'Cliente cancelou pelo WhatsApp', por: { id: null, nome: p.origem === 'ia' ? 'Agente de IA (WhatsApp)' : 'Robô (WhatsApp)' }, acao: p.origem === 'ia' ? 'pedido.cancelado_ia' : 'pedido.cancelou', canceladoPor: `Cliente (WhatsApp ${p.origem === 'ia' ? 'IA' : 'robô'})` })
     if (r.ok) return { ok: true, modo: 'cancelado_automatico', mensagem: TEXTO_CANCELADO_AUTOMATICO(ped.numero as number), numero: ped.numero as number }
   }
 
@@ -93,7 +93,7 @@ export async function aplicarSolicitacao(admin: SupabaseClient, s: SolicitacaoLi
   if (s.status !== 'pendente') return { ok: false, erro: 'Esta solicitação já foi decidida.', status: 409 }
   let mudancas: string[] = []
   if (s.tipo === 'cancelar') {
-    const r = await cancelarPedidoDelivery(admin, { restauranteId: s.restauranteId, pedidoId: s.pedidoId, motivo: 'cliente_desistiu', observacao: s.texto.slice(0, 300) || 'Cliente pediu pelo WhatsApp', por, acao: 'pedido.cancelou' })
+    const r = await cancelarPedidoDelivery(admin, { restauranteId: s.restauranteId, pedidoId: s.pedidoId, motivo: 'cliente_desistiu', observacao: s.texto.slice(0, 300) || 'Cliente pediu pelo WhatsApp', por, acao: 'pedido.cancelou', canceladoPor: `Cliente (WhatsApp ${s.origem === 'ia' ? 'IA' : 'robô'}) · aplicado por ${por.nome}` })
     if (!r.ok) return r
     mudancas = ['Pedido cancelado a pedido do cliente']
   } else {

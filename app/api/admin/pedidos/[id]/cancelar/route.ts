@@ -90,7 +90,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       status: 'cancelado',
       cancelado_motivo: motivo,
       cancelado_observacao: observacao || null,
-      cancelado_por: auth?.user?.email ?? null,
+      // Quem cancelou (Bloco B, 19/10): "Loja: Nome" — lib/cancelamento.ts lê o prefixo (e o e-mail dos antigos).
+      cancelado_por: `Loja: ${sessao.nome || auth?.user?.email || ''}`.trim().slice(0, 120),
       cancelado_em: new Date().toISOString(),
       reimprimir: false,
     })
