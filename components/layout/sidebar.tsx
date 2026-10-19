@@ -50,6 +50,8 @@ export interface SidebarProps {
   onFechar?: () => void
   /** Clique num item com cadeado (0176). */
   onModuloBloqueado?: (m: import('@/lib/modulos').Modulo) => void
+  /** Redesign 18/10: tag "Aberto"/"Fechado" no card da loja, no lugar do endereço (null = ainda não lido). */
+  statusLoja?: { aberta: boolean; modo: 'manual' | 'automatico' } | null
 }
 
 /**
@@ -106,6 +108,7 @@ export function Sidebar({
   onAbrirPendencias,
   aberta = false,
   onFechar,
+  statusLoja,
 }: SidebarProps) {
   const v = VISUAL.novo
   const ITEM_ATIVO = v.ativo
@@ -176,11 +179,23 @@ export function Sidebar({
             )}
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[13.5px] font-semibold text-[var(--adm-menu-texto)]">{loja.nome}</span>
-              {(loja.bairro || loja.cidade) && (
+              {/* Tag Aberto/Fechado (redesign 18/10), nas cores da pílula "Recebendo pedidos" do Kanban. Sem status lido
+                  ainda, o endereço de sempre. */}
+              {statusLoja ? (
+                <span
+                  className={`mt-[2px] inline-flex items-center gap-1 rounded-[4px] px-1.5 py-[1px] text-[11px] font-semibold leading-[16px] ${statusLoja.aberta ? 'bg-[#DCFCE7] text-[#15803D]' : 'bg-[#FEE2E2] text-[#B91C1C]'}`}
+                  title={`${statusLoja.aberta ? 'Recebendo pedidos' : 'Loja fechada'} · ${statusLoja.modo === 'manual' ? 'Manual' : 'Automático'}`}
+                  data-testid="menu-status-loja"
+                  data-aberta={statusLoja.aberta ? '1' : '0'}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden />
+                  {statusLoja.aberta ? 'Aberto' : 'Fechado'}
+                </span>
+              ) : (loja.bairro || loja.cidade) ? (
                 <span className="block truncate text-[12px] text-[var(--adm-menu-suave)]">
                   {[loja.bairro, loja.cidade].filter(Boolean).join(', ')}
                 </span>
-              )}
+              ) : null}
             </span>
           </button>
           {avisos}

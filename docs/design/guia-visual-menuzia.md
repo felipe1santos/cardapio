@@ -124,3 +124,25 @@ Meta: o topo ocupa no máximo ~20–25% da altura (1366×768) e o conteúdo prin
 - **Nada some**: toda aba vira opção do seletor; todo filtro e botão continua na linha 2 (no máximo 1 clique a mais).
 - **Foco** — `FOCO_GUIA` (anel azul a 40%) nas abas, chips, segmentado e seletor, no lugar do anel forte do tema.
 - No toque (abaixo de `lg`) os controles crescem para 44px.
+
+## 8. Painel de Pedidos — redesign (18/10/2026, em aprovação)
+
+Branch `redesign-kanban`, só local até o dono aprovar. Só visual: mesmos handlers, permissões, realtime e alarme.
+
+- **Pílulas do topo**: o padrão é "Recebendo pedidos" (fundo #DCFCE7, texto #15803D). Avisos: fundo #FEE2E2, ícone
+  #B91C1C, contador mantido. Suporte (antes "Dúvidas?"): fundo `--adm-laranja-claro`, texto `--adm-laranja`.
+- **Tag Aberto/Fechado** no card da loja (menu), nas mesmas cores da pílula; sincronizada por evento
+  (`lib/status-loja-cliente.ts`) e reavaliada a cada minuto pela grade de horário.
+- **Quadro**: sem a faixa vazia abaixo do topo (`px-3 pt-2`), colunas com cabeçalho de 12,5px/`py-2`, cantos retos,
+  gap 10px. Meta: o 100% de zoom com a proporção que o 90% tinha.
+- **Card** (`components/pedidos/card-pedido.tsx`): fundo #F7F8FA, borda #E5E7EB, canto 0, sombra 0 1px 2px 4%. Linha 1
+  nº 13/600 + origem discreta (13px, opacidade 70%) + tempo; **valor 13,5/600 verde à direita**. Linha 2 cliente 13/600
+  + tipo (Entrega/Retirada/Mesa) com o ícone do Pix (pago ✓ / aguard.). Itens em 12px cinza, 2 linhas, "+N itens".
+  Barra de ações no rodapé: botões 28px, canto 2px — Imprimir · Editar (pagamento) · Mais informações · ação principal
+  azul #0688D4 (Aceitar / Pronto / Entregue / Despachar / Saiu p/ entrega; Lalamove ao lado quando ligada).
+- **Mais informações** (`components/pedidos/mais-info.tsx`): menu sobre o card (Usuário · Destino · Pagamento ·
+  Pedidos) → modal central só com aquele assunto. Pagamento tem o mesmo "Alterar pagamento" de sempre.
+- **Painel da direita**: 420px, fundo #F7F8FA, cantos retos; no topo 5 barrinhas (5px, verde #16A34A até a etapa
+  atual, cinza #E5E7EB depois, vermelho claro se cancelado) + nome da etapa; seções Cliente · Entrega · Itens ·
+  Pagamento em caixas brancas; ações fixas no rodapé (Reimprimir, Cancelar).
+- **Despachar flutuante**: 46px, `rounded-none`, azul `--adm-azul`, sombra leve.

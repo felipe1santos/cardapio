@@ -33,6 +33,7 @@ import { mostrarAvisoNovaImpressao } from '@/lib/avisos-painel'
 import { LancadorAtendimento } from '@/components/atendimento/lancador'
 import { AlarmeProvider, AvisoSomBloqueado } from '@/components/admin/alarme-global'
 import { assinarPushPainel } from '@/lib/push/painel-cliente'
+import { useStatusLoja } from '@/lib/status-loja-cliente'
 
 /** Onde fica registrado o "OK, entendi" do dono, por loja. */
 function chaveDispensa(restauranteId: string) {
@@ -103,6 +104,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // Acessos do funcionário (0120): o menu mostra só as áreas liberadas.
   const [acessos, setAcessos] = useState<Acessos | null>(null)
   const [restauranteId, setRestauranteId] = useState<string | null>(null)
+  // Tag Aberto/Fechado no card da loja (redesign 18/10): acompanha o "Recebendo pedidos" do Kanban.
+  const statusLoja = useStatusLoja(supabase, restauranteId)
   // null = nenhum sinal explícito ainda; cai no default por rota.
   const [focusEvent, setFocusEvent] = useState<boolean | null>(null)
   // Checklist de configuração (lib/setup-checklist.ts).
@@ -372,6 +375,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           activeHref={pathname}
           storeSlug={storeSlug}
           loja={loja}
+          statusLoja={statusLoja}
           onSignOut={handleSignOut}
           aberta={menuAberto}
           onFechar={() => setMenuAberto(false)}

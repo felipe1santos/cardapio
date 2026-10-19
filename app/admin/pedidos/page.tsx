@@ -1,6 +1,5 @@
 'use client'
 
-import { mascararTelefoneBR } from '@/lib/telefone'
 import { Children, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRealtimeComFallback } from '@/lib/realtime-fallback'
 import {
@@ -17,26 +16,17 @@ import {
   Inbox,
   ChefHat,
   HandPlatter,
-  Clock,
   Eye,
   EyeOff,
   Zap,
   ZapOff,
   ArrowRight,
-  Banknote,
-  CreditCard,
-  QrCode,
-  Monitor,
-  Smartphone,
-  Store,
   Route,
   Bike,
   DoorOpen,
 } from 'lucide-react'
-import { corTempoPedido, textoTempoPedido } from '@/lib/tempo-pedido'
 import { PainelPedido } from '@/components/pedidos/painel-pedido'
 import { PEDIDO_SELECT, mapPedido } from '@/lib/queries/pedidos'
-import { rotuloForma, statusAReceber } from '@/lib/pdv-pagamento'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -48,13 +38,13 @@ import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { atualizarConfigLoja, buscarFluxoLoja, buscarStatusELoja, definirStatusLoja, FLUXO_LOJA_PADRAO, usaDespachoDeRotas } from '@/lib/queries/ajustes'
 import { lojaEstaAberta, type HorarioFuncionamento, type StatusLoja } from '@/lib/timezone'
 import { notificarPedido } from '@/lib/notificar'
-import { etiquetasDoPedido, origemVisivelNoCard, rotuloOrigemPedido as origemDoCard } from '@/lib/pedido-origem'
-import { SeloOrigem } from '@/components/icones/origens'
-import { EtiquetaAtendimento } from '@/components/pedidos/etiquetas-pedido'
 import { Capacete } from '@/components/icones/capacete'
 import { ChamarLalamove, CorridaLalamoveNoCard } from '@/components/pedidos/lalamove-no-card'
 import { CORRIDA_ATIVA, ENTREGA_PROVEDOR_SELECT, mapEntregaProvedor, type EntregaProvedorLinha } from '@/lib/entregas/lalamove-status'
 import { useEstadoSessao } from '@/lib/sessao-cliente'
+import { CardPedido, CARD_BOTAO_PRINCIPAL } from '@/components/pedidos/card-pedido'
+import { MenuMaisInfo, ModalInfoPedido, type AbaInfo } from '@/components/pedidos/mais-info'
+import { avisarStatusLoja } from '@/lib/status-loja-cliente'
 import { Dica, Flutuante } from '@/components/ui/flutuante'
 import { pedidoParado, tempoParado } from '@/lib/pedido-parado'
 import { AvisosPedidos, type Aviso } from '@/components/pedidos/avisos-pedidos'
@@ -120,8 +110,6 @@ const COLUNA_CONFIG: Record<Coluna, ColunaConfig> = {
 }
 
 
-/** Selo do card sem fundo: ícone + texto (2026-10-03). */
-const SELO = 'inline-flex items-center gap-1 whitespace-nowrap text-[11px] font-semibold uppercase tracking-wide'
 
 
 // Milhar com ponto ("R$ 4.088,00"): função única do painel, ver lib/moeda.ts.
@@ -195,7 +183,7 @@ function FluxoCard({ order, tone, onClick, onConcluir, rotulo, acoes, corrida, o
   const [naoEntregue, setNaoEntregue] = useState<string | null>(null)
   const temAcoes = !!(acoes?.onEntregue || acoes?.onNaoEntregue)
   return (
-    <div className={`rounded-menuzia border border-border border-l-[3px] shadow-sm transition-shadow hover:shadow-md ${t.accent} ${t.bg}`} data-testid={`fluxo-${order.numero}`}>
+    <div className={`border border-[#E5E7EB] border-l-[3px] bg-[#F7F8FA] shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition-[border-color] hover:border-[#C9CED6] ${t.accent}`} data-testid={`fluxo-${order.numero}`}>
       <button onClick={temAcoes ? () => setAberto((v) => !v) : onClick} aria-expanded={temAcoes ? aberto : undefined} className="w-full p-3 text-left">
         <div className="flex items-center justify-between">
           <span className="text-sm font-semibold">#{order.numero}</span>
@@ -313,6 +301,11 @@ export default function PedidosPage() {
     return () => { vivo = false }
   }, [restauranteId, moduloLalamove])
   const aoChamarLalamove = useCallback((c: EntregaProvedorLinha) => { setCorridas((m) => ({ ...m, [c.pedidoId]: c })) }, [])
+  // "Mais informações" do card (redesign 18/10): menu sobre o card e modal central por assunto.
+  const [maisInfo, setMaisInfo] = useState<{ pedidoId: string; ancora: HTMLButtonElement } | null>(null)
+  const maisInfoAncora = useRef<HTMLButtonElement | null>(null)
+  const [modalInfo, setModalInfo] = useState<{ pedidoId: string; aba: AbaInfo } | null>(null)
+  const fecharMaisInfo = useCallback(() => setMaisInfo(null), [])
   const [lojaMenuOpen, setLojaMenuOpen] = useState(false)
   const [maisAberto, setMaisAberto] = useState(false)
   // Item 58: "Despacho aberto" e "Entregar sem entregador" vieram da Logística para o menu "⋯".
@@ -645,6 +638,8 @@ export default function PedidosPage() {
     setLojaStatus((prev) => (prev ? { ...prev, statusLoja: status } : prev))
     try {
       await definirStatusLoja(supabase, restauranteId, status)
+      // A tag Aberto/Fechado do menu (redesign 18/10) acompanha na hora.
+      avisarStatusLoja(status)
     } catch {
       setLojaStatus(anterior)
       setError('Não foi possível atualizar o status da loja.')
@@ -1086,7 +1081,8 @@ export default function PedidosPage() {
 
       {/* Quadro + painel do pedido lado a lado: o painel não cobre nem bloqueia o quadro. */}
       <div className="flex min-h-0 flex-1">
-      <div className={`flex min-w-0 flex-1 flex-col gap-3 overflow-hidden p-5 ${comRotas ? 'max-lg:pb-24' : ''}`}>
+      {/* Redesign 18/10: as colunas encostam no topo (sem a faixa vazia) e o quadro fica mais denso. */}
+      <div className={`flex min-w-0 flex-1 flex-col gap-2 overflow-hidden px-3 pb-3 pt-2 ${comRotas ? 'max-lg:pb-24' : ''}`}>
         {error && (
           <div className="rounded-menuzia border border-danger bg-danger-bg px-3.5 py-2.5 text-[13px] font-medium text-danger">{error}</div>
         )}
@@ -1132,145 +1128,62 @@ export default function PedidosPage() {
         )}
 
         {/* Board */}
-        <div className={`grid flex-1 grid-cols-1 gap-3 max-lg:flex max-lg:flex-col max-lg:overflow-y-auto ${detail ? `lg:overflow-x-auto lg:overflow-y-hidden ${showCol4 ? 'lg:grid-cols-[repeat(4,minmax(250px,1fr))]' : 'lg:grid-cols-[repeat(3,minmax(250px,1fr))]'}` : `overflow-hidden ${showCol4 ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}`} data-testid="kanban-quadro">
+        <div className={`grid flex-1 grid-cols-1 gap-2.5 max-lg:flex max-lg:flex-col max-lg:overflow-y-auto ${detail ? `lg:overflow-x-auto lg:overflow-y-hidden ${showCol4 ? 'lg:grid-cols-[repeat(4,minmax(240px,1fr))]' : 'lg:grid-cols-[repeat(3,minmax(240px,1fr))]'}` : `overflow-hidden ${showCol4 ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}`} data-testid="kanban-quadro">
           {(['recebido', 'preparando', 'pronto'] as Coluna[]).map((coluna) => {
             const colOrders = orders.filter((o) => colunaDe(o) === coluna)
             const cfg = COLUNA_CONFIG[coluna]
-            const accent: Record<Coluna, string> = { recebido: 'border-l-status-pending', preparando: 'border-l-[#024A7D]', pronto: 'border-l-status-ready' }
             return (
-              <div key={coluna} className="flex flex-col overflow-hidden rounded-menuzia border border-border bg-white max-lg:flex-shrink-0 max-lg:overflow-visible">
-                <div className={`flex items-center justify-between px-4 py-3 text-white ${cfg.headerBg}`}>
-                  <div className="flex items-center gap-2">
-                    <cfg.Icon className="h-4 w-4" strokeWidth={2.5} />
-                    <h3 className="text-sm font-semibold">{cfg.label}</h3>
+              <div key={coluna} className="flex flex-col overflow-hidden border border-border bg-white max-lg:flex-shrink-0 max-lg:overflow-visible">
+                {/* Cabeçalho da coluna mais baixo (redesign 18/10). */}
+                <div className={`flex items-center justify-between px-3 py-2 text-white ${cfg.headerBg}`}>
+                  <div className="flex items-center gap-1.5">
+                    <cfg.Icon className="h-[14px] w-[14px]" strokeWidth={2.5} />
+                    <h3 className="text-[12.5px] font-semibold">{cfg.label}</h3>
                   </div>
-                  <span className="rounded-full bg-white/25 px-2 py-0.5 text-[11px] font-semibold text-white">{colOrders.length}</span>
+                  <span className="rounded-full bg-white/25 px-1.5 py-[1px] text-[10.5px] font-semibold text-white">{colOrders.length}</span>
                 </div>
-                <div className={`flex-1 space-y-3 overflow-y-auto p-3 max-lg:overflow-visible ${comRotas ? 'pb-20' : ''}`}>
+                <div className={`flex-1 space-y-2 overflow-y-auto p-2 max-lg:overflow-visible ${comRotas ? 'pb-20' : ''}`}>
                   {colOrders.map((order) => {
-                    const idadeMs = now - new Date(order.criadoEm).getTime()
-                    const corTempo = { ok: 'text-price-text', atencao: 'text-[#B45309]', atraso: 'text-danger' }[corTempoPedido(idadeMs)]
                     const selecionado = detail?.id === order.id
-                    const IconePag = order.formaPagamento === 'dinheiro' ? Banknote : order.formaPagamento === 'pix' ? QrCode : CreditCard
-                    const dicaPag = [
-                      rotuloForma(order.formaPagamento, order.cartaoTipo, order.pagamentoOnline),
-                      order.pago ? 'Pago' : statusAReceber(order.tipo),
-                      order.formaPagamento === 'dinheiro' && order.trocoPara ? `Troco p/ ${brl(order.trocoPara)}` : null,
-                    ].filter(Boolean).join(' · ')
-                    const abrir = () => setDetail(selecionado ? null : order)
+                    const novo = order.status === 'recebido' && !order.preparandoNotificado
+                    const corridaAtiva = corridas[order.id] && CORRIDA_ATIVA.includes(corridas[order.id].status) ? corridas[order.id] : null
+                    // Ação principal (a mesma de sempre): Aceitar / Pronto / Entregue; entrega pronta = despacho composto.
+                    let avancarCard: { rotulo: string; onClick: () => void } | undefined
+                    let principal: React.ReactNode = null
+                    if (order.status === 'recebido') avancarCard = { rotulo: 'Aceitar', onClick: () => avancar(order) }
+                    else if (order.status === 'preparando') avancarCard = { rotulo: 'Pronto', onClick: () => avancar(order) }
+                    else if (order.status === 'pronto' && order.tipo === 'retirada') avancarCard = { rotulo: 'Entregue', onClick: () => avancar(order) }
+                    else if (order.status === 'pronto' && order.tipo === 'entrega' && !corridaAtiva) {
+                      if (!usaDespachoDeRotas(fluxo)) avancarCard = { rotulo: 'Saiu p/ entrega', onClick: () => saiuSemEntregador(order) }
+                      principal = (
+                        <>
+                          {lalamoveAtiva && <ChamarLalamove pedido={order} onChamada={aoChamarLalamove} onErro={setError} className="!h-[28px] !min-h-0 !rounded-[2px] !py-0 !text-[11.5px] !normal-case !tracking-normal" />}
+                          {usaDespachoDeRotas(fluxo) && restauranteId && (
+                            <DespacharNoCard pedido={order} supabase={supabase} restauranteId={restauranteId} onDespachado={aoDespachar} onErro={setError}
+                              seta={{ className: CARD_BOTAO_PRINCIPAL, children: <>Despachar <ArrowRight className="h-[14px] w-[14px]" aria-hidden /></> }} />
+                          )}
+                        </>
+                      )
+                    }
                     return (
-                      // Card mínimo (2026-10-03): 3 linhas. Clicar em qualquer parte abre o painel do
-                      // pedido; o botão de etapa só avança (não abre o painel).
-                      <div
+                      <CardPedido
                         key={order.id}
-                        data-testid={`pedido-${order.numero}`}
-                        data-selecionado={selecionado ? '1' : undefined}
-                        role="button"
-                        tabIndex={0}
-                        aria-pressed={selecionado}
-                        aria-label={`Pedido #${order.numero}: abrir o painel`}
-                        onClick={abrir}
-                        onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); abrir() } }}
-                        className={[
-                          'cursor-pointer rounded-menuzia border border-l-[4px] px-3 pb-2 pt-2 shadow-md transition-[box-shadow,background-color] hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary',
-                          selecionado ? 'border-primary bg-primary/[0.06] ring-2 ring-primary/40' : 'border-border bg-white hover:bg-page/60',
-                          accent[coluna],
-                          order.status === 'recebido' && !order.preparandoNotificado ? 'animate-new-order' : '',
-                          // Som bloqueado pelo navegador: o pedido novo pisca em vermelho até alguém tocar na tela.
-                          order.status === 'recebido' && !order.preparandoNotificado && alarme.somAtivo && alarme.bloqueado ? 'animate-pulse ring-4 ring-[#DC2626]' : '',
-                        ].join(' ')}
-                      >
-                        {/* Linha 1: número, origem, tempo e atendimento (sem fundo). */}
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                            <span className="rounded-menuzia bg-text-main px-1.5 py-0.5 text-sm font-semibold text-white">#{order.numero}</span>
-                            {/* Origem do pedido da vitrine (item 55): só o ícone, ao lado do número, com a dica.
-                                Direto, PDV, Mesa e Balcão não mostram nada. É a única mudança no card antigo. */}
-                            {(() => {
-                              const o = order.origemCanal && order.origemCanal !== 'direto' ? origemVisivelNoCard(order) : null
-                              // Pedido da vitrine direto ou sem origem também ganha o selo (0178; todas as lojas desde 12/10).
-                              const daVitrine = !['PDV', 'Salão'].includes(origemDoCard(order).posto ?? '')
-                              if (!o && daVitrine) {
-                                const d = order.origemCanal === 'direto' ? { icone: 'direto', dica: 'Origem: Direto (digitou o endereço ou link sem etiqueta)' } : { icone: 'sem_origem', dica: 'Sem origem (pedido de antes do rastreio)' }
-                                return <Dica texto={d.dica}><span className="inline-flex" aria-label={d.dica} data-testid="card-origem" data-origem={d.icone}><SeloOrigem canal={d.icone} /></span></Dica>
-                              }
-                              return o && !['pdv', 'mesa', 'balcao'].includes(o.icone) ? (
-                                <Dica texto={o.dica}>
-                                  <span className="inline-flex" aria-label={o.dica} data-testid="card-origem" data-origem={o.icone}>
-                                    <SeloOrigem canal={o.icone} />
-                                  </span>
-                                </Dica>
-                              ) : null
-                            })()}
-                            {origemDoCard(order).posto === 'Salão' && <span className={`${SELO} text-[#047857]`} data-testid="selo-origem"><Store className="h-3.5 w-3.5" aria-hidden /> Salão</span>}
-                            {origemDoCard(order).posto === 'PDV' && <span className={`${SELO} text-alert-text`} data-testid="selo-origem"><Monitor className="h-3.5 w-3.5" aria-hidden /> PDV</span>}
-                            {origemDoCard(order).posto === 'Delivery' && <span className={`${SELO} text-purple`} data-testid="selo-origem"><Smartphone className="h-3.5 w-3.5" aria-hidden /> Delivery</span>}
-                            {order.agendadoPara && <Badge tone="alert">Agendado {textoAgendado(order.agendadoPara)}</Badge>}
-                          </div>
-                          <div className="flex flex-shrink-0 items-center gap-1.5">
-                            <span
-                              className={`inline-flex items-center gap-1 whitespace-nowrap text-[11.5px] font-semibold tabular-nums ${corTempo}`}
-                              title={pedidoParado(order, now) ? `Aberto há ${textoTempoPedido(idadeMs)}: ninguém fechou este pedido. Conclua ou cancele.` : 'Tempo desde que o pedido chegou'}
-                              data-testid="card-tempo"
-                            >
-                              <Clock className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden="true" />
-                              {textoTempoPedido(idadeMs)}
-                            </span>
-                            <EtiquetaAtendimento atendimento={etiquetasDoPedido(order).atendimento} semFundo />
-                          </div>
-                        </div>
-                        {/* Linha 2: cliente (+ telefone) à esquerda; ícone da forma e valor à direita. */}
-                        <div className="mt-1.5 flex min-w-0 items-center justify-between gap-2">
-                          <div className="flex min-w-0 items-center gap-1.5">
-                            <span className="min-w-0 truncate text-[13.5px] font-semibold" title={order.clienteNome || undefined}>{order.clienteNome || 'Cliente'}</span>
-                            {order.origem === 'pdv' && order.clienteTelefone && (
-                              <span className="flex-shrink-0 whitespace-nowrap text-[11px] text-text-subtle">{mascararTelefoneBR(order.clienteTelefone)}</span>
-                            )}
-                          </div>
-                          <div className="flex flex-shrink-0 items-center gap-1.5">
-                            {order.canal !== 'mesa' && (
-                              <span className="inline-flex text-text-subtle" title={dicaPag} aria-label={dicaPag} data-testid="card-pagamento">
-                                <IconePag className="h-[18px] w-[18px]" aria-hidden />
-                              </span>
-                            )}
-                            <span className="whitespace-nowrap text-[14px] font-semibold tabular-nums text-status-ready" data-testid="card-preco">{brl(order.total)}</span>
-                          </div>
-                        </div>
-                        {/* Linha 3: só o botão de etapa (não abre o painel). */}
-                        <div className="mt-2 flex [&>*]:whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                          {order.status === 'recebido' && (
-                            <Button variant="primary" className="w-full gap-1.5" onClick={() => avancar(order)} data-testid="card-etapa">
-                              Aceitar <ArrowRight className="h-4 w-4" aria-hidden />
-                            </Button>
-                          )}
-                          {order.status === 'preparando' && (
-                            <Button variant="success" className="w-full gap-1.5" onClick={() => avancar(order)} data-testid="card-etapa">
-                              Pronto <ArrowRight className="h-4 w-4" aria-hidden />
-                            </Button>
-                          )}
-                          {order.status === 'pronto' && order.tipo === 'retirada' && (
-                            <Button variant="success" className="w-full gap-1.5" onClick={() => avancar(order)} data-testid="card-etapa">
-                              Entregue <ArrowRight className="h-4 w-4" aria-hidden />
-                            </Button>
-                          )}
-                          {/* Lalamove (0199): corrida em andamento ocupa a linha (sem Despachar junto, para não sair duas vezes). */}
-                          {order.status === 'pronto' && order.tipo === 'entrega' && corridas[order.id] && CORRIDA_ATIVA.includes(corridas[order.id].status) ? (
-                            <CorridaLalamoveNoCard corrida={corridas[order.id]} onMudou={() => { if (restauranteId) refetch(restauranteId) }} onErro={setError} />
-                          ) : order.status === 'pronto' && order.tipo === 'entrega' ? (
-                            <div className="flex w-full gap-1.5">
-                              {!usaDespachoDeRotas(fluxo) && (
-                                <Button variant="dispatch" className="min-w-0 flex-1 gap-1.5" onClick={() => saiuSemEntregador(order)} title="Avisa o cliente no WhatsApp e conclui o pedido" data-testid="card-etapa">
-                                  Saiu p/ entrega <ArrowRight className="h-4 w-4" aria-hidden />
-                                </Button>
-                              )}
-                              {usaDespachoDeRotas(fluxo) && restauranteId && (
-                                <div className="min-w-0 flex-1 [&>button]:w-full"><DespacharNoCard pedido={order} supabase={supabase} restauranteId={restauranteId} onDespachado={aoDespachar} onErro={setError} /></div>
-                              )}
-                              {lalamoveAtiva && <ChamarLalamove pedido={order} onChamada={aoChamarLalamove} onErro={setError} className="flex-1" />}
-                            </div>
-                          ) : null}
-                        </div>
-                      </div>
+                        order={order}
+                        now={now}
+                        selecionado={selecionado}
+                        destaqueNovo={novo}
+                        somBloqueado={alarme.somAtivo && alarme.bloqueado}
+                        onAbrir={() => setDetail(selecionado ? null : order)}
+                        acoes={{
+                          avancar: avancarCard,
+                          principal,
+                          onImprimir: () => void reimprimir(order),
+                          onEditar: order.canal !== 'mesa' && order.status !== 'cancelado' ? () => setModalInfo({ pedidoId: order.id, aba: 'pagamento' }) : undefined,
+                          onMais: (ancora) => { maisInfoAncora.current = ancora; setMaisInfo((m) => (m?.pedidoId === order.id ? null : { pedidoId: order.id, ancora })) },
+                          maisAberto: maisInfo?.pedidoId === order.id,
+                        }}
+                        rodape={corridaAtiva ? <CorridaLalamoveNoCard corrida={corridaAtiva} onMudou={() => { if (restauranteId) refetch(restauranteId) }} onErro={setError} /> : (order.agendadoPara ? <Badge tone="alert">Agendado {textoAgendado(order.agendadoPara)}</Badge> : undefined)}
+                      />
                     )
                   })}
                   {colOrders.length === 0 && <ColunaVazia Icon={cfg.EmptyIcon} titulo={cfg.emptyTitle} />}
@@ -1281,12 +1194,12 @@ export default function PedidosPage() {
 
           {/* 4ª coluna opcional: entregas e concluídos */}
           {showCol4 && (
-            <div className="flex flex-col overflow-hidden rounded-menuzia border border-border border-t-[3px] border-t-purple bg-white max-lg:flex-shrink-0 max-lg:overflow-visible">
-              <div className="flex items-center justify-between border-b border-border px-4 py-3">
-                <h3 className="text-sm font-semibold">Entregas & concluídos</h3>
-                <span className="rounded-full bg-page px-2 py-0.5 text-[11px] font-semibold text-text-subtle">{transit.length + concluded.length}</span>
+            <div className="flex flex-col overflow-hidden border border-border border-t-[3px] border-t-purple bg-white max-lg:flex-shrink-0 max-lg:overflow-visible">
+              <div className="flex items-center justify-between border-b border-border px-3 py-2">
+                <h3 className="text-[12.5px] font-semibold">Entregas & concluídos</h3>
+                <span className="rounded-full bg-page px-1.5 py-[1px] text-[10.5px] font-semibold text-text-subtle">{transit.length + concluded.length}</span>
               </div>
-              <div className="flex-1 space-y-4 overflow-y-auto p-3 max-lg:overflow-visible">
+              <div className="flex-1 space-y-3 overflow-y-auto p-2 max-lg:overflow-visible">
                 <SubSecao titulo="Em trânsito" cor="text-status-preparing" vazio="Ninguém em rota">
                   {transit.map((o) => (
                     <FluxoCard
@@ -1342,13 +1255,14 @@ export default function PedidosPage() {
       )}
       </div>
 
-      {/* Item 58: "Despachar" fixo no canto inferior direito (vários de uma vez, no Despacho de rotas). */}
+      {/* Item 58: "Despachar" fixo no canto inferior direito (vários de uma vez, no Despacho de rotas).
+          Redesign 18/10: chapado, bordas retas, no azul de sempre. */}
       {comRotas && (
         <button type="button" onClick={() => setRotaOpen(true)}
-          className="fixed bottom-4 right-4 z-30 inline-flex h-[52px] items-center gap-2 rounded-[8px] bg-[var(--adm-azul,#0b78d0)] px-5 text-[15px] font-semibold text-white shadow-[0_8px_24px_rgba(11,120,208,0.35)] hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0688D4]"
+          className="fixed bottom-4 right-4 z-30 inline-flex h-[46px] items-center gap-2 rounded-none bg-[var(--adm-azul,#0b78d0)] px-5 text-[14px] font-semibold text-white shadow-[0_4px_12px_rgba(16,24,40,0.18)] hover:bg-[#0570AE] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0688D4]"
           aria-label={`Despachar – ${prontosEntrega} pronto(s) para entrega`} data-testid="kanban-despachar">
-          <Route className="h-5 w-5" aria-hidden /> Despachar
-          <span className="grid h-[24px] min-w-[24px] place-items-center rounded-full bg-white px-1.5 text-[12.5px] font-semibold text-[#075EA8]" data-testid="kanban-despachar-contador">{prontosEntrega}</span>
+          <Route className="h-[18px] w-[18px]" aria-hidden /> Despachar
+          <span className="grid h-[22px] min-w-[22px] place-items-center rounded-none bg-white px-1.5 text-[12px] font-semibold text-[#075EA8]" data-testid="kanban-despachar-contador">{prontosEntrega}</span>
           {despachoAuto && semMotoboy > 0 && prontosEntrega > 0 && (
             <span className="rounded-[6px] bg-[#FEF3C7] px-2 py-0.5 text-[12px] font-semibold text-[#92400E]" data-testid="kanban-sem-motoboy" title="Ninguém está com o app do motoboy aberto agora. Toque em Despachar e escolha um motoboy: ele recebe quando abrir o app.">{avisoSemMotoboy(motoboysCadastrados)}</span>
           )}
@@ -1360,6 +1274,13 @@ export default function PedidosPage() {
         <RotaPanel supabase={supabase} restauranteId={restauranteId} apiKey={mapsKey} onClose={fecharRota} />
       )}
 
+      {/* "Mais informações" (redesign 18/10): menu sobre o card + modal central por assunto. */}
+      {maisInfo && (() => { const p = acharPedido(maisInfo.pedidoId); return p ? (
+        <MenuMaisInfo ancora={maisInfoAncora} aberto onFechar={fecharMaisInfo} numero={p.numero} onEscolher={(aba) => setModalInfo({ pedidoId: p.id, aba })} />
+      ) : null })()}
+      {modalInfo && (() => { const p = [...orders, ...agendados, ...transit, ...concluded].find((o) => o.id === modalInfo.pedidoId); return p ? (
+        <ModalInfoPedido pedido={p} aba={modalInfo.aba} corrida={corridas[p.id] ?? null} onFechar={() => setModalInfo(null)} onPagamentoAlterado={() => { setModalInfo(null); if (restauranteId) refetch(restauranteId) }} />
+      ) : null })()}
       {cancelando && (
         <CancelarPedidoModal
           pedido={cancelando}

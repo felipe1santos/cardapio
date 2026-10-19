@@ -107,22 +107,23 @@ export function AcoesTopo() {
         </button>
       </Dica>
 
-      {/* Suporte: laranja vivo com texto branco (regra das cores vivas, contraste ≥ 4,5:1). */}
-      <Dica texto="Dúvidas? Falar com o suporte">
+      {/* Suporte (redesign 18/10): o mesmo formato da pílula "Recebendo pedidos" — fundo claro e ícone/texto
+          escuros no laranja do painel (4,7:1 sobre o creme). Texto "Suporte". */}
+      <Dica texto="Suporte — falar com a Menuzia">
         <button
           type="button"
           onClick={() => setSuporteAberto(true)}
           aria-haspopup="dialog"
-          aria-label="Dúvidas? Falar com o suporte"
+          aria-label="Suporte — falar com a Menuzia"
           data-testid="topo-duvidas"
-          className="flex h-[36px] min-w-[36px] flex-shrink-0 items-center justify-center gap-1.5 rounded-[4px] bg-[#C2410C] px-2 text-[12.8px] font-semibold text-white transition-[filter] hover:brightness-110 sm:h-[44px] sm:px-3"
+          className="flex h-[36px] min-w-[36px] flex-shrink-0 items-center justify-center gap-1.5 rounded-[4px] bg-[var(--adm-laranja-claro,#fff7ed)] px-2 text-[12.8px] font-semibold text-[var(--adm-laranja,#b45309)] transition-[filter] hover:brightness-95 sm:h-[44px] sm:px-3"
         >
           <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] fill-current" aria-hidden="true">
             {ICONES.suporte.map((d) => (
               <path key={d} d={d} />
             ))}
           </svg>
-          <span className="hidden whitespace-nowrap xl:inline">Dúvidas?</span>
+          <span className="hidden whitespace-nowrap xl:inline">Suporte</span>
         </button>
       </Dica>
       {pinAberto && <ModalMeuPin temPin={!!sessao?.temPin} onFechar={() => setPinAberto(false)} />}

@@ -44,7 +44,7 @@ async function abrirComo(usuario, { w = 1366, h = 768, bloquearAba = false } = {
 }
 const dispensar = (p) => p.getByRole('button', { name: 'OK, entendi' }).click({ timeout: 2500 }).catch(() => {})
 const aberturas = (p) => p.evaluate(() => window.__aberturas)
-const botao = (p) => p.getByRole('button', { name: 'Dúvidas? Falar com o suporte' })
+const botao = (p) => p.getByRole('button', { name: 'Suporte — falar com a Menuzia' })
 const dialogo = (p) => p.getByRole('dialog', { name: 'Como podemos ajudar?' })
 
 let urlExemplo = null
