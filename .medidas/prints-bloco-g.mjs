@@ -42,7 +42,9 @@ const ped = async (id) => (await admin.from('pedidos').select('id, numero, statu
 const ctx = await chromium.launchPersistentContext(PERFIL, { headless: true, viewport: { width: 1366, height: 768 }, locale: 'pt-BR', timezoneId: 'America/Sao_Paulo' })
 const p = ctx.pages()[0] ?? await ctx.newPage()
 const api = (metodo, caminho, corpo) => p.evaluate(async ([m, c, b]) => { const r = await fetch(c, { method: m, headers: { 'Content-Type': 'application/json' }, body: b ? JSON.stringify(b) : undefined }); let j = null; try { j = await r.json() } catch { /* */ } return { s: r.status, j } }, [metodo, caminho, corpo])
-const kanban = async () => { await p.goto(`${BASE}/admin/pedidos`, { waitUntil: 'domcontentloaded' }); await p.waitForSelector('[data-testid="kanban-quadro"]', { timeout: 120_000 }); await espera(2500) }
+// Sessão do perfil expirada → entra com o dono da Menuzia (SEED_ADMIN_* do .env.local).
+const login = async () => { if (!p.url().includes('/login')) return; await p.fill('input[name="email"]', process.env.SEED_ADMIN_EMAIL); await p.fill('input[name="password"]', process.env.SEED_ADMIN_PASSWORD); await Promise.all([p.waitForURL((u) => !u.pathname.startsWith('/login'), { timeout: 60_000 }), p.click('button[type="submit"]')]); console.log('login feito:', p.url()) }
+const kanban = async () => { await p.goto(`${BASE}/admin/pedidos`, { waitUntil: 'domcontentloaded' }); await espera(1500); await login(); if (!p.url().includes('/admin/pedidos')) await p.goto(`${BASE}/admin/pedidos`, { waitUntil: 'domcontentloaded' }); await p.waitForSelector('[data-testid="kanban-quadro"]', { timeout: 120_000 }); await espera(2500) }
 const shot = (nome, el) => (el ?? p).screenshot({ path: `${DIR}/${nome}.png` })
 const fecharPainel = async () => { await p.keyboard.press('Escape').catch(() => {}); await espera(400) }
 const abrirCard = async (numero) => { const c = p.locator(`[data-testid="pedido-${numero}"], [data-testid="fluxo-${numero}"]`).first(); await c.scrollIntoViewIfNeeded().catch(() => {}); await c.click({ position: { x: 60, y: 12 } }); await p.waitForSelector('[data-testid="painel-pedido"]', { timeout: 10_000 }); await espera(700); return c }
@@ -72,8 +74,7 @@ try {
 
   // ── 1) Kanban com as colunas (iFood + cancelado pelo cliente + não entregue) ──
   await kanban()
-  const col4 = p.locator('[data-testid="kanban-entregas"]')
-  if ((await col4.getAttribute('aria-pressed')) !== 'true') { await col4.click(); await espera(800) }
+  if (!(await p.evaluate(() => localStorage.getItem('menuzia:kanban-col4') === '1'))) { await p.evaluate(() => localStorage.setItem('menuzia:kanban-col4', '1')); await kanban() }
   const cardIfood = p.locator('[data-testid="card-app"][data-app="ifood"]')
   v('card do iFood com o logo grande', (await cardIfood.count()) >= 1)
   const cardEditado = p.locator(`[data-testid="pedido-${b1.numero}"]`)
@@ -117,8 +118,8 @@ try {
   await novo.waitFor({ timeout: 20_000 })
   await shot('05-novo-frame1-entrada')
   v('pedido novo: classe da animação no card', /animate-new-order/.test((await novo.getAttribute('class')) ?? ''))
-  await espera(1400); await shot('05-novo-frame2-piscando')
-  await espera(4000); await shot('05-novo-frame3-verde-claro')
+  await espera(1200); await shot('05-novo-frame2-piscando')
+  await espera(2300); await shot('05-novo-frame3-verde-claro')
   await fecharPainel()
 } finally {
   await admin.from('restaurantes').update({ status_loja: statusOriginal, impressao_automatica: impressaoOriginal }).eq('id', loja.id)
