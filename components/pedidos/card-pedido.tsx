@@ -6,20 +6,20 @@ import type { Pedido } from '@/lib/queries/pedidos'
 import { corTempoPedido, textoTempoPedido } from '@/lib/tempo-pedido'
 import { formatarReal } from '@/lib/moeda'
 import { origemVisivelNoCard, rotuloOrigemPedido } from '@/lib/pedido-origem'
-import { IconePix, SeloOrigem } from '@/components/icones/origens'
+import { IconeIaClaude, IconePix, SeloOrigem } from '@/components/icones/origens'
 import { Dica } from '@/components/ui/flutuante'
 import { rotuloForma, statusAReceber } from '@/lib/pdv-pagamento'
 
 /**
- * Card do pedido no Kanban (redesign 18/10/2026, rodada 2 — referência note-imagem.webp do dono): card branco
- * quase cinza, borda fina, cantos retos, texto pequeno em linhas; nº + cliente em negrito, VALOR no canto superior
- * direito, hora/tempo em cinza à direita da 2ª linha, itens em 2 linhas; rodapé com o selo da origem (quadradinho
- * colorido) à esquerda e, à direita, ícones (imprimir, editar) + o botão azul da etapa + o quadradinho "···".
- * Só visual: cada botão chama o mesmo handler de sempre, passado pela página.
+ * Card do pedido no Kanban (redesign 18/10/2026, rodada 3 — referência note-imagem.webp do dono): card branco
+ * quase cinza, borda fina, cantos retos, SOMBRA embaixo (o card fica um nível acima da coluna), texto pequeno em
+ * linhas; nº + cliente em negrito, VALOR no canto superior direito, hora/tempo em cinza à direita da 2ª linha, itens
+ * em 2 linhas; rodapé com os ÍCONES DO PEDIDO à esquerda (origem, IA, Pix — os mesmos do painel) e, à direita,
+ * imprimir, editar, o botão azul da etapa e o quadradinho "···". Só visual: cada botão chama o mesmo handler.
  */
 export const CARD_BOTAO_PRINCIPAL = 'inline-flex h-[26px] min-w-0 items-center justify-center gap-1 whitespace-nowrap rounded-[2px] bg-[#0688D4] px-2.5 text-[11.5px] font-semibold text-white transition-colors hover:bg-[#0570AE] disabled:opacity-50'
-const ICONE_BOTAO = 'inline-flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-[2px] text-[#6B7280] transition-colors hover:bg-[#E5E7EB] hover:text-[#111827] disabled:opacity-50'
-const QUADRADO_CLARO = 'inline-flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-[2px] bg-[#E0F2FE] text-[#0369A1] transition-colors hover:bg-[#BAE6FD] disabled:opacity-50'
+const ICONE_BOTAO = 'inline-flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-[2px] text-[#6B7280] transition-colors hover:bg-[#D1D5DB] hover:text-[#111827] disabled:opacity-50'
+const QUADRADO_CLARO = 'inline-flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-[2px] bg-[#E0F2FE] text-[#0369A1] transition-colors hover:bg-[#7DD3FC] disabled:opacity-50'
 const ICONE = 'h-[14px] w-[14px]'
 const hora = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 
@@ -27,6 +27,52 @@ const hora = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: 
 export function resumoItens(itens: Pedido['itens'], max = 3): { texto: string; resto: number } {
   const partes = itens.slice(0, max).map((i) => `${i.quantidade}× ${i.nome}${i.tamanhoNome ? ` ${i.tamanhoNome}` : ''}`)
   return { texto: partes.join(', '), resto: Math.max(0, itens.length - max) }
+}
+
+/** Texto do Pix ao passar o mouse: "Pago online", "Pix pago" ou "Pix · aguardando pagamento". */
+export function dicaPix(p: Pick<Pedido, 'pago' | 'pagamentoOnline' | 'tipo'>): string {
+  if (p.pago && p.pagamentoOnline) return 'Pago online (Pix)'
+  if (p.pago) return 'Pix pago'
+  return `Pix · ${statusAReceber(p.tipo).toLowerCase()}`
+}
+
+/**
+ * Ícones do pedido (DEFINITIVOS depois de aprovados; os mesmos no card e no painel): selo da origem, o ícone da IA
+ * quando o pedido foi tirado pelo Agente (com um risco separando), e o Pix com o estado.
+ */
+export function IconesDoPedido({ order, tamanho = 'card' }: { order: Pedido; tamanho?: 'card' | 'painel' }) {
+  const origem = origemVisivelNoCard(order)
+  const posto = rotuloOrigemPedido(order).posto
+  const ia = order.origemCanal === 'whatsapp_ia'
+  // Pela IA: o selo é o do WhatsApp (de onde veio) e o ícone da IA mostra quem tirou.
+  const selo = ia ? 'whatsapp' : origem ? origem.icone : posto === 'Delivery' ? 'direto' : null
+  const dicaOrigem = ia ? 'Origem: WhatsApp — pedido tirado pelo Agente de IA' : origem?.dica ?? 'Pedido do cardápio (direto)'
+  const g = tamanho === 'painel'
+  return (
+    <span className={`inline-flex items-center ${g ? 'gap-2' : 'gap-1.5'}`} data-testid="icones-pedido">
+      {selo && (
+        <Dica texto={dicaOrigem}>
+          <span className="inline-flex" aria-label={dicaOrigem} data-testid="card-origem" data-origem={ia ? 'whatsapp_ia' : selo}><SeloOrigem canal={selo} /></span>
+        </Dica>
+      )}
+      {ia && (
+        <Dica texto="Pedido tirado pelo Agente de IA (Claude)">
+          <span className="inline-flex items-center gap-1.5" aria-label="Pedido tirado pelo Agente de IA" data-testid="card-ia">
+            <span className="h-[14px] w-px bg-[#D1D5DB]" aria-hidden />
+            <IconeIaClaude className={g ? 'h-[20px] w-[20px]' : 'h-[18px] w-[18px]'} />
+          </span>
+        </Dica>
+      )}
+      {order.formaPagamento === 'pix' && order.canal !== 'mesa' && (
+        <Dica texto={dicaPix(order)}>
+          <span className="inline-flex items-center gap-0.5" aria-label={dicaPix(order)} data-testid="card-pix" data-pago={order.pago ? '1' : '0'}>
+            <IconePix className={g ? 'h-[18px] w-[18px]' : 'h-[16px] w-[16px]'} />
+            {order.pago ? <Check className="h-[11px] w-[11px] text-[#15803D]" strokeWidth={3} aria-hidden /> : <span className="text-[10.5px] font-medium text-[#B45309]">aguard.</span>}
+          </span>
+        </Dica>
+      )}
+    </span>
+  )
 }
 
 export interface AcoesCard {
@@ -47,21 +93,18 @@ export function CardPedido({ order, now, selecionado, destaqueNovo, somBloqueado
   /** Pedido recebido ainda não visto: piscar amarelo como hoje. */
   destaqueNovo: boolean
   somBloqueado: boolean
-  onAbrir: () => void
+  /** Recebe o card clicado: o painel abre do lado oposto ao card, para não cobrir o que se quer clicar. */
+  onAbrir: (card: HTMLElement) => void
   acoes: AcoesCard
   /** Linha extra abaixo das ações (ex.: corrida da Lalamove em andamento). */
   rodape?: ReactNode
 }) {
   const idadeMs = now - new Date(order.criadoEm).getTime()
   const corTempo = { ok: 'text-[#6B7280]', atencao: 'text-[#B45309]', atraso: 'text-[#B91C1C]' }[corTempoPedido(idadeMs)]
-  const origem = origemVisivelNoCard(order)
-  const posto = rotuloOrigemPedido(order).posto
-  const seloOrigem = origem ? origem.icone : posto === 'Delivery' ? 'direto' : null
-  const dicaOrigem = origem?.dica ?? 'Pedido do cardápio (direto)'
   const tipo = order.canal === 'mesa' ? `Mesa${order.mesa ? ` ${order.mesa}` : ''}` : order.tipo === 'entrega' ? 'Entrega' : 'Retirada'
   const { texto: itens, resto } = resumoItens(order.itens)
-  const dicaPag = [rotuloForma(order.formaPagamento, order.cartaoTipo, order.pagamentoOnline), order.pago ? 'Pago' : statusAReceber(order.tipo), order.formaPagamento === 'dinheiro' && order.trocoPara ? `Troco p/ ${formatarReal(order.trocoPara)}` : null].filter(Boolean).join(' · ')
   const local = order.tipo === 'entrega' ? order.enderecoBairro : null
+  const pag = rotuloForma(order.formaPagamento, order.cartaoTipo, order.pagamentoOnline)
   return (
     <div
       data-testid={`pedido-${order.numero}`}
@@ -70,11 +113,11 @@ export function CardPedido({ order, now, selecionado, destaqueNovo, somBloqueado
       tabIndex={0}
       aria-pressed={selecionado}
       aria-label={`Pedido #${order.numero}: abrir o painel`}
-      onClick={onAbrir}
-      onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onAbrir() } }}
+      onClick={(e) => onAbrir(e.currentTarget)}
+      onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onAbrir(e.currentTarget) } }}
       className={[
-        'cursor-pointer rounded-[2px] border bg-[#FBFBFC] transition-[box-shadow,border-color] hover:border-[#C9CED6] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#0688D4]',
-        selecionado ? 'border-[#0688D4] ring-1 ring-[#0688D4]/40' : 'border-[#E3E6EA]',
+        'cursor-pointer rounded-[2px] border bg-white shadow-[0_2px_4px_rgba(16,24,40,0.10),0_1px_2px_rgba(16,24,40,0.06)] transition-[box-shadow,border-color] hover:shadow-[0_4px_10px_rgba(16,24,40,0.14),0_1px_2px_rgba(16,24,40,0.06)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#0688D4]',
+        selecionado ? 'border-[#0688D4] ring-1 ring-[#0688D4]/40' : 'border-[#DFE3E8]',
         destaqueNovo ? 'animate-new-order' : '',
         destaqueNovo && somBloqueado ? 'animate-pulse ring-4 ring-[#DC2626]' : '',
       ].join(' ')}
@@ -87,17 +130,12 @@ export function CardPedido({ order, now, selecionado, destaqueNovo, somBloqueado
           </span>
           <span className="whitespace-nowrap text-[12.5px] font-semibold leading-[16px] tabular-nums text-[#15803D]" data-testid="card-preco">{formatarReal(order.total)}</span>
         </div>
-        {/* Linha 2: tipo · bairro · pagamento — hora e tempo à direita */}
+        {/* Linha 2: tipo · bairro · forma — hora e tempo à direita */}
         <div className="mt-0.5 flex items-center justify-between gap-2 text-[11.5px] leading-[15px] text-[#6B7280]">
-          <span className="flex min-w-0 items-center gap-1 truncate">
+          <span className="min-w-0 truncate">
             <span data-testid="card-tipo">{tipo}</span>
-            {local && <span className="truncate">· {local}</span>}
-            {order.formaPagamento === 'pix' && order.canal !== 'mesa' && (
-              <span className="inline-flex flex-shrink-0 items-center gap-0.5" title={dicaPag} aria-label={dicaPag} data-testid="card-pix" data-pago={order.pago ? '1' : '0'}>
-                · <IconePix className="h-[12px] w-[12px]" />
-                {order.pago ? <Check className="h-[10px] w-[10px] text-[#15803D]" strokeWidth={3} aria-hidden /> : <span className="text-[10.5px] text-[#B45309]">aguard.</span>}
-              </span>
-            )}
+            {local && <> · {local}</>}
+            {order.canal !== 'mesa' && <> · {pag}</>}
           </span>
           <span className={`flex-shrink-0 whitespace-nowrap tabular-nums ${corTempo}`} data-testid="card-tempo" title="Hora do pedido · tempo desde que chegou">
             {hora(order.criadoEm)} · há {textoTempoPedido(idadeMs)}
@@ -110,13 +148,9 @@ export function CardPedido({ order, now, selecionado, destaqueNovo, somBloqueado
           </p>
         )}
       </div>
-      {/* Rodapé: selo da origem à esquerda; ícones + botão azul + "···" à direita. Não abre o painel. */}
+      {/* Rodapé: ícones do pedido à esquerda; imprimir, editar, botão azul e "···" à direita. Não abre o painel. */}
       <div className="flex items-center gap-1 px-2 pb-2 pt-0.5" onClick={(e) => e.stopPropagation()} data-testid="card-acoes">
-        {seloOrigem && (
-          <Dica texto={dicaOrigem}>
-            <span className="inline-flex" aria-label={dicaOrigem} data-testid="card-origem" data-origem={seloOrigem}><SeloOrigem canal={seloOrigem} /></span>
-          </Dica>
-        )}
+        <IconesDoPedido order={order} />
         <div className="ml-auto flex min-w-0 items-center gap-1">
           {acoes.onImprimir && (
             <button type="button" className={ICONE_BOTAO} onClick={acoes.onImprimir} title="Imprimir o pedido" aria-label="Imprimir o pedido" data-testid="card-imprimir"><Printer className={ICONE} aria-hidden /></button>

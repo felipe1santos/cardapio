@@ -80,6 +80,20 @@ export function IconeOrigem({ canal, className = 'h-4 w-4' }: { canal: string; c
   }
 }
 
+/**
+ * Ícone da IA (Claude) — pedido tirado pelo Agente de IA no WhatsApp (origem `whatsapp_ia`). Desenho em pixels na cor
+ * do Claude (#D97757), a partir da imagem escolhida pelo dono (18/10). DEFINITIVO depois de aprovado: não trocar.
+ */
+export function IconeIaClaude({ className = 'h-4 w-4' }: P) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="#D97757" aria-hidden="true">
+      <path d="M3 4.8h18v12.4H3z" />
+      <path fill="#fff" d="M5.9 8h1.6v3H5.9zM16.4 8H18v3h-1.6z" />
+      <path d="M0 11h3v3H0zM21 11h3v3h-3zM4.3 17.2h1.6V20H4.3zM7.2 17.2h1.6V20H7.2zM15 17.2h1.6V20H15zM18 17.2h1.6V20H18z" />
+    </svg>
+  )
+}
+
 /** Ícone oficial do Pix (o mesmo da vitrine). */
 export function IconePix({ className = 'h-4 w-4' }: P) {
   return (

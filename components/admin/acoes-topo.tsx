@@ -85,7 +85,7 @@ export function AcoesTopo() {
     impressora === 'conectada' ? 'text-[var(--adm-alta)]' : impressora === 'desconectada' ? 'text-[var(--adm-vermelho-texto)]' : 'text-[var(--adm-texto-suave)]'
 
   // Mesma altura de toda a barra (36 px no celular, 44 px no resto).
-  const QUADRADO = 'flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-[4px] transition-colors sm:h-[44px] sm:w-[44px]'
+  const QUADRADO = 'flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-[4px] transition-colors sm:h-[40px] sm:w-[40px]'
 
   return (
     <div className="flex flex-shrink-0 items-center gap-[4px] sm:gap-2" data-testid="acoes-topo">
@@ -116,7 +116,7 @@ export function AcoesTopo() {
           aria-haspopup="dialog"
           aria-label="Suporte — falar com a Menuzia"
           data-testid="topo-duvidas"
-          className="flex h-[36px] min-w-[36px] flex-shrink-0 items-center justify-center gap-1.5 rounded-[4px] bg-[var(--adm-laranja-claro,#fff7ed)] px-2 text-[12.8px] font-semibold text-[var(--adm-laranja,#b45309)] transition-[filter] hover:brightness-95 sm:h-[44px] sm:px-3"
+          className="flex h-[36px] min-w-[36px] flex-shrink-0 items-center justify-center gap-1.5 rounded-[4px] bg-[var(--adm-laranja-claro,#fff7ed)] px-2 text-[12.8px] font-semibold text-[var(--adm-laranja,#b45309)] transition-[filter] hover:brightness-95 sm:h-[40px] sm:px-3"
         >
           <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] fill-current" aria-hidden="true">
             {ICONES.suporte.map((d) => (

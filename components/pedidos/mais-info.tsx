@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, type RefObject } from 'react'
-import { Bike, CreditCard, MapPin, Phone, ReceiptText, User } from 'lucide-react'
+import { Bike, MapPin, MapPinned, Phone, ReceiptText, UserRound, Wallet } from 'lucide-react'
 import { Flutuante, ModalCentral } from '@/components/ui/flutuante'
 import type { Pedido } from '@/lib/queries/pedidos'
 import { formatarReal } from '@/lib/moeda'
@@ -16,11 +16,12 @@ import { textoStatusLalamove, type EntregaProvedorLinha } from '@/lib/entregas/l
  * que o Kanban já tem; nada novo é consultado.
  */
 export type AbaInfo = 'usuario' | 'destino' | 'pagamento' | 'pedidos'
-const ABAS: { id: AbaInfo; rotulo: string; Icone: typeof User }[] = [
-  { id: 'usuario', rotulo: 'Usuário', Icone: User },
-  { id: 'destino', rotulo: 'Destino', Icone: MapPin },
-  { id: 'pagamento', rotulo: 'Pagamento', Icone: CreditCard },
-  { id: 'pedidos', rotulo: 'Pedidos', Icone: ReceiptText },
+/** Ícones DEFINITIVOS do menu (18/10): quadradinho tingido + ícone; a mesma cor no título do modal. */
+const ABAS: { id: AbaInfo; rotulo: string; descricao: string; Icone: typeof UserRound; cor: string; fundo: string }[] = [
+  { id: 'usuario', rotulo: 'Usuário', descricao: 'Nome, telefone e endereço', Icone: UserRound, cor: '#184F95', fundo: '#E1EDF7' },
+  { id: 'destino', rotulo: 'Destino', descricao: 'Endereço da entrega', Icone: MapPinned, cor: '#7E22CE', fundo: '#F3E8FF' },
+  { id: 'pagamento', rotulo: 'Pagamento', descricao: 'Forma, situação e valor', Icone: Wallet, cor: '#15803D', fundo: '#DCFCE7' },
+  { id: 'pedidos', rotulo: 'Pedidos', descricao: 'Itens, adicionais e observações', Icone: ReceiptText, cor: '#C2410C', fundo: '#FFEDD5' },
 ]
 const hora = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null)
 const LINHA = 'flex justify-between gap-4 py-2 text-[13.5px]'
@@ -29,11 +30,15 @@ const VALOR = 'min-w-0 text-right font-semibold text-[#1F2937]'
 
 export function MenuMaisInfo({ ancora, aberto, onFechar, onEscolher, numero }: { ancora: RefObject<HTMLButtonElement | null>; aberto: boolean; onFechar: () => void; onEscolher: (a: AbaInfo) => void; numero: number }) {
   return (
-    <Flutuante ancora={ancora} aberto={aberto} onFechar={onFechar} alinhar="inicio" largura={200} testid={`mais-info-menu-${numero}`} rotulo={`Mais informações do pedido #${numero}`} className="py-1">
-      {ABAS.map(({ id, rotulo, Icone }) => (
+    <Flutuante ancora={ancora} aberto={aberto} onFechar={onFechar} alinhar="inicio" largura={250} testid={`mais-info-menu-${numero}`} rotulo={`Mais informações do pedido #${numero}`} className="py-1">
+      {ABAS.map(({ id, rotulo, descricao, Icone, cor, fundo }) => (
         <button key={id} type="button" role="menuitem" onClick={() => { onEscolher(id); onFechar() }} data-testid={`mais-info-${id}`}
-          className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] font-medium text-[#1F2937] hover:bg-[#F3F4F6]">
-          <Icone className="h-4 w-4 text-[#6B7280]" aria-hidden /> {rotulo}
+          className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-[#E5E7EB]">
+          <span className="grid h-[30px] w-[30px] flex-shrink-0 place-items-center rounded-[4px]" style={{ background: fundo, color: cor }}><Icone className="h-[16px] w-[16px]" strokeWidth={2.2} aria-hidden /></span>
+          <span className="min-w-0">
+            <span className="block text-[13px] font-semibold leading-[16px] text-[#1F2937]">{rotulo}</span>
+            <span className="block truncate text-[11.5px] leading-[14px] text-[#6B7280]">{descricao}</span>
+          </span>
         </button>
       ))}
     </Flutuante>
@@ -48,7 +53,7 @@ export function ModalInfoPedido({ pedido: p, aba, corrida, onFechar, onPagamento
   const levar = !p.pago && p.formaPagamento === 'dinheiro' ? trocoLevar(p.total, p.trocoPara) : 0
   const mapa = endereco ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([p.enderecoRua, p.enderecoNumero, p.enderecoBairro, p.enderecoCidade].filter(Boolean).join(', '))}` : null
   return (
-    <ModalCentral aberto onFechar={onFechar} titulo={<span className="flex items-center gap-2"><def.Icone className="h-[18px] w-[18px] text-[#6B7280]" aria-hidden /> {def.rotulo} · pedido #{p.numero}</span>} largura={520} testid={`modal-info-${aba}`} classeCorpo="px-4 py-2 sm:px-5">
+    <ModalCentral aberto onFechar={onFechar} titulo={<span className="flex items-center gap-2"><span className="grid h-[28px] w-[28px] place-items-center rounded-[4px]" style={{ background: def.fundo, color: def.cor }}><def.Icone className="h-[16px] w-[16px]" strokeWidth={2.2} aria-hidden /></span> {def.rotulo} · pedido #{p.numero}</span>} largura={520} testid={`modal-info-${aba}`} classeCorpo="px-4 py-2 sm:px-5">
       {aba === 'usuario' && (
         <div className="divide-y divide-[#F3F4F6]" data-testid="info-usuario">
           <div className={LINHA}><span className={ROTULO}>Nome</span><span className={VALOR}>{p.clienteNome || '—'}</span></div>

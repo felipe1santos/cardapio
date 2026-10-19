@@ -64,7 +64,6 @@ import {
   type StatusPedido,
 } from '@/lib/queries/pedidos'
 import { formatarReal } from '@/lib/moeda'
-import { CartaoNumero } from '@/components/admin/cartao-numero'
 import { ICONES } from '@/lib/icones-painel'
 import { pedidoLiberado, textoAgendado } from '@/lib/agendamento'
 import { avisoSemMotoboy } from '@/lib/motoboy/aviso'
@@ -170,7 +169,7 @@ const FLUXO_TONE: Record<'transit' | 'done' | 'failed', { accent: string; bg: st
  * mas o container virou div — botão dentro de botão é HTML inválido.
  */
 function FluxoCard({ order, tone, onClick, onConcluir, rotulo, acoes, corrida, onCorridaMudou, onErro }: {
-  order: Pedido; tone: 'transit' | 'done' | 'failed'; onClick: () => void; onConcluir?: () => void; rotulo?: string
+  order: Pedido; tone: 'transit' | 'done' | 'failed'; onClick: (card: HTMLElement) => void; onConcluir?: () => void; rotulo?: string
   /** Em trânsito (17/10): tocar no card abre Entregue / Não entregue — as MESMAS chamadas da tela Pedidos. */
   acoes?: { onEntregue?: () => void; onNaoEntregue?: (motivo: string) => void }
   /** Lalamove (0199): corrida do pedido (status, entregador, rastreio). */
@@ -184,7 +183,7 @@ function FluxoCard({ order, tone, onClick, onConcluir, rotulo, acoes, corrida, o
   const temAcoes = !!(acoes?.onEntregue || acoes?.onNaoEntregue)
   return (
     <div className={`rounded-[2px] border border-[#E3E6EA] border-l-[3px] bg-[#FBFBFC] transition-[border-color] hover:border-[#C9CED6] ${t.accent}`} data-testid={`fluxo-${order.numero}`}>
-      <button onClick={temAcoes ? () => setAberto((v) => !v) : onClick} aria-expanded={temAcoes ? aberto : undefined} className="w-full p-3 text-left">
+      <button onClick={(e) => (temAcoes ? setAberto((v) => !v) : onClick(e.currentTarget))} aria-expanded={temAcoes ? aberto : undefined} className="w-full p-3 text-left">
         <div className="flex items-center justify-between">
           <span className="text-sm font-semibold">#{order.numero}</span>
           <div className="flex items-center gap-1.5">
@@ -238,7 +237,7 @@ function FluxoCard({ order, tone, onClick, onConcluir, rotulo, acoes, corrida, o
               </div>
             </div>
           )}
-          <button type="button" onClick={onClick} className="w-full text-[12px] font-semibold text-primary hover:underline">Ver pedido</button>
+          <button type="button" onClick={(e) => onClick(e.currentTarget)} className="w-full text-[12px] font-semibold text-primary hover:underline">Ver pedido</button>
         </div>
       )}
     </div>
@@ -796,6 +795,24 @@ export default function PedidosPage() {
 
   const setDetail = useCallback((p: Pedido | null) => { setDetailSnap(p); setEditandoPag(false) }, [])
   const fecharPainel = useCallback(() => setDetail(null), [setDetail])
+  // Lado do painel (redesign 18/10): o oposto ao card clicado, para não cobrir os cards que a pessoa quer usar.
+  const [ladoPainel, setLadoPainel] = useState<'direita' | 'esquerda'>('direita')
+  const abrirPainel = useCallback((p: Pedido, el: HTMLElement) => {
+    const r = el.getBoundingClientRect()
+    setLadoPainel(r.left + r.width / 2 > window.innerWidth / 2 ? 'esquerda' : 'direita')
+    setDetail(p)
+  }, [setDetail])
+  // Clique fora do painel fecha — menos em outro card (que troca o pedido), nas janelas por cima e na barra do topo.
+  useEffect(() => {
+    if (!detail) return
+    const fora = (e: MouseEvent) => {
+      const t = e.target as HTMLElement | null
+      if (!t || t.closest('[data-testid="painel-pedido"], [data-testid^="pedido-"], [data-testid^="fluxo-"], [role="dialog"], [data-flutuante], [data-modal-central], [data-testid="topo"], [data-testid="kanban-despachar"]')) return
+      fecharPainel()
+    }
+    document.addEventListener('mousedown', fora)
+    return () => document.removeEventListener('mousedown', fora)
+  }, [detail, fecharPainel])
   // O painel acompanha o pedido em tempo real: a cada atualização das listas pega a versão
   // nova; se o pedido saiu delas (cancelado, concluído antigo), relê do banco.
   const detalheId = detail?.id ?? null
@@ -905,7 +922,7 @@ export default function PedidosPage() {
   // Ligado = cor viva sólida com ícone claro; desligado = cinza-escuro com ícone claro (riscado
   // quando faz sentido). A dica (tooltip por cima de tudo) diz o estado e o que o clique faz.
   // Item 58: estilo dos cards do Fluxo de caixa — fundo clarinho e ícone colorido (contraste ≥ 4,5:1).
-  const QUAD = 'relative inline-flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-[4px] transition-[filter] hover:brightness-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0688D4] sm:h-[44px] sm:w-[44px]'
+  const QUAD = 'relative inline-flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-[4px] transition-[filter] hover:brightness-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0688D4] sm:h-[40px] sm:w-[40px]'
   const ICONE = 'h-[20px] w-[20px]'
   const DESLIGADO = 'bg-[#F1F2F4] text-[#4B5563]'
   const ITEM = 'flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] font-medium text-text-main hover:bg-page'
@@ -928,7 +945,7 @@ export default function PedidosPage() {
           aria-expanded={lojaMenuOpen}
           aria-haspopup="menu"
           aria-label={dicaStatus}
-          className={`inline-flex h-[36px] flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[4px] px-2 text-[13px] font-semibold transition-[filter] hover:brightness-95 sm:h-[44px] sm:px-3 ${lojaAberta ? 'bg-[#DCFCE7] text-[#15803D]' : 'bg-[#FEE2E2] text-[#B91C1C]'}`}
+          className={`inline-flex h-[36px] flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[4px] px-2 text-[13px] font-semibold transition-[filter] hover:brightness-95 sm:h-[40px] sm:px-3 ${lojaAberta ? 'bg-[#DCFCE7] text-[#15803D]' : 'bg-[#FEE2E2] text-[#B91C1C]'}`}
           data-testid="kanban-status-loja"
           data-aberta={lojaAberta ? '1' : '0'}
         >
@@ -1058,7 +1075,18 @@ export default function PedidosPage() {
       onVer={verNoKanban}
     />
   )
-  const topBar = <TopBar title="Painel de Pedidos" breadcrumb="Pedidos › Kanban" semTitulo controles={controles} sistema={avisosTopo} />
+  // Métricas na barra do topo (redesign 18/10): chips compactos entre os controles e os botões do sistema.
+  const CHIP = 'hidden xl:inline-flex h-[32px] items-center gap-1.5 whitespace-nowrap rounded-[4px] bg-[#F3F4F6] px-2.5 text-[12px] text-[#4B5563]'
+  const chipIcone = (d: string[], cor: string) => <svg viewBox="0 0 24 24" className="h-[15px] w-[15px]" style={{ fill: cor }} aria-hidden="true">{d.map((x) => <path key={x} d={x} />)}</svg>
+  const metricasTopo = showStats ? (
+    <div className="flex items-center gap-1.5" data-testid="cards-resumo-pedidos">
+      <span className={CHIP} title="Pedidos abertos">{chipIcone(ICONES.pedidos, '#C2410C')}<b className="text-[#111827]">{abertos}</b> abertos</span>
+      <span className={CHIP} title="Tempo médio dos pedidos abertos">{chipIcone(ICONES.cronometro, '#0369A1')}<b className="text-[#111827]">{tempoMedioMin} min</b></span>
+      <span className={CHIP} title="Em entrega">{chipIcone(ICONES.moto, '#7E22CE')}<b className="text-[#111827]">{emEntrega}</b> em entrega</span>
+      <span className={CHIP} title="Faturamento do turno">{chipIcone(ICONES.dinheiro, '#15803D')}<b className="text-[#15803D]">{brl(faturamentoTurno)}</b></span>
+    </div>
+  ) : undefined
+  const topBar = <TopBar title="Painel de Pedidos" breadcrumb="Pedidos › Kanban" semTitulo controles={controles} right={metricasTopo} sistema={avisosTopo} />
 
   if (loading) {
     return (
@@ -1080,7 +1108,8 @@ export default function PedidosPage() {
       )}
 
       {/* Quadro + painel do pedido lado a lado: o painel não cobre nem bloqueia o quadro. */}
-      <div className="flex min-h-0 flex-1">
+      {/* `relative`: o painel do pedido abre POR CIMA do quadro (absoluto), no lado oposto ao card clicado. */}
+      <div className="relative flex min-h-0 flex-1">
       {/* Redesign 18/10: as colunas encostam no topo (sem a faixa vazia) e o quadro fica mais denso. */}
       <div className={`flex min-w-0 flex-1 flex-col gap-2 overflow-hidden px-3 pb-3 pt-2 ${comRotas ? 'max-lg:pb-24' : ''}`}>
         {error && (
@@ -1100,15 +1129,7 @@ export default function PedidosPage() {
         {/* Som bloqueado: o aviso grande sai do layout, em toda tela (AvisoSomBloqueado). */}
 
         {/* Stats — barra de métricas acima dos kanbans (oculta em tela cheia ou pelo botão Métricas) */}
-        {!focusMode && showStats && (
-          // Mesmo cartão da tela Clientes (components/admin/cartao-numero.tsx).
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" data-testid="cards-resumo-pedidos">
-            <CartaoNumero icone={ICONES.pedidos} tom="laranja" rotulo="Pedidos abertos" valor={abertos} />
-            <CartaoNumero icone={ICONES.cronometro} tom="azul" rotulo="Tempo médio" valor={`${tempoMedioMin} min`} />
-            <CartaoNumero icone={ICONES.moto} tom="roxo" rotulo="Em entrega" valor={emEntrega} />
-            <CartaoNumero icone={ICONES.dinheiro} tom="verde" rotulo="Faturamento do turno" valor={<span className="text-price-text">{brl(faturamentoTurno)}</span>} />
-          </div>
-        )}
+        {/* Métricas (redesign 18/10): saíram daqui para a barra do topo (MetricasTopo). */}
 
         {agendados.length > 0 && (
           <div className="flex items-center gap-2 overflow-x-auto rounded-menuzia border border-border bg-white px-3 py-2" data-testid="faixa-agendados">
@@ -1171,7 +1192,7 @@ export default function PedidosPage() {
                         selecionado={selecionado}
                         destaqueNovo={novo}
                         somBloqueado={alarme.somAtivo && alarme.bloqueado}
-                        onAbrir={() => setDetail(selecionado ? null : order)}
+                        onAbrir={(el) => (selecionado ? setDetail(null) : abrirPainel(order, el))}
                         acoes={{
                           avancar: avancarCard,
                           principal,
@@ -1204,7 +1225,7 @@ export default function PedidosPage() {
                       key={o.id}
                       order={o}
                       tone="transit"
-                      onClick={() => setDetail(o)}
+                      onClick={(el) => abrirPainel(o, el)}
                       acoes={{
                         onEntregue: podeEntregarRota ? () => void entregueDaRota(o) : undefined,
                         onNaoEntregue: podeNaoEntregar ? (motivo) => void naoEntregueDaRota(o, motivo) : undefined,
@@ -1221,7 +1242,7 @@ export default function PedidosPage() {
                       key={o.id}
                       order={o}
                       tone="done"
-                      onClick={() => setDetail(o)}
+                      onClick={(el) => abrirPainel(o, el)}
                       // Loja sem motoboy fecha na saída: ninguém confirmou que chegou.
                       rotulo={!usaDespachoDeRotas(fluxo) && o.tipo === 'entrega' ? 'Saiu p/ entrega' : undefined}
                     />
@@ -1229,7 +1250,7 @@ export default function PedidosPage() {
                 </SubSecao>
                 <SubSecao titulo="Não concluídos" cor="text-danger" vazio="Nenhum recusado hoje">
                   {concluded.filter((o) => o.status === 'cancelado').map((o) => (
-                    <FluxoCard key={o.id} order={o} tone="failed" onClick={() => setDetail(o)} />
+                    <FluxoCard key={o.id} order={o} tone="failed" onClick={(el) => abrirPainel(o, el)} />
                   ))}
                 </SubSecao>
               </div>
@@ -1249,6 +1270,7 @@ export default function PedidosPage() {
           onReimprimir={() => reimprimir(detail)}
           onCancelar={() => pedirCancelamento(detail)}
           corrida={corridas[detail.id] ?? null}
+          lado={ladoPainel}
         />
       )}
       </div>
@@ -1257,10 +1279,10 @@ export default function PedidosPage() {
           Redesign 18/10: chapado, bordas retas, no azul de sempre. */}
       {comRotas && (
         <button type="button" onClick={() => setRotaOpen(true)}
-          className="fixed bottom-4 right-4 z-30 inline-flex h-[46px] items-center gap-2 rounded-none bg-[var(--adm-azul,#0b78d0)] px-5 text-[14px] font-semibold text-white shadow-[0_4px_12px_rgba(16,24,40,0.18)] hover:bg-[#0570AE] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0688D4]"
+          className="fixed bottom-4 right-4 z-30 inline-flex h-[46px] items-center gap-2 rounded-[3px] bg-[#0061BB] px-5 text-[14px] font-semibold text-white shadow-[0_4px_12px_rgba(16,24,40,0.18)] hover:bg-[#004F99] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0688D4]"
           aria-label={`Despachar – ${prontosEntrega} pronto(s) para entrega`} data-testid="kanban-despachar">
           <Route className="h-[18px] w-[18px]" aria-hidden /> Despachar
-          <span className="grid h-[22px] min-w-[22px] place-items-center rounded-none bg-white px-1.5 text-[12px] font-semibold text-[#075EA8]" data-testid="kanban-despachar-contador">{prontosEntrega}</span>
+          <span className="grid h-[22px] min-w-[22px] place-items-center rounded-[3px] bg-white px-1.5 text-[12px] font-semibold text-[#0061BB]" data-testid="kanban-despachar-contador">{prontosEntrega}</span>
           {despachoAuto && semMotoboy > 0 && prontosEntrega > 0 && (
             <span className="rounded-[6px] bg-[#FEF3C7] px-2 py-0.5 text-[12px] font-semibold text-[#92400E]" data-testid="kanban-sem-motoboy" title="Ninguém está com o app do motoboy aberto agora. Toque em Despachar e escolha um motoboy: ele recebe quando abrir o app.">{avisoSemMotoboy(motoboysCadastrados)}</span>
           )}

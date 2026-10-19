@@ -73,7 +73,7 @@ export function AvisosPedidos({ avisos, onEntregue, onNaoEntregue, onCancelar, o
         aria-haspopup="dialog"
         aria-label={total ? `${total} aviso${total > 1 ? 's' : ''}` : 'Sem avisos'}
         // Redesign 18/10: o mesmo formato da pílula "Recebendo pedidos" — fundo vermelho claro, ícone vermelho escuro.
-        className={`relative flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-[4px] transition-[filter] hover:brightness-95 sm:h-[44px] sm:w-[44px] ${
+        className={`relative flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-[4px] transition-[filter] hover:brightness-95 sm:h-[40px] sm:w-[40px] ${
           total ? 'bg-[#FEE2E2] text-[#B91C1C]' : 'bg-[#F1F2F4] text-[#4B5563]'
         } ${pulsando ? 'animate-pulse' : ''}`}
         data-testid="avisos-icone"
