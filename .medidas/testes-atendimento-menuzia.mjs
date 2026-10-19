@@ -14,7 +14,9 @@ const BASE = process.argv[2] ?? 'http://localhost:3000'
 const TEL55 = '5527992534407'
 const { data: loja } = await admin.from('restaurantes').select('id, slug, status_loja, evolution_instance, tempo_entrega, tempo_retirada').eq('slug', 'menuzia').single()
 if (loja?.slug !== 'menuzia') throw new Error('loja errada')
-const { data: cfg } = await admin.from('whatsapp_robo_config').select('webhook_segredo').eq('restaurante_id', loja.id).single()
+const { data: cfg } = await admin.from('whatsapp_robo_config').select('webhook_segredo, protecao_curta, protecao_longa').eq('restaurante_id', loja.id).single()
+// A proteção anti-loop (8 respostas curtas) barraria o próprio teste: afrouxa na Menuzia e devolve no fim.
+await admin.from('whatsapp_robo_config').update({ protecao_curta: 200, protecao_longa: 500 }).eq('restaurante_id', loja.id)
 const espera = (ms) => new Promise((r) => setTimeout(r, ms))
 const CONVERSA_LIMPA = { estado: 'robo', atendimento: 'robo', pediu_atendente_em: null, pediu_atendente_motivo: null, pediu_atendente_aviso_em: null, silenciada_em: null, silenciada_motivo: null, auto_estado: null, auto_estado_em: null, ia_rascunho: null, ia_desde: null, ia_respostas: 0 }
 const limpar = () => admin.from('whatsapp_conversas').update(CONVERSA_LIMPA).eq('restaurante_id', loja.id).eq('telefone', TEL55)
@@ -22,7 +24,7 @@ const zap = async (texto) => {
   const desde = new Date().toISOString()
   const r = await fetch(`${BASE}/api/whatsapp/webhook/${cfg.webhook_segredo}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event: 'messages.upsert', instance: loja.evolution_instance, data: { key: { remoteJid: `${TEL55}@s.whatsapp.net`, fromMe: false, id: `AUD${randomUUID().replace(/-/g, '').toUpperCase()}` }, pushName: 'Felipe', messageType: 'conversation', message: { conversation: texto }, messageTimestamp: Math.floor(Date.now() / 1000) } }) })
   const j = await r.json().catch(() => null)
-  await espera(1500)
+  await espera(2500)
   const { data: env } = await admin.from('whatsapp_envios').select('texto').eq('restaurante_id', loja.id).eq('telefone', TEL55).gte('criado_em', desde).order('criado_em')
   return { status: r.status, j, respostas: (env ?? []).map((e) => e.texto) }
 }
@@ -45,6 +47,8 @@ let ok = 0
 await admin.from('restaurantes').update({ status_loja: 'aberto_manual', tempo_entrega: null, tempo_retirada: null }).eq('id', loja.id)
 try {
   for (const c of CASOS) {
+    // O banco só deixa 5 respostas do robô por minuto na conversa: espaça os casos.
+    if (c.n > 1) await espera(26_000)
     await limpar()
     if (c.prep) await c.prep()
     const msgs = Array.isArray(c.msg) ? c.msg : [c.msg]
@@ -58,6 +62,7 @@ try {
   }
 } finally {
   await admin.from('restaurantes').update({ status_loja: loja.status_loja, tempo_entrega: loja.tempo_entrega, tempo_retirada: loja.tempo_retirada }).eq('id', loja.id)
+  await admin.from('whatsapp_robo_config').update({ protecao_curta: cfg.protecao_curta, protecao_longa: cfg.protecao_longa }).eq('restaurante_id', loja.id)
   await limpar()
   writeFileSync(join(DIR, 'testes-menuzia.md'), md)
   console.log(`${ok} de ${CASOS.length} — ${join(DIR, 'testes-menuzia.md')}`)
