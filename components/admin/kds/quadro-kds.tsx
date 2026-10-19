@@ -1,6 +1,7 @@
 'use client'
 
 import { memo, useEffect, useState } from 'react'
+import { resumoCurto } from '@/lib/pedido-edicao-regras'
 import { Check, ChefHat, LogOut, Maximize2, Minimize2, Moon, Settings2, Sun, Type, Undo2, X } from 'lucide-react'
 import { corDoTempo, minutosDesde, type CorTempo, type LimitesTempo } from '@/lib/kds'
 import type { Pedido, PedidoItem } from '@/lib/queries/pedidos'
@@ -158,6 +159,7 @@ export function QuadroKds({
                 </li>
               ))}
             </ul>
+            {destaque.editadoEm && <p className="mx-4 mt-2 rounded-[3px] bg-[#B45309] px-2 py-1 text-center font-semibold text-white" data-testid="kds-destaque-alterado"><span className="uppercase tracking-wide">⚠ Alterado</span>{resumoCurto(destaque.edicoes) ? `: ${resumoCurto(destaque.edicoes)}` : ''}</p>}
             {destaque.observacao && <p className="mx-4 my-2 rounded-[3px] bg-[#FEF3C7] px-2 py-1 font-semibold text-[#92400E]">⚠ Pedido: {destaque.observacao}</p>}
             <button type="button" onClick={() => onPronto(destaque)} disabled={ocupado === destaque.id}
               className="flex h-[60px] items-center justify-center gap-2 bg-[#047857] text-[1.05em] font-semibold uppercase tracking-wide text-white hover:bg-[#065F46] disabled:opacity-60" data-testid="kds-destaque-pronto">
@@ -244,8 +246,8 @@ const CardKds = memo(function CardKds({ p, agora, prefs, riscados, fichas, ocupa
           </li>
         ))}
       </ul>
-      {/* Edição de pedido (18/10): a observação já traz o bloco "PEDIDO ALTERADO (hh:mm): …"; a faixa só chama a atenção. */}
-      {p.editadoEm && <p className="mx-3 mb-1 rounded-[3px] bg-[#B45309] px-2 py-1 text-center text-[0.9em] font-semibold uppercase tracking-wide text-white" data-testid="kds-alterado">⚠ Alterado</p>}
+      {/* Edição de pedido (Bloco A, 19/10): faixa curta gerada do histórico ("− 1× fsd · + 1× coca lata"); a observação do cliente fica só dele. */}
+      {p.editadoEm && <p className="mx-3 mb-1 rounded-[3px] bg-[#B45309] px-2 py-1 text-center text-[0.9em] font-semibold text-white" data-testid="kds-alterado"><span className="uppercase tracking-wide">⚠ Alterado</span>{resumoCurto(p.edicoes) ? `: ${resumoCurto(p.edicoes)}` : ''}</p>}
       {p.observacao && <p className="mx-3 mb-2 rounded-[3px] bg-[#FEF3C7] px-2 py-1 text-[0.95em] font-semibold text-[#92400E]" data-testid="kds-obs-pedido">⚠ Pedido: {p.observacao}</p>}
       <button type="button" onClick={() => onPronto(p)} disabled={ocupado}
         className="flex h-[56px] items-center justify-center gap-2 bg-[#047857] text-[1em] font-semibold uppercase tracking-wide text-white hover:bg-[#065F46] active:bg-[#064E3B] disabled:opacity-60" data-testid="kds-pronto">

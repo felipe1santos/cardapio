@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { EdicaoRegistro } from '@/lib/pedido-edicao-regras'
 import { agendaDaLinha, promocaoVigente } from '@/lib/promocao-agenda'
 import { erroDoTroco } from '@/lib/troco'
 import { motivoTelefoneDoPedido, soDigitos, telefoneWhatsapp } from '@/lib/telefone-br'
@@ -121,10 +122,12 @@ export interface Pedido {
   entregueAutomatico?: boolean
   /** Motoboy atribuído (nome), se houver. */
   entregadorNome?: string | null
-  /** Edição de pedido (0200, 18/10): quando/quem editou, histórico curto e diferença a receber na entrega (pago online). */
+  /** Edição de pedido (0200, 18/10): quando/quem editou, histórico (estruturado desde 19/10) e diferença a receber na entrega (pago online). */
   editadoEm?: string | null
   editadoPorNome?: string | null
-  edicoes?: { em: string; por: string; origem: string; mudancas: string[] }[]
+  edicoes?: EdicaoRegistro[]
+  /** Itens tirados por uma edição (cancelado_motivo = 'edicao'): riscados no card e no painel. Fora de `itens`. */
+  itensRemovidos?: { id: string; nome: string; quantidade: number; tamanhoNome: string }[]
   diferencaAReceber?: number | null
   saiuParaEntregaEm?: string | null
   itens: PedidoItem[]
@@ -208,6 +211,7 @@ interface PedidoRow {
   pedido_itens: {
     id: string
     cancelado_em?: string | null
+    cancelado_motivo?: string | null
     item_id?: string | null
     nome: string
     preco_unitario: number
@@ -229,7 +233,7 @@ export const PEDIDO_SELECT = `
   entregador_id, preparando_por, preparado_por, preparando_notificado, telefone_verificado, origem, canal, mesa, comanda_id, criado_por_nome, lancado_via, origem_canal, origem_detalhe, pagamento_online, comanda:comandas ( numero, senha ),
   cancelado_motivo, cancelado_observacao, cancelado_por, criado_em, atualizado_em, agendado_para,
   preparando_em, pronto_em, em_rota_em, entregue_em, entregue_automatico, editado_em, editado_por_nome, edicoes, diferenca_a_receber, saiu_para_entrega_em, entregador:entregadores!pedidos_entregador_id_fkey ( nome ),
-  pedido_itens ( id, item_id, nome, preco_unitario, quantidade, observacao, complementos, tamanho_nome, sabor_nome, borda_nome, massa_nome, cancelado_em, item:itens_cardapio ( descricao ) )
+  pedido_itens ( id, item_id, nome, preco_unitario, quantidade, observacao, complementos, tamanho_nome, sabor_nome, borda_nome, massa_nome, cancelado_em, cancelado_motivo, item:itens_cardapio ( descricao ) )
 `
 
 export function mapPedido(row: PedidoRow): Pedido {
@@ -284,7 +288,9 @@ export function mapPedido(row: PedidoRow): Pedido {
     entregueAutomatico: row.entregue_automatico === true,
     editadoEm: row.editado_em ?? null,
     editadoPorNome: row.editado_por_nome ?? null,
-    edicoes: Array.isArray(row.edicoes) ? (row.edicoes as { em: string; por: string; origem: string; mudancas: string[] }[]) : [],
+    edicoes: Array.isArray(row.edicoes) ? (row.edicoes as EdicaoRegistro[]) : [],
+    // Itens tirados por uma edição (Bloco A, 19/10): o card e o painel mostram riscados com "removido".
+    itensRemovidos: (row.pedido_itens ?? []).filter((i) => i.cancelado_em && i.cancelado_motivo === 'edicao').map((i) => ({ id: i.id, nome: i.nome, quantidade: i.quantidade, tamanhoNome: i.tamanho_nome ?? '' })),
     diferencaAReceber: row.diferenca_a_receber === null || row.diferenca_a_receber === undefined ? null : Number(row.diferenca_a_receber),
     saiuParaEntregaEm: row.saiu_para_entrega_em ?? null,
     entregadorNome: row.entregador?.nome ?? null,

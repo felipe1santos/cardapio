@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { ajustarTroco, aplicarMudancasItens, decisaoPagoOnline, montarObservacao, textoClienteAlterado, totalDoPedido } from './pedido-edicao-regras'
+import {
+  ajustarTroco, aplicarMudancasItens, decisaoPagoOnline, itensAdicionados, observacaoParaImpressao, resumoCurto, rotuloOrigemEdicao,
+  textoClienteAlterado, textoCurto, totalDoPedido, ultimaAlteracao, type EdicaoRegistro,
+} from './pedido-edicao-regras'
 
 const ATUAIS = [
   { id: 'a', nome: 'X-Tudo', precoUnitario: 30, quantidade: 2, observacao: '' },
@@ -14,13 +17,22 @@ describe('aplicarMudancasItens', () => {
     expect(r.subtotal).toBe(42.5)
     expect(r.textos).toEqual(['X-Tudo: 2× → 1×', 'X-Tudo: obs. "sem cebola"', '−1× Coca 2L', '+1× Batata'])
   })
+  it('histórico ESTRUTURADO (Bloco A, 19/10): cada mudança com tipo, item e valores de/para', () => {
+    const r = aplicarMudancasItens(ATUAIS, { remover: ['b'], quantidade: [{ itemId: 'a', quantidade: 1 }], observacao: [{ itemId: 'a', observacao: 'sem cebola' }] }, [{ nome: 'Batata', precoUnitario: 12.5, quantidade: 1 }])
+    expect(r.alteracoes).toEqual([
+      { tipo: 'item_quantidade', itemId: 'a', nome: 'X-Tudo', de: 2, para: 1 },
+      { tipo: 'item_observacao', itemId: 'a', nome: 'X-Tudo', de: '', para: 'sem cebola' },
+      { tipo: 'item_removido', itemId: 'b', nome: 'Coca 2L', quantidade: 1 },
+      { tipo: 'item_adicionado', nome: 'Batata', quantidade: 1 },
+    ])
+  })
   it('quantidade 0 = remover; pedido sem itens é recusado', () => {
     expect(aplicarMudancasItens(ATUAIS, { quantidade: [{ itemId: 'b', quantidade: 0 }] }, []).cancelar).toEqual(['b'])
     expect(() => aplicarMudancasItens(ATUAIS, { remover: ['a', 'b'] }, [])).toThrow(/sem itens/)
   })
   it('sem mudança nenhuma: nada a gravar e subtotal igual', () => {
     const r = aplicarMudancasItens(ATUAIS, {}, [])
-    expect(r.textos).toEqual([]); expect(r.cancelar).toEqual([]); expect(r.atualizar).toEqual([]); expect(r.subtotal).toBe(68)
+    expect(r.textos).toEqual([]); expect(r.alteracoes).toEqual([]); expect(r.cancelar).toEqual([]); expect(r.atualizar).toEqual([]); expect(r.subtotal).toBe(68)
   })
 })
 
@@ -54,13 +66,59 @@ describe('decisaoPagoOnline (Q5/estorno)', () => {
   })
 })
 
-describe('observação e WhatsApp', () => {
-  it('bloco ALTERADO na frente da observação original, mais recente primeiro, no máximo 3', () => {
-    const em = '2026-10-18T22:10:00.000Z' // 19:10 em São Paulo
-    const t = montarObservacao('sem gelo', [{ em, mudancas: ['−1× Coca 2L'] }, { em: '2026-10-18T22:30:00.000Z', mudancas: ['+1× Batata'] }])
-    expect(t).toBe('PEDIDO ALTERADO (19:30): +1× Batata | PEDIDO ALTERADO (19:10): −1× Coca 2L | sem gelo')
-    expect(montarObservacao('', [])).toBe('')
+const EDICOES: EdicaoRegistro[] = [
+  { em: '2026-10-18T22:10:00.000Z', por: 'Administrador', origem: 'painel', mudancas: ['−1× fsd', '+1× coca lata'], alteracoes: [
+    { tipo: 'item_removido', itemId: 'i1', nome: 'fsd', quantidade: 1 },
+    { tipo: 'item_adicionado', itemId: 'i9', nome: 'coca lata', quantidade: 1 },
+  ] },
+  { em: '2026-10-18T22:30:00.000Z', por: 'Administrador', origem: 'solicitacao', via: 'robo', mudancas: ['Endereço: Rua B, 2 · Centro', 'Taxa de entrega: R$ 3,00'], alteracoes: [
+    { tipo: 'endereco', de: 'Rua A, 1 · Jaburuna', para: 'Rua B, 2 · Centro' },
+    { tipo: 'taxa', de: 5.89, para: 3 },
+  ] },
+]
+
+describe('histórico estruturado: textos curtos, comanda/KDS, itens e origem', () => {
+  it('texto curto de cada tipo de alteração', () => {
+    expect(textoCurto({ tipo: 'item_removido', itemId: 'x', nome: 'fsd', quantidade: 1 })).toBe('− 1× fsd')
+    expect(textoCurto({ tipo: 'item_adicionado', nome: 'coca lata', quantidade: 2 })).toBe('+ 2× coca lata')
+    expect(textoCurto({ tipo: 'item_quantidade', itemId: 'x', nome: 'X-Tudo', de: 2, para: 1 })).toBe('X-Tudo 2×→1×')
+    expect(textoCurto({ tipo: 'item_observacao', itemId: 'x', nome: 'X-Tudo', de: '', para: 'sem cebola' })).toBe('X-Tudo: obs. "sem cebola"')
+    expect(textoCurto({ tipo: 'item_observacao', itemId: 'x', nome: 'X-Tudo', de: 'sem cebola', para: '' })).toBe('X-Tudo: obs. removida')
+    expect(textoCurto({ tipo: 'endereco', de: 'Rua A, 1', para: 'Rua B, 2' })).toBe('novo endereço')
+    expect(textoCurto({ tipo: 'taxa', de: 5.89, para: 3 })).toBe('taxa R$ 3,00')
+    expect(textoCurto({ tipo: 'cupom', de: 'TESTE', para: null })).toBe('cupom TESTE removido')
+    expect(textoCurto({ tipo: 'pagamento', de: 'Dinheiro', para: 'Pix' })).toBe('pagamento Pix')
+    expect(textoCurto({ tipo: 'troco', de: 100, para: null })).toBe('sem troco')
+    expect(textoCurto({ tipo: 'diferenca', para: 6 })).toBe('+ R$ 6,00 na entrega')
+    expect(textoCurto({ tipo: 'estorno', para: 6 })).toBe('estorno R$ 6,00')
   })
+  it('resumo curto da ÚLTIMA edição (KDS); edição antiga sem alteracoes cai nos textos', () => {
+    expect(resumoCurto(EDICOES)).toBe('novo endereço · taxa R$ 3,00')
+    expect(resumoCurto([EDICOES[0]])).toBe('− 1× fsd · + 1× coca lata')
+    expect(resumoCurto([{ em: '2026-10-18T22:10:00.000Z', por: 'A', origem: 'painel', mudancas: ['+1× Batata'] }])).toBe('+1× Batata')
+    expect(resumoCurto([])).toBe('')
+  })
+  it('observação da comanda: bloco curto "PEDIDO ALTERADO (hh:mm)" na frente da observação do cliente (que fica intocada no banco)', () => {
+    expect(observacaoParaImpressao('sem gelo', EDICOES)).toBe('PEDIDO ALTERADO (19:30): novo endereço · taxa R$ 3,00 | PEDIDO ALTERADO (19:10): − 1× fsd · + 1× coca lata | sem gelo')
+    expect(observacaoParaImpressao('', [])).toBe('')
+    expect(observacaoParaImpressao('sem gelo', [])).toBe('sem gelo')
+    expect(observacaoParaImpressao(null, [EDICOES[0]])).toBe('PEDIDO ALTERADO (19:10): − 1× fsd · + 1× coca lata')
+  })
+  it('ids dos itens adicionados e última alteração de um campo', () => {
+    expect([...itensAdicionados(EDICOES)]).toEqual(['i9'])
+    expect(ultimaAlteracao(EDICOES, 'endereco')).toEqual({ tipo: 'endereco', de: 'Rua A, 1 · Jaburuna', para: 'Rua B, 2 · Centro' })
+    expect(ultimaAlteracao(EDICOES, 'pagamento')).toBeNull()
+  })
+  it('rótulo da origem: loja, cliente pelo robô/IA, Agente de IA', () => {
+    expect(rotuloOrigemEdicao(EDICOES[0])).toBe('pela loja')
+    expect(rotuloOrigemEdicao(EDICOES[1])).toBe('pelo cliente (robô)')
+    expect(rotuloOrigemEdicao({ ...EDICOES[1], via: 'ia' })).toBe('pelo cliente (IA)')
+    expect(rotuloOrigemEdicao({ ...EDICOES[1], via: undefined })).toBe('pelo cliente')
+    expect(rotuloOrigemEdicao({ ...EDICOES[0], origem: 'ia' })).toBe('pelo Agente de IA')
+  })
+})
+
+describe('WhatsApp', () => {
   it('texto do cliente com total e diferença', () => {
     expect(textoClienteAlterado(412, ['−1× Coca 2L'], 30)).toBe('*✏️ Pedido #412 alterado*\n\n• −1× Coca 2L\n\nNovo total: *R$ 30,00*')
     expect(textoClienteAlterado(412, ['+1× Batata'], 42, 6)).toContain('Diferença a pagar na entrega: *R$ 6,00*')

@@ -100,7 +100,7 @@ export async function aplicarSolicitacao(admin: SupabaseClient, s: SolicitacaoLi
     const corpo = edicao ?? s.proposta
     if (!corpo) return { ok: false, erro: 'Esta solicitação não tem mudança estruturada: use o lápis para editar o pedido e depois marque como aplicada.', status: 409, codigo: 'sem_proposta' }
     try {
-      const r = await editarPedido(admin, { restauranteId: s.restauranteId, pedidoId: s.pedidoId, por, origem: 'solicitacao', edicao: { ...corpo, reimprimir: corpo.reimprimir ?? true } })
+      const r = await editarPedido(admin, { restauranteId: s.restauranteId, pedidoId: s.pedidoId, por, origem: 'solicitacao', via: s.origem, edicao: { ...corpo, reimprimir: corpo.reimprimir ?? true } })
       mudancas = r.mudancas
     } catch (e) {
       if (e instanceof EdicaoError) return { ok: false, erro: e.message, status: e.status, codigo: e.codigo }

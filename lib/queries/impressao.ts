@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { observacaoParaImpressao, type EdicaoRegistro } from '@/lib/pedido-edicao-regras'
 
 export interface ConfigImpressao {
   mostrarNumeroItem: boolean
@@ -287,14 +288,16 @@ export async function listarPedidosParaImprimir(
     .from('pedidos')
     .select(
       `id, numero, tipo, forma_pagamento, cartao_tipo, troco_para, cliente_nome, cliente_telefone, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep, endereco_cidade, endereco_referencia,
-       observacao, pago, pagamento_online, status, origem, mesa, canal, subtotal, taxa_entrega, total, criado_em,
+       observacao, edicoes, pago, pagamento_online, status, origem, mesa, canal, subtotal, taxa_entrega, total, criado_em,
        comandas ( senha ),
-       pedido_itens ( nome, quantidade, preco_unitario, observacao, tamanho_nome, sabor_nome, borda_nome, massa_nome, complementos )`
+       pedido_itens ( nome, quantidade, preco_unitario, observacao, tamanho_nome, sabor_nome, borda_nome, massa_nome, complementos, cancelado_em )`
     )
     .eq('restaurante_id', restauranteId)
     .in('id', ids)
     // Cancelado entre a reserva e a leitura: não sai.
     .neq('status', 'cancelado')
+    // Item removido numa edição (cancelado_em, 0200) não vai para o papel.
+    .is('pedido_itens.cancelado_em', null)
     .order('criado_em', { ascending: true })
   if (error) throw error
 
@@ -315,7 +318,9 @@ export async function listarPedidosParaImprimir(
     enderecoCep: p.endereco_cep ?? '',
     enderecoCidade: p.endereco_cidade ?? '',
     enderecoReferencia: p.endereco_referencia ?? '',
-    observacao: p.observacao,
+    // Pedido editado (Bloco A, 19/10): o bloco curto "PEDIDO ALTERADO (hh:mm): …" vem do histórico, só no papel —
+    // a observação do cliente fica intocada no banco e o layout do Assistente não muda ("Obs. do pedido: …").
+    observacao: observacaoParaImpressao(p.observacao, Array.isArray((p as { edicoes?: unknown }).edicoes) ? ((p as { edicoes?: EdicaoRegistro[] }).edicoes ?? []) : []),
     pago: Boolean(p.pago),
     pagamentoOnline: (p as { pagamento_online?: boolean | null }).pagamento_online === true,
     status: String((p as { status?: string | null }).status ?? ''),

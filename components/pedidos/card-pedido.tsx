@@ -1,8 +1,10 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import { Fragment, type ReactNode } from 'react'
 import { ArrowRight, Check, MoreHorizontal, Pencil, Printer } from 'lucide-react'
 import type { Pedido } from '@/lib/queries/pedidos'
+import { itensAdicionados } from '@/lib/pedido-edicao-regras'
+import { Editado, EtiquetaEdicao } from '@/components/pedidos/marcas-edicao'
 import { corTempoPedido, textoTempoPedido } from '@/lib/tempo-pedido'
 import { formatarReal } from '@/lib/moeda'
 import { origemVisivelNoCard, rotuloOrigemPedido } from '@/lib/pedido-origem'
@@ -110,7 +112,9 @@ export function CardPedido({ order, now, selecionado, destaqueNovo, somBloqueado
   const idadeMs = now - new Date(order.criadoEm).getTime()
   const corTempo = { ok: 'text-[#6B7280]', atencao: 'text-[#B45309]', atraso: 'text-[#B91C1C]' }[corTempoPedido(idadeMs)]
   const tipo = order.canal === 'mesa' ? `Mesa${order.mesa ? ` ${order.mesa}` : ''}` : order.tipo === 'entrega' ? 'Entrega' : 'Retirada'
-  const { texto: itens, resto } = resumoItens(order.itens)
+  const { resto } = resumoItens(order.itens)
+  const adicionados = itensAdicionados(order.edicoes)
+  const removidos = order.itensRemovidos ?? []
   const local = order.tipo === 'entrega' ? order.enderecoBairro : null
   const pag = rotuloForma(order.formaPagamento, order.cartaoTipo, order.pagamentoOnline)
   return (
@@ -141,7 +145,7 @@ export function CardPedido({ order, now, selecionado, destaqueNovo, somBloqueado
         {/* Linha 2: tipo · bairro · forma — hora e tempo à direita */}
         <div className="mt-0.5 flex items-center justify-between gap-2 text-[11.5px] leading-[15px] text-[#6B7280]">
           <span className="min-w-0 truncate">
-            {order.editadoEm && <span className="mr-1 rounded-[2px] bg-[#FEF3C7] px-1 py-[1px] text-[10.5px] font-semibold text-[#92400E]" title={`Alterado às ${hora(order.editadoEm)}${order.editadoPorNome ? ` por ${order.editadoPorNome}` : ''}`} data-testid="card-editado">editado</span>}
+            {order.editadoEm && <span className="mr-1 rounded-[2px] border border-[#F59E0B] bg-[#FEF3C7] px-1 text-[10.5px] font-semibold text-[#92400E]" title={`Alterado às ${hora(order.editadoEm)}${order.editadoPorNome ? ` por ${order.editadoPorNome}` : ''}`} data-testid="card-editado">editado</span>}
             <span data-testid="card-tipo">{tipo}</span>
             {local && <> · {local}</>}
             {order.canal !== 'mesa' && <> · {pag}</>}
@@ -150,10 +154,15 @@ export function CardPedido({ order, now, selecionado, destaqueNovo, somBloqueado
             {hora(order.criadoEm)} · há {textoTempoPedido(idadeMs)}
           </span>
         </div>
-        {/* Itens */}
-        {order.itens.length > 0 && (
+        {/* Itens — item adicionado por edição em amarelo + "adicionado"; removido riscado + "removido" (Bloco A, 19/10) */}
+        {(order.itens.length > 0 || removidos.length > 0) && (
           <p className="mt-1 line-clamp-2 text-[11.5px] leading-[15px] text-[#4B5563]" data-testid="card-itens">
-            {itens}{resto > 0 && <span className="text-[#9CA3AF]"> +{resto} {resto === 1 ? 'item' : 'itens'}</span>}
+            {order.itens.slice(0, 3).map((i, k) => {
+              const nome = `${i.quantidade}× ${i.nome}${i.tamanhoNome ? ` ${i.tamanhoNome}` : ''}`
+              return <Fragment key={i.id}>{k > 0 && ', '}{adicionados.has(i.id) ? <><Editado>{nome}</Editado><EtiquetaEdicao tipo="adicionado" /></> : nome}</Fragment>
+            })}
+            {resto > 0 && <span className="text-[#9CA3AF]"> +{resto} {resto === 1 ? 'item' : 'itens'}</span>}
+            {removidos.map((r) => <Fragment key={r.id}>{order.itens.length > 0 && ', '}<s className="text-[#9CA3AF]">{r.quantidade}× {r.nome}{r.tamanhoNome ? ` ${r.tamanhoNome}` : ''}</s><EtiquetaEdicao tipo="removido" /></Fragment>)}
           </p>
         )}
       </div>

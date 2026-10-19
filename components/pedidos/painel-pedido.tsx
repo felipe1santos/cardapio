@@ -1,8 +1,10 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { AlertTriangle, ArrowLeft, Banknote, Bike, CreditCard, MapPin, Pencil, Phone, PrinterCheck, X } from 'lucide-react'
 import type { Pedido } from '@/lib/queries/pedidos'
+import { itensAdicionados, rotuloOrigemEdicao, ultimaAlteracao } from '@/lib/pedido-edicao-regras'
+import { Antigo, Editado, EtiquetaEdicao, quantidadesAlteradas } from '@/components/pedidos/marcas-edicao'
 import { EtiquetasPedido } from '@/components/pedidos/etiquetas-pedido'
 import { EditorPagamento } from '@/components/pedidos/editor-pagamento'
 import { IconesDoPedido } from '@/components/pedidos/card-pedido'
@@ -20,7 +22,9 @@ import { textoStatusLalamove, type EntregaProvedorLinha } from '@/lib/entregas/l
  * espreme as colunas nem cobre o que se quer clicar); clique fora (que não seja outro card) fecha. Cantos retos,
  * fonte do painel (Mulish), um bloco só com divisórias finas. Ações no topo (Reimprimir, Cancelar); barrinhas de
  * etapa discretas; azul de destaque #184F95; observação do cliente sempre em vermelho; os mesmos ícones do card.
- * Mesmos handlers de sempre.
+ * Edição (Bloco A, 19/10): UMA linha amarela no topo ("Alterado às hh:mm por … · ver histórico") que abre a lista;
+ * item removido riscado + "removido"; item adicionado em amarelo + "adicionado"; endereço/taxa/cupom/pagamento novos em
+ * amarelo com o antigo riscado ao lado (components/pedidos/marcas-edicao.tsx). Mesmos handlers de sempre.
  */
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const hora = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null)
@@ -105,6 +109,14 @@ export function PainelPedido({
   }, [onFechar])
 
   const p = pedido
+  const [historicoAberto, setHistoricoAberto] = useState(false)
+  const adicionados = itensAdicionados(p.edicoes)
+  const qtdAlteradas = quantidadesAlteradas(p.edicoes)
+  const altEndereco = ultimaAlteracao(p.edicoes, 'endereco')
+  const altTaxa = ultimaAlteracao(p.edicoes, 'taxa')
+  const altCupom = ultimaAlteracao(p.edicoes, 'cupom')
+  const altPagamento = ultimaAlteracao(p.edicoes, 'pagamento')
+  const altTroco = ultimaAlteracao(p.edicoes, 'troco')
   const Icone = p.formaPagamento === 'dinheiro' ? Banknote : CreditCard
   const levar = !p.pago && p.formaPagamento === 'dinheiro' ? trocoLevar(p.total, p.trocoPara) : 0
   const idade = textoTempoPedido(agora - new Date(p.criadoEm).getTime())
@@ -162,9 +174,26 @@ export function PainelPedido({
         </p>
         <div className="mt-2.5"><BarrasEtapas pedido={p} /></div>
         {p.editadoEm && p.edicoes && p.edicoes.length > 0 && (
-          <p className="mt-2 rounded-[2px] bg-[#FEF3C7] px-2 py-1.5 text-[12px] text-[#92400E]" data-testid="painel-editado">
-            <b>Alterado às {hora(p.editadoEm)}{p.editadoPorNome ? ` por ${p.editadoPorNome}` : ''}:</b> {p.edicoes[p.edicoes.length - 1].mudancas.join(' · ')}
-          </p>
+          <div className="mt-2" data-testid="painel-editado">
+            <button type="button" onClick={() => setHistoricoAberto((v) => !v)} aria-expanded={historicoAberto}
+              className="flex h-[26px] w-full items-center gap-1.5 rounded-[2px] border border-[#F59E0B] bg-[#FEF3C7] px-2 text-left text-[12px] text-[#92400E] hover:bg-[#FDE68A]" data-testid="painel-editado-linha">
+              <Pencil className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />
+              <span className="min-w-0 truncate"><b>Alterado às {hora(p.editadoEm)}</b>{p.editadoPorNome ? ` por ${p.editadoPorNome}` : ''}</span>
+              <span className="ml-auto flex-shrink-0 underline">{historicoAberto ? 'ocultar histórico' : 'ver histórico'}</span>
+            </button>
+            {historicoAberto && (
+              <ol className="mt-1 space-y-1.5 rounded-[2px] border border-[#F59E0B] bg-[#FFFBEB] px-2 py-1.5 text-[12px] text-[#1F2937]" data-testid="painel-historico">
+                {[...p.edicoes].reverse().map((e, i) => (
+                  <li key={`${e.em}-${i}`}>
+                    <div className="text-[11px] font-semibold text-[#92400E]">{hora(e.em)} · {e.por} · {rotuloOrigemEdicao(e)}</div>
+                    <ul className="mt-0.5 space-y-px">
+                      {e.mudancas.map((m, k) => <li key={k} className="pl-2 before:mr-1 before:content-['•']">{m}</li>)}
+                    </ul>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
         )}
         {reimpEstado === 'ok' && <p className="mt-1.5 text-[11.5px] text-[#6B7280]">Sai na próxima varredura do Assistente (impressão automática precisa estar ligada).</p>}
         {reimpEstado === 'erro' && <p className="mt-1.5 text-[11.5px] text-[#B91C1C]">Não foi possível solicitar a reimpressão. Tente de novo.</p>}
@@ -214,8 +243,11 @@ export function PainelPedido({
             <div className={LINHA}>
               <span className={`${ROTULO} inline-flex items-center gap-1`}><MapPin className="h-3.5 w-3.5" aria-hidden /> Endereço</span>
               <span className={VALOR}>
-                {p.enderecoRua}, {p.enderecoNumero}{p.enderecoComplemento && ` · ${p.enderecoComplemento}`}
+                {altEndereco
+                  ? <Editado testid="painel-endereco-editado">{p.enderecoRua}, {p.enderecoNumero}{p.enderecoComplemento && ` · ${p.enderecoComplemento}`}</Editado>
+                  : <>{p.enderecoRua}, {p.enderecoNumero}{p.enderecoComplemento && ` · ${p.enderecoComplemento}`}</>}
                 <br /><span className="font-normal text-[#4B5563]">{p.enderecoBairro}{p.enderecoCidade && ` · ${p.enderecoCidade}`}{p.enderecoCep && ` · ${p.enderecoCep}`}</span>
+                {altEndereco && <><br /><Antigo>{altEndereco.de}</Antigo></>}
               </span>
             </div>
             {p.enderecoReferencia && <div className={LINHA}><span className={ROTULO}>Referência</span><span className={VALOR}>{p.enderecoReferencia}</span></div>}
@@ -241,10 +273,11 @@ export function PainelPedido({
           <p className={TITULO}>Itens do pedido</p>
           <ul className="space-y-1.5" data-testid="painel-itens">
             {p.itens.map((l) => (
-              <li key={l.id}>
+              <li key={l.id} data-testid={adicionados.has(l.id) ? 'painel-item-adicionado' : undefined}>
                 <div className="flex justify-between gap-3 text-[13px] text-[#1F2937]">
                   <span className="min-w-0">
-                    <b>{l.quantidade}×</b> {l.nome}
+                    {qtdAlteradas.has(l.id) ? <><Editado testid="painel-item-quantidade"><b>{l.quantidade}×</b></Editado><Antigo>{qtdAlteradas.get(l.id)!.de}×</Antigo> </> : <><b>{l.quantidade}×</b> </>}
+                    {adicionados.has(l.id) ? <><Editado>{l.nome}</Editado><EtiquetaEdicao tipo="adicionado" /></> : l.nome}
                     {l.tamanhoNome && <span className="text-[#6B7280]"> · {l.tamanhoNome}</span>}
                     {l.saborNome && <span className="text-[#6B7280]"> · {l.saborNome}</span>}
                   </span>
@@ -255,11 +288,17 @@ export function PainelPedido({
                 {l.observacao && <Obs texto={`Obs.: ${l.observacao}`} testid="painel-obs-item" />}
               </li>
             ))}
+            {(p.itensRemovidos ?? []).map((r) => (
+              <li key={r.id} className="text-[13px] text-[#9CA3AF]" data-testid="painel-item-removido">
+                <s><b>{r.quantidade}×</b> {r.nome}{r.tamanhoNome && ` · ${r.tamanhoNome}`}</s><EtiquetaEdicao tipo="removido" />
+              </li>
+            ))}
           </ul>
           <div className="mt-2 space-y-0.5 border-t border-[#EEF0F3] pt-2 text-[12.5px]">
             <div className="flex justify-between text-[#6B7280]"><span>Subtotal</span><span className="tabular-nums">{brl(p.subtotal)}</span></div>
-            {p.taxaEntrega > 0 && <div className="flex justify-between text-[#6B7280]"><span>Taxa de entrega</span><span className="tabular-nums">{brl(p.taxaEntrega)}</span></div>}
+            {(p.taxaEntrega > 0 || altTaxa) && <div className="flex justify-between text-[#6B7280]"><span>Taxa de entrega</span><span className="tabular-nums">{altTaxa ? <><Editado testid="painel-taxa-editada">{brl(p.taxaEntrega)}</Editado><Antigo>{brl(altTaxa.de)}</Antigo></> : brl(p.taxaEntrega)}</span></div>}
             {p.desconto > 0 && <div className="flex justify-between text-[#6B7280]"><span>Desconto</span><span className="tabular-nums">−{brl(p.desconto)}</span></div>}
+            {altCupom && p.desconto === 0 && <div className="flex justify-between text-[#6B7280]" data-testid="painel-cupom-removido"><span>Cupom</span><span><s className="text-[#9CA3AF]">{altCupom.de}</s><EtiquetaEdicao tipo="removido" /></span></div>}
             <div className="flex items-baseline justify-between pt-1"><span className="text-[13.5px] font-semibold text-[#111827]">Total</span><span className="text-[17px] font-semibold tabular-nums text-[#15803D]" data-testid="painel-total">{brl(p.total)}</span></div>
           </div>
         </div>
@@ -274,12 +313,15 @@ export function PainelPedido({
               <div className={LINHA} data-testid="detalhes-pagamento">
                 <span className={ROTULO}>Forma</span>
                 <span className={`${VALOR} inline-flex items-center gap-1.5`}>
-                  {p.formaPagamento === 'pix' ? <IconePix className="h-4 w-4" /> : <Icone className="h-4 w-4 text-[#6B7280]" aria-hidden />} {rotuloForma(p.formaPagamento, p.cartaoTipo, p.pagamentoOnline)}
+                  {p.formaPagamento === 'pix' ? <IconePix className="h-4 w-4" /> : <Icone className="h-4 w-4 text-[#6B7280]" aria-hidden />}
+                  {altPagamento ? <><Editado testid="painel-pagamento-editado">{rotuloForma(p.formaPagamento, p.cartaoTipo, p.pagamentoOnline)}</Editado><Antigo>{altPagamento.de}</Antigo></> : rotuloForma(p.formaPagamento, p.cartaoTipo, p.pagamentoOnline)}
                 </span>
               </div>
               <div className={LINHA}><span className={ROTULO}>Situação</span>{p.pago ? <span className="font-semibold text-[#15803D]">{p.pagamentoOnline ? 'Pago online' : 'Pago'}</span> : <span className="font-semibold text-[#92400E]">{statusAReceber(p.tipo)}</span>}</div>
               {p.formaPagamento === 'dinheiro' && p.trocoPara ? (
                 <div className={LINHA}><span className={ROTULO}>Troco</span><span className="font-semibold text-[#92400E]" data-testid="painel-troco">para {brl(p.trocoPara)}{levar > 0 ? ` · levar ${brl(levar)}` : ''}</span></div>
+              ) : altTroco && p.formaPagamento === 'dinheiro' ? (
+                <div className={LINHA}><span className={ROTULO}>Troco</span><span data-testid="painel-troco-removido"><s className="text-[#9CA3AF]">para {brl(altTroco.de)}</s><EtiquetaEdicao tipo="removido" /></span></div>
               ) : null}
               {p.status !== 'cancelado' && (editandoPag
                 ? <div className="pt-2"><EditorPagamento pedidoId={p.id} p={p} onCancelar={() => setEditandoPag(false)} onFeito={() => { setEditandoPag(false); onPagamentoAlterado() }} /></div>

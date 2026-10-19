@@ -12,8 +12,8 @@ import { corridaAtivaDoPedido } from '@/lib/entregas/queries'
 import { pedidoEditavel } from '@/lib/pedido-editavel'
 import { daPedido, erroPagamentoPdv, lerPagamentoPdv, paraPedido, rotuloForma, type PagamentoPdv } from '@/lib/pdv-pagamento'
 import {
-  ajustarTroco, aplicarMudancasItens, decisaoPagoOnline, montarObservacao, textoClienteAlterado, totalDoPedido,
-  type EscolhaPagoOnline, type MudancasItens,
+  ajustarTroco, aplicarMudancasItens, decisaoPagoOnline, textoClienteAlterado, totalDoPedido,
+  type AlteracaoPedido, type EdicaoRegistro, type EscolhaPagoOnline, type MudancasItens,
 } from '@/lib/pedido-edicao-regras'
 
 /**
@@ -26,8 +26,10 @@ import {
  *  3. endereço novo → frete pela mesma regra (resolverFrete) + frete grátis acima de X; fora da área = erro
  *  4. cupom: pedido mínimo revalidado; abaixo dele o cupom sai (uso devolvido) e vira uma mudança
  *  5. total, troco; pago online → estorno parcial / diferença na entrega (decisaoPagoOnline), senão bloqueia
- *  6. grava: itens (cancelado_em / qtd / obs / novos), pedido (totais, endereço, pagamento, observação com o bloco
- *     "PEDIDO ALTERADO", edicoes, reimprimir), auditoria, WhatsApp ao cliente (mensagem automática "alterado")
+ *  6. grava: itens (cancelado_em / qtd / obs / novos), pedido (totais, endereço, pagamento, histórico `edicoes` com as
+ *     alterações ESTRUTURADAS, reimprimir), auditoria, WhatsApp ao cliente (mensagem automática "alterado").
+ *     A observação do cliente NÃO é tocada (Bloco A, 19/10): o bloco "PEDIDO ALTERADO" da comanda é gerado do
+ *     histórico na hora de imprimir (lib/queries/impressao.ts); KDS, painel e card leem `edicoes`.
  */
 export interface EdicaoPedido {
   itens?: MudancasItens & { adicionar?: NovoPedidoItemInput[] }
@@ -52,11 +54,13 @@ export async function editarPedido(admin: SupabaseClient, p: {
   pedidoId: string
   por: { id: string | null; nome: string }
   origem: 'painel' | 'solicitacao' | 'ia'
+  /** Solicitação do cliente: por onde ele pediu (robô ou IA) — só para o rótulo do histórico. */
+  via?: 'robo' | 'ia' | null
   edicao: EdicaoPedido
 }): Promise<{ numero: number; total: number; mudancas: string[]; diferencaAReceber: number | null }> {
   const { restauranteId, pedidoId, edicao } = p
   const { data: ped, error } = await admin.from('pedidos')
-    .select('id, numero, status, tipo, canal, origem, origem_canal, entregador_id, saiu_para_entrega_em, cliente_nome, cliente_telefone, forma_pagamento, cartao_tipo, troco_para, pago, pagamento_online, subtotal, taxa_entrega, desconto, total, observacao, observacao_original, edicoes, diferenca_a_receber, cupom_codigo, recompensa_id, agendado_para, pizza_calculo_preco:restaurantes!inner ( pizza_calculo_preco, frete_gratis_acima, nome, mensagens_status, evolution_instance ), endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep, endereco_cidade, endereco_referencia, pedido_itens ( id, item_id, nome, preco_unitario, quantidade, observacao, tamanho_nome, cancelado_em )')
+    .select('id, numero, status, tipo, canal, origem, origem_canal, entregador_id, saiu_para_entrega_em, cliente_nome, cliente_telefone, forma_pagamento, cartao_tipo, troco_para, pago, pagamento_online, subtotal, taxa_entrega, desconto, total, observacao, edicoes, diferenca_a_receber, cupom_codigo, recompensa_id, agendado_para, pizza_calculo_preco:restaurantes!inner ( pizza_calculo_preco, frete_gratis_acima, nome, mensagens_status, evolution_instance ), endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep, endereco_cidade, endereco_referencia, pedido_itens ( id, item_id, nome, preco_unitario, quantidade, observacao, tamanho_nome, cancelado_em )')
     .eq('id', pedidoId).eq('restaurante_id', restauranteId).maybeSingle()
   if (error) throw error
   if (!ped) throw new EdicaoError('Pedido não encontrado nesta loja.', 404)
@@ -68,6 +72,7 @@ export async function editarPedido(admin: SupabaseClient, p: {
   if (!ok.ok) throw new EdicaoError(ok.texto, 409, { codigo: ok.motivo })
 
   const mudancas: string[] = []
+  const alteracoes: AlteracaoPedido[] = []
   const atuais = ((ped.pedido_itens ?? []) as Linha[]).filter((i) => !i.cancelado_em).map((i) => ({ id: i.id, nome: i.nome, precoUnitario: Number(i.preco_unitario), quantidade: i.quantidade, observacao: i.observacao ?? '', tamanhoNome: i.tamanho_nome || undefined }))
 
   // 2. itens novos pelo mesmo preço da vitrine
@@ -80,6 +85,7 @@ export async function editarPedido(admin: SupabaseClient, p: {
   }
   const itens = aplicarMudancasItens(atuais, edicao.itens ?? {}, novasLinhas.map((l) => ({ nome: l.nome, precoUnitario: l.preco_unitario, quantidade: l.quantidade, tamanhoNome: l.tamanho_nome || undefined })))
   mudancas.push(...itens.textos)
+  alteracoes.push(...itens.alteracoes)
   const subtotal = itens.subtotal
 
   // 3. endereço / frete
@@ -95,9 +101,13 @@ export async function editarPedido(admin: SupabaseClient, p: {
     let taxa = frete.taxa
     const minimo = loja?.frete_gratis_acima === null || loja?.frete_gratis_acima === undefined ? null : Number(loja.frete_gratis_acima)
     if (taxa > 0 && minimo !== null && minimo > 0 && subtotal >= minimo) taxa = 0
-    if (enderecoMudou) mudancas.push(`Endereço: ${endereco!.rua}, ${endereco!.numero}${endereco!.bairro ? ` · ${endereco!.bairro}` : ''}`)
+    if (enderecoMudou) {
+      const para = `${endereco!.rua}, ${endereco!.numero}${endereco!.bairro ? ` · ${endereco!.bairro}` : ''}`
+      const de = `${ped.endereco_rua ?? ''}, ${ped.endereco_numero ?? ''}${ped.endereco_bairro ? ` · ${ped.endereco_bairro}` : ''}`
+      mudancas.push(`Endereço: ${para}`); alteracoes.push({ tipo: 'endereco', de, para })
+    }
     // Cupom de entrega grátis continua zerando a taxa.
-    if (taxa !== taxaEntrega) { taxaEntrega = taxa; mudancas.push(`Taxa de entrega: R$ ${taxa.toFixed(2).replace('.', ',')}`) }
+    if (taxa !== taxaEntrega) { alteracoes.push({ tipo: 'taxa', de: taxaEntrega, para: taxa }); taxaEntrega = taxa; mudancas.push(`Taxa de entrega: R$ ${taxa.toFixed(2).replace('.', ',')}`) }
   }
 
   // 4. cupom: pedido mínimo
@@ -110,6 +120,7 @@ export async function editarPedido(admin: SupabaseClient, p: {
       if (minimo !== null && subtotal < minimo) {
         cupomRemovido = true; desconto = 0
         mudancas.push(`Cupom ${cupom.codigo} removido (pedido mínimo R$ ${minimo.toFixed(2).replace('.', ',')})`)
+        alteracoes.push({ tipo: 'cupom', de: String(cupom.codigo), para: null })
       } else {
         const d = calcularDesconto(cupom.tipo, cupom.valor === null ? null : Number(cupom.valor), subtotal, taxaEntrega)
         desconto = d.descontoSubtotal
@@ -132,27 +143,29 @@ export async function editarPedido(admin: SupabaseClient, p: {
     const novo = paraPedido(pg)
     const antes = daPedido(ped.forma_pagamento as string, cartaoTipo, trocoPara)
     if (novo.forma_pagamento !== formaPagamento || novo.cartao_tipo !== cartaoTipo || (novo.troco_para ?? null) !== (trocoPara ?? null)) {
-      mudancas.push(`Pagamento: ${antes ? rotuloForma(ped.forma_pagamento as string, cartaoTipo) : '—'} → ${rotuloForma(novo.forma_pagamento, novo.cartao_tipo)}${novo.troco_para ? ` (troco p/ R$ ${novo.troco_para.toFixed(2).replace('.', ',')})` : ''}`)
+      const deRotulo = antes ? rotuloForma(ped.forma_pagamento as string, cartaoTipo) : '—'
+      const paraRotulo = `${rotuloForma(novo.forma_pagamento, novo.cartao_tipo)}${novo.troco_para ? ` (troco p/ R$ ${novo.troco_para.toFixed(2).replace('.', ',')})` : ''}`
+      mudancas.push(`Pagamento: ${deRotulo} → ${paraRotulo}`); alteracoes.push({ tipo: 'pagamento', de: deRotulo, para: paraRotulo })
       formaPagamento = novo.forma_pagamento; cartaoTipo = novo.cartao_tipo; trocoPara = novo.troco_para ?? null
     }
   }
   const troco = ajustarTroco(formaPagamento, ped.pago === true, trocoPara, total)
   trocoPara = troco.trocoPara
-  if (troco.texto) mudancas.push(troco.texto)
+  if (troco.texto) { mudancas.push(troco.texto); alteracoes.push({ tipo: 'troco', de: Number(ped.troco_para), para: null }) }
 
   if (mudancas.length === 0) throw new EdicaoError('Nada mudou no pedido.', 400, { codigo: 'sem_mudanca' })
 
   const decisao = decisaoPagoOnline({ pago: ped.pago === true, pagamentoOnline: ped.pagamento_online === true, totalAntigo: Number(ped.total), totalNovo: total, escolha: edicao.pagoOnline?.escolha ?? null, jaAReceber: ped.diferenca_a_receber === null ? null : Number(ped.diferenca_a_receber) })
   if (!decisao.ok) throw new EdicaoError(decisao.texto, 409, { codigo: 'pago_online', precisa: decisao.precisa })
   let diferencaAReceber: number | null = ped.diferenca_a_receber === null || ped.diferenca_a_receber === undefined ? null : Number(ped.diferenca_a_receber)
-  if (decisao.acao === 'diferenca_entrega') { diferencaAReceber = decisao.valor; mudancas.push(`Diferença de R$ ${decisao.valor.toFixed(2).replace('.', ',')} a receber na entrega`) }
+  if (decisao.acao === 'diferenca_entrega') { diferencaAReceber = decisao.valor; mudancas.push(`Diferença de R$ ${decisao.valor.toFixed(2).replace('.', ',')} a receber na entrega`); alteracoes.push({ tipo: 'diferenca', para: decisao.valor }) }
   if (decisao.acao === 'estorno_parcial') {
     if (!edicao.pagoOnline?.aprovacao) throw new EdicaoError('O estorno precisa da aprovação de um gerente (PIN).', 409, { codigo: 'aprovacao_necessaria', precisa: 'estorno_parcial' })
     const { data: pg } = await admin.from('pagamentos_online').select('id').eq('restaurante_id', restauranteId).eq('pedido_id', pedidoId).in('status', ['pago', 'devolvido_parcial']).order('criado_em', { ascending: false }).limit(1).maybeSingle()
     if (!pg) throw new EdicaoError('Pagamento online do pedido não encontrado para estornar.', 409)
     const r = await devolverPix(admin, { restauranteId, pagamentoId: pg.id as string, solicitante: { id: p.por.id ?? '', nome: p.por.nome }, aprovacao: edicao.pagoOnline.aprovacao, motivo: `Edição do pedido #${ped.numero}: ${mudancas.join(' · ')}`.slice(0, 300), valorCentavos: Math.round(decisao.valor * 100) })
     if (!r.ok) throw new EdicaoError(r.erro, r.status, { codigo: 'estorno' })
-    mudancas.push(`Estorno de R$ ${decisao.valor.toFixed(2).replace('.', ',')} pelo Mercado Pago`)
+    mudancas.push(`Estorno de R$ ${decisao.valor.toFixed(2).replace('.', ',')} pelo Mercado Pago`); alteracoes.push({ tipo: 'estorno', para: decisao.valor })
     diferencaAReceber = null
   }
   if (decisao.acao === 'nada' && ped.pago && ped.pagamento_online && diferencaAReceber && c2(total - (Number(ped.total) - diferencaAReceber)) <= 0) diferencaAReceber = null
@@ -168,8 +181,11 @@ export async function editarPedido(admin: SupabaseClient, p: {
     if (e) throw e
   }
   if (novasLinhas.length) {
-    const { error: e } = await admin.from('pedido_itens').insert(novasLinhas.map((l) => ({ ...l, pedido_id: pedidoId })))
+    // Ids das linhas novas entram no histórico (o card e o painel marcam o item como "adicionado").
+    const { data: inseridas, error: e } = await admin.from('pedido_itens').insert(novasLinhas.map((l) => ({ ...l, pedido_id: pedidoId }))).select('id')
     if (e) throw e
+    const adicionadas = alteracoes.filter((a): a is Extract<AlteracaoPedido, { tipo: 'item_adicionado' }> => a.tipo === 'item_adicionado')
+    ;((inseridas ?? []) as { id: string }[]).forEach((l, i) => { if (adicionadas[i]) adicionadas[i].itemId = l.id })
   }
   if (cupomRemovido && ped.cupom_codigo) {
     const { data: cupom } = await admin.from('cupons').select('id').eq('restaurante_id', restauranteId).eq('codigo', ped.cupom_codigo).maybeSingle()
@@ -178,11 +194,10 @@ export async function editarPedido(admin: SupabaseClient, p: {
       await admin.from('cupom_usos').delete().eq('cupom_id', cupom.id).eq('pedido_id', pedidoId).then(() => {}, () => {})
     }
   }
-  const edicoes = [...((Array.isArray(ped.edicoes) ? ped.edicoes : []) as { em: string; por: string; origem: string; mudancas: string[] }[]), { em: agora, por: p.por.nome, origem: p.origem, mudancas }].slice(-20)
-  const observacaoOriginal = (ped.observacao_original ?? ped.observacao ?? '') as string
+  const registro: EdicaoRegistro = { em: agora, por: p.por.nome, origem: p.origem, ...(p.via ? { via: p.via } : {}), mudancas, alteracoes }
+  const edicoes = [...((Array.isArray(ped.edicoes) ? ped.edicoes : []) as EdicaoRegistro[]), registro].slice(-20)
   const patch: Record<string, unknown> = {
     subtotal, taxa_entrega: taxaEntrega, desconto, total, forma_pagamento: formaPagamento, cartao_tipo: cartaoTipo, troco_para: formaPagamento === 'dinheiro' ? trocoPara : null,
-    observacao: montarObservacao(observacaoOriginal, edicoes), observacao_original: observacaoOriginal,
     editado_em: agora, editado_por_nome: p.por.nome, edicoes, diferenca_a_receber: diferencaAReceber,
     ...(cupomRemovido ? { cupom_codigo: null } : {}),
     ...(edicao.reimprimir ? { reimprimir: true } : {}),
