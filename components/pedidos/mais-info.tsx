@@ -61,7 +61,7 @@ export function ModalInfoPedido({ pedido: p, aba, corrida, onFechar, onPagamento
             {tel ? (
               <span className="flex items-center gap-3">
                 <a href={`tel:${tel}`} className="inline-flex items-center gap-1 font-semibold text-[#0688D4] hover:underline"><Phone className="h-4 w-4" aria-hidden /> {mascararTelefoneBR(p.clienteTelefone)}</a>
-                <a href={`https://wa.me/${tel.startsWith('55') ? tel : `55${tel}`}`} target="_blank" rel="noopener noreferrer" className="rounded-[2px] bg-[#DCFCE7] px-2 py-0.5 text-[12px] font-semibold text-[#15803D] hover:brightness-95">WhatsApp</a>
+                <a href={`https://wa.me/${tel.startsWith('55') ? tel : `55${tel}`}`} target="_blank" rel="noopener noreferrer" className="rounded-[2px] bg-[#DCFCE7] px-2 py-0.5 text-[12px] font-semibold text-[var(--valor-dinheiro)] hover:brightness-95">WhatsApp</a>
                 {!p.telefoneVerificado && p.origem !== 'pdv' && <span className="rounded-[2px] bg-[#FEE2E2] px-1.5 py-0.5 text-[11px] font-semibold text-[#B91C1C]">não verificado</span>}
               </span>
             ) : <span className={VALOR}>—</span>}
@@ -101,11 +101,11 @@ export function ModalInfoPedido({ pedido: p, aba, corrida, onFechar, onPagamento
             <div className="divide-y divide-[#F3F4F6]">
               <div className={LINHA}><span className={ROTULO}>Forma</span><span className={VALOR}>{rotuloForma(p.formaPagamento, p.cartaoTipo, p.pagamentoOnline)}</span></div>
               <div className={LINHA}><span className={ROTULO}>Situação</span>
-                {p.pago ? <span className="font-semibold text-[#15803D]">Pago{p.pagamentoOnline ? ' pela vitrine' : ''}</span> : <span className="font-semibold text-[#92400E]">{statusAReceber(p.tipo)}</span>}
+                {p.pago ? <span className="font-semibold text-[var(--valor-dinheiro)]">Pago{p.pagamentoOnline ? ' pela vitrine' : ''}</span> : <span className="font-semibold text-[#92400E]">{statusAReceber(p.tipo)}</span>}
               </div>
               {p.pago && p.pagamentoOnline && <div className={LINHA}><span className={ROTULO}>Horário</span><span className={VALOR}>{hora(p.criadoEm)} (junto com o pedido)</span></div>}
               {!p.pago && p.status === 'entregue' && p.etapas?.entregue && <div className={LINHA}><span className={ROTULO}>Recebido na entrega</span><span className={VALOR}>{hora(p.etapas.entregue)}</span></div>}
-              <div className={LINHA}><span className={ROTULO}>Valor da compra</span><span className={`${VALOR} text-[#15803D]`}>{formatarReal(p.total)}</span></div>
+              <div className={LINHA}><span className={ROTULO}>Valor da compra</span><span className={`${VALOR} text-[var(--valor-dinheiro)]`}>{formatarReal(p.total)}</span></div>
               {p.desconto > 0 && <div className={LINHA}><span className={ROTULO}>Desconto</span><span className={VALOR}>−{formatarReal(p.desconto)}</span></div>}
               {p.formaPagamento === 'dinheiro' && p.trocoPara ? <div className={LINHA}><span className={ROTULO}>Troco</span><span className={VALOR}>para {formatarReal(p.trocoPara)}{levar > 0 ? ` · levar ${formatarReal(levar)}` : ''}</span></div> : null}
               {p.status !== 'cancelado' && (
@@ -121,7 +121,7 @@ export function ModalInfoPedido({ pedido: p, aba, corrida, onFechar, onPagamento
             <li key={l.id} className="py-2">
               <div className="flex justify-between gap-3 text-[13.5px] text-[#1F2937]">
                 <span className="min-w-0"><b>{l.quantidade}×</b> {l.nome}{l.tamanhoNome && <span className="text-[#6B7280]"> · {l.tamanhoNome}</span>}{l.saborNome && <span className="text-[#6B7280]"> · {l.saborNome}</span>}</span>
-                <span className="flex-shrink-0 font-semibold tabular-nums text-[#15803D]">{formatarReal(l.precoUnitario * l.quantidade)}</span>
+                <span className="flex-shrink-0 font-semibold tabular-nums text-[var(--valor-dinheiro)]">{formatarReal(l.precoUnitario * l.quantidade)}</span>
               </div>
               {(l.bordaNome || l.massaNome) && <div className="text-[12.5px] text-[#6B7280]">{[l.bordaNome, l.massaNome].filter(Boolean).join(', ')}</div>}
               {l.complementos.length > 0 && <div className="text-[12.5px] text-[#6B7280]">{l.complementos.map((c) => (c.preco > 0 ? `${c.nome} (+${formatarReal(c.preco)})` : c.nome)).join(', ')}</div>}
@@ -133,7 +133,7 @@ export function ModalInfoPedido({ pedido: p, aba, corrida, onFechar, onPagamento
             <div className="flex justify-between text-[#6B7280]"><span>Subtotal</span><span className="tabular-nums">{formatarReal(p.subtotal)}</span></div>
             {p.taxaEntrega > 0 && <div className="flex justify-between text-[#6B7280]"><span>Taxa de entrega</span><span className="tabular-nums">{formatarReal(p.taxaEntrega)}</span></div>}
             {p.desconto > 0 && <div className="flex justify-between text-[#6B7280]"><span>Desconto</span><span className="tabular-nums">−{formatarReal(p.desconto)}</span></div>}
-            <div className="flex justify-between pt-1 text-[15px] font-semibold text-[#111827]"><span>Total</span><span className="tabular-nums text-[#15803D]">{formatarReal(p.total)}</span></div>
+            <div className="flex justify-between pt-1 text-[15px] font-semibold text-[#111827]"><span>Total</span><span className="tabular-nums text-[var(--valor-dinheiro)]">{formatarReal(p.total)}</span></div>
           </li>
         </ul>
       )}

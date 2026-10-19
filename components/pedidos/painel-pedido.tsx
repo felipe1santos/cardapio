@@ -5,6 +5,7 @@ import { AlertTriangle, ArrowLeft, Banknote, Bike, CreditCard, MapPin, Pencil, P
 import type { Pedido } from '@/lib/queries/pedidos'
 import { itensAdicionados, rotuloOrigemEdicao, ultimaAlteracao } from '@/lib/pedido-edicao-regras'
 import { Antigo, Editado, EtiquetaEdicao, quantidadesAlteradas } from '@/components/pedidos/marcas-edicao'
+import { DINHEIRO } from '@/components/ui/botoes'
 import { EtiquetasPedido } from '@/components/pedidos/etiquetas-pedido'
 import { EditorPagamento } from '@/components/pedidos/editor-pagamento'
 import { IconesDoPedido } from '@/components/pedidos/card-pedido'
@@ -281,7 +282,7 @@ export function PainelPedido({
                     {l.tamanhoNome && <span className="text-[#6B7280]"> · {l.tamanhoNome}</span>}
                     {l.saborNome && <span className="text-[#6B7280]"> · {l.saborNome}</span>}
                   </span>
-                  <span className="flex-shrink-0 font-semibold tabular-nums text-[#15803D]">{brl(l.precoUnitario * l.quantidade)}</span>
+                  <span className={`flex-shrink-0 font-semibold tabular-nums ${DINHEIRO}`}>{brl(l.precoUnitario * l.quantidade)}</span>
                 </div>
                 {(l.bordaNome || l.massaNome) && <div className="text-[12px] text-[#6B7280]">{[l.bordaNome, l.massaNome].filter(Boolean).join(', ')}</div>}
                 {l.complementos.length > 0 && <div className="text-[12px] text-[#6B7280]">{l.complementos.map((c) => (c.preco > 0 ? `${c.nome} (+${brl(c.preco)})` : c.nome)).join(', ')}</div>}
@@ -299,7 +300,7 @@ export function PainelPedido({
             {(p.taxaEntrega > 0 || altTaxa) && <div className="flex justify-between text-[#6B7280]"><span>Taxa de entrega</span><span className="tabular-nums">{altTaxa ? <><Editado testid="painel-taxa-editada">{brl(p.taxaEntrega)}</Editado><Antigo>{brl(altTaxa.de)}</Antigo></> : brl(p.taxaEntrega)}</span></div>}
             {p.desconto > 0 && <div className="flex justify-between text-[#6B7280]"><span>Desconto</span><span className="tabular-nums">−{brl(p.desconto)}</span></div>}
             {altCupom && p.desconto === 0 && <div className="flex justify-between text-[#6B7280]" data-testid="painel-cupom-removido"><span>Cupom</span><span><s className="text-[#9CA3AF]">{altCupom.de}</s><EtiquetaEdicao tipo="removido" /></span></div>}
-            <div className="flex items-baseline justify-between pt-1"><span className="text-[13.5px] font-semibold text-[#111827]">Total</span><span className="text-[17px] font-semibold tabular-nums text-[#15803D]" data-testid="painel-total">{brl(p.total)}</span></div>
+            <div className="flex items-baseline justify-between pt-1"><span className="text-[13.5px] font-semibold text-[#111827]">Total</span><span className={`text-[17px] font-semibold tabular-nums ${DINHEIRO}`} data-testid="painel-total">{brl(p.total)}</span></div>
           </div>
         </div>
 
@@ -317,7 +318,7 @@ export function PainelPedido({
                   {altPagamento ? <><Editado testid="painel-pagamento-editado">{rotuloForma(p.formaPagamento, p.cartaoTipo, p.pagamentoOnline)}</Editado><Antigo>{altPagamento.de}</Antigo></> : rotuloForma(p.formaPagamento, p.cartaoTipo, p.pagamentoOnline)}
                 </span>
               </div>
-              <div className={LINHA}><span className={ROTULO}>Situação</span>{p.pago ? <span className="font-semibold text-[#15803D]">{p.pagamentoOnline ? 'Pago online' : 'Pago'}</span> : <span className="font-semibold text-[#92400E]">{statusAReceber(p.tipo)}</span>}</div>
+              <div className={LINHA}><span className={ROTULO}>Situação</span>{p.pago ? <span className={`font-semibold ${DINHEIRO}`}>{p.pagamentoOnline ? 'Pago online' : 'Pago'}</span> : <span className="font-semibold text-[#92400E]">{statusAReceber(p.tipo)}</span>}</div>
               {p.formaPagamento === 'dinheiro' && p.trocoPara ? (
                 <div className={LINHA}><span className={ROTULO}>Troco</span><span className="font-semibold text-[#92400E]" data-testid="painel-troco">para {brl(p.trocoPara)}{levar > 0 ? ` · levar ${brl(levar)}` : ''}</span></div>
               ) : altTroco && p.formaPagamento === 'dinheiro' ? (

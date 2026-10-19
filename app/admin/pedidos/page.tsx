@@ -28,7 +28,6 @@ import {
 import { PainelPedido } from '@/components/pedidos/painel-pedido'
 import { PEDIDO_SELECT, mapPedido } from '@/lib/queries/pedidos'
 import { TopBar } from '@/components/layout/topbar'
-import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { RotaPanel } from '@/components/pedidos/rota-panel'
 import { DespacharNoCard } from '@/components/pedidos/despachar-card'
@@ -42,7 +41,8 @@ import { Capacete } from '@/components/icones/capacete'
 import { ChamarLalamove, CorridaLalamoveNoCard } from '@/components/pedidos/lalamove-no-card'
 import { CORRIDA_ATIVA, ENTREGA_PROVEDOR_SELECT, mapEntregaProvedor, type EntregaProvedorLinha } from '@/lib/entregas/lalamove-status'
 import { useEstadoSessao } from '@/lib/sessao-cliente'
-import { CardPedido, CARD_BOTAO_PRINCIPAL } from '@/components/pedidos/card-pedido'
+import { CardPedido, CARD_BOTAO_PRINCIPAL, type AcoesCard } from '@/components/pedidos/card-pedido'
+import { classeBadge, classeBotao, DINHEIRO } from '@/components/ui/botoes'
 import { MenuMaisInfo, ModalInfoPedido, type AbaInfo } from '@/components/pedidos/mais-info'
 import { EditarPedidoModal } from '@/components/pedidos/editar-pedido'
 import { mapSolicitacaoCard, SOLICITACAO_SELECT, SolicitacaoNoCard, type SolicitacaoCard } from '@/components/pedidos/solicitacao-no-card'
@@ -190,7 +190,7 @@ function FluxoCard({ order, tone, onClick, onConcluir, rotulo, acoes, corrida, o
       <button onClick={(e) => (temAcoes ? setAberto((v) => !v) : onClick(e.currentTarget))} aria-expanded={temAcoes ? aberto : undefined} className="w-full px-2.5 pb-1.5 pt-2 text-left">
         <div className="flex items-start justify-between gap-2">
           <span className="min-w-0 truncate text-[12.5px] font-semibold leading-[16px] text-[#111827]"><span className="text-[#374151]">#{order.numero}</span> · {order.clienteNome || 'Cliente'}</span>
-          <span className="whitespace-nowrap text-[12.5px] font-semibold leading-[16px] tabular-nums text-[#15803D]">{brl(order.total)}</span>
+          <span className={`whitespace-nowrap text-[12.5px] font-semibold leading-[16px] tabular-nums ${DINHEIRO}`}>{brl(order.total)}</span>
         </div>
         <div className="mt-0.5 flex items-center justify-between gap-2 text-[11.5px] leading-[15px] text-[#6B7280]">
           <span className="min-w-0 truncate">{order.tipo === 'entrega' ? 'Entrega' : order.canal === 'mesa' ? 'Mesa' : 'Retirada'}{order.tipo === 'entrega' && order.enderecoBairro ? ` · ${order.enderecoBairro}` : ''}{order.entregadorNome ? ` · ${order.entregadorNome}` : ''}</span>
@@ -215,16 +215,16 @@ function FluxoCard({ order, tone, onClick, onConcluir, rotulo, acoes, corrida, o
       )}
       {onConcluir && !temAcoes && (
         <div className="px-3 pb-3">
-          <Button variant="success" className="w-full" onClick={onConcluir}>
+          <button type="button" className={`${classeBotao('verde', 'normal')} w-full`} onClick={onConcluir}>
             Entregue
-          </Button>
+          </button>
         </div>
       )}
       {temAcoes && aberto && (
         <div className="space-y-2 px-3 pb-3" data-testid={`fluxo-acoes-${order.numero}`}>
           {naoEntregue === null ? (
             <div className="flex gap-2">
-              {acoes?.onEntregue && <Button variant="success" className="flex-1" onClick={acoes.onEntregue} data-testid="fluxo-entregue">Entregue</Button>}
+              {acoes?.onEntregue && <button type="button" className={`${classeBotao('verde', 'normal')} flex-1`} onClick={acoes.onEntregue} data-testid="fluxo-entregue">Entregue</button>}
               {acoes?.onNaoEntregue && (
                 <button type="button" onClick={() => setNaoEntregue('')} data-testid="fluxo-nao-entregue"
                   className="flex-1 rounded-menuzia border border-border bg-white px-2 text-[11px] font-semibold uppercase tracking-wide text-[#B91C1C] hover:border-[#FCA5A5] hover:bg-[#FEF2F2]">
@@ -1196,11 +1196,12 @@ export default function PedidosPage() {
                     const novo = order.status === 'recebido' && !order.preparandoNotificado
                     const corridaAtiva = corridas[order.id] && CORRIDA_ATIVA.includes(corridas[order.id].status) ? corridas[order.id] : null
                     // Ação principal (a mesma de sempre): Aceitar / Pronto / Entregue; entrega pronta = despacho composto.
-                    let avancarCard: { rotulo: string; onClick: () => void } | undefined
+                    let avancarCard: AcoesCard['avancar']
                     let principal: React.ReactNode = null
-                    if (order.status === 'recebido') avancarCard = { rotulo: 'Aceitar', onClick: () => avancar(order) }
-                    else if (order.status === 'preparando') avancarCard = { rotulo: 'Pronto', onClick: () => avancar(order) }
-                    else if (order.status === 'pronto' && order.tipo === 'retirada') avancarCard = { rotulo: 'Entregue', onClick: () => avancar(order) }
+                    // Bloco C: azul = seguir (Aceitar, Despachar, Saiu p/ entrega); verde = concluir (Pronto, Entregue).
+                    if (order.status === 'recebido') avancarCard = { rotulo: 'Aceitar', onClick: () => avancar(order), tom: 'azul' }
+                    else if (order.status === 'preparando') avancarCard = { rotulo: 'Pronto', onClick: () => avancar(order), tom: 'verde' }
+                    else if (order.status === 'pronto' && order.tipo === 'retirada') avancarCard = { rotulo: 'Entregue', onClick: () => avancar(order), tom: 'verde' }
                     else if (order.status === 'pronto' && order.tipo === 'entrega' && !corridaAtiva) {
                       if (!usaDespachoDeRotas(fluxo)) avancarCard = { rotulo: 'Saiu p/ entrega', onClick: () => saiuSemEntregador(order) }
                       principal = (
@@ -1317,10 +1318,10 @@ export default function PedidosPage() {
           Redesign 18/10: chapado, bordas retas, no azul de sempre. */}
       {comRotas && (
         <button type="button" onClick={() => setRotaOpen(true)}
-          className="fixed bottom-4 right-4 z-30 inline-flex h-[46px] items-center gap-2 rounded-[3px] bg-[#0061BB] px-5 text-[14px] font-semibold text-white shadow-[0_4px_12px_rgba(16,24,40,0.18)] hover:bg-[#004F99] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0688D4]"
+          className={`fixed bottom-4 right-4 z-30 ${classeBotao('azul', 'grande')} gap-2 !rounded-[3px] shadow-[0_4px_12px_rgba(16,24,40,0.18)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0688D4]`}
           aria-label={`Despachar – ${prontosEntrega} pronto(s) para entrega`} data-testid="kanban-despachar">
           <Route className="h-[18px] w-[18px]" aria-hidden /> Despachar
-          <span className="grid h-[22px] min-w-[22px] place-items-center rounded-[3px] bg-white px-1.5 text-[12px] font-semibold text-[#0061BB]" data-testid="kanban-despachar-contador">{prontosEntrega}</span>
+          <span className={classeBadge('azul')} data-testid="kanban-despachar-contador">{prontosEntrega}</span>
           {despachoAuto && semMotoboy > 0 && prontosEntrega > 0 && (
             <span className="rounded-[6px] bg-[#FEF3C7] px-2 py-0.5 text-[12px] font-semibold text-[#92400E]" data-testid="kanban-sem-motoboy" title="Ninguém está com o app do motoboy aberto agora. Toque em Despachar e escolha um motoboy: ele recebe quando abrir o app.">{avisoSemMotoboy(motoboysCadastrados)}</span>
           )}

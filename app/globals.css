@@ -16,6 +16,22 @@
   --cor-primary: 6 136 212;       /* #0688D4 */
   --cor-primary-dark: 5 112 174;  /* #0570AE */
   --cor-danger: 239 68 68;        /* #EF4444 */
+
+  /* Paleta de BOTÕES do sistema (Bloco C, 19/10/2026) — valores copiados da barra "Ver no mapa" do Despacho de rotas
+     (components/pedidos/rota-panel.tsx): grafite (Todos = text-main), azul (Aguardando), quase-preto (Em rota), verde
+     (Entregues), vermelho (Cancelados). O "-escuro" é o hover e o badge de contador. Kanban: Aceitar/Despachar azul,
+     Pronto/Entregue verde, vermelho só para cancelar/avisos, neutros em grafite; dinheiro no verde dos Entregues. */
+  --btn-grafite: #1f2937;
+  --btn-grafite-escuro: #111827;
+  --btn-azul: #0688d4;
+  --btn-azul-escuro: #0570ae;
+  --btn-preto: #111827;
+  --btn-preto-escuro: #000000;
+  --btn-verde: #16a34a;
+  --btn-verde-escuro: #15803d;
+  --btn-vermelho: #dc2626;
+  --btn-vermelho-escuro: #b91c1c;
+  --valor-dinheiro: #16a34a;
 }
 
 html,

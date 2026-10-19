@@ -5,6 +5,7 @@ import { ArrowRight, Check, MoreHorizontal, Pencil, Printer } from 'lucide-react
 import type { Pedido } from '@/lib/queries/pedidos'
 import { itensAdicionados } from '@/lib/pedido-edicao-regras'
 import { Editado, EtiquetaEdicao } from '@/components/pedidos/marcas-edicao'
+import { BOTAO_NEUTRO, classeBotao, DINHEIRO, type TomBotao } from '@/components/ui/botoes'
 import { corTempoPedido, textoTempoPedido } from '@/lib/tempo-pedido'
 import { formatarReal } from '@/lib/moeda'
 import { origemVisivelNoCard, rotuloOrigemPedido } from '@/lib/pedido-origem'
@@ -19,9 +20,10 @@ import { rotuloForma, statusAReceber } from '@/lib/pdv-pagamento'
  * em 2 linhas; rodapé com os ÍCONES DO PEDIDO à esquerda (origem, IA, Pix — os mesmos do painel) e, à direita,
  * imprimir, editar, o botão azul da etapa e o quadradinho "···". Só visual: cada botão chama o mesmo handler.
  */
-export const CARD_BOTAO_PRINCIPAL = 'inline-flex h-[26px] min-w-0 items-center justify-center gap-1 whitespace-nowrap rounded-[2px] bg-[#0688D4] px-2.5 text-[11.5px] font-semibold text-white transition-colors hover:bg-[#0570AE] disabled:opacity-50'
-const ICONE_BOTAO = 'inline-flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-[2px] text-[#6B7280] transition-colors hover:bg-[#D1D5DB] hover:text-[#111827] disabled:opacity-50'
-const QUADRADO_CLARO = 'inline-flex h-[26px] w-[26px] flex-shrink-0 items-center justify-center rounded-[2px] bg-[#E0F2FE] text-[#0369A1] transition-colors hover:bg-[#7DD3FC] disabled:opacity-50'
+/** Ação principal azul (Aceitar / Despachar / Saiu p/ entrega) — tokens do Bloco C (components/ui/botoes.ts). */
+export const CARD_BOTAO_PRINCIPAL = classeBotao('azul')
+const ICONE_BOTAO = BOTAO_NEUTRO
+const QUADRADO_CLARO = BOTAO_NEUTRO
 const ICONE = 'h-[14px] w-[14px]'
 /** Azul de destaque do redesign (lápis e risco da IA, textos do painel). */
 const AZUL_IA = '#184F95'
@@ -77,7 +79,7 @@ export function IconesDoPedido({ order, tamanho = 'card' }: { order: Pedido; tam
         <Dica texto={dicaPix(order)}>
           <span className="inline-flex items-center gap-0.5" aria-label={dicaPix(order)} data-testid="card-pix" data-pago={order.pago ? '1' : '0'}>
             <IconePix className={g ? 'h-[18px] w-[18px]' : 'h-[16px] w-[16px]'} />
-            {order.pago ? <Check className="h-[11px] w-[11px] text-[#15803D]" strokeWidth={3} aria-hidden /> : <span className="text-[10.5px] font-medium text-[#B45309]">aguard.</span>}
+            {order.pago ? <Check className={`h-[11px] w-[11px] ${DINHEIRO}`} strokeWidth={3} aria-hidden /> : <span className="text-[10.5px] font-medium text-[#B45309]">aguard.</span>}
           </span>
         </Dica>
       )}
@@ -87,7 +89,7 @@ export function IconesDoPedido({ order, tamanho = 'card' }: { order: Pedido; tam
 
 export interface AcoesCard {
   /** Ação principal (Aceitar / Pronto / Entregue…). Ausente = a página passa `principal` pronto (despacho). */
-  avancar?: { rotulo: string; onClick: () => void; testid?: string }
+  avancar?: { rotulo: string; onClick: () => void; testid?: string; /** azul = seguir (padrão) · verde = concluir (Pronto, Entregue). */ tom?: TomBotao }
   /** Slot da ação principal quando ela é composta (Despachar + Lalamove no pedido pronto de entrega). */
   principal?: ReactNode
   onImprimir?: () => void
@@ -140,7 +142,7 @@ export function CardPedido({ order, now, selecionado, destaqueNovo, somBloqueado
           <span className="min-w-0 truncate text-[12.5px] font-semibold leading-[16px] text-[#111827]" title={order.clienteNome || undefined}>
             <span className="text-[#374151]">#{order.numero}</span> · {order.clienteNome || 'Cliente'}
           </span>
-          <span className="whitespace-nowrap text-[12.5px] font-semibold leading-[16px] tabular-nums text-[#15803D]" data-testid="card-preco">{formatarReal(order.total)}</span>
+          <span className={`whitespace-nowrap text-[12.5px] font-semibold leading-[16px] tabular-nums ${DINHEIRO}`} data-testid="card-preco">{formatarReal(order.total)}</span>
         </div>
         {/* Linha 2: tipo · bairro · forma — hora e tempo à direita */}
         <div className="mt-0.5 flex items-center justify-between gap-2 text-[11.5px] leading-[15px] text-[#6B7280]">
@@ -178,7 +180,7 @@ export function CardPedido({ order, now, selecionado, destaqueNovo, somBloqueado
           )}
           {acoes.principal}
           {acoes.avancar && (
-            <button type="button" className={CARD_BOTAO_PRINCIPAL} onClick={acoes.avancar.onClick} data-testid={acoes.avancar.testid ?? 'card-etapa'}>
+            <button type="button" className={classeBotao(acoes.avancar.tom ?? 'azul')} onClick={acoes.avancar.onClick} data-testid={acoes.avancar.testid ?? 'card-etapa'}>
               {acoes.avancar.rotulo} <ArrowRight className={ICONE} aria-hidden />
             </button>
           )}
