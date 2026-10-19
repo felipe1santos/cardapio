@@ -1,7 +1,7 @@
 'use client'
 
 import { Fragment, type ReactNode } from 'react'
-import { IcoEditar, IcoImprimir, IcoMais, IcoOk, IcoSeguir } from '@/components/icones/sistema'
+import { IcoEditar, IcoEntrega, IcoImprimir, IcoMais, IcoOk, IcoSeguir } from '@/components/icones/sistema'
 import type { Pedido } from '@/lib/queries/pedidos'
 import { itensAdicionados } from '@/lib/pedido-edicao-regras'
 import { Editado, EtiquetaEdicao } from '@/components/pedidos/marcas-edicao'
@@ -50,9 +50,6 @@ export function IconesDoPedido({ order, tamanho = 'card' }: { order: Pedido; tam
   const origem = origemVisivelNoCard(order)
   const posto = rotuloOrigemPedido(order).posto
   const ia = order.origemCanal === 'whatsapp_ia'
-  // App integrado (Bloco E): no card o logo GRANDE já está na linha do título — o rodapé não repete; no painel vai aqui.
-  const app = appIntegradoDoPedido(order)
-  if (app && tamanho === 'card') return <span className="inline-flex items-center" data-testid="icones-pedido" />
   // Pela IA: o selo é o do WhatsApp (de onde veio) e o ícone da IA mostra quem tirou.
   const selo = ia ? 'whatsapp' : origem ? origem.icone : posto === 'Delivery' ? 'direto' : null
   const dicaOrigem = ia ? 'Origem: WhatsApp — pedido tirado pelo Agente de IA' : origem?.dica ?? 'Pedido do cardápio (direto)'
@@ -149,6 +146,8 @@ export function CardPedido({ order, now, selecionado, destaqueNovo, atencao = fa
           <span className="min-w-0 truncate text-[12.5px] font-semibold leading-[16px] text-[#111827]" title={order.clienteNome || undefined}>
             <span className="text-[#374151]">#{order.numero}</span> · {order.clienteNome || 'Cliente'}
           </span>
+          {/* ENTREGA (19/10): a motinha do modal ao lado do nome; retirada e mesa não mostram nada. */}
+          {order.tipo === 'entrega' && order.canal !== 'mesa' && <span className="inline-flex flex-shrink-0 items-center text-[#0369A1]" title="Entrega" aria-label="Entrega" data-testid="card-entrega"><IcoEntrega className="h-[15px] w-[15px]" /></span>}
           {/* App integrado (Bloco E): logo GRANDE no espaço entre o nome e o valor. */}
           {app && <span className="ml-auto mr-1 inline-flex flex-shrink-0 items-center" data-testid="card-app" data-app={app.canal}><LogoApp canal={app.canal} altura={24} /></span>}
           <span className={`whitespace-nowrap text-[12.5px] font-semibold leading-[16px] tabular-nums ${DINHEIRO}`} data-testid="card-preco">{formatarReal(order.total)}</span>

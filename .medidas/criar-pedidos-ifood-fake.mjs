@@ -11,8 +11,9 @@ const { data: loja } = await admin.from('restaurantes').select('id, slug').eq('s
 if (loja?.slug !== 'menuzia') throw new Error('loja errada')
 
 const META = process.argv.includes('--meta')
+const CANAIS = process.argv.includes('--canais')
 if (process.argv[2] === '--fechar') {
-  const { data: abertos } = await admin.from('pedidos').select('id, numero').eq('restaurante_id', loja.id).or('cliente_nome.ilike.Teste iFood%,cliente_nome.ilike.Teste Meta Ads%').not('status', 'in', '("entregue","cancelado")')
+  const { data: abertos } = await admin.from('pedidos').select('id, numero').eq('restaurante_id', loja.id).or('cliente_nome.ilike.Teste iFood%,cliente_nome.ilike.Teste Meta Ads%,cliente_nome.ilike.Teste Canal%').not('status', 'in', '("entregue","cancelado")')
   for (const p of abertos ?? []) await admin.from('pedidos').update({ status: 'cancelado', cancelado_motivo: 'teste', cancelado_observacao: 'Pedido fake do iFood (Bloco E)', cancelado_por: 'Loja: Teste', cancelado_em: new Date().toISOString(), reimprimir: false }).eq('id', p.id).eq('restaurante_id', loja.id)
   console.log('fechados:', (abertos ?? []).map((p) => '#' + p.numero).join(' ') || 'nenhum')
   process.exit(0)
@@ -29,7 +30,12 @@ const base = {
 }
 const subtotal = ITENS.reduce((s, i) => s + (i.preco_unitario + i.complementos.reduce((a, c) => a + c.preco, 0)) * i.quantidade, 0)
 const N = META ? 'Teste Meta Ads' : 'Teste iFood'
-const pedidos = META ? [
+// --canais (19/10): um pedido por canal de origem, para conferir o selo pequeno do card/modal.
+const canal = (nome, origem_canal, extra = {}) => ({ ...base, tipo: 'entrega', status: 'recebido', cliente_nome: `Teste Canal ${nome}`, forma_pagamento: 'pix', pago: false, pagamento_online: false, subtotal, taxa_entrega: 5.89, total: subtotal + 5.89, origem_canal, origem_detalhe: { teste: true }, ...extra })
+const pedidos = CANAIS ? [
+  { ...canal('PDV', null, { origem: 'pdv', canal: 'balcao', lancado_via: 'pdv', criado_por_nome: 'Teste', tipo: 'retirada', taxa_entrega: 0, total: subtotal, endereco_rua: '', endereco_numero: '', endereco_complemento: '', endereco_bairro: '', endereco_cep: '', endereco_cidade: '' }) },
+  canal('Instagram', 'instagram'), canal('Facebook', 'facebook'), canal('Google', 'google_busca'), canal('Anuncio Google', 'google_anuncio'), canal('Meta', 'meta'), canal('Direto', 'direto'),
+] : META ? [
   { ...base, tipo: 'entrega', status: 'recebido', cliente_nome: `${N} Diego`, forma_pagamento: 'pix', pago: false, pagamento_online: false, subtotal, taxa_entrega: 5.89, total: subtotal + 5.89 },
   { ...base, tipo: 'retirada', status: 'preparando', preparando_em: new Date().toISOString(), cliente_nome: `${N} Elisa`, forma_pagamento: 'cartao', cartao_tipo: 'debito', pago: false, subtotal, taxa_entrega: 0, total: subtotal, endereco_rua: '', endereco_numero: '', endereco_complemento: '', endereco_bairro: '', endereco_cep: '', endereco_cidade: '' },
 ] : [

@@ -1,7 +1,7 @@
 'use client'
 
 import {
-  ArrowLeft, ArrowRight, Bag, Check, CreditCard, DotsThree, ForkKnife, MapPin, Moped, PencilSimple, Phone, Printer, Receipt, Storefront,
+  ArrowLeft, ArrowRight, Bag, CashRegister, Check, CreditCard, DotsThree, ForkKnife, MapPin, Moped, PencilSimple, Phone, Printer, Receipt, Storefront,
   Warning, X, type IconProps,
 } from '@phosphor-icons/react'
 
@@ -31,6 +31,8 @@ export const IcoMesa = (p: P) => <ForkKnife {...padrao} {...p} />
 /** Origem: cardápio (vitrine) / PDV / salão. */
 export const IcoCardapio = (p: P) => <Storefront {...padrao} {...p} />
 export const IcoPdv = (p: P) => <Receipt {...padrao} {...p} />
+/** Origem PDV/Balcão no selo do card: caixa registradora. */
+export const IcoCaixa = (p: P) => <CashRegister {...padrao} {...p} />
 export const IcoCartao = (p: P) => <CreditCard {...padrao} weight="duotone" color="#1D4ED8" {...p} />
 
 /** Cédula colorida — o MESMO desenho do chip "Faturamento" no topo do Painel de Pedidos (Material "payments"). */

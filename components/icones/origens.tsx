@@ -1,5 +1,6 @@
 import { Bell, Globe, Link2, Megaphone, MessageCircle, Monitor, QrCode, Sparkles, Store, UtensilsCrossed } from 'lucide-react'
 import { APPS_INTEGRADOS } from '@/lib/pedido-origem'
+import { IcoCaixa, IcoMesa } from '@/components/icones/sistema'
 
 /**
  * Ícones das origens (item 55/56): marcas desenhadas em SVG simples (sem pacote de logos) + lucide.
@@ -122,9 +123,17 @@ export function LogoApp({ canal, altura = 24, testid }: { canal: string; altura?
   return <span title={`Pedido do ${app.nome}`} style={{ height: altura, backgroundColor: app.cor, fontSize: Math.round(altura * 0.5) }} className="inline-flex flex-shrink-0 items-center rounded-[2px] px-1.5 font-semibold leading-none text-white" data-testid={testid} data-app={canal}>{app.nome}</span>
 }
 
+/** Logos oficiais de public/origens (LEIA-ME.md) para o selo pequeno (19/10, pedido do dono): o ícone certo de cada canal. */
+const LOGO_SELO: Record<string, string> = { instagram: '/origens/instagram.svg', facebook: '/origens/facebook.svg', google_busca: '/origens/google.svg', google_anuncio: '/origens/google-ads.svg', meta: '/origens/meta.svg' }
 export function SeloOrigem({ canal }: { canal: string }) {
   // App integrado (19/10): o logo (pequeno) no lugar do quadradinho.
   if (canal in APPS_INTEGRADOS) return <span className="inline-flex h-[18px] flex-shrink-0 items-center" data-selo-origem={canal}><LogoApp canal={canal} altura={18} /></span>
+  // PDV/Balcão = caixa registradora; Salão = talheres (antes caíam no globo).
+  if (canal === 'pdv') return <span className="inline-flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center text-[#1D4ED8]" data-selo-origem={canal}><IcoCaixa className="h-[18px] w-[18px]" /></span>
+  if (canal === 'mesa') return <span className="inline-flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center text-[#7E22CE]" data-selo-origem={canal}><IcoMesa className="h-[18px] w-[18px]" /></span>
+  // Instagram, Facebook, Google, Anúncio Google, Anúncio Meta: o logo oficial.
+  // eslint-disable-next-line @next/next/no-img-element
+  if (LOGO_SELO[canal]) return <span className="inline-flex h-[18px] flex-shrink-0 items-center" data-selo-origem={canal}><img src={LOGO_SELO[canal]} alt="" style={{ height: 18 }} className="inline-block w-auto select-none" draggable={false} aria-hidden="true" /></span>
   // WhatsApp (18/10): o logo oficial no lugar do quadradinho desenhado.
   if (canal === 'whatsapp') return <span className="inline-flex h-[18px] w-[18px] flex-shrink-0" data-selo-origem={canal}><IconeWhatsapp className="h-[18px] w-[18px]" /></span>
   const cor = COR_SELO[canal] ?? '#4B5563'
