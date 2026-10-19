@@ -146,3 +146,35 @@ Branch `redesign-kanban`, só local até o dono aprovar. Só visual: mesmos hand
   atual, cinza #E5E7EB depois, vermelho claro se cancelado) + nome da etapa; seções Cliente · Entrega · Itens ·
   Pagamento em caixas brancas; ações fixas no rodapé (Reimprimir, Cancelar).
 - **Despachar flutuante**: 46px, `rounded-none`, azul `--adm-azul`, sombra leve.
+
+## 9. Kanban — ajustes de 19/10/2026 (branch `redesign-kanban`, em aprovação)
+
+Relatório por bloco em `docs/relatorios/2026-10-19-kanban-ajustes.md`.
+
+- **Paleta de botões do sistema** (tokens em `app/globals.css`, classes em `components/ui/botoes.ts`), copiada da
+  barra "Ver no mapa" do Despacho de rotas: grafite `#1F2937` (neutro), azul `#0688D4` (seguir: Aceitar, Despachar,
+  Saiu p/ entrega), quase-preto `#111827` (em rota), verde `#16A34A` (concluir: Pronto, Entregue), vermelho `#DC2626`
+  (cancelar/avisos). Hover e **badge de contador** no tom `-escuro` (`#0570AE`, `#15803D`, `#B91C1C`, `#111827`).
+  **Dinheiro** (card, 4ª coluna, painel, Mais informações) = `--valor-dinheiro` `#16A34A`, o verde dos Entregues.
+- **Ícones**: um conjunto só, Phosphor (`@phosphor-icons/react`, peso `bold`), em `components/icones/sistema.tsx`
+  (editar, imprimir, fechar, mais, seguir, voltar, ok, aviso, endereço, telefone, entrega = moto, retirada = sacola,
+  mesa = talheres, cardápio = loja, PDV = recibo, cartão). Ícones de **marca** (Pix, WhatsApp, Instagram, Google,
+  Meta, Claude) ficam à parte em `components/icones/origens.tsx`. Cédula do dinheiro = o mesmo desenho do chip
+  "Faturamento" do topo, na cor do dinheiro.
+- **Cores de EDIÇÃO vs. CLIENTE** (`components/pedidos/marcas-edicao.tsx`): o que foi **editado** = amarelo (fundo
+  `#FEF3C7`, borda `#F59E0B`, texto `#92400E`) — item adicionado, quantidade nova, endereço/taxa/pagamento novos, linha
+  "Alterado às hh:mm por … · ver histórico"; item **removido** = riscado + etiqueta "removido" vermelha (`#FEE2E2` /
+  `#B91C1C`); valor antigo = riscado, pequeno, cinza `#9CA3AF`. **Vermelho fica só para a observação/aviso do cliente**
+  e para cancelamento. A observação do cliente nunca recebe texto do sistema.
+- **Cancelado ≠ Não entregue** (`lib/cancelamento.ts`): "Não entregue" só quando saiu para entrega e não chegou;
+  todo cancelamento mostra quem (cliente robô/IA, loja · nome, motoboy nome, sistema) + motivo. A 4ª coluna separa
+  "Cancelados" de "Não entregues".
+- **Card**: app integrado (iFood, Keeta, 99Food, aiqfome) mostra o **logo grande (24 px)** entre o nome e o valor
+  (`LogoApp`); pedido próprio mantém o ícone pequeno do rodapé. Logos em `public/origens/` (sem arquivo oficial →
+  selo com o nome na cor da marca).
+- **Painel do pedido**: cabeçalho "#412" + ícones do pedido; à direita lápis · impressora · **X vermelho escuro
+  (cancelar, ícone branco)**, todos 28 px só com ícone; nome do cliente + etiquetas em ícone + barrinhas/etapa na
+  mesma linha; telefone sobre azul clarinho `#EFF6FF` com o texto azul `#184F95`.
+- **Pedido novo chegando** (`.animate-new-order`): entrada com deslize/vibrada de 0,45 s, pisca amarelo `#FEF3C7` ↔
+  verde `#DCFCE7` 3× (3 s, junto com o som), verde claro por ~15 s, volta ao normal. `prefers-reduced-motion`: só
+  acende. Solicitação pendente do cliente: anel amarelo fixo (`.card-atencao`).

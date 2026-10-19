@@ -119,7 +119,7 @@ export function LogoApp({ canal, altura = 24, testid }: { canal: string; altura?
   if (!app) return null
   // eslint-disable-next-line @next/next/no-img-element
   if (app.logo) return <img src={app.logo} alt={app.nome} title={`Pedido do ${app.nome}`} style={{ height: altura }} className="inline-block w-auto flex-shrink-0 select-none" draggable={false} data-testid={testid} data-app={canal} />
-  return <span title={`Pedido do ${app.nome}`} style={{ height: altura, backgroundColor: app.cor, fontSize: Math.round(altura * 0.5) }} className="inline-flex flex-shrink-0 items-center rounded-[2px] px-1.5 font-bold leading-none text-white" data-testid={testid} data-app={canal}>{app.nome}</span>
+  return <span title={`Pedido do ${app.nome}`} style={{ height: altura, backgroundColor: app.cor, fontSize: Math.round(altura * 0.5) }} className="inline-flex flex-shrink-0 items-center rounded-[2px] px-1.5 font-semibold leading-none text-white" data-testid={testid} data-app={canal}>{app.nome}</span>
 }
 
 export function SeloOrigem({ canal }: { canal: string }) {
