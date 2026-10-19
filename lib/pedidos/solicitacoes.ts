@@ -84,7 +84,7 @@ async function avisarCliente(admin: SupabaseClient, restauranteId: string, pedid
   const { data: ped } = await admin.from('pedidos').select('cliente_telefone').eq('id', pedidoId).maybeSingle()
   const tel = String(ped?.cliente_telefone ?? '').replace(/\D/g, '')
   if (!tel) return
-  const { data: conv } = await admin.from('whatsapp_conversas').select('id').eq('restaurante_id', restauranteId).in('telefone', [tel, tel.startsWith('55') ? tel : `55${tel}`]).order('atualizado_em', { ascending: false }).limit(1).maybeSingle()
+  const { data: conv } = await admin.from('whatsapp_conversas').select('id').eq('restaurante_id', restauranteId).in('telefone', [tel, tel.startsWith('55') ? tel : `55${tel}`]).order('ultima_atividade_em', { ascending: false, nullsFirst: false }).limit(1).maybeSingle()
   await enfileirar(admin, { restauranteId, chave, tipo: 'ia', telefone: tel.startsWith('55') ? tel : `55${tel}`, texto, conversaId: (conv?.id as string | undefined) ?? null, pedidoId }).catch(() => null)
 }
 
@@ -138,7 +138,7 @@ export async function escalarSolicitacoesPendentes(admin: SupabaseClient, agora 
     const { data: ped } = await admin.from('pedidos').select('numero, cliente_telefone').eq('id', s.pedido_id).maybeSingle()
     const tel = String(ped?.cliente_telefone ?? '').replace(/\D/g, '')
     if (tel) {
-      const { data: conv } = await admin.from('whatsapp_conversas').select('id').eq('restaurante_id', s.restaurante_id).in('telefone', [tel, tel.startsWith('55') ? tel : `55${tel}`]).order('atualizado_em', { ascending: false }).limit(1).maybeSingle()
+      const { data: conv } = await admin.from('whatsapp_conversas').select('id').eq('restaurante_id', s.restaurante_id).in('telefone', [tel, tel.startsWith('55') ? tel : `55${tel}`]).order('ultima_atividade_em', { ascending: false, nullsFirst: false }).limit(1).maybeSingle()
       if (conv) {
         await admin.from('whatsapp_conversas').update({ estado: 'silenciada', atendimento: 'aguardando', pediu_atendente_em: agora.toISOString(), pediu_atendente_motivo: `Alteração do pedido #${ped?.numero ?? ''} sem resposta há 5 min`, pediu_atendente_aviso_em: agora.toISOString() }).eq('id', conv.id)
       }

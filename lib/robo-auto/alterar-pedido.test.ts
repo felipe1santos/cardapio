@@ -27,6 +27,15 @@ describe('robô: alterar ou cancelar meu pedido (18/10)', () => {
     expect(d.acao).toBe('alterar_pedido_registrar'); expect(d.pedidoId).toBe('p1'); expect(d.estado.autoEstado).toBeNull()
     expect(decidir(base('quero falar com atendente', { estado })).acao).toBe('atendente')
   })
+  it('esperando o que mudar: "cancelar" / "quero cancelar" / "tirar do pedido" viram registro (o robô pediu para escrever cancelar), não a pergunta de novo', () => {
+    // 19/10 (teste real local): "cancela meu pedido" → pergunta; "quero cancelar" → perguntava DE NOVO, em loop, porque
+    // essas palavras são do assunto "atendente" e a espera só aceitava o que não fosse atendente.
+    const estado = { ...ESTADO_VAZIO, autoEstado: 'alterar_pedido:p1' as const, autoEstadoEm: agora.toISOString() }
+    for (const t of ['cancelar', 'quero cancelar', 'cancela o pedido', 'tirar do pedido a cebola']) {
+      const d = decidir(base(t, { estado, pedidoEditavelId: 'p1' }))
+      expect(d.acao, t).toBe('alterar_pedido_registrar'); expect(d.pedidoId, t).toBe('p1'); expect(d.estado.autoEstado, t).toBeNull()
+    }
+  })
   it('ehAlteracaoDePedido reconhece cancelar/mudar/tirar/acrescentar', () => {
     expect(ehAlteracaoDePedido('quero cancelar o pedido')).toBe(true); expect(ehAlteracaoDePedido('falar com atendente')).toBe(false)
   })

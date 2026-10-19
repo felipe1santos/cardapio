@@ -112,7 +112,10 @@ export function decidir(e: EntradaDecisao): Decisao {
   if (intencao === 'ok' || intencao === 'voltar') return { acao: 'nada', intencao, estado: e.estado, naoEntendida: false }
 
   // Esperando o que mudar no pedido (18/10): a mensagem vira a solicitação (o motor registra), a não ser que seja atendente/parar.
-  if (emEspera?.startsWith('alterar_pedido:') && intencao !== 'atendente' && intencao !== 'parar' && intencao !== 'reclamacao') {
+  // "cancelar", "tirar do pedido" etc. são palavras do assunto "atendente", mas aqui são a resposta à pergunta do robô
+  // (19/10: "quero cancelar" caía na pergunta de novo, em loop). Só o pedido explícito de atendente continua atendente.
+  const respostaDeAlteracao = intencao !== 'atendente' || ehAlteracaoDePedido(classificacao.normalizado)
+  if (emEspera?.startsWith('alterar_pedido:') && respostaDeAlteracao && intencao !== 'parar' && intencao !== 'reclamacao') {
     return { acao: 'alterar_pedido_registrar', intencao: 'status_pedido', estado: entendido(limpo), naoEntendida: false, pedidoId: emEspera.slice('alterar_pedido:'.length) }
   }
   // "7" do menu, ou "mudar/cancelar o pedido" com pedido aberto editável: pergunta o que mudar (em vez do atendente).
