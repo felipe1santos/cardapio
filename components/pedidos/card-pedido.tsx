@@ -65,7 +65,8 @@ export function IconesDoPedido({ order, tamanho = 'card' }: { order: Pedido; tam
             {/* Lápis + o "risco" (assinatura) em #184F95, colados: a IA anotou o pedido. */}
             <span className="-ml-0.5 inline-flex items-center gap-[2px]" style={{ color: AZUL_IA }} aria-hidden>
               <Pencil className={g ? 'h-[13px] w-[13px]' : 'h-[12px] w-[12px]'} strokeWidth={2.2} />
-              <svg viewBox="0 0 28 12" className={g ? 'h-[12px] w-[28px]' : 'h-[11px] w-[26px]'} fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M1.5 8.5c3-7 6-7 8.5-1.5s5 6 7.5 0 5-6 9 1.5" /></svg>
+              {/* Onda centrada na caixa (nada sai do viewBox) e overflow visível por segurança. */}
+              <svg viewBox="0 0 28 14" className={`overflow-visible ${g ? 'h-[14px] w-[28px]' : 'h-[13px] w-[26px]'}`} fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M1.5 7c2.5-5.5 6-5.5 8.5 0s6 5.5 8.5 0 6-5.5 8 0" /></svg>
             </span>
           </span>
         </Dica>
