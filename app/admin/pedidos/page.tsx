@@ -183,7 +183,7 @@ function FluxoCard({ order, tone, onClick, onConcluir, rotulo, acoes, corrida, o
   const [naoEntregue, setNaoEntregue] = useState<string | null>(null)
   const temAcoes = !!(acoes?.onEntregue || acoes?.onNaoEntregue)
   return (
-    <div className={`border border-[#E5E7EB] border-l-[3px] bg-[#F7F8FA] shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition-[border-color] hover:border-[#C9CED6] ${t.accent}`} data-testid={`fluxo-${order.numero}`}>
+    <div className={`rounded-[2px] border border-[#E3E6EA] border-l-[3px] bg-[#FBFBFC] transition-[border-color] hover:border-[#C9CED6] ${t.accent}`} data-testid={`fluxo-${order.numero}`}>
       <button onClick={temAcoes ? () => setAberto((v) => !v) : onClick} aria-expanded={temAcoes ? aberto : undefined} className="w-full p-3 text-left">
         <div className="flex items-center justify-between">
           <span className="text-sm font-semibold">#{order.numero}</span>
@@ -1133,16 +1133,14 @@ export default function PedidosPage() {
             const colOrders = orders.filter((o) => colunaDe(o) === coluna)
             const cfg = COLUNA_CONFIG[coluna]
             return (
-              <div key={coluna} className="flex flex-col overflow-hidden border border-border bg-white max-lg:flex-shrink-0 max-lg:overflow-visible">
-                {/* Cabeçalho da coluna mais baixo (redesign 18/10). */}
-                <div className={`flex items-center justify-between px-3 py-2 text-white ${cfg.headerBg}`}>
-                  <div className="flex items-center gap-1.5">
-                    <cfg.Icon className="h-[14px] w-[14px]" strokeWidth={2.5} />
-                    <h3 className="text-[12.5px] font-semibold">{cfg.label}</h3>
-                  </div>
-                  <span className="rounded-full bg-white/25 px-1.5 py-[1px] text-[10.5px] font-semibold text-white">{colOrders.length}</span>
+              <div key={coluna} className="flex flex-col overflow-hidden rounded-[2px] border border-[#E3E6EA] bg-[#F3F4F6] max-lg:flex-shrink-0 max-lg:overflow-visible">
+                {/* Cabeçalho da coluna (redesign 18/10, rodada 2 — referência do dono): sem faixa colorida; bolinha com a
+                    contagem na cor da etapa + título discreto. */}
+                <div className="flex items-center gap-2 px-2.5 py-2">
+                  <span className={`grid h-[18px] min-w-[18px] place-items-center rounded-full px-1 text-[10.5px] font-semibold text-white ${cfg.headerBg}`} data-testid={`coluna-${coluna}-contador`}>{colOrders.length}</span>
+                  <h3 className="text-[12.5px] font-semibold text-[#374151]">{cfg.label}</h3>
                 </div>
-                <div className={`flex-1 space-y-2 overflow-y-auto p-2 max-lg:overflow-visible ${comRotas ? 'pb-20' : ''}`}>
+                <div className={`flex-1 space-y-1.5 overflow-y-auto px-2 pb-2 max-lg:overflow-visible ${comRotas ? 'pb-20' : ''}`}>
                   {colOrders.map((order) => {
                     const selecionado = detail?.id === order.id
                     const novo = order.status === 'recebido' && !order.preparandoNotificado
@@ -1157,7 +1155,7 @@ export default function PedidosPage() {
                       if (!usaDespachoDeRotas(fluxo)) avancarCard = { rotulo: 'Saiu p/ entrega', onClick: () => saiuSemEntregador(order) }
                       principal = (
                         <>
-                          {lalamoveAtiva && <ChamarLalamove pedido={order} onChamada={aoChamarLalamove} onErro={setError} className="!h-[28px] !min-h-0 !rounded-[2px] !py-0 !text-[11.5px] !normal-case !tracking-normal" />}
+                          {lalamoveAtiva && <ChamarLalamove pedido={order} onChamada={aoChamarLalamove} onErro={setError} className="!h-[26px] !min-h-0 !rounded-[2px] !py-0 !text-[11.5px] !normal-case !tracking-normal" />}
                           {usaDespachoDeRotas(fluxo) && restauranteId && (
                             <DespacharNoCard pedido={order} supabase={supabase} restauranteId={restauranteId} onDespachado={aoDespachar} onErro={setError}
                               seta={{ className: CARD_BOTAO_PRINCIPAL, children: <>Despachar <ArrowRight className="h-[14px] w-[14px]" aria-hidden /></> }} />
@@ -1194,12 +1192,12 @@ export default function PedidosPage() {
 
           {/* 4ª coluna opcional: entregas e concluídos */}
           {showCol4 && (
-            <div className="flex flex-col overflow-hidden border border-border border-t-[3px] border-t-purple bg-white max-lg:flex-shrink-0 max-lg:overflow-visible">
-              <div className="flex items-center justify-between border-b border-border px-3 py-2">
-                <h3 className="text-[12.5px] font-semibold">Entregas & concluídos</h3>
-                <span className="rounded-full bg-page px-1.5 py-[1px] text-[10.5px] font-semibold text-text-subtle">{transit.length + concluded.length}</span>
+            <div className="flex flex-col overflow-hidden rounded-[2px] border border-[#E3E6EA] bg-[#F3F4F6] max-lg:flex-shrink-0 max-lg:overflow-visible">
+              <div className="flex items-center gap-2 px-2.5 py-2">
+                <span className="grid h-[18px] min-w-[18px] place-items-center rounded-full bg-purple px-1 text-[10.5px] font-semibold text-white">{transit.length + concluded.length}</span>
+                <h3 className="text-[12.5px] font-semibold text-[#374151]">Entregas & concluídos</h3>
               </div>
-              <div className="flex-1 space-y-3 overflow-y-auto p-2 max-lg:overflow-visible">
+              <div className="flex-1 space-y-3 overflow-y-auto px-2 pb-2 max-lg:overflow-visible">
                 <SubSecao titulo="Em trânsito" cor="text-status-preparing" vazio="Ninguém em rota">
                   {transit.map((o) => (
                     <FluxoCard
