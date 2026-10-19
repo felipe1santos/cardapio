@@ -258,6 +258,8 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
       if (cor.startsWith('#')) { setCorSelecionada('custom'); setCorCustom(cor) }
       else setCorSelecionada(cor)
       setLoaded(true)
+    }).catch(() => {
+      setError('Não foi possível carregar os dados da loja. Recarregue a página.')
     })
   }, [supabase, restauranteId, loaded])
 
@@ -427,6 +429,8 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
   })
 
   async function save() {
+    // 19/10: se a carga falhou (ex.: coluna sem grant, 0204), o formulário está vazio — gravar sobrescreveria a loja.
+    if (!config) { setError('Os dados da loja não carregaram. Recarregue a página antes de salvar.'); return }
     if (!form.nome.trim()) { setError('O nome do estabelecimento é obrigatório.'); return }
     const instagram = normalizarInstagram(form.instagram)
     if (!instagram.ok) { setError(`Instagram: ${instagram.erro}`); return }
