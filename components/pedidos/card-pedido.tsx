@@ -1,7 +1,7 @@
 'use client'
 
 import { Fragment, type ReactNode } from 'react'
-import { ArrowRight, Check, MoreHorizontal, Pencil, Printer } from 'lucide-react'
+import { IcoEditar, IcoImprimir, IcoMais, IcoOk, IcoSeguir } from '@/components/icones/sistema'
 import type { Pedido } from '@/lib/queries/pedidos'
 import { itensAdicionados } from '@/lib/pedido-edicao-regras'
 import { Editado, EtiquetaEdicao } from '@/components/pedidos/marcas-edicao'
@@ -68,7 +68,7 @@ export function IconesDoPedido({ order, tamanho = 'card' }: { order: Pedido; tam
             <IconeIaClaude className={g ? 'h-[20px] w-[20px]' : 'h-[18px] w-[18px]'} />
             {/* Lápis + o "risco" (assinatura) em #184F95, colados: a IA anotou o pedido. */}
             <span className="-ml-0.5 inline-flex items-center gap-[2px]" style={{ color: AZUL_IA }} aria-hidden>
-              <Pencil className={g ? 'h-[13px] w-[13px]' : 'h-[12px] w-[12px]'} strokeWidth={2.2} />
+              <IcoEditar className={g ? 'h-[13px] w-[13px]' : 'h-[12px] w-[12px]'} />
               {/* Onda centrada na caixa (nada sai do viewBox) e overflow visível por segurança. */}
               <svg viewBox="0 0 28 14" className={`overflow-visible ${g ? 'h-[14px] w-[28px]' : 'h-[13px] w-[26px]'}`} fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M1.5 7c2.5-5.5 6-5.5 8.5 0s6 5.5 8.5 0 6-5.5 8 0" /></svg>
             </span>
@@ -79,7 +79,7 @@ export function IconesDoPedido({ order, tamanho = 'card' }: { order: Pedido; tam
         <Dica texto={dicaPix(order)}>
           <span className="inline-flex items-center gap-0.5" aria-label={dicaPix(order)} data-testid="card-pix" data-pago={order.pago ? '1' : '0'}>
             <IconePix className={g ? 'h-[18px] w-[18px]' : 'h-[16px] w-[16px]'} />
-            {order.pago ? <Check className={`h-[11px] w-[11px] ${DINHEIRO}`} strokeWidth={3} aria-hidden /> : <span className="text-[10.5px] font-medium text-[#B45309]">aguard.</span>}
+            {order.pago ? <IcoOk className={`h-[11px] w-[11px] ${DINHEIRO}`} /> : <span className="text-[10.5px] font-medium text-[#B45309]">aguard.</span>}
           </span>
         </Dica>
       )}
@@ -173,19 +173,19 @@ export function CardPedido({ order, now, selecionado, destaqueNovo, somBloqueado
         <IconesDoPedido order={order} />
         <div className="ml-auto flex min-w-0 items-center gap-1">
           {acoes.onImprimir && (
-            <button type="button" className={ICONE_BOTAO} onClick={acoes.onImprimir} title="Imprimir o pedido" aria-label="Imprimir o pedido" data-testid="card-imprimir"><Printer className={ICONE} aria-hidden /></button>
+            <button type="button" className={ICONE_BOTAO} onClick={acoes.onImprimir} title="Imprimir o pedido" aria-label="Imprimir o pedido" data-testid="card-imprimir"><IcoImprimir className={ICONE} /></button>
           )}
           {acoes.onEditar && (
-            <button type="button" className={ICONE_BOTAO} onClick={acoes.onEditar} title="Editar pagamento" aria-label="Editar pagamento" data-testid="card-editar"><Pencil className={ICONE} aria-hidden /></button>
+            <button type="button" className={ICONE_BOTAO} onClick={acoes.onEditar} title="Editar pagamento" aria-label="Editar pagamento" data-testid="card-editar"><IcoEditar className={ICONE} /></button>
           )}
           {acoes.principal}
           {acoes.avancar && (
             <button type="button" className={classeBotao(acoes.avancar.tom ?? 'azul')} onClick={acoes.avancar.onClick} data-testid={acoes.avancar.testid ?? 'card-etapa'}>
-              {acoes.avancar.rotulo} <ArrowRight className={ICONE} aria-hidden />
+              {acoes.avancar.rotulo} <IcoSeguir className={ICONE} />
             </button>
           )}
           {acoes.onMais && (
-            <button type="button" className={QUADRADO_CLARO} onClick={(e) => acoes.onMais?.(e.currentTarget)} aria-haspopup="menu" aria-expanded={!!acoes.maisAberto} title="Mais informações" aria-label="Mais informações" data-testid="card-mais"><MoreHorizontal className={ICONE} aria-hidden /></button>
+            <button type="button" className={QUADRADO_CLARO} onClick={(e) => acoes.onMais?.(e.currentTarget)} aria-haspopup="menu" aria-expanded={!!acoes.maisAberto} title="Mais informações" aria-label="Mais informações" data-testid="card-mais"><IcoMais className={ICONE} /></button>
           )}
         </div>
       </div>

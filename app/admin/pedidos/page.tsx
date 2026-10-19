@@ -20,7 +20,6 @@ import {
   EyeOff,
   Zap,
   ZapOff,
-  ArrowRight,
   Route,
   Bike,
   DoorOpen,
@@ -43,6 +42,7 @@ import { CORRIDA_ATIVA, ENTREGA_PROVEDOR_SELECT, mapEntregaProvedor, type Entreg
 import { useEstadoSessao } from '@/lib/sessao-cliente'
 import { CardPedido, CARD_BOTAO_PRINCIPAL, type AcoesCard } from '@/components/pedidos/card-pedido'
 import { classeBadge, classeBotao, DINHEIRO } from '@/components/ui/botoes'
+import { IcoSeguir } from '@/components/icones/sistema'
 import { MenuMaisInfo, ModalInfoPedido, type AbaInfo } from '@/components/pedidos/mais-info'
 import { EditarPedidoModal } from '@/components/pedidos/editar-pedido'
 import { mapSolicitacaoCard, SOLICITACAO_SELECT, SolicitacaoNoCard, type SolicitacaoCard } from '@/components/pedidos/solicitacao-no-card'
@@ -1209,7 +1209,7 @@ export default function PedidosPage() {
                           {lalamoveAtiva && <ChamarLalamove pedido={order} onChamada={aoChamarLalamove} onErro={setError} className="!h-[26px] !min-h-0 !rounded-[2px] !py-0 !text-[11.5px] !normal-case !tracking-normal" />}
                           {usaDespachoDeRotas(fluxo) && restauranteId && (
                             <DespacharNoCard pedido={order} supabase={supabase} restauranteId={restauranteId} onDespachado={aoDespachar} onErro={setError}
-                              seta={{ className: CARD_BOTAO_PRINCIPAL, children: <>Despachar <ArrowRight className="h-[14px] w-[14px]" aria-hidden /></> }} />
+                              seta={{ className: CARD_BOTAO_PRINCIPAL, children: <>Despachar <IcoSeguir className="h-[14px] w-[14px]" /></> }} />
                           )}
                         </>
                       )

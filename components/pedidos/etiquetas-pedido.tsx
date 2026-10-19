@@ -1,7 +1,7 @@
 'use client'
 
-import { ShoppingBag, Utensils } from 'lucide-react'
-import { Capacete } from '@/components/icones/capacete'
+import { IcoCardapio, IcoEntrega, IcoMesa, IcoPdv, IcoRetirada } from '@/components/icones/sistema'
+import { Dica } from '@/components/ui/flutuante'
 import { etiquetasDoPedido, type AtendimentoEtiqueta, type PedidoParaRotulo } from '@/lib/pedido-origem'
 
 const TOM_ATENDIMENTO: Record<AtendimentoEtiqueta, string> = {
@@ -10,17 +10,17 @@ const TOM_ATENDIMENTO: Record<AtendimentoEtiqueta, string> = {
   MESA: 'border-[#A855F7]/30 bg-[#F3E8FF] text-[#7E22CE]',
 }
 
-/** Ícone do atendimento: capacete na entrega, sacola na retirada, talheres na mesa. */
+/** Ícone do atendimento: moto na entrega (Bloco D: no lugar do capacete), sacola na retirada, talheres na mesa. */
 export function IconeAtendimento({ atendimento, className = 'h-3.5 w-3.5' }: { atendimento: AtendimentoEtiqueta; className?: string }) {
-  if (atendimento === 'ENTREGA') return <Capacete className={className} strokeWidth={2.2} />
-  if (atendimento === 'RETIRADA') return <ShoppingBag className={className} strokeWidth={2.2} aria-hidden="true" />
-  return <Utensils className={className} strokeWidth={2.2} aria-hidden="true" />
+  if (atendimento === 'ENTREGA') return <IcoEntrega className={className} />
+  if (atendimento === 'RETIRADA') return <IcoRetirada className={className} />
+  return <IcoMesa className={className} />
 }
 
-/** Etiqueta forte de RETIRADA / ENTREGA / MESA (card do Kanban e Detalhes). */
 /** Só a cor do texto de cada atendimento (selo sem fundo do card do Kanban). */
 const TEXTO_ATENDIMENTO: Record<AtendimentoEtiqueta, string> = { ENTREGA: 'text-alert-text', RETIRADA: 'text-price-text', MESA: 'text-[#7E22CE]' }
 
+/** Etiqueta forte de RETIRADA / ENTREGA / MESA (card do Kanban e Detalhes). */
 export function EtiquetaAtendimento({ atendimento, compacta = false, semFundo = false }: { atendimento: AtendimentoEtiqueta; compacta?: boolean; semFundo?: boolean }) {
   if (semFundo) {
     return (
@@ -61,5 +61,26 @@ export function EtiquetasPedido({ pedido }: { pedido: PedidoParaRotulo }) {
         </span>
       )}
     </div>
+  )
+}
+
+/**
+ * Bloco D (19/10): as mesmas etiquetas como ÍCONES discretos (painel do pedido) — origem (cardápio / PDV / salão) e
+ * atendimento (moto / sacola / talheres); a mesa mostra o nome. Tooltip com o texto.
+ */
+export function EtiquetasIcones({ pedido }: { pedido: PedidoParaRotulo }) {
+  const e = etiquetasDoPedido(pedido)
+  const Origem = e.origem === 'PDV' ? IcoPdv : e.origem === 'SALÃO' ? IcoMesa : IcoCardapio
+  const cor = { ENTREGA: 'text-[#0369A1]', RETIRADA: 'text-[#16A34A]', MESA: 'text-[#7E22CE]' }[e.atendimento]
+  return (
+    <span className="inline-flex flex-shrink-0 items-center gap-1.5 text-[#6B7280]" data-testid="etiquetas-pedido" data-origem={e.origem} data-atendimento={e.atendimento}>
+      <Dica texto={`Origem: ${e.origem.charAt(0)}${e.origem.slice(1).toLowerCase()}`}><span className="inline-flex" aria-label={`Origem: ${e.origem}`}><Origem className="h-[16px] w-[16px]" /></span></Dica>
+      <Dica texto={e.atendimento === 'ENTREGA' ? 'Entrega' : e.atendimento === 'RETIRADA' ? 'Retirada' : `Mesa${e.mesa ? ` ${e.mesa}` : ''}`}>
+        <span className={`inline-flex items-center gap-1 ${cor}`} aria-label={e.atendimento} data-testid={`etiqueta-${e.atendimento.toLowerCase()}`}>
+          <IconeAtendimento atendimento={e.atendimento} className="h-[16px] w-[16px]" />
+          {e.mesa && <span className="max-w-[90px] truncate text-[11px] font-semibold">{e.mesa}</span>}
+        </span>
+      </Dica>
+    </span>
   )
 }
