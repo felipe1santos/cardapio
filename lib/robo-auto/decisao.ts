@@ -3,7 +3,7 @@
  * conversa, decide a ação e o estado novo. O webhook e o simulador usam a mesma função.
  * Decisões em docs/robo-whatsapp/autoatendimento-decisoes.md (D6, D7, D11, D12, D13).
  */
-import { bairroDaFrase, type Assunto, type Classificacao, type Intencao } from './classificador'
+import { bairroDaFrase, bairroPlausivel, type Assunto, type Classificacao, type Intencao } from './classificador'
 import type { TipoMensagem } from '@/lib/mensageria/provedor'
 
 export type AcaoAuto =
@@ -171,7 +171,9 @@ export function decidir(e: EntradaDecisao): Decisao {
         : { acao: 'saudacao', intencao, estado: { ...base, saudacaoEm: agoraIso }, naoEntendida: false }
     }
     case 'entrega': {
-      const bairro = classificacao.porNumero ? null : bairroDaFrase(texto)
+      // "Vcs tá fazendo entrega ainda" → "Não encontrei o bairro 'ainda'" (19/10): só vale bairro que parece bairro.
+      const achado = classificacao.porNumero ? null : bairroDaFrase(texto)
+      const bairro = bairroPlausivel(achado) ? achado : null
       const estado = { ...base, autoEstado: 'aguardando_bairro' as const, autoEstadoEm: agoraIso }
       return bairro
         ? { acao: 'entrega', intencao, bairro, estado, naoEntendida: false }

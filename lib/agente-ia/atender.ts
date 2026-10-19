@@ -15,6 +15,7 @@ import { carregarCardapioIa, resumoDoCardapio } from './cardapio'
 import { blocosDoSistema, mensagensDoHistorico, MAX_HISTORICO, type MensagemHistorico } from './prompt'
 import { conversarComIa } from './agente'
 import { conversaIa, executarFerramenta, fecharMontagem, FERRAMENTAS, opcoesDaLoja, type EfeitosFerramentas } from './ferramentas'
+import { falhaDoPedido } from './falhas'
 import { descreverRascunho, itemListadoPelaIa, mesclarDoIa, proximaPergunta, rascunhoParaCarrinho, rascunhoValido, responderPeloRascunho, type Rascunho } from './rascunho'
 import { extrasDaOferta } from './peca-tambem'
 import { confirmouPedido, criarPedidoDaConversa } from './pedido'
@@ -68,6 +69,12 @@ export function textosDoClienteDesdeALoja(hist: LinhaHistorico[]): string[] {
   const t: string[] = []
   for (let i = hist.length - 1; i >= 0 && hist[i].direcao === 'entrada'; i--) if (hist[i].texto?.trim()) t.unshift(hist[i].texto!.trim())
   return t
+}
+
+/** Já existe resposta da IA/robô DEPOIS da mensagem atual no histórico (ela entrou junto com outra, 19/10). Puro. */
+export function jaRespondida(hist: LinhaHistorico[], mensagemId: string): boolean {
+  const i = hist.findIndex((m) => m.id === mensagemId)
+  return i >= 0 && hist.slice(i + 1).some((m) => m.direcao === 'loja' && (m.origem === 'ia' || m.origem === 'robo'))
 }
 
 /** Mensagem do cliente anterior à atual (para os 30 min do modo IA). */
@@ -146,12 +153,16 @@ export async function atenderComIa(admin: SupabaseClient, e: EntradaAtender): Pr
   const system = blocosDoSistema(
     {
       nome: e.loja.nome, link: e.loja.link, endereco: e.loja.endereco, gradeHorario: e.loja.gradeHorario, aceitaEntrega: e.loja.aceitaEntrega,
-      aceitaRetirada: e.loja.aceitaRetirada, tempoEntrega: e.loja.tempoEntrega, formasPagamento: formasDePagamento(e.loja), resumoCardapio: resumoDoCardapio(cardapio),
+      aceitaRetirada: e.loja.aceitaRetirada, tempoEntrega: e.loja.tempoEntrega, tempoRetirada: e.loja.tempoRetirada ?? null, tempoEntregaOrigem: e.loja.tempoEntregaOrigem ?? null,
+      formasPagamento: formasDePagamento(e.loja), resumoCardapio: resumoDoCardapio(cardapio),
       conhecimento: (conhecimento ?? []) as { pergunta: string; resposta: string }[],
     },
-    { agora: hora, aberta: e.loja.aberta, proximaAbertura: e.loja.proximaAbertura, nomeWhatsapp: e.nomeWhatsapp, pedidoEmAndamento: rascunho ? descreverRascunho(rascunho, cardapio, lojaOp) : null },
+    { agora: hora, aberta: e.loja.aberta, proximaAbertura: e.loja.proximaAbertura, fechadaHojeForaDoNormal: e.loja.fechadaHojeForaDoNormal, nomeWhatsapp: e.nomeWhatsapp, pedidoEmAndamento: rascunho ? descreverRascunho(rascunho, cardapio, lojaOp) : null },
   )
   const mensagemAtual = e.historico.find((m) => m.id === e.mensagemId)
+  // Duas mensagens do cliente no mesmo segundo (19/10, #19/#27): a primeira já foi respondida com as duas no histórico;
+  // chamar a IA de novo gerava "Não recebi nenhuma mensagem". Já respondida → nada a fazer.
+  if (mensagemAtual && jaRespondida(e.historico, e.mensagemId)) return { ok: true, mensagens: [], efeitos: {}, custoMicroUsd: 0, chamadas: 0, ferramentas: ['já respondida'] }
   const efeitos: EfeitosFerramentas = {}
   if (e.tipo === 'texto') {
     const em = mensagemAtual?.criadoEm ?? agora.toISOString()
@@ -181,7 +192,13 @@ export async function atenderComIa(admin: SupabaseClient, e: EntradaAtender): Pr
       await admin.from('whatsapp_conversas').update({ ia_rascunho: r.rascunho }).eq('id', e.conversaId).eq('restaurante_id', e.restauranteId)
       efeitos.mensagens = [...r.mensagens]
       if (carrinho) {
-        try { await fecharMontagem(ctx, efeitos, carrinho, conv) } catch (err) { efeitos.mensagens.push(`Não consegui fechar o pedido: ${(err as Error).message}`) }
+        try { await fecharMontagem(ctx, efeitos, carrinho, conv) } catch (err) {
+          // 19/10 (bárbarah, AA7): nada de "Não consegui fechar o pedido: <erro>"; texto humano, atendente quando não há saída.
+          const falha = falhaDoPedido(err, e.loja, descreverRascunho(r.rascunho, cardapio, lojaOp))
+          efeitos.mensagens.push(falha.texto)
+          if (falha.atendente) efeitos.atendente = falha.resumo ?? falha.texto
+          if (falha.ajustarTipo) await admin.from('whatsapp_conversas').update({ ia_rascunho: { ...r.rascunho, tipo: falha.ajustarTipo } }).eq('id', e.conversaId).eq('restaurante_id', e.restauranteId)
+        }
       }
       const mensagens = [...efeitos.mensagens, ...(efeitos.resumo ? [efeitos.resumo] : [])]
       if (mensagens.length) return { ok: true, mensagens, efeitos, custoMicroUsd: 0, chamadas: 0, ferramentas: ['pedido em andamento (servidor)'] }

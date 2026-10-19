@@ -110,6 +110,13 @@ export function linhasDoCarrinho(c: Carrinho): NovoPedidoItemInput[] {
 
 const ROTULO_PAGAMENTO: Record<FormaPagamento, string> = { pix: 'Pix', dinheiro: 'Dinheiro', cartao: 'Cartão na entrega' }
 
+/** Falha ao fechar o pedido com código (19/10): lib/agente-ia/falhas.ts transforma em texto humano para o cliente. */
+export type CodigoFalhaPedido = 'fechada' | 'sem_entrega' | 'sem_retirada' | 'fora_da_area'
+export class FalhaPedido extends Error {
+  readonly codigo: CodigoFalhaPedido
+  constructor(codigo: CodigoFalhaPedido, mensagem: string) { super(mensagem); this.name = 'FalhaPedido'; this.codigo = codigo }
+}
+
 /**
  * Calcula o pedido com as regras do checkout e monta o resumo (texto do servidor). Lança Error com a mensagem para o
  * cliente quando algo não pode (loja fechada, item indisponível, endereço fora da área...).
@@ -123,10 +130,10 @@ export async function calcularPedido(ctx: ContextoPedido, c: Carrinho): Promise<
     .maybeSingle()
   const l = (loja ?? {}) as Record<string, unknown>
   if (!lojaEstaAberta({ statusLoja: ((l.status_loja as StatusLoja | null) ?? 'automatico'), horarioFuncionamento: (l.horario_funcionamento as HorarioFuncionamento | null) ?? null })) {
-    throw new Error('A loja está fechada agora; o pedido não pode ser feito.')
+    throw new FalhaPedido('fechada', 'A loja está fechada agora; o pedido não pode ser feito.')
   }
-  if (c.tipo === 'entrega' && l.aceita_entrega === false) throw new Error('A loja não está fazendo entregas agora.')
-  if (c.tipo === 'retirada' && l.aceita_retirada !== true) throw new Error('A loja não está aceitando retirada agora.')
+  if (c.tipo === 'entrega' && l.aceita_entrega === false) throw new FalhaPedido('sem_entrega', 'A loja não está fazendo entregas agora.')
+  if (c.tipo === 'retirada' && l.aceita_retirada !== true) throw new FalhaPedido('sem_retirada', 'A loja não está aceitando retirada agora.')
   const itens = linhasDoCarrinho(c)
   const linhas = await precificarLinhas(admin, restauranteId, { itens, origem: 'cardapio' }, { canal: canalDoPedido({ origem: 'cardapio' }), pizzaCalculoPreco: l.pizza_calculo_preco as string | null })
   const cent = (v: number) => Math.round(v * 100) / 100
@@ -134,7 +141,7 @@ export async function calcularPedido(ctx: ContextoPedido, c: Carrinho): Promise<
   let taxa = 0
   if (c.tipo === 'entrega' && c.endereco) {
     const f = await resolverFrete(admin, restauranteId, { rua: c.endereco.rua, numero: c.endereco.numero, bairro: c.endereco.bairro, cep: c.endereco.cep })
-    if (!f.entregavel) throw new Error(f.motivo || 'A loja não entrega nesse endereço.')
+    if (!f.entregavel) throw new FalhaPedido('fora_da_area', f.motivo || 'A loja não entrega nesse endereço.')
     taxa = f.taxa
     const minimo = l.frete_gratis_acima === null || l.frete_gratis_acima === undefined ? null : Number(l.frete_gratis_acima)
     if (minimo !== null && minimo > 0 && subtotal >= minimo) taxa = 0

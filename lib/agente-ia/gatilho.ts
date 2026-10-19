@@ -28,6 +28,8 @@ export function rotaDaMensagem(p: {
   pedidoSemLink?: boolean
   /** O robô já mandou o link para quem queria pedir (estado pedir_link, 15 min). */
   jaMandouLink?: boolean
+  /** "esse combo não tem refrigerante?" (19/10): pergunta sobre item/cardápio — o link não responde; a IA sim. */
+  perguntaDeItem?: boolean
 }): RotaMensagem {
   if (p.emModoIa && p.tipo === 'texto') {
     // O resumo que a vitrine manda depois do pedido é sempre do robô (confirma o pedido, sem custo; 16/10).
@@ -46,6 +48,7 @@ export function rotaDaMensagem(p: {
   // 12/10: quer pedir SEM citar item → 1ª vez o robô insiste no link (sem custo); insistiu ou não consegue usar o link → IA.
   if (p.intencao === 'pedir') return p.itemCitado || p.pedidoSemLink || p.jaMandouLink ? 'ia' : 'robo'
   if (p.intencao === 'outro') return 'ia'
+  if (p.intencao === 'cardapio' && p.perguntaDeItem) return 'ia'
   // Item do cardápio citado + entrega/pagamento = pedido numa frase só ("1 x-tudo, entrega na rua X, cartão"; teste real
   // 12/10). Status, horário e endereço da loja continuam com o robô.
   if (p.itemCitado && ['cardapio', 'saudacao', 'ok', 'entrega', 'pagamento_pix', 'pix_chave'].includes(p.intencao)) return 'ia'

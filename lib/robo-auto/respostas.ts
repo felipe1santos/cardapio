@@ -3,6 +3,7 @@
  * simulador carregam os dados e chamam isto). O robô só afirma o que o sistema sabe.
  */
 import { normalizarTexto, type Assunto } from './classificador'
+import { fraseTempo } from '@/lib/tempo-entrega'
 import type { Decisao } from './decisao'
 import { renderizar, textoDe, type ChaveTexto, type Valores } from './textos'
 
@@ -36,6 +37,11 @@ export interface DadosLojaAuto {
   foraDaLista: 'bloquear' | 'taxa_padrao'
   temRaio: boolean
   tempoEntrega: string | null
+  /** 19/10: tempo de retirada (Perfil) e de onde veio o de entrega ('media' = calculado dos pedidos entregues). */
+  tempoRetirada?: string | null
+  tempoEntregaOrigem?: 'perfil' | 'robo' | 'media' | null
+  /** Fechada na mão dentro do horário da grade (19/10): "fechada hoje, fora do horário normal". */
+  fechadaHojeForaDoNormal?: boolean
   pixChave: string | null
   pixTipo: string | null
   pixOnline: boolean
@@ -245,7 +251,7 @@ Me diga aqui o que você quer mudar (ex.: _tirar a cebola_, _mais 1 Coca 2L_, _o
       return { mensagens: [t('status_pedir_numero')], autoEstado: 'aguardando_numero' }
     }
     case 'horario': {
-      const aberto = l.aberta ? '✅ *Estamos abertos agora!*' : `> Estamos fechados agora.${l.proximaAbertura ? ` ${l.proximaAbertura}.` : ''}`
+      const aberto = l.aberta ? '✅ *Estamos abertos agora!*' : `> Estamos fechados ${l.fechadaHojeForaDoNormal ? 'hoje (fora do horário normal)' : 'agora'}.${l.proximaAbertura ? ` ${l.proximaAbertura}.` : ''}`
       return { mensagens: [t('horario', { aberto_agora: aberto, horario: l.gradeHorario ?? '' })] }
     }
     case 'pagamento': {
@@ -291,9 +297,12 @@ Me diga aqui o que você quer mudar (ex.: _tirar a cebola_, _mais 1 Coca 2L_, _o
       }
       return { mensagens: [confirmado] }
     }
-    case 'tempo_entrega':
-      // O motor só chega aqui com o tempo cadastrado (sem ele, a pergunta vai para a IA ou o atendente).
-      return { mensagens: [`*⏱️ TEMPO DE ENTREGA*\n\nEm média *${l.tempoEntrega ?? ''}*.\n\n> Pode variar com o movimento.`] }
+    case 'tempo_entrega': {
+      // O motor só chega aqui com o tempo (Perfil, robô ou média real; sem nada, vai para o atendente).
+      const frase = fraseTempo({ entrega: l.tempoEntrega, retirada: l.tempoRetirada ?? null, origemEntrega: l.tempoEntregaOrigem ?? (l.tempoEntrega ? 'robo' : null) }, 'entrega') ?? ''
+      const ret = l.aceitaRetirada && l.tempoRetirada ? `\n${fraseTempo({ entrega: null, retirada: l.tempoRetirada, origemEntrega: null }, 'retirada')}` : ''
+      return { mensagens: [`*⏱️ TEMPO DE ENTREGA*\n\n${frase}${ret}`] }
+    }
     case 'duvida':
       return { mensagens: ['Claro! Qual a sua dúvida? 😊'] }
   }

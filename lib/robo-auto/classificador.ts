@@ -72,6 +72,8 @@ export const PALAVRAS_PADRAO: Record<Assunto, string[]> = {
     'cancelar', 'cancela', 'me liga', 'ligar pra', 'ligacao',
     // 16/10: assuntos de pessoa (emprego, fiado, parceria, mexer em pedido já feito) vão direto para o atendente.
     'emprego', 'vaga', 'vagas', 'curriculo', 'trabalhar ai', 'trabalhar com voces', 'fiado', 'pendura', 'pendurar', 'parceria', 'proposta', 'fornecedor',
+    // 19/10 (Ponto 400): "precisando de gente pra trabalhar", "o Rherisson acerta depois" (fiado), "vamos trocar" (permuta).
+    'precisando de gente', 'precisa de gente', 'contratando', 'acerta depois', 'acertar depois', 'pago depois', 'paga depois', 'vamos trocar', 'fazer troca',
     'mudar meu pedido', 'mudar o pedido', 'alterar meu pedido', 'alterar o pedido', 'trocar meu pedido', 'trocar o pedido', 'tirar do pedido',
     'acrescentar no pedido', 'acrescentar no meu pedido', 'adicionar no pedido', 'adicionar no meu pedido', 'esqueci de pedir', 'esqueci de colocar',
   ],
@@ -251,6 +253,8 @@ function pareceItens(palavras: string[]): boolean {
 /** "Estão abertos agora?" escrito com palavras de entrega/trabalho — vem antes da entrega ("tá entregando ainda?"). */
 const ESTA_ABERTO = [
   'ta entregando', 'esta entregando', 'tao entregando', 'estao entregando', 'entregando hoje', 'entregando ainda', 'entregando agora', 'vao entregar hoje',
+  // 19/10 (Ponto 400 #26): "vcs tá fazendo entrega ainda" é "estão abertos?", não bairro.
+  'fazendo entrega', 'fazendo entregas', 'faz entrega ainda', 'entrega ainda', 'entrega hoje', 'entregas hoje',
   'ta trabalhando', 'esta trabalhando', 'tao trabalhando', 'estao trabalhando', 'trabalhando hoje', 'ta funcionando', 'tao funcionando', 'estao funcionando',
   'vai abrir', 'vao abrir', 'ja abriu', 'ja abriram', 'ate que horas',
 ].map((e) => e.split(' '))
@@ -324,6 +328,27 @@ export function classificar(texto: string | null, extras?: PalavrasExtras): Clas
 }
 
 const CONECTORES = new Set(['hoje', 'agora', 'no', 'na', 'nos', 'nas', 'pro', 'pra', 'para', 'em', 'ate', 'o', 'a', 'ao', 'do', 'da', 'de', 'bairro', 'aqui', 'entrega', 'taxa', 'frete'])
+
+/** Palavras que nunca estão num nome de bairro: sobrou isso depois de "entrega", não é bairro (19/10, Ponto 400). */
+const NAO_E_BAIRRO = new Set(['ainda', 'uns', 'umas', 'minha', 'meu', 'casa', 'consegue', 'conseguem', 'voces', 'vcs', 'lanche', 'lanches', 'pedido', 'depois', 'acerta',
+  'manda', 'mandar', 'faz', 'fazendo', 'fazem', 'vai', 'vao', 'ta', 'esta', 'tao', 'estao', 'tem', 'quanto', 'tempo', 'demora', 'hoje', 'agora', 'ai', 'la', 'sim', 'nao', 'que', 'e'])
+
+/** O que sobrou parece um bairro? Até 4 palavras, sem palavra de frase ("uns lanches aqui na minha casa" não é). */
+export function bairroPlausivel(b: string | null): b is string {
+  if (!b) return false
+  const p = b.split(' ').filter(Boolean)
+  return p.length <= 4 && !p.some((w) => NAO_E_BAIRRO.has(w))
+}
+
+/**
+ * Pergunta SOBRE um item/cardápio ("esse combo não tem refrigerante?", "o x-tudo vem com ovo?", "qual o preço do…"):
+ * com a IA ligada, quem responde é ela — o link do cardápio não responde pergunta (19/10, Ponto 400 #32).
+ */
+export function perguntaSobreCardapio(normalizado: string): boolean {
+  const p = normalizado.split(' ')
+  if (p.some((w) => ['cardapio', 'menu', 'link', 'site'].includes(w)) && p.length <= 4) return false
+  return /\b(nao tem|tem|vem com|vem|acompanha|inclui|qual|quais|o que|quanto custa|quanto e|quanto ta|quanto esta|preco|valor)\b/.test(normalizado) && p.length >= 3
+}
 
 /**
  * Bairro escrito junto da pergunta de entrega: "taxa pro ibes", "entregam no centro?", "frete pra praia do canto".

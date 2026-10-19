@@ -151,6 +151,29 @@ export function textoProximaAbertura(restaurante: {
 }
 
 /**
+ * Loja FECHADA NA MÃO (19/10, auditoria da Ponto 400): o robô/IA diziam "abre hoje às 18:00" às 18:50, porque a grade
+ * dizia que estaria aberta. Aqui: dentro do turno da grade → "está fechada hoje (fora do horário normal)" e a próxima
+ * abertura é a de AMANHÃ em diante; fora do turno → a próxima abertura normal. `null` sem grade.
+ */
+export function textoFechadaManual(grade: HorarioFuncionamento | null): { hojeForaDoNormal: boolean; proxima: string | null } {
+  const hoje = diaSemanaSaoPaulo(new Date().toISOString())
+  const hora = horaAtualSaoPaulo()
+  const dentroDoTurno = !!grade && (turnosDoDia(grade, hoje).some((t) => turnoCorrendoNoDiaDeInicio(hora, t)) || turnosDoDia(grade, (hoje + 6) % 7).some((t) => turnoCorrendoNoDiaSeguinte(hora, t)))
+  if (!grade) return { hojeForaDoNormal: false, proxima: null }
+  for (let offset = dentroDoTurno ? 1 : 0; offset < 8; offset++) {
+    const dia = (hoje + offset) % 7
+    const turnos = [...turnosDoDia(grade, dia)].sort((a, b) => a.abre.localeCompare(b.abre))
+    for (const turno of turnos) {
+      if (offset > 0 || turno.abre > hora) {
+        const quando = offset === 0 ? `abre às ${turno.abre}` : offset === 1 ? `abre amanhã às ${turno.abre}` : `abre ${DIAS_SEMANA_NOME[dia]} às ${turno.abre}`
+        return { hojeForaDoNormal: dentroDoTurno, proxima: quando }
+      }
+    }
+  }
+  return { hojeForaDoNormal: dentroDoTurno, proxima: null }
+}
+
+/**
  * Hora em que o turno que está correndo agora termina ("23:00"), para a vitrine dizer
  * até quando a loja atende. `null` quando não dá pra afirmar: loja aberta na mão (a
  * grade não manda), sem grade nenhuma, ou nenhum turno correndo neste instante.

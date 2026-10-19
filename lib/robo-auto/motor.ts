@@ -12,12 +12,14 @@ import { normalizarForaDaLista, resolverFrete } from '@/lib/frete'
 import { composeEndereco } from '@/lib/endereco'
 import { rotuloStatusPedidoCliente } from '@/lib/status-pedido-cliente'
 import { lojaEstaAberta, textoProximaAbertura, turnosDoDia, type HorarioFuncionamento, type StatusLoja } from '@/lib/timezone'
-import { classificar, normalizarTexto, ASSUNTOS, type Assunto, type Classificacao, type PalavrasExtras } from './classificador'
+import { classificar, normalizarTexto, ASSUNTOS, type Assunto, type Classificacao, type PalavrasExtras, perguntaSobreCardapio } from './classificador'
 import { decidir, ESTADO_VALIDADE_MS, type EstadoAuto } from './decisao'
 import { responder, type DadosLojaAuto, type PedidoAuto } from './respostas'
 import type { ChaveTexto } from './textos'
 import { itemCitado, modoIaAtivo, nomesDoCardapio, rotaDaMensagem } from '@/lib/agente-ia/gatilho'
 import { carregarCardapioIa } from '@/lib/agente-ia/cardapio'
+import { mediaTempoEntrega, resolverTempos } from '@/lib/tempo-entrega'
+import { textoFechadaManual } from '@/lib/timezone'
 import { abrirSolicitacao } from '@/lib/pedidos/solicitacoes'
 import { corridaAtivaDoPedido } from '@/lib/entregas/queries'
 import { pedidoEditavel } from '@/lib/pedido-editavel'
@@ -92,12 +94,17 @@ export async function carregarLojaAuto(admin: SupabaseClient, restauranteId: str
   const [{ data: loja }, { data: bairros }, { count: raios }] = await Promise.all([
     admin
       .from('restaurantes')
-      .select('nome, slug, status_loja, horario_funcionamento, taxa_entrega_padrao, frete_fora_da_lista, aceita_entrega, aceita_retirada, endereco, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, pix_online_ativo')
+      .select('nome, slug, status_loja, horario_funcionamento, taxa_entrega_padrao, frete_fora_da_lista, aceita_entrega, aceita_retirada, endereco, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, pix_online_ativo, tempo_entrega, tempo_retirada')
       .eq('id', restauranteId)
       .maybeSingle(),
     admin.from('taxas_entrega_bairro').select('bairro, taxa').eq('restaurante_id', restauranteId),
     admin.from('taxas_entrega_raio').select('id', { count: 'exact', head: true }).eq('restaurante_id', restauranteId),
   ])
+  // Tempo de entrega/retirada (19/10): Perfil → robô (legado) → média real dos entregues; a média só é lida se faltar.
+  const l0 = (loja ?? {}) as Record<string, unknown>
+  const semCadastro = !String(l0.tempo_entrega ?? '').trim() && !String(cfg.auto_tempo_entrega ?? '').trim()
+  const media = semCadastro ? await mediaTempoEntrega(admin, restauranteId).catch(() => ({ segundos: null, amostra: 0 })) : { segundos: null, amostra: 0 }
+  const tempos = resolverTempos({ perfilEntrega: l0.tempo_entrega as string | null, perfilRetirada: l0.tempo_retirada as string | null, roboEntrega: cfg.auto_tempo_entrega, mediaEntregaSeg: media.segundos, amostra: media.amostra })
   const l = (loja ?? {}) as Record<string, unknown>
   const grade = (l.horario_funcionamento as HorarioFuncionamento | null) ?? null
   const h = { statusLoja: ((l.status_loja as StatusLoja | null) ?? 'automatico'), horarioFuncionamento: grade }
@@ -109,7 +116,9 @@ export async function carregarLojaAuto(admin: SupabaseClient, restauranteId: str
       linhas.push(`- ${DIAS[d]}: ${t.length ? t.map((x) => `${x.abre}–${x.fecha}`).join(' e ') : 'fechado'}`)
     }
   }
-  const prox = aberta ? null : textoProximaAbertura(h)
+  // Fechada na mão: "fechada hoje (fora do horário normal)" + abre amanhã; nunca "abre hoje às 18:00" depois das 18h.
+  const manual = !aberta && h.statusLoja === 'fechado_manual' ? textoFechadaManual(grade) : null
+  const prox = aberta ? null : manual ? manual.proxima : textoProximaAbertura(h)
   const partes = {
     rua: String(l.endereco_rua ?? ''), numero: String(l.endereco_numero ?? ''), complemento: String(l.endereco_complemento ?? ''),
     bairro: String(l.endereco_bairro ?? ''), cidade: String(l.endereco_cidade ?? ''), estado: String(l.endereco_estado ?? ''),
@@ -120,6 +129,7 @@ export async function carregarLojaAuto(admin: SupabaseClient, restauranteId: str
     link: linkDoRobo(String(l.slug ?? '')),
     aberta,
     proximaAbertura: prox ? `A loja ${prox}` : null,
+    fechadaHojeForaDoNormal: !!manual?.hojeForaDoNormal,
     gradeHorario: linhas.length ? linhas.join('\n') : null,
     endereco,
     aceitaEntrega: l.aceita_entrega !== false,
@@ -128,7 +138,9 @@ export async function carregarLojaAuto(admin: SupabaseClient, restauranteId: str
     taxaPadrao: Number(l.taxa_entrega_padrao) || 0,
     foraDaLista: normalizarForaDaLista(l.frete_fora_da_lista),
     temRaio: (raios ?? 0) > 0,
-    tempoEntrega: cfg.auto_tempo_entrega?.trim() || null,
+    tempoEntrega: tempos.entrega,
+    tempoRetirada: tempos.retirada,
+    tempoEntregaOrigem: tempos.origemEntrega,
     pixChave: cfg.pix_chave?.trim() || null,
     pixTipo: cfg.pix_chave_tipo ?? null,
     pixOnline: l.pix_online_ativo === true,
@@ -304,8 +316,9 @@ export async function processarMensagemAuto(
 
   // Mídia (11/10): a decisão trata pelo tipo — foto/vídeo/documento não respondem, áudio avisa 1× a cada 6 h.
   let classificacao: Classificacao = c ?? { intencao: 'outro' as const, assunto: 'outro' as const, porNumero: false, normalizado: '' }
-  // 16/10: "quanto tempo pra entrega?" sem tempo cadastrado na loja = o robô não sabe → IA (se ligada) ou atendente.
-  if (classificacao.intencao === 'tempo_entrega' && !loja.tempoEntrega) classificacao = { ...classificacao, intencao: 'outro', assunto: 'outro' }
+  // 16/10: "quanto tempo pra entrega?" sem tempo cadastrado NEM média do sistema (19/10) = ninguém sabe → atendente
+  // direto (nunca "não sei"); a conversa fica amarela na central com o motivo.
+  if (classificacao.intencao === 'tempo_entrega' && !loja.tempoEntrega) classificacao = { ...classificacao, intencao: 'atendente', assunto: 'atendente' }
   // "troco pra 50" com pedido em aberto = mexer no pedido já feito → atendente direto.
   if (m.tipo === 'texto' && TROCO_PARA.test(normalizarTexto(m.texto ?? '')) && (await pedidosAbertosDoTelefone(admin, restauranteId, telefone, ctx.semEntregador)).length) {
     classificacao = { ...classificacao, intencao: 'atendente', assunto: 'atendente' }
@@ -380,6 +393,7 @@ export async function processarMensagemAuto(
       : rotaDaMensagem({
           intencao: classificacao.intencao, tipo: m.tipo, emModoIa, itemCitado: m.tipo === 'texto' && itemCitado(m.texto ?? '', nomesDoCardapio(cardapio.itens)),
           normalizado: classificacao.normalizado, pedidoSemLink: classificacao.pedidoSemLink,
+          perguntaDeItem: m.tipo === 'texto' && perguntaSobreCardapio(classificacao.normalizado),
           // O robô já insistiu no link (12/10): se o cliente pedir de novo, quem responde é a IA.
           jaMandouLink: (estado.autoEstado === 'pedir_link' && !!estado.autoEstadoEm && agora.getTime() - Date.parse(estado.autoEstadoEm) < ESTADO_VALIDADE_MS)
             || linkJaEnviado(hist, agora.getTime()),

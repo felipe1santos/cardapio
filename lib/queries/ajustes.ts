@@ -69,6 +69,9 @@ export interface ConfigLoja {
   aceitaRetirada: boolean
   /** Módulo Mesas e Comandas (salão presencial por QR). Default desligado. */
   moduloMesasAtivo: boolean
+  /** Tempo de entrega e de retirada que o robô/IA dizem ao cliente (0203, 19/10). Texto livre: "30–40 min". */
+  tempoEntrega: string | null
+  tempoRetirada: string | null
 }
 
 interface ConfigRow {
@@ -119,10 +122,12 @@ interface ConfigRow {
   entrega_sem_entregador?: boolean | null
   aceita_entrega: boolean | null
   aceita_retirada: boolean | null
+  tempo_entrega?: string | null
+  tempo_retirada?: string | null
   modulo_mesas_ativo: boolean | null
 }
 
-const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_promo_urls, banner_promo_texto, aviso_cor_texto, aviso_cor_fundo, aviso_pulsar, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, endereco, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, cep, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, instagram_url, layout_cardapio, cor_tema, imagem_grande, vitrine_imagem_tamanho, vitrine_fonte, vitrine_nova, latitude, longitude, avaliacao_nota, avaliacao_qtd, horario_funcionamento, status_loja, usa_logistica, entrega_sem_entregador, aceita_entrega, aceita_retirada, modulo_mesas_ativo'
+const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_promo_urls, banner_promo_texto, aviso_cor_texto, aviso_cor_fundo, aviso_pulsar, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, endereco, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, cep, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, instagram_url, layout_cardapio, cor_tema, imagem_grande, vitrine_imagem_tamanho, vitrine_fonte, vitrine_nova, latitude, longitude, avaliacao_nota, avaliacao_qtd, horario_funcionamento, status_loja, usa_logistica, entrega_sem_entregador, aceita_entrega, aceita_retirada, modulo_mesas_ativo, tempo_entrega, tempo_retirada'
 
 function mapConfig(row: ConfigRow): ConfigLoja {
   return {
@@ -173,6 +178,8 @@ function mapConfig(row: ConfigRow): ConfigLoja {
     entregaSemEntregador: row.entrega_sem_entregador ?? false,
     aceitaEntrega: row.aceita_entrega ?? true,
     aceitaRetirada: row.aceita_retirada ?? false,
+    tempoEntrega: row.tempo_entrega ?? null,
+    tempoRetirada: row.tempo_retirada ?? null,
     // Coluna ausente (migration ainda não aplicada) = módulo desligado. Nenhuma loja
     // ganha a seção nova por acidente.
     moduloMesasAtivo: row.modulo_mesas_ativo ?? false,
@@ -227,6 +234,8 @@ export interface ConfigLojaPatch {
   entregaSemEntregador?: boolean
   aceitaEntrega?: boolean
   aceitaRetirada?: boolean
+  tempoEntrega?: string | null
+  tempoRetirada?: string | null
 }
 
 export async function atualizarConfigLoja(supabase: SupabaseClient, restauranteId: string, patch: ConfigLojaPatch): Promise<ConfigLoja> {
@@ -314,6 +323,8 @@ export async function atualizarConfigLoja(supabase: SupabaseClient, restauranteI
   if (patch.entregaSemEntregador !== undefined) row.entrega_sem_entregador = patch.entregaSemEntregador
   if (patch.aceitaEntrega !== undefined) row.aceita_entrega = patch.aceitaEntrega
   if (patch.aceitaRetirada !== undefined) row.aceita_retirada = patch.aceitaRetirada
+  if (patch.tempoEntrega !== undefined) row.tempo_entrega = patch.tempoEntrega
+  if (patch.tempoRetirada !== undefined) row.tempo_retirada = patch.tempoRetirada
 
   const { data, error } = await supabase.from('restaurantes').update(row).eq('id', restauranteId).select(CONFIG_SELECT).single()
   if (error) throw error

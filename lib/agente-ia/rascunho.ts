@@ -69,8 +69,11 @@ const centavos = (v: number) => Math.round(v * 100) / 100
 
 // ── Entender a resposta do cliente ────────────────────────────────────────────────────────────────────────────────
 
-const NENHUM = /^(nenhum|nenhuma|nada|nao|n|sem|dispenso|so isso)\b/
+// "quero não", "não quero (nenhum/bebida)" e "sem" no começo também são NÃO (Hudson 18/10: "Quero não" virava "Qual delas?").
+const NENHUM = /^(nenhum|nenhuma|nada|nao|n|sem|dispenso|so isso)\b|\b(quero nao|nao quero|nenhum|nenhuma|dispenso)\b/
+// "todos" só como resposta CURTA: "tudo bem, desculpa" numa frase longa marcava os 13 adicionais (Nego Shell 17/10).
 const TODOS = /\b(todos|todas|tudo)\b/
+const TODOS_MAX_PALAVRAS = 4
 const OS_N = /\b(?:os|as) (\d{1,2})\b/
 const ENCHIMENTO = new Set(['e', 'com', 'quero', 'queria', 'vou', 'querer', 'os', 'as', 'o', 'a', 'mais', 'tambem', 'pode', 'ser', 'por', 'favor', 'so', 'isso',
   'de', 'do', 'da', 'pra', 'para', 'me', 've', 'manda', 'opcao', 'opcoes', 'numero', 'numeros', 'eu', 'escolho', 'ok', 'entao', 'um', 'uma', 'n', 'no', 'na'])
@@ -84,7 +87,8 @@ export function interpretarEscolhas(texto: string, nomes: string[]): number[] | 
   if (!t) return null
   if (NENHUM.test(t)) return 'nenhum'
   const osN = OS_N.exec(t)
-  if (TODOS.test(t) || (osN && Number(osN[1]) === nomes.length)) return nomes.map((_, i) => i)
+  if ((TODOS.test(t) && t.split(' ').length <= TODOS_MAX_PALAVRAS) || (osN && Number(osN[1]) === nomes.length)) return nomes.map((_, i) => i)
+  if (TODOS.test(t)) return null
   const idx = new Set<number>()
   let resto = ` ${t} `
   const ordem = nomes.map((n, i) => ({ i, n: norm(n) })).filter((x) => x.n).sort((a, b) => b.n.length - a.n.length)
@@ -367,7 +371,19 @@ function aplicarDireto(r: Rascunho, p: Pergunta, texto: string, cardapio: Cardap
     if (!item || !g) return null
     const { opcoes, min, max } = regras(g)
     const sel = interpretarEscolhas(texto, opcoes.map((o) => o.nome))
-    if (sel === null) return null
+    if (sel === null) {
+      // Cliente adiantou pagamento/entrega/troco na pergunta dos adicionais (Valmir 18/10: "Paga com cartão de crédito"
+      // virava "Não entendi bem"): anota, avisa e repete só a pergunta pendente. Só quando nenhuma opção foi citada
+      // ("bacon e entrega" continua indo para a IA, que entende os dois).
+      const nomesOpcoes = opcoes.map((o) => norm(o.nome).split(' ')).flat()
+      if (norm(texto).split(' ').some((tok) => tok.length >= 4 && nomesOpcoes.some((w) => parecida(tok, w)))) return null
+      const antesTipo = r.tipo, antesPag = r.pagamento, antesTroco = r.trocoPara
+      adiantar(r, texto, loja)
+      const anotou = r.tipo !== antesTipo || r.pagamento !== antesPag || r.trocoPara !== antesTroco
+      if (!anotou) return null
+      const partes = [r.pagamento !== antesPag ? `o pagamento (${ROTULO_PAG[r.pagamento!]})` : '', r.tipo !== antesTipo ? (r.tipo === 'entrega' ? 'a entrega' : 'a retirada') : '', r.trocoPara !== antesTroco && r.trocoPara ? `o troco para ${brl(r.trocoPara)}` : ''].filter(Boolean)
+      return { rascunho: r, aviso: `Anotei ${partes.join(' e ')} 👍\n\n${p.texto}` }
+    }
     const antes = l.escolhas[g.nome] ?? []
     const faltou = (escolhidas: string[]) => {
       const restantes = opcoes.filter((o) => !escolhidas.includes(o.nome))
@@ -558,6 +574,25 @@ export function mesclarDoIa(r: Rascunho | null, bruto: unknown, cardapio: Cardap
   if (b.sem_troco === true) { base.trocoPara = null; base.trocoRespondido = true }
   base.em = agoraIso
   return { ok: true, rascunho: base }
+}
+
+const ROTULO_PAG: Record<FormaPagamento, string> = { pix: 'Pix', dinheiro: 'dinheiro', cartao: 'cartão' }
+
+/**
+ * Tipo que a loja NÃO aceita (bárbarah 18/10: "vou retirar aí" com retirada desligada → erro técnico no fim): troca
+ * pelo que a loja aceita e devolve o aviso humano; nada a corrigir → aviso null. Muda uma cópia.
+ */
+export function ajustarTipoAceito(r0: Rascunho, loja: OpcoesLoja): { rascunho: Rascunho; aviso: string | null } {
+  const r: Rascunho = structuredClone(r0)
+  if (r.tipo === 'retirada' && !loja.aceitaRetirada) {
+    r.tipo = loja.aceitaEntrega ? 'entrega' : undefined
+    return { rascunho: r, aviso: loja.aceitaEntrega ? 'No momento estamos só com entrega 🛵 Posso mandar pro seu endereço?' : 'Agora não estamos pegando pedidos por aqui 😕' }
+  }
+  if (r.tipo === 'entrega' && !loja.aceitaEntrega) {
+    r.tipo = loja.aceitaRetirada ? 'retirada' : undefined
+    return { rascunho: r, aviso: loja.aceitaRetirada ? 'No momento estamos só com retirada no balcão 🛍️ Quer retirar?' : 'Agora não estamos pegando pedidos por aqui 😕' }
+  }
+  return { rascunho: r, aviso: null }
 }
 
 /** Pedido completo → carrinho do montar (complementos na ordem dos grupos). null = ainda falta algo. */

@@ -171,6 +171,8 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
   const [form, setForm] = useState({
     nome: '',
     telefone: '',
+    tempoEntrega: '',
+    tempoRetirada: '',
     instagram: '',
     enderecoRua: '',
     enderecoNumero: '',
@@ -220,6 +222,8 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
       setForm({
         nome: c.nome,
         telefone: c.telefone,
+        tempoEntrega: c.tempoEntrega ?? '',
+        tempoRetirada: c.tempoRetirada ?? '',
         instagram: c.instagramUrl ?? '',
         enderecoRua: c.enderecoRua,
         enderecoNumero: c.enderecoNumero,
@@ -259,7 +263,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
 
   function set(
     key:
-      | 'nome' | 'telefone' | 'instagram' | 'cep'
+      | 'nome' | 'telefone' | 'instagram' | 'cep' | 'tempoEntrega' | 'tempoRetirada'
       | 'enderecoRua' | 'enderecoNumero' | 'enderecoComplemento' | 'enderecoBairro' | 'enderecoCidade' | 'enderecoEstado'
       | 'avaliacaoNota' | 'avaliacaoQtd'
       | 'logoUrl' | 'bannerUrl' | 'bannerMobileUrl' | 'bannerPromocionalUrl',
@@ -440,6 +444,8 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
       const updated = await atualizarConfigLoja(supabase, restauranteId, {
         nome: form.nome.trim(),
         telefone: form.telefone.trim(),
+        tempoEntrega: form.tempoEntrega.trim().slice(0, 60) || null,
+        tempoRetirada: form.tempoRetirada.trim().slice(0, 60) || null,
         instagramUrl: instagram.url,
         enderecoRua: form.enderecoRua.trim(),
         enderecoNumero: form.enderecoNumero.trim(),
@@ -502,6 +508,13 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
             </Field>
             <Field label="Telefone / WhatsApp">
               <Input value={form.telefone} onChange={(e) => set('telefone', e.target.value)} placeholder="(00) 00000-0000" />
+            </Field>
+            {/* 19/10: o robô e o Agente de IA respondem "quanto tempo?" daqui. Vazio: média real dos últimos pedidos; sem ela, atendente. */}
+            <Field label="Tempo de entrega" hint="O que o robô e a IA dizem ao cliente (ex.: 30–40 min). Em branco, usam a média real dos últimos pedidos entregues; sem média, chamam o atendente.">
+              <Input value={form.tempoEntrega} onChange={(e) => set('tempoEntrega', e.target.value)} placeholder="30–40 min" maxLength={60} data-testid="perfil-tempo-entrega" />
+            </Field>
+            <Field label="Tempo de retirada" hint="Quanto tempo o pedido leva para ficar pronto no balcão (ex.: 15 min).">
+              <Input value={form.tempoRetirada} onChange={(e) => set('tempoRetirada', e.target.value)} placeholder="15 min" maxLength={60} data-testid="perfil-tempo-retirada" />
             </Field>
           </div>
           <Field label="Instagram da loja" hint="Link do perfil (https://instagram.com/sualoja) ou @sualoja. Vira o QR code impresso no fim da comanda da cozinha (Impressão Beta). Em branco: a comanda sai com o QR do seu cardápio.">

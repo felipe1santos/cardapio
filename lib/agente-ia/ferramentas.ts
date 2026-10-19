@@ -3,6 +3,7 @@
  * a IA manda escolhe loja, cliente, preço ou total. Saída curta (JSON) para gastar pouco token.
  */
 import type { FerramentaClaude } from '@/lib/custo/anthropic'
+import { falhaDoPedido } from './falhas'
 import { resolverFrete } from '@/lib/frete'
 import { brl, type DadosLojaAuto } from '@/lib/robo-auto/respostas'
 import { pedidoPorNumero, pedidosAbertosDoTelefone } from '@/lib/robo-auto/motor'
@@ -10,7 +11,7 @@ import { buscarNoCardapio, familiaDaBusca, sugerirParecidos, type CardapioIa } f
 import { extrasDaOferta } from './peca-tambem'
 import { ACOES_POS_PEDIDO, alterarPedidoFeito } from './pos-pedido'
 import { calcularPedido, criarPedidoDaConversa, type Carrinho, type ContextoPedido } from './pedido'
-import { mesclarDoIa, montarOferta, proximaPergunta, rascunhoParaCarrinho, rascunhoValido, tipoEfetivo, valorParcial, type OpcoesLoja, type Rascunho } from './rascunho'
+import { mesclarDoIa, montarOferta, proximaPergunta, rascunhoParaCarrinho, rascunhoValido, tipoEfetivo, valorParcial, type OpcoesLoja, type Rascunho, ajustarTipoAceito, descreverRascunho } from './rascunho'
 
 export const MAX_FERRAMENTAS_POR_RESPOSTA = 4
 
@@ -166,7 +167,9 @@ export async function executarFerramenta(ctx: ContextoFerramentas, efeitos: Efei
         return {
           conteudo: json({
             aberta_agora: l.aberta, ...(l.proximaAbertura ? { proxima_abertura: l.proximaAbertura } : {}), horarios: l.gradeHorario,
-            endereco: l.endereco, entrega: l.aceitaEntrega, retirada: l.aceitaRetirada, tempo_entrega: l.tempoEntrega ?? 'não informado',
+            endereco: l.endereco, entrega: l.aceitaEntrega, retirada: l.aceitaRetirada,
+            tempo_entrega: l.tempoEntrega ? `${l.tempoEntrega}${l.tempoEntregaOrigem === 'media' ? ' (média real dos últimos pedidos)' : ''}` : 'sem dado: NÃO diga "não sei" — chame chamar_atendente com o motivo "tempo de entrega"',
+            tempo_retirada: l.tempoRetirada ?? 'sem dado: NÃO diga "não sei" — chame chamar_atendente com o motivo "tempo de retirada"',
             pagamento: ['Pix', 'Dinheiro (com troco)', 'Cartão na entrega'].filter((f) => f !== 'Pix' || l.pixChave || l.pixOnline), link_cardapio: l.link,
           }),
         }
@@ -176,7 +179,7 @@ export async function executarFerramenta(ctx: ContextoFerramentas, efeitos: Efei
         const f = await resolverFrete(ctx.admin, ctx.restauranteId, {
           bairro: String(input.bairro ?? '').slice(0, 80), rua: String(input.rua ?? '').slice(0, 120), numero: String(input.numero ?? '').slice(0, 20), cep: String(input.cep ?? '').replace(/\D/g, '').slice(0, 8),
         })
-        return { conteudo: json(f.entregavel ? { entrega: true, taxa: f.taxa > 0 ? brl(f.taxa) : 'Grátis', tempo_entrega: ctx.loja.tempoEntrega ?? 'não informado' } : { entrega: false, motivo: f.motivo || 'Fora da área de entrega.' }) }
+        return { conteudo: json(f.entregavel ? { entrega: true, taxa: f.taxa > 0 ? brl(f.taxa) : 'Grátis', tempo_entrega: ctx.loja.tempoEntrega ?? 'sem dado (chame chamar_atendente se o cliente perguntar o tempo)' } : { entrega: false, motivo: f.motivo || 'Fora da área de entrega.' }) }
       }
       case 'status_pedido': {
         const n = Number(input.numero)
@@ -188,10 +191,14 @@ export async function executarFerramenta(ctx: ContextoFerramentas, efeitos: Efei
       case 'montar_pedido': {
         const conv = await conversaIa(ctx)
         const anterior = rascunhoValido(conv?.ia_rascunho, Date.now(), conv?.ia_pedido_em ?? null) ? conv!.ia_rascunho! : null
-        const m = mesclarDoIa(anterior, input, ctx.cardapio, new Date().toISOString())
-        if (!m.ok) return { conteudo: m.erro, erro: true }
-        if (!m.rascunho.itens.length) return { conteudo: 'O pedido está sem itens: mande itens com o item_id de consultar_cardapio.', erro: true }
+        const m0 = mesclarDoIa(anterior, input, ctx.cardapio, new Date().toISOString())
+        if (!m0.ok) return { conteudo: m0.erro, erro: true }
+        if (!m0.rascunho.itens.length) return { conteudo: 'O pedido está sem itens: mande itens com o item_id de consultar_cardapio.', erro: true }
         const loja = opcoesDaLoja(ctx.loja)
+        // Tipo que a loja não aceita (19/10): troca e avisa em texto humano, em vez de falhar no fim.
+        const aj = ajustarTipoAceito(m0.rascunho, loja)
+        const m = { ok: true as const, rascunho: aj.rascunho }
+        if (aj.aviso) efeitos.mensagens = [...(efeitos.mensagens ?? []), aj.aviso]
         if (input.so_isso === true && !m.rascunho.itens.some((l) => !anterior?.itens.some((x) => x.itemId === l.itemId))) {
           m.rascunho.soIsso = true
           if (!m.rascunho.oferta) m.rascunho.oferta = montarOferta(m.rascunho, ctx.cardapio, await extrasDaOferta(ctx.admin, ctx.restauranteId).catch(() => ({})))
@@ -208,7 +215,14 @@ export async function executarFerramenta(ctx: ContextoFerramentas, efeitos: Efei
         const carrinho = rascunhoParaCarrinho(m.rascunho, ctx.cardapio, loja, nome)
         if (!carrinho) return { conteudo: 'Ainda falta algo no pedido.', erro: true }
         if (!carrinho.nomeCliente) return { conteudo: 'Falta o nome do cliente.', erro: true }
-        return fecharMontagem(ctx, efeitos, carrinho, conv)
+        try { return await fecharMontagem(ctx, efeitos, carrinho, conv) } catch (err) {
+          // Falha ao fechar (loja fechada, retirada desligada, fora da área…): texto HUMANO do servidor ao cliente (19/10).
+          const falha = falhaDoPedido(err, ctx.loja, descreverRascunho(m.rascunho, ctx.cardapio, loja))
+          efeitos.mensagens = [...(efeitos.mensagens ?? []), falha.texto]
+          if (falha.atendente) efeitos.atendente = falha.resumo ?? falha.texto
+          if (falha.ajustarTipo) await ctx.admin.from('whatsapp_conversas').update({ ia_rascunho: { ...m.rascunho, tipo: falha.ajustarTipo } }).eq('id', ctx.conversaId).eq('restaurante_id', ctx.restauranteId)
+          return { conteudo: json({ ok: false, aviso: 'O sistema já explicou ao cliente. Não escreva mais nada (no máximo uma frase curta, sem erro técnico).' }) }
+        }
       }
       case 'criar_pedido': {
         const r = await criarPedidoDaConversa(ctx, ctx.mensagemAtual)
