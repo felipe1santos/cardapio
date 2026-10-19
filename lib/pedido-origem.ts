@@ -147,6 +147,8 @@ export const APPS_INTEGRADOS: Record<string, { nome: string; cor: string; logo: 
   keeta: { nome: 'Keeta', cor: '#1C1C1C', logo: null },
   '99food': { nome: '99Food', cor: '#F7B500', logo: null },
   aiqfome: { nome: 'aiqfome', cor: '#7B2CBF', logo: null },
+  // Anúncio Meta (pedido do dono, 19/10): mesmo padrão do iFood — logo grande à direita do título.
+  meta: { nome: 'Anúncio Meta', cor: '#0064E0', logo: '/origens/meta.svg' },
 }
 export function appIntegradoDoPedido(pedido: { origemCanal?: string | null }): { canal: string; nome: string; cor: string; logo: string | null } | null {
   const c = pedido.origemCanal
