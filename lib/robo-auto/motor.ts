@@ -7,7 +7,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { enfileirar } from '@/lib/mensageria/fila'
 import { palavraAmbiguaDeSair, pedidoDeDescadastro, textoDescadastro, variantesTelefone, linkDoRobo, type DadosLoja } from '@/lib/mensageria/robo'
-import type { MensagemRecebida } from '@/lib/mensageria/provedor'
+import { provedorAtual, type MensagemRecebida } from '@/lib/mensageria/provedor'
 import { normalizarForaDaLista, resolverFrete } from '@/lib/frete'
 import { composeEndereco } from '@/lib/endereco'
 import { rotuloStatusPedidoCliente } from '@/lib/status-pedido-cliente'
@@ -427,6 +427,8 @@ export async function processarMensagemAuto(
         : null
       const textoIa = escolhido ?? m.texto ?? ''
       const histIa = escolhido ? hist.map((h) => (h.id === e.mensagem_id ? { ...h, texto: escolhido } : h)) : hist
+      // 19/10: "digitando..." enquanto a IA pensa (p50 6 s, p90 9 s nos últimos 7 dias). Não espera o provedor.
+      if (ctx.instancia) void provedorAtual().digitando?.(ctx.instancia, telefone, 9000)?.catch(() => undefined)
       const r = await atenderComIa(admin, {
         restauranteId, conversaId: e.conversa_id, mensagemId: e.mensagem_id ?? '', telefone, nomeWhatsapp: e.nome ?? m.nome ?? null, tipo: m.tipo,
         waId: m.waId, texto: textoIa, instancia: ctx.instancia ?? null, cfg: cfgIa, loja, semEntregador: ctx.semEntregador, historico: histIa, agora,

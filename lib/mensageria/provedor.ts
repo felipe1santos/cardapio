@@ -59,6 +59,8 @@ export interface ProvedorWhatsapp {
   enviarAudio(instancia: string, numero: string, url: string): Promise<ResultadoEnvio>
   interpretarWebhook(corpo: unknown): EventoWebhook
   /** WhatsApp da instância conectado agora? 'desconhecido' quando o provedor não respondeu. */
+  /** "digitando..." por `ms` enquanto a IA pensa (19/10). Quem chama não espera; falha é ignorada. */
+  digitando?(instancia: string, numero: string, ms: number): Promise<void>
   conexao(instancia: string): Promise<EstadoConexaoProvedor>
   /** Link da foto de perfil do contato (null = sem foto ou escondida). ok=false: não deu para saber. */
   fotoDePerfil(instancia: string, numero: string): Promise<{ ok: true; url: string | null } | { ok: false }>
@@ -188,6 +190,18 @@ async function postarEvolution(caminho: string, corpo: unknown): Promise<Resulta
   }
 }
 
+/** "digitando..." (Evolution 2.x: /chat/sendPresence segura a resposta por `delay` ms — por isso ninguém espera por ela). */
+async function digitandoEvolution(inst: string, numero: string, ms: number): Promise<void> {
+  const url = process.env.EVOLUTION_API_URL
+  const chave = process.env.EVOLUTION_API_KEY
+  if (!url || !chave) return
+  await fetch(`${url.replace(/\/$/, '')}/chat/sendPresence/${encodeURIComponent(inst)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: chave },
+    body: JSON.stringify({ number: numero, delay: Math.min(15000, Math.max(0, Math.round(ms))), presence: 'composing' }),
+  }).then((r) => r.text().catch(() => undefined), () => undefined)
+}
+
 /** Foto de perfil: consulta leve, com prazo curto — a tela não espera por ela. */
 async function fotoEvolution(inst: string, numero: string): Promise<{ ok: true; url: string | null } | { ok: false }> {
   const url = process.env.EVOLUTION_API_URL
@@ -238,6 +252,7 @@ export const provedorEvolution: ProvedorWhatsapp = {
     postarEvolution(`/message/sendMedia/${encodeURIComponent(inst)}`, { number: numero, mediatype: 'image', media: url, caption: legenda }),
   enviarAudio: (inst, numero, url) => postarEvolution(`/message/sendWhatsAppAudio/${encodeURIComponent(inst)}`, { number: numero, audio: url }),
   interpretarWebhook: interpretarWebhookEvolution,
+  digitando: digitandoEvolution,
   conexao: async (inst) => {
     const url = process.env.EVOLUTION_API_URL
     const chave = process.env.EVOLUTION_API_KEY
@@ -315,6 +330,8 @@ export function provedorSimulado(arquivo: string): ProvedorWhatsapp {
     enviarImagem: async (instancia, numero, url, legenda) => registrarSimulado(arquivo, { instancia, numero, texto: legenda, midia: url }),
     enviarAudio: async (instancia, numero, url) => registrarSimulado(arquivo, { instancia, numero, midia: url }),
     interpretarWebhook: interpretarWebhookEvolution,
+    // Vai para <arquivo>.digitando.jsonl (não conta como mensagem enviada).
+    digitando: async (instancia, numero, ms) => { fsDoServidor().appendFileSync(`${arquivo}.digitando.jsonl`, JSON.stringify({ instancia, numero, ms, em: new Date().toISOString() }) + '\n') },
     conexao: async () => (lerControle(arquivo).desconectado ? 'fechado' : 'aberto'),
     // Cada consulta vai para <arquivo>.fotos.jsonl (não conta como mensagem enviada).
     // Número terminado em dígito ímpar tem foto; par, não tem.
