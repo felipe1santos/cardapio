@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { definirTokenDoMapa, loadGoogleMaps } from '@/lib/maps/loader'
-import { CENTRO_BRASIL, ZOOM_BRASIL, ZOOM_LOJA, type LojaDoMapa } from '@/lib/maps/loja-mapa'
+import { CENTRO_BRASIL, ZOOM_BRASIL, ZOOM_LOJA, lojaIcon, type LojaDoMapa } from '@/lib/maps/loja-mapa'
 import { LIGHT_MAP_STYLE } from '@/lib/maps/style'
 import { buscarRota, chaveRotaPedido, podePedirRota, type Coord } from '@/lib/mapa/cliente'
 
@@ -118,6 +118,8 @@ export function RouteMap({ apiKey, origin, stops, emptyMessage, className, loja,
     markersRef.current = []
     const paradas = stops.filter((s) => s.lat != null && s.lng != null)
     const bounds = new google.maps.LatLngBounds()
+    // Pino da loja (20/10, estilo Google Meu Negócio): de onde o motoboy saiu.
+    if (posLoja) markersRef.current.push(new google.maps.Marker({ map, position: posLoja, icon: lojaIcon(), title: 'Sua loja', zIndex: 30 }))
     if (origin) {
       markersRef.current.push(new google.maps.Marker({ map, position: origin, icon: motoboyIcon(), zIndex: 50 }))
       bounds.extend(origin)

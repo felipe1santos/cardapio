@@ -68,6 +68,25 @@ type StatusKey = 'pronto' | 'em_rota' | 'entregue' | 'cancelado'
 const STATUS_KEYS: StatusKey[] = ['pronto', 'em_rota', 'entregue', 'cancelado']
 
 /** Chavinhas (olho liga/desliga) que controlam quais pontos aparecem no mapa. */
+/** Balão do pino no mapa (20/10): status, horário (saiu / entregue / cancelado), motoboy e valor. Puro. */
+const ROTULO_PINO: Record<string, string> = { pronto: 'Aguardando motoboy', saiu_entrega: 'Em rota', em_rota: 'Em rota', entregue: 'Entregue', cancelado: 'Cancelado' }
+function horaPino(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })
+}
+function infoDoPino(p: { numero: number; status: string; total: number; clienteNome?: string; enderecoBairro?: string; entregadorId: string | null; entregadorNome?: string | null; saiuParaEntregaEm?: string | null; atualizadoEm: string; criadoEm: string }, entregadores: { id: string; nome: string }[]): { titulo: string; linhas: string[] } {
+  const motoboy = p.entregadorNome || entregadores.find((d) => d.id === p.entregadorId)?.nome || ''
+  const quando = p.status === 'entregue' ? `Entregue às ${horaPino(p.atualizadoEm)}`
+    : p.status === 'cancelado' ? `Cancelado às ${horaPino(p.atualizadoEm)}`
+      : p.saiuParaEntregaEm ? `Saiu às ${horaPino(p.saiuParaEntregaEm)}`
+        : `Pedido às ${horaPino(p.criadoEm)}`
+  return {
+    titulo: `#${p.numero} · ${ROTULO_PINO[p.status] ?? p.status}`,
+    linhas: [quando, motoboy ? `Motoboy: ${motoboy}` : 'Sem motoboy', `Valor: ${formatarReal(p.total)}`, [p.clienteNome, p.enderecoBairro].filter(Boolean).join(' · ')].filter(Boolean),
+  }
+}
+
 const MAPA_TABS: { id: StatusKey; label: string; dot: string }[] = [
   { id: 'pronto', label: 'Aguardando', dot: '#0688D4' },
   { id: 'em_rota', label: 'Em rota', dot: '#111827' },
@@ -255,8 +274,9 @@ function RotaPanelBase({ supabase, restauranteId, apiKey, onClose }: RotaPanelPr
       lng: c?.lng ?? null,
       color: corPino(p, marcados.has(p.id)),
       clickable: p.status === 'pronto',
+      info: infoDoPino(p, drivers),
     }
-  }), [visiveis, coords, marcados])
+  }), [visiveis, coords, marcados, drivers])
 
   const driverMarkers = useMemo(() => drivers
     .filter((d) => motoboysVisiveis.has(d.id) && d.localizacao)

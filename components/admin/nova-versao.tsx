@@ -7,33 +7,37 @@ import { versaoMudou } from '@/lib/versao-app'
 
 /**
  * Versão nova do Menuzia publicada (20/10/2026): aba do painel aberta há horas continua com o JavaScript antigo — o
- * dono via "tudo igual" depois do deploy. Confere /api/versao a cada 5 min e ao voltar para a aba. Mudou:
+ * dono via "tudo igual" depois do deploy. Ao abrir, guarda a versão do servidor (/api/versao = .next/BUILD_ID); confere
+ * de novo a cada 5 min e ao voltar para a aba. Mudou:
  *   - faixa azul no topo com "Atualizar agora";
  *   - a PRÓXIMA navegação dentro do painel vira carregamento completo (pega a versão nova sem ninguém limpar nada);
  *   - aba escondida e fora do Painel de Pedidos recarrega sozinha (não mexe no Kanban, que depende do som liberado).
  */
 export function NovaVersao() {
-  const atual = process.env.NEXT_PUBLIC_VERSAO_APP ?? ''
   const [nova, setNova] = useState(false)
+  const base = useRef<string | null>(null)
   const pathname = usePathname()
   const primeiro = useRef(pathname)
 
   useEffect(() => {
-    if (!atual) return
     let vivo = true
     const conferir = () => fetch('/api/versao', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
       .then((j: { versao?: string } | null) => {
-        if (!vivo || !versaoMudou(atual, j?.versao)) return
+        const v = j?.versao ?? ''
+        if (!vivo || !v) return
+        if (base.current === null) { base.current = v; return }
+        if (!versaoMudou(base.current, v)) return
         setNova(true)
         if (document.hidden && !window.location.pathname.startsWith('/admin/pedidos')) window.location.reload()
       })
       .catch(() => {})
+    void conferir()
     const aoVoltar = () => { if (document.visibilityState === 'visible') void conferir() }
     const t = setInterval(conferir, 5 * 60_000)
     document.addEventListener('visibilitychange', aoVoltar)
     return () => { vivo = false; clearInterval(t); document.removeEventListener('visibilitychange', aoVoltar) }
-  }, [atual])
+  }, [])
 
   // Navegou dentro do painel com versão nova pendente: carrega a página inteira (o roteador do Next manteria o JS velho).
   useEffect(() => {

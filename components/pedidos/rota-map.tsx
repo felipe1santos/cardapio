@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { loadGoogleMaps } from '@/lib/maps/loader'
+import { lojaIcon } from '@/lib/maps/loja-mapa'
 
 export interface RotaMapStop {
   id: string
@@ -12,6 +13,8 @@ export interface RotaMapStop {
   lng: number | null
   color: string
   clickable: boolean
+  /** 20/10: o que aparece ao clicar no pino (status, horário, motoboy, valor). */
+  info?: { titulo: string; linhas: string[] }
 }
 
 export interface RotaMapDriver {
@@ -79,6 +82,24 @@ function pinIcon(label: string, color: string): google.maps.Icon {
   }
 }
 
+/** Pino "levantado" (20/10): o pedido clicado cresce e sobe um pouco, para ficar claro qual é. */
+function pinIconDestaque(label: string, color: string): google.maps.Icon {
+  const base = pinIcon(label, color)
+  const w = 52
+  const h = 60
+  return { url: base.url, scaledSize: new google.maps.Size(w, h), anchor: new google.maps.Point(w / 2, h + 8) }
+}
+
+const escapar = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string)
+
+/** Conteúdo do balão do pedido (texto do próprio sistema, escapado). */
+function htmlInfo(info: { titulo: string; linhas: string[] }): string {
+  return `<div style="font-family:Inter,sans-serif;min-width:180px;max-width:240px;color:#1F2937">
+    <div style="font-size:14px;font-weight:600;margin-bottom:4px">${escapar(info.titulo)}</div>
+    ${info.linhas.map((l) => `<div style="font-size:12.5px;line-height:18px;color:#4B5563">${escapar(l)}</div>`).join('')}
+  </div>`
+}
+
 function motoIcon(): google.maps.Icon {
   const svg = `
     <svg width="38" height="38" viewBox="0 0 38 38" xmlns="http://www.w3.org/2000/svg">
@@ -108,6 +129,11 @@ export function RotaMap({ apiKey, stops, drivers, onStopClick, className, loja }
   const lojaAplicadaRef = useRef(false)
   const lojaKeyRef = useRef('')
   const [lojaPronta, setLojaPronta] = useState(false)
+  const lojaMarkerRef = useRef<google.maps.Marker | null>(null)
+  const infoRef = useRef<google.maps.InfoWindow | null>(null)
+  // Pino destacado (clicado) e os dados de cada pino, para o clique achar a versão atual sem recriar o marcador.
+  const destaqueRef = useRef<string | null>(null)
+  const stopsRef = useRef<Map<string, RotaMapStop>>(new Map())
 
   clickRef.current = onStopClick
 
@@ -128,6 +154,17 @@ export function RotaMap({ apiKey, stops, drivers, onStopClick, className, loja }
           gestureHandling: 'greedy',
           scrollwheel: true,
         })
+        infoRef.current = new google.maps.InfoWindow({ disableAutoPan: false })
+        // Fechou o balão ou clicou no mapa: o pino volta ao normal.
+        const soltar = () => {
+          const id = destaqueRef.current
+          destaqueRef.current = null
+          const s = id ? stopsRef.current.get(id) : null
+          const mk = id ? stopMarkersRef.current.get(id) : null
+          if (s && mk) { mk.setIcon(pinIcon(s.label, s.color)); mk.setZIndex(50) }
+        }
+        infoRef.current.addListener('closeclick', soltar)
+        mapRef.current.addListener('click', () => { infoRef.current?.close(); soltar() })
         setReady(true)
       })
       .catch(() => setError('Não foi possível carregar o mapa.'))
@@ -147,6 +184,15 @@ export function RotaMap({ apiKey, stops, drivers, onStopClick, className, loja }
     setLojaPronta(true)
   }, [ready, carregandoLoja, lojaLat, lojaLng])
 
+  // Pino da loja no endereço de Ajustes (20/10).
+  useEffect(() => {
+    const map = mapRef.current
+    if (!ready || !map) return
+    if (!posLoja) { lojaMarkerRef.current?.setMap(null); lojaMarkerRef.current = null; return }
+    if (lojaMarkerRef.current) { lojaMarkerRef.current.setPosition(posLoja); return }
+    lojaMarkerRef.current = new google.maps.Marker({ map, position: posLoja, icon: lojaIcon(), title: 'Sua loja', zIndex: 40 })
+  }, [ready, posLoja])
+
   // Sem pedido no mapa (ainda), abre na loja.
   useEffect(() => {
     const map = mapRef.current
@@ -162,6 +208,7 @@ export function RotaMap({ apiKey, stops, drivers, onStopClick, className, loja }
     if (!ready || !map || !lojaPronta) return
     const comCoord = stops.filter((s) => s.lat != null && s.lng != null)
     const wanted = new Set(comCoord.map((s) => s.id))
+    stopsRef.current = new Map(comCoord.map((s) => [s.id, s]))
 
     // Quando o conjunto de pedidos muda (ex.: chegou um pedido pronto novo),
     // re-centraliza o mapa pra enquadrar todos os pontos atuais.
@@ -189,13 +236,32 @@ export function RotaMap({ apiKey, stops, drivers, onStopClick, className, loja }
       const pos = new google.maps.LatLng(stop.lat!, stop.lng!)
       bounds.extend(pos)
       const existing = stopMarkersRef.current.get(stop.id)
+      const destacado = destaqueRef.current === stop.id
       if (existing) {
-        existing.setIcon(pinIcon(stop.label, stop.color))
+        existing.setIcon(destacado ? pinIconDestaque(stop.label, stop.color) : pinIcon(stop.label, stop.color))
         existing.setPosition(pos)
         continue
       }
       const marker = new google.maps.Marker({ map, position: pos, icon: pinIcon(stop.label, stop.color), zIndex: 50 })
-      if (stop.clickable) marker.addListener('click', () => clickRef.current(stop.id))
+      // 20/10: todo pino responde ao clique — levanta (destaque) e abre o balão com a entrega; o pronto também marca/desmarca.
+      marker.addListener('click', () => {
+        const atual = stopsRef.current.get(stop.id)
+        if (!atual) return
+        const anterior = destaqueRef.current
+        if (anterior && anterior !== stop.id) {
+          const s = stopsRef.current.get(anterior)
+          const mk = stopMarkersRef.current.get(anterior)
+          if (s && mk) { mk.setIcon(pinIcon(s.label, s.color)); mk.setZIndex(50) }
+        }
+        destaqueRef.current = stop.id
+        marker.setIcon(pinIconDestaque(atual.label, atual.color))
+        marker.setZIndex(999)
+        if (atual.info && infoRef.current) {
+          infoRef.current.setContent(htmlInfo(atual.info))
+          infoRef.current.open({ map, anchor: marker })
+        }
+        if (atual.clickable) clickRef.current(stop.id)
+      })
       stopMarkersRef.current.set(stop.id, marker)
     }
 
