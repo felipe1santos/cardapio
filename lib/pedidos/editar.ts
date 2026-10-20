@@ -116,17 +116,24 @@ export async function editarPedido(admin: SupabaseClient, p: {
   // 4. cupom: pedido mínimo
   let desconto = Number(ped.desconto ?? 0)
   let cupomRemovido = false
+  // Cashback usado no pedido (Etapa 7, 0211) mora dentro do desconto: ao recalcular o cupom, ele fica.
+  // Consulta à parte e tolerante: sem a coluna (0211 não aplicada) vale 0.
+  let cashbackUsado = 0
+  if (ped.cupom_codigo) {
+    const { data: cb } = await admin.from('pedidos').select('cashback_usado').eq('id', pedidoId).maybeSingle()
+    cashbackUsado = Number((cb as { cashback_usado?: number | null } | null)?.cashback_usado ?? 0)
+  }
   if (ped.cupom_codigo) {
     const { data: cupom } = await admin.from('cupons').select('id, codigo, tipo, valor, valor_minimo_pedido').eq('restaurante_id', restauranteId).eq('codigo', ped.cupom_codigo).maybeSingle()
     if (cupom) {
       const minimo = cupom.valor_minimo_pedido === null || cupom.valor_minimo_pedido === undefined ? null : Number(cupom.valor_minimo_pedido)
       if (minimo !== null && subtotal < minimo) {
-        cupomRemovido = true; desconto = 0
+        cupomRemovido = true; desconto = Math.min(subtotal, cashbackUsado)
         mudancas.push(`Cupom ${cupom.codigo} removido (pedido mínimo R$ ${minimo.toFixed(2).replace('.', ',')})`)
         alteracoes.push({ tipo: 'cupom', de: String(cupom.codigo), para: null })
       } else {
         const d = calcularDesconto(cupom.tipo, cupom.valor === null ? null : Number(cupom.valor), subtotal, taxaEntrega)
-        desconto = d.descontoSubtotal
+        desconto = Math.min(subtotal, d.descontoSubtotal + cashbackUsado)
         if (d.zeraFrete) taxaEntrega = 0
       }
     }

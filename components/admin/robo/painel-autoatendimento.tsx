@@ -17,11 +17,12 @@ import { CartaoNaoEntendidas } from '@/components/admin/robo/revisar-nao-entendi
 import { useEstadoSessao } from '@/lib/sessao-cliente'
 
 type Assunto =
-  | 'atendente' | 'reclamacao' | 'parar' | 'status_pedido' | 'entrega' | 'pagamento_pix' | 'horario' | 'endereco_retirada' | 'cardapio' | 'saudacao'
+  | 'atendente' | 'reclamacao' | 'parar' | 'status_pedido' | 'entrega' | 'pagamento_pix' | 'horario' | 'endereco_retirada' | 'cardapio' | 'saudacao' | 'fidelidade'
 
 const ROTULO_ASSUNTO: Record<Assunto, string> = {
   saudacao: 'Saudação', cardapio: 'Cardápio', entrega: 'Entrega (taxa e tempo)', status_pedido: 'Status do pedido', horario: 'Horário',
   pagamento_pix: 'Pagamento e Pix', endereco_retirada: 'Endereço e retirada', reclamacao: 'Reclamação', atendente: 'Atendente', parar: 'Parar',
+  fidelidade: 'Meu progresso (cashback e cupons)',
 }
 const SEMPRE_LIGADOS: Assunto[] = ['atendente', 'parar', 'reclamacao']
 
@@ -343,6 +344,7 @@ const EXPLICA_ASSUNTO: Record<Assunto, string> = {
   horario: 'Diz se a loja está aberta agora e os horários da semana.',
   pagamento_pix: 'Formas de pagamento e, se cadastrada, a chave Pix (sozinha numa mensagem, fácil de copiar).',
   endereco_retirada: 'Endereço da loja e se aceita retirada no balcão.',
+  fidelidade: 'Opção 4 do menu: cashback disponível (e até quando), prêmios prontos, missões em andamento e cupons da loja.',
   reclamacao: '“veio errado”, “atrasou”: pede desculpas e chama um atendente. O robô para de responder nessa conversa.',
   atendente: '“0” ou “falar com alguém”: chama um atendente. O robô para de responder nessa conversa.',
   parar: '“parar”: o robô não responde mais esse número até o cliente mandar “voltar”.',

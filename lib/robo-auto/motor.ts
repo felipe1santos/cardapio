@@ -23,6 +23,7 @@ import { textoFechadaManual } from '@/lib/timezone'
 import { abrirSolicitacao } from '@/lib/pedidos/solicitacoes'
 import { corridaAtivaDoPedido } from '@/lib/entregas/queries'
 import { pedidoEditavel } from '@/lib/pedido-editavel'
+import { mensagemProgressoCliente } from '@/lib/fidelidade'
 import { categoriasDoCardapio, escolherOpcao, itemEscolhidoNaLista, linkJaEnviado, pedeOpcoes, respondeuSimAoPedido, textoCategorias, textoItensDaCategoria } from './categorias'
 import {
   agenteLigadoNaLoja, atenderComIa, estadoIaDaConversa, historicoDaConversa, iaEsgotadaNaConversa, registrarFalhaIa, registrarRespostaIa,
@@ -500,7 +501,10 @@ export async function processarMensagemAuto(
     solicitacaoMensagem = r.mensagem
   }
   if (d.acao === 'alterar_pedido_perguntar' && d.pedidoId) pedido = (await pedidosAbertosDoTelefone(admin, restauranteId, telefone, ctx.semEntregador)).find((x) => x.id === d.pedidoId) ?? null
-  const r = responder(d, loja, { agora, nomeCliente: e.nome, pedido, abertos, taxaCheckout, temAlteracao: !!pedidoEditavelId, solicitacaoMensagem })
+  // "4 Ver meu progresso" (Etapa 7, 20/10): cashback, prêmios, missões e cupons deste telefone, em texto.
+  let progressoMensagem: string | null = null
+  if (d.acao === 'fidelidade') progressoMensagem = await mensagemProgressoCliente(admin, restauranteId, telefone, e.nome ?? null, { nome: loja.nome, link: loja.link }).catch((err) => { console.error('[robo] progresso:', (err as Error).message); return null })
+  const r = responder(d, loja, { agora, nomeCliente: e.nome, pedido, abertos, taxaCheckout, temAlteracao: !!pedidoEditavelId, solicitacaoMensagem, progressoMensagem })
   const novo = { ...d.estado }
   if (r.autoEstado !== undefined) {
     novo.autoEstado = r.autoEstado

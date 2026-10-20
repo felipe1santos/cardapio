@@ -18,8 +18,8 @@ describe('robô: alterar ou cancelar meu pedido (18/10)', () => {
     expect(decidir(base('quero mudar meu pedido')).acao).toBe('atendente')
   })
   it('"7" do menu abre o fluxo só com pedido editável', () => {
-    expect(decidir(base('7', { pedidoEditavelId: 'p1' })).acao).toBe('alterar_pedido_perguntar')
-    expect(decidir(base('7')).acao).not.toBe('alterar_pedido_perguntar')
+    expect(decidir(base('8', { pedidoEditavelId: 'p1' })).acao).toBe('alterar_pedido_perguntar')
+    expect(decidir(base('8')).acao).not.toBe('alterar_pedido_perguntar')
   })
   it('esperando o que mudar: a mensagem seguinte vira registro (com o id do pedido); atendente explícito continua atendente', () => {
     const estado = { ...ESTADO_VAZIO, autoEstado: 'alterar_pedido:p1' as const, autoEstadoEm: agora.toISOString() }
@@ -39,10 +39,10 @@ describe('robô: alterar ou cancelar meu pedido (18/10)', () => {
   it('ehAlteracaoDePedido reconhece cancelar/mudar/tirar/acrescentar', () => {
     expect(ehAlteracaoDePedido('quero cancelar o pedido')).toBe(true); expect(ehAlteracaoDePedido('falar com atendente')).toBe(false)
   })
-  it('menu: opção 7 só com pedido editável; responder usa a mensagem do servidor', () => {
+  it('menu: opção 8 (era 7 até 20/10) só com pedido editável; responder usa a mensagem do servidor', () => {
     const loja = { nome: 'Loja', link: 'https://x', textos: {}, bairros: [], aceitaEntrega: true, aberta: true } as unknown as DadosLojaAuto
-    expect(menu(loja, true, true)).toContain('*7* Alterar ou cancelar meu pedido')
-    expect(menu(loja, true, false)).not.toContain('*7*')
+    expect(menu(loja, true, true)).toContain('*8* Alterar ou cancelar meu pedido')
+    expect(menu(loja, true, false)).not.toContain('*8*')
     const r = responder({ acao: 'alterar_pedido_registrar', intencao: 'status_pedido', estado: ESTADO_VAZIO, naoEntendida: false, pedidoId: 'p1' }, loja, { agora, solicitacaoMensagem: 'Anotei!' })
     expect(r.mensagens).toEqual(['Anotei!']); expect(r.autoEstado).toBeNull()
     const q = responder({ acao: 'alterar_pedido_perguntar', intencao: 'status_pedido', estado: ESTADO_VAZIO, naoEntendida: false, pedidoId: 'p1' }, loja, { agora })

@@ -9,6 +9,8 @@
  *    Kanban, impressão, avisos), origem "whatsapp_ia". Mesma conversa + mesmo conteúdo em 10 min = não cria de novo.
  */
 import { createHash } from 'node:crypto'
+import { saldoCashbackCliente } from '@/lib/queries/cashback'
+import { valorCashbackAplicavel } from '@/lib/cashback-regras'
 import { linhaComplemento, linhaItem } from '@/lib/mensageria/formato'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { canalDoPedido, criarPedido, precificarLinhas, type FormaPagamento, type NovoPedidoItemInput } from '@/lib/queries/pedidos'
@@ -146,7 +148,15 @@ export async function calcularPedido(ctx: ContextoPedido, c: Carrinho): Promise<
     const minimo = l.frete_gratis_acima === null || l.frete_gratis_acima === undefined ? null : Number(l.frete_gratis_acima)
     if (minimo !== null && minimo > 0 && subtotal >= minimo) taxa = 0
   }
-  const total = cent(subtotal + taxa)
+  // Cashback (Etapa 7, 20/10): o saldo do cliente abate do subtotal (nunca do frete). Prévia; criarPedido reserva e grava.
+  let cashback = 0
+  try {
+    const { saldo } = await saldoCashbackCliente(admin, restauranteId, telefoneDoPedido(ctx.telefone))
+    cashback = valorCashbackAplicavel(saldo, subtotal, 0)
+  } catch {
+    cashback = 0
+  }
+  const total = cent(Math.max(0, subtotal - cashback) + taxa)
   const pixOnline = c.pagamento === 'pix' && ctx.pixOnlineAtivo
   const linhasTexto = linhas.map(linhasDoItemResumo)
   const pagamento = c.pagamento === 'dinheiro' && c.trocoPara ? `Dinheiro (troco para ${brl(c.trocoPara)})` : pixOnline ? 'Pix (envio o código depois de confirmar)' : ROTULO_PAGAMENTO[c.pagamento]
@@ -160,6 +170,7 @@ export async function calcularPedido(ctx: ContextoPedido, c: Carrinho): Promise<
     '',
     `Subtotal: \`${brl(subtotal)}\``,
     ...(c.tipo === 'entrega' ? [`Entrega: \`${taxa > 0 ? brl(taxa) : 'Grátis'}\``] : []),
+    ...(cashback > 0 ? [`💰 Cashback: \`-${brl(cashback)}\``] : []),
     `*Total:* \`${brl(total)}\``,
     '',
     onde,
@@ -248,6 +259,8 @@ export async function criarPedidoDaConversa(ctx: ContextoPedido, confirmacao: { 
       origemCanal: 'whatsapp_ia',
       origemDetalhe: { meio: 'agente_ia', conversa: conversaId },
       chaveIdempotencia: `${prefixo}${sufixo}`,
+      // Cashback (Etapa 7): o saldo do cliente entra sozinho (o resumo já mostrou a linha).
+      usarCashback: true,
       itens: linhasDoCarrinho(carrinho),
     }, { telefoneConfirmado: true })
     return { ok: true, id: p.id, numero: p.numero, total: resumo.total, repetido: false, pixOnline: resumo.pixOnline }

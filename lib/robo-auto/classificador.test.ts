@@ -79,11 +79,13 @@ describe('classificador do robô de autoatendimento', () => {
     expect(classificar(frase).assunto).toBe(esperado)
   })
 
-  it('números do menu: 1–6 e 0', () => {
-    const m: [string, Intencao][] = [['1', 'cardapio'], ['2', 'entrega'], ['3', 'status_pedido'], ['4', 'horario'], ['5', 'pagamento_pix'], ['6', 'endereco_retirada'], ['0', 'atendente'], [' 3 ', 'status_pedido'], ['opção 4', 'horario'], ['5.', 'pagamento_pix']]
+  it('números do menu: 1–7 e 0 (4 = progresso desde 20/10; 8 = alterar, só com pedido aberto)', () => {
+    const m: [string, Intencao][] = [['1', 'cardapio'], ['2', 'entrega'], ['3', 'status_pedido'], ['4', 'fidelidade'], ['5', 'horario'], ['6', 'pagamento_pix'], ['7', 'endereco_retirada'], ['0', 'atendente'], [' 3 ', 'status_pedido'], ['opção 5', 'horario'], ['6.', 'pagamento_pix']]
     for (const [t, a] of m) expect(classificar(t).assunto, t).toBe(a)
     expect(opcaoDoMenu('1234')).toBeNull()
-    expect(opcaoDoMenu('7')).toBeNull()
+    expect(opcaoDoMenu('9')).toBeNull()
+    expect(classificar('8').assunto).not.toBe('fidelidade')
+    for (const t of ['quero ver meu cashback', 'meu progresso', 'tem cupom?', 'quanto tenho de saldo']) expect(classificar(t).assunto, t).toBe('fidelidade')
   })
 
   it('palavras extras do dono entram no assunto', () => {

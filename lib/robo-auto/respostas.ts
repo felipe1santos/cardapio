@@ -59,8 +59,10 @@ export interface ContextoResposta {
   abertos?: number
   /** Taxa calculada no servidor com a MESMA regra do checkout (bairro × raio, o menor) — vence a da lista (12/10). */
   taxaCheckout?: { taxa: number; entregavel: boolean; motivo?: string } | null
-  /** 18/10: o telefone tem pedido aberto editável → o menu ganha "7 Alterar ou cancelar meu pedido". */
+  /** 18/10: o telefone tem pedido aberto editável → o menu ganha "8 Alterar ou cancelar meu pedido" (era 7 até 20/10). */
   temAlteracao?: boolean
+  /** Etapa 7 (20/10): texto pronto de "Ver meu progresso" (lib/fidelidade.ts › mensagemProgressoCliente). */
+  progressoMensagem?: string | null
   /** 18/10: resposta do servidor ao registrar a solicitação (abrirSolicitacao). */
   solicitacaoMensagem?: string | null
 }
@@ -90,9 +92,11 @@ const OPCOES_MENU: [number, Assunto, string][] = [
   [1, 'cardapio', 'Cardápio e pedido'],
   [2, 'entrega', 'Taxa e tempo de entrega'],
   [3, 'status_pedido', 'Status do meu pedido'],
-  [4, 'horario', 'Horário'],
-  [5, 'pagamento_pix', 'Pagamento e chave Pix'],
-  [6, 'endereco_retirada', 'Endereço e retirada'],
+  // Etapa 7 (20/10): cashback, prêmios, missões e cupons do cliente. Os demais desceram um número.
+  [4, 'fidelidade', 'Ver meu progresso'],
+  [5, 'horario', 'Horário'],
+  [6, 'pagamento_pix', 'Pagamento e chave Pix'],
+  [7, 'endereco_retirada', 'Endereço e retirada'],
 ]
 
 /** Tira a linha "0 Falar com atendente" de qualquer texto (inclusive os salvos pela loja antes de 12/10). */
@@ -103,10 +107,10 @@ export function semLinhaDoZero(texto: string): string {
 export function menu(l: DadosLojaAuto, curto = false, comAlterar = false): string {
   const desl = l.assuntosDesligados ?? new Set<Assunto>()
   const linhas = OPCOES_MENU
-    .filter(([n, a]) => !desl.has(a) && (!curto || [1, 2, 3].includes(n)))
+    .filter(([n, a]) => !desl.has(a) && (!curto || [1, 2, 3, 4].includes(n)))
     .map(([n, a, r]) => `- *${n}* ${a === 'pagamento_pix' && !temPix(l) ? 'Formas de pagamento' : r}`)
   // 18/10: só quando o número tem pedido aberto que ainda dá para alterar.
-  if (comAlterar) linhas.push('- *7* Alterar ou cancelar meu pedido')
+  if (comAlterar) linhas.push('- *8* Alterar ou cancelar meu pedido')
   // 12/10: sem "0 Falar com atendente" no menu — atendente só a pedido ou após 2 "não entendi" seguidos.
   return linhas.join('\n')
 }
@@ -312,5 +316,8 @@ Por isso não consigo anotar seu pedido agora 😕 Assim que abrirmos, é só me
     }
     case 'duvida':
       return { mensagens: ['Claro! Qual a sua dúvida? 😊'] }
+    case 'fidelidade':
+      // Etapa 7: o motor já consultou cashback, prêmios, missões e cupons do telefone.
+      return { mensagens: [ctx.progressoMensagem ?? 'Não consegui consultar seu progresso agora. Tente de novo em instantes 🙏'], autoEstado: null }
   }
 }

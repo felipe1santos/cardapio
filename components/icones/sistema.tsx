@@ -1,8 +1,8 @@
 'use client'
 
 import {
-  ArrowLeft, ArrowRight, Bag, CashRegister, Check, CreditCard, DotsThree, ForkKnife, MapPin, Moped, PencilSimple, Phone, Printer, Receipt, Storefront,
-  Warning, X, type IconProps,
+  ArrowLeft, ArrowRight, Bag, Bell, CashRegister, Check, Coins, CreditCard, DotsThree, ForkKnife, Gift, MapPin, Moped, PencilSimple, Phone, Plus, Printer,
+  Receipt, Storefront, Tag, Target, Trash, Warning, X, type IconProps,
 } from '@phosphor-icons/react'
 
 /**
@@ -34,6 +34,14 @@ export const IcoPdv = (p: P) => <Receipt {...padrao} {...p} />
 /** Origem PDV/Balcão no selo do card: caixa registradora. */
 export const IcoCaixa = (p: P) => <CashRegister {...padrao} {...p} />
 export const IcoCartao = (p: P) => <CreditCard {...padrao} weight="duotone" color="#1D4ED8" {...p} />
+/** Fidelidade (Etapa 7, 20/10/2026): campanha (alvo), prêmio (presente), cupom (etiqueta), cashback (moedas). */
+export const IcoMeta = (p: P) => <Target {...padrao} {...p} />
+export const IcoPresente = (p: P) => <Gift {...padrao} {...p} />
+export const IcoCupom = (p: P) => <Tag {...padrao} {...p} />
+export const IcoCashback = (p: P) => <Coins {...padrao} {...p} />
+export const IcoExcluir = (p: P) => <Trash {...padrao} {...p} />
+export const IcoAdicionar = (p: P) => <Plus {...padrao} {...p} />
+export const IcoSino = (p: P) => <Bell {...padrao} {...p} />
 
 /** Cédula colorida — o MESMO desenho do chip "Faturamento" no topo do Painel de Pedidos (Material "payments"). */
 export function IcoDinheiro({ className = 'h-4 w-4', cor = 'var(--valor-dinheiro)' }: { className?: string; cor?: string }) {
