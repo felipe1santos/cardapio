@@ -586,7 +586,7 @@ function Conversa({ id, tags, onTagsMudaram, onVoltar, onMudou, onAviso, fotoDe,
               )}
               {(c.atendimento === 'aguardando' || (c.atendimento === 'humano' && !pausada)) && (
                 <button type="button" disabled={ocupado} onClick={() => void acao('encerrar', 'Conversa encerrada.')} data-testid="atendimento-encerrar" className="inline-flex items-center gap-1 rounded-[8px] border border-[#D1D5DB] bg-white px-2.5 py-1.5 text-[12.5px] font-semibold text-[#1F2937] hover:border-[#0688D4] hover:text-[#0688D4] disabled:opacity-50">
-                  <Check className="h-3.5 w-3.5" /> {robo ? 'Encerrar e devolver ao robô' : 'Encerrar atendimento'}
+                  <Check className="h-3.5 w-3.5" /> {robo ? 'Devolver para a IA' : 'Encerrar atendimento'}
                 </button>
               )}
               {robo && c.atendimento === 'robo' && (
@@ -603,6 +603,12 @@ function Conversa({ id, tags, onTagsMudaram, onVoltar, onMudou, onAviso, fotoDe,
           )}
         </div>
 
+        {/* Etapa 4 (20/10): a IA está no fluxo de pedido — se a loja escrever, a IA pausa (como hoje). */}
+        {c?.iaMontandoPedido && c.atendimento === 'robo' && (
+          <div className="flex-shrink-0 border-b border-[#BFDBFE] bg-[#EFF6FF] px-3 py-2 text-[12.5px] text-[#1E40AF]" role="status" data-testid="atendimento-faixa-ia-pedido">
+            <span className="font-semibold">IA está montando um pedido</span> — aguarde o resumo. Se você escrever agora, a IA pausa e a conversa passa para você.
+          </div>
+        )}
         {/* Pediu atendente ao robô (0182): fica destacado até "Resolvido". */}
         {c?.pedindoAtendenteDesde && (
           <div className="flex-shrink-0 border-b border-[#FCD34D] bg-[#FEF3C7] px-3 py-2 text-[12.5px] text-[#92400E]" role="status" data-testid="atendimento-faixa-pedindo">

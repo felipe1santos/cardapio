@@ -43,6 +43,7 @@ export async function GET() {
     assuntosDesligados: (c.auto_assuntos_desligados as string[] | null) ?? [],
     textos: (c.auto_textos as Record<string, string> | null) ?? {},
     palavras: (c.auto_palavras as Record<string, string[]> | null) ?? {},
+    voltarMin: Number(c.auto_voltar_min ?? 5) || 5,
     padrao: { textos: TEXTOS_PADRAO, rotulos: ROTULO_TEXTO, palavras: PALAVRAS_PADRAO, campos: CAMPOS, assuntos: ASSUNTOS },
   }, { headers: semCache })
 }
@@ -103,6 +104,13 @@ export async function PUT(request: Request) {
     resumo.push('palavras-chave')
   }
   // 0205: tempo de entrega e chave Pix agora são do Perfil da loja (lib/queries/ajustes.ts); aqui não se grava mais.
+  // Etapa 4 (20/10): minutos sem resposta da loja para o robô/IA voltar a atender sozinho (1 a 60).
+  if (corpo.voltarMin !== undefined) {
+    const v = Number(corpo.voltarMin)
+    if (!Number.isInteger(v) || v < 1 || v > 60) return NextResponse.json({ error: 'Voltar a atender: de 1 a 60 minutos.' }, { status: 400 })
+    patch.auto_voltar_min = v
+    resumo.push('tempo para o robô voltar')
+  }
   if (!resumo.length) return NextResponse.json({ error: 'Nada para salvar.' }, { status: 400 })
   const { error } = await admin.from('whatsapp_robo_config').upsert(patch, { onConflict: 'restaurante_id' })
   if (error) return NextResponse.json({ error: 'Não foi possível salvar.' }, { status: 500 })

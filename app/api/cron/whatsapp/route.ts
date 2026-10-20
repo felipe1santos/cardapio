@@ -6,6 +6,7 @@ import { avisarAtendentesPendentes } from '@/lib/agente-ia/avisos'
 import { escalarSolicitacoesPendentes } from '@/lib/pedidos/solicitacoes'
 import { sugerirComIaUmaLoja } from '@/lib/robo-auto/sugestao-ia'
 import { monitorarTodas } from '@/lib/whatsapp-monitor'
+import { devolverConversasAbandonadas } from '@/lib/mensageria/abandono'
 
 /**
  * Cron da fila do WhatsApp: novas tentativas (espera crescente) e retenção de 90 dias.
@@ -21,6 +22,8 @@ export async function POST(request: Request) {
   await avisarAtendentesPendentes(admin).catch((e) => console.error('[whatsapp] aviso de atendente:', (e as Error).message))
   // Solicitação de alteração/cancelamento do cliente sem resposta da loja há 5 min (18/10): vai para o atendente.
   await escalarSolicitacoesPendentes(admin).catch((e) => console.error('[whatsapp] escalar solicitações:', (e as Error).message))
+  // Loja assumiu e sumiu (Etapa 4, 20/10): humano parou de responder há X min → robô/IA volta com pedido de desculpas (antes da fila: sai nesta rodada).
+  await devolverConversasAbandonadas(admin).catch((e) => console.error('[whatsapp] retorno automático:', (e as Error).message))
   const fila = await processarFila(admin, { limite: 20 })
   const { data: limpeza, error } = await admin.rpc('whatsapp_limpar_antigos')
   if (error) console.error('[whatsapp] limpeza falhou:', error.message)

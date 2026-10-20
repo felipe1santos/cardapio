@@ -33,9 +33,10 @@ interface Config {
   assuntosDesligados: string[]
   textos: Record<string, string>
   palavras: Record<string, string[]>
+  voltarMin: number
   padrao: { textos: Record<string, string>; rotulos: Record<string, string>; palavras: Record<string, string[]>; campos: string[]; assuntos: Assunto[] }
 }
-interface Rascunho { assuntosDesligados: string[]; textos: Record<string, string>; palavras: Record<string, string> }
+interface Rascunho { assuntosDesligados: string[]; textos: Record<string, string>; palavras: Record<string, string>; voltarMin: string }
 interface PassoSim { entrada: string; intencao: string; acao: string; respostas: string[] }
 
 const CLASSE_CAMPO = 'w-full rounded-[3px] border border-[#E5E7EB] bg-white px-[10px] py-[8px] text-[14px] text-[#1F2937] outline-none focus:border-[#0688D4]'
@@ -45,6 +46,7 @@ function rascunhoDe(c: Config): Rascunho {
     assuntosDesligados: c.assuntosDesligados,
     textos: c.textos,
     palavras: Object.fromEntries(Object.entries(c.palavras).map(([k, v]) => [k, v.join('\n')])),
+    voltarMin: String(c.voltarMin ?? 5),
   }
 }
 
@@ -93,7 +95,7 @@ export function PainelAutoatendimento() {
   async function salvar() {
     if (!r) return
     setSalvando(true)
-    const corpo = { assuntosDesligados: r.assuntosDesligados, palavras: palavrasParaApi(r.palavras) }
+    const corpo = { assuntosDesligados: r.assuntosDesligados, palavras: palavrasParaApi(r.palavras), voltarMin: Number(r.voltarMin) || 5 }
     const res = await fetch('/api/admin/whatsapp/autoatendimento', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) }).catch(() => null)
     setSalvando(false)
     if (!res?.ok) { mostrar('erro', (await res?.json().catch(() => null))?.error ?? 'Não foi possível salvar.'); return }
@@ -142,6 +144,12 @@ export function PainelAutoatendimento() {
               <div className="mt-[12px]">
                 <Button variant="outline" type="button" onClick={() => { window.location.href = '/admin/ajustes' }}>Editar no Perfil</Button>
               </div>
+              {/* Etapa 4 (20/10): loja assumiu e sumiu → o robô/IA volta sozinho depois deste tempo sem resposta à mensagem do cliente. */}
+              <label className="mt-[14px] block md:w-[360px]">
+                <span className="mb-[4px] block text-[12px] font-medium text-[#6B7280]">Voltar a atender depois de (min) sem resposta da loja</span>
+                <input className={CLASSE_CAMPO} type="number" min={1} max={60} value={r.voltarMin} onChange={(e) => setR({ ...r, voltarMin: e.target.value })} data-testid="robo-voltar-min" />
+                <span className="mt-[4px] block text-[11.5px] text-[#6B7280]">{'Quando alguém da loja assume a conversa e para de responder, o robô/IA volta com "Desculpe a demora! Posso continuar seu pedido por aqui 😊". Padrão: 5 min.'}</span>
+              </label>
             </Cartao>
 
             <Cartao className="p-[16px]">

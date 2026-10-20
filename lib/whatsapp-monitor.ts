@@ -77,12 +77,20 @@ export async function monitorarLoja(admin: SupabaseClient, loja: Loja, opcoes: {
     return 'indisponivel'
   }
   let reconectou = false
-  if (novo !== 'open') {
+  // Reconexão automática SÓ quando a Evolution disse "close" de verdade (null = sem resposta; "connecting" = ela já está
+  // tentando) e só na PRIMEIRA detecção da queda (whatsapp_caiu_em vazio): /instance/connect repetido não ajuda e, numa
+  // instância saudável com resposta lenta, poderia derrubar a sessão.
+  if (novo === 'close' && !loja.whatsapp_caiu_em) {
     const manual = !!loja.whatsapp_desconexao_manual_em && agora - Date.parse(loja.whatsapp_desconexao_manual_em) < 30 * 60_000
     if (!manual) {
       const depois = await tentarReconectar(loja.evolution_instance)
       if (depois === 'open') { novo = 'open'; reconectou = true }
     }
+  }
+  if (novo === null) {
+    // Sem resposta da Evolution: não muda o estado (nem alerta) por uma falha momentânea; só registra a checagem.
+    await admin.from('restaurantes').update({ whatsapp_estado_em: new Date(agora).toISOString() }).eq('id', loja.id)
+    return 'indisponivel'
   }
   const d = decidirMonitor({ anterior: loja.whatsapp_estado, novo, caiuEm: loja.whatsapp_caiu_em, manualEm: loja.whatsapp_desconexao_manual_em, alertadoEm: loja.whatsapp_alertado_em, agora })
   const patch: Record<string, unknown> = { whatsapp_estado: d.estado, whatsapp_estado_em: new Date(agora).toISOString(), whatsapp_caiu_em: d.caiuEm }

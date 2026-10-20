@@ -170,6 +170,7 @@ export const ROTULO_EVENTO: Record<string, string> = {
   // Monitor do WhatsApp (0209, 20/10).
   'whatsapp.caiu': 'WhatsApp da loja desconectou sozinho (loja avisada)',
   'whatsapp.reconectado': 'WhatsApp da loja voltou (avisos pendentes reenviados)',
+  'whatsapp.retorno_automatico': 'Robô/IA voltou a atender (loja assumiu e não respondeu no prazo)',
   'pix_online.devolvido': 'Devolveu Pix online ao cliente',
   'pix_online.conta_conectada': 'Conectou a conta do Mercado Pago',
   'pix_online.conexao_recusada': 'Conexão com o Mercado Pago recusada',

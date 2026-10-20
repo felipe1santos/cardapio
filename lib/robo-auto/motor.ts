@@ -41,10 +41,12 @@ export interface ConfigAuto {
   /** Agente de IA (0183): interruptor e teto próprio por loja. */
   ia_ativo?: boolean | null
   ia_teto_usd_dia?: number | string | null
+  /** Etapa 4 (20/10): minutos sem resposta da loja para o robô/IA voltar sozinho (padrão 5). */
+  auto_voltar_min?: number | null
 }
 
 export const COLUNAS_CONFIG_AUTO =
-  'restaurante_id, autoatendimento_ativo, auto_assuntos_desligados, auto_textos, auto_palavras, auto_tempo_entrega, pix_chave, pix_chave_tipo, ia_ativo, ia_teto_usd_dia'
+  'restaurante_id, autoatendimento_ativo, auto_assuntos_desligados, auto_textos, auto_palavras, auto_tempo_entrega, pix_chave, pix_chave_tipo, ia_ativo, ia_teto_usd_dia, auto_voltar_min'
 
 /** Espera antes de a IA responder, para juntar mensagens seguidas do cliente numa resposta só (12/10). */
 export const ESPERA_AGRUPAR_MS = 4000

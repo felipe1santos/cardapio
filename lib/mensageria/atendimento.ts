@@ -34,6 +34,8 @@ export interface ConversaCentral {
   pedindoAtendenteMotivo?: string | null
   /** Último pedido criado pelo Agente de IA nesta conversa (link na central). */
   iaPedidoId: string | null
+  /** Etapa 4 (20/10): a IA está montando um pedido agora (faixa azul "aguarde o resumo"). */
+  iaMontandoPedido?: boolean
 }
 
 /** Destaque de "pedindo atendente" vale por 12 h (mesma janela da antiga faixa do Kanban). */
@@ -120,10 +122,20 @@ interface LinhaConversa {
   pediu_atendente_em: string | null
   pediu_atendente_motivo?: string | null
   ia_pedido_id: string | null
+  ia_rascunho?: unknown
+  ia_desde?: string | null
   whatsapp_conversa_tags?: { tag_id: string }[]
 }
 
-const COLUNAS_CONVERSA = 'id, telefone, nome_contato, atendimento, atendente_nome, nao_lidas, ultima_previa, ultima_origem, ultima_atividade_em, pediu_atendente_em, pediu_atendente_motivo, ia_pedido_id'
+const COLUNAS_CONVERSA = 'id, telefone, nome_contato, atendimento, atendente_nome, nao_lidas, ultima_previa, ultima_origem, ultima_atividade_em, pediu_atendente_em, pediu_atendente_motivo, ia_pedido_id, ia_rascunho, ia_desde'
+
+/** Etapa 4 (20/10): a IA está no fluxo de pedido (rascunho aberto, modo IA recente, conversa no robô). Pura. */
+export function iaMontandoPedido(l: { atendimento: string; ia_rascunho?: unknown; ia_desde?: string | null }, agora = Date.now()): boolean {
+  if (l.atendimento !== 'robo' || !l.ia_rascunho || typeof l.ia_rascunho !== 'object') return false
+  const r = l.ia_rascunho as { itens?: unknown[] }
+  if (!Array.isArray(r.itens) || r.itens.length === 0) return false
+  return !!l.ia_desde && agora - Date.parse(l.ia_desde) < 2 * 3600_000
+}
 
 async function mapearConversas(admin: SupabaseClient, restauranteId: string, linhas: LinhaConversa[]): Promise<ConversaCentral[]> {
   const [nomes, fotos] = await Promise.all([
@@ -147,6 +159,7 @@ async function mapearConversas(admin: SupabaseClient, restauranteId: string, lin
     pedindoAtendenteDesde: estaPedindoAtendente(l) ? l.pediu_atendente_em : null,
     pedindoAtendenteMotivo: estaPedindoAtendente(l) ? l.pediu_atendente_motivo ?? null : null,
     iaPedidoId: l.ia_pedido_id ?? null,
+    iaMontandoPedido: iaMontandoPedido(l),
   }))
 }
 
