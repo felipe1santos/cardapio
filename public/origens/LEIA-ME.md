@@ -7,4 +7,11 @@ Logos da origem do pedido (card do Kanban e painel do pedido, 13/10/2026). Arqui
 - `ifood.svg` — logo do iFood (Wikimedia Commons, `IFood_logo.svg`, vermelho #EA1D2C). Ainda não há pedidos do iFood.
 - `mercado-pago.svg` — cópia de `public/icons/integracoes/mercado-pago.svg` (Simple Icons, #00B1EA): "Pago" online.
 - `menuzia.png` — ícone do Menuzia (cópia de `public/icon-192.png`): Cardápio e Notificação do app.
-- 99Food: não há arquivo oficial público para baixar — o card mostra um ícone neutro com o nome até o dono mandar.
+- 99Food: ver a lista de 20/10 abaixo (logo oficial do site).
+
+Logos dos apps e entregadores (20/10/2026, pedido do dono — tiradas das fontes oficiais de cada empresa, sem recolorir):
+- `keeta.png` — ícone do app (favicon oficial do site da Keeta, img-eu.mykeeta.net), 144 px.
+- `99food.png` — recorte quadrado da marca "99 Food" publicada no site oficial 99food.com.br (images.ctfassets.net), 256 px.
+- `aiqfome.svg` — logo oficial do repositório público de design do aiqfome (github.com/aiqfome/aiq-design-system, public/logo.svg).
+- `foody.png` — ícone oficial da Foody Delivery (foodydelivery.com, cropped-foody-logo-512), 192 px.
+- `machine.png` — símbolo oficial da Machine (favicon de machine.global), 256 px.

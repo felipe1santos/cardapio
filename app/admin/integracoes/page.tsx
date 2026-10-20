@@ -45,14 +45,14 @@ const INTEGRACOES: Definicao[] = [
   { id: 'lalamove', nome: 'Lalamove', grupo: 'Entregas', logo: '/icons/integracoes/lalamove.svg', resumo: 'Chame um entregador da Lalamove pelo Kanban, com o preço antes de confirmar.' },
   // 20/10 (regra definitiva): TODAS as integrações aparecem para TODAS as lojas, grátis. As que a Menuzia ainda está
   // homologando levam "Em breve" e não conectam (a API também recusa). Lalamove e Foody liberadas.
-  { id: 'foody', nome: 'Foody Delivery', grupo: 'Entregas', logo: '/icons/integracoes/opendelivery.svg', resumo: 'Entregador da Foody pelo padrão Open Delivery, com cotação antes de confirmar.' },
+  { id: 'foody', nome: 'Foody Delivery', grupo: 'Entregas', logo: '/origens/foody.png', resumo: 'Entregador da Foody pelo padrão Open Delivery, com cotação antes de confirmar.' },
   // Machine/Gaudium (20/10): app dos motoboys do interior; logística Open Delivery como a Foody, credenciais pela central Machine → "Em breve".
-  { id: 'machine', nome: 'Machine (motoboys da cidade)', grupo: 'Entregas', logo: '/icons/integracoes/opendelivery.svg', resumo: 'Entregadores da central Machine da sua cidade pelo padrão Open Delivery, com cotação antes de confirmar.', emBreve: true },
+  { id: 'machine', nome: 'Machine (motoboys da cidade)', grupo: 'Entregas', logo: '/origens/machine.png', resumo: 'Entregadores da central Machine da sua cidade pelo padrão Open Delivery, com cotação antes de confirmar.', emBreve: true },
   { id: 'entregas-ifood', nome: 'Entregador iFood (Sob Demanda)', grupo: 'Entregas', logo: '/origens/ifood.svg', resumo: 'Chame um entregador do iFood para pedidos de fora do iFood, com cotação antes de confirmar.', emBreve: true },
   { id: 'ifood', nome: 'iFood', grupo: 'Pedidos de apps', logo: '/origens/ifood.svg', resumo: 'Pedidos do iFood entram no Painel de Pedidos; aceite, pronto e despacho voltam ao iFood.', emBreve: true },
-  { id: 'keeta', nome: 'Keeta', grupo: 'Pedidos de apps', logo: '/icons/integracoes/opendelivery.svg', resumo: 'Pedidos da Keeta pelo padrão Open Delivery (Abrasel).', emBreve: true },
-  { id: '99food', nome: '99Food', grupo: 'Pedidos de apps', logo: '/icons/integracoes/opendelivery.svg', resumo: 'Pedidos do 99Food pelo padrão Open Delivery (Abrasel).', emBreve: true },
-  { id: 'aiqfome', nome: 'aiqfome', grupo: 'Pedidos de apps', logo: '/icons/integracoes/opendelivery.svg', resumo: 'Pedidos do aiqfome no Painel de Pedidos (depende de parceria com integradora homologada).', emBreve: true },
+  { id: 'keeta', nome: 'Keeta', grupo: 'Pedidos de apps', logo: '/origens/keeta.png', resumo: 'Pedidos da Keeta pelo padrão Open Delivery (Abrasel).', emBreve: true },
+  { id: '99food', nome: '99Food', grupo: 'Pedidos de apps', logo: '/origens/99food.png', resumo: 'Pedidos do 99Food pelo padrão Open Delivery (Abrasel).', emBreve: true },
+  { id: 'aiqfome', nome: 'aiqfome', grupo: 'Pedidos de apps', logo: '/origens/aiqfome.svg', resumo: 'Pedidos do aiqfome no Painel de Pedidos (depende de parceria com integradora homologada).', emBreve: true },
 ]
 const ORDEM_GRUPOS: Grupo[] = ['Pagamentos', 'Mensagens', 'Marketing e medição', 'Pedidos de apps', 'Entregas']
 

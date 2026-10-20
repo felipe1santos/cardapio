@@ -5,6 +5,8 @@ const nextConfig: NextConfig = {
   // Maps JavaScript, restrita a app.menuzia.com.br. A chave do servidor (GOOGLE_MAPS_SERVER_KEY) NUNCA entra aqui.
   env: {
     NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_BROWSER_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
+    // Carimbo do build (20/10): o painel compara com /api/versao e avisa/atualiza abas antigas (components/admin/nova-versao).
+    NEXT_PUBLIC_VERSAO_APP: process.env.SOURCE_COMMIT || process.env.NEXT_PUBLIC_VERSAO_APP || String(Date.now()),
   },
   // Fontes do projeto (public/fontes): o nome do arquivo tem hash, então podem ficar em cache
   // para sempre, como os de /_next/static.

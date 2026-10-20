@@ -8,7 +8,7 @@ export type ProvedorNoCard = 'lalamove' | 'ifood' | 'foody'
 const MARCA: Record<ProvedorNoCard, { nome: string; curto: string; logo: string; borda: string; texto: string; fundo: string }> = {
   lalamove: { nome: 'Lalamove', curto: 'Lalamove', logo: '/icons/integracoes/lalamove.svg', borda: '#F16622', texto: '#C2410C', fundo: '#F16622' },
   ifood: { nome: 'Entregador iFood', curto: 'iFood', logo: '/origens/ifood.svg', borda: '#EA1D2C', texto: '#B91C1C', fundo: '#EA1D2C' },
-  foody: { nome: 'Foody', curto: 'Foody', logo: '/icons/integracoes/opendelivery.svg', borda: '#0F172A', texto: '#1F2937', fundo: '#0F172A' },
+  foody: { nome: 'Foody', curto: 'Foody', logo: '/origens/foody.png', borda: '#D3131A', texto: '#B91C1C', fundo: '#D3131A' },
 }
 // eslint-disable-next-line @next/next/no-img-element
 const Logo = ({ className, provedor = 'lalamove' }: { className: string; provedor?: ProvedorNoCard }) => <img src={MARCA[provedor].logo} alt="" className={className} aria-hidden />

@@ -1,4 +1,4 @@
-// Service worker mínimo do Menuzia.
+// Service worker mínimo do Menuzia. Versão 2026-10-20 (mudar este arquivo faz todo navegador instalar o SW novo).
 // Objetivo: tornar o painel "instalável" (PWA). Não faz cache do app shell de
 // propósito — o Next serve chunks versionados e cache agressivo causaria telas
 // velhas após deploy. O handler de fetch existe só porque o Chrome exige um

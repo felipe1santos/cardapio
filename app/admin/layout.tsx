@@ -22,6 +22,7 @@ import { AprovacaoGlobal } from '@/components/admin/aprovacao-global'
 import { AvisoNovaImpressao } from '@/components/admin/aviso-nova-impressao'
 import { AlertasImpressao } from '@/components/admin/alertas-impressao'
 import { AlertaWhatsapp } from '@/components/admin/alerta-whatsapp'
+import { NovaVersao } from '@/components/admin/nova-versao'
 import { TravaSessao } from '@/components/admin/trava-sessao'
 import { JanelaSairComCaixa } from '@/components/financeiro/aviso-caixa'
 import { buscarEstadoSessao, estadoMudou, sairDoPainel, useEstadoSessao } from '@/lib/sessao-cliente'
@@ -368,6 +369,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Alfa 1: Imprimir sozinho desligado com pedido chegando / nenhum computador buscando pedidos. */}
       <AlertasImpressao />
       {/* Etapa 3 (20/10): WhatsApp caiu sozinho → reconecte em Integrações (desconexão manual não mostra). */}
+      <NovaVersao />
       <AlertaWhatsapp />
       {/* Som de pedido bloqueado pelo navegador: aviso grande em qualquer tela (some no 1º toque). */}
       <AvisoSomBloqueado />
