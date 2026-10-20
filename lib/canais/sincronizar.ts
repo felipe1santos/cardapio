@@ -1,8 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { moduloLiberado, type Modulo } from '@/lib/modulos'
 import { listarCanaisAtivos, registrarPolling, type ConfigCanal } from './config'
 import { cancelarPeloApp, importarPedidoExterno } from './importar'
-import { etapasAEnviar, statusParaApp, type Canal, type StatusParaApp } from './tipos'
+import { CANAL_DISPONIVEL, etapasAEnviar, statusParaApp, type Canal, type StatusParaApp } from './tipos'
 import { acknowledgmentOd, detalheDoPedidoOd, enviarStatusOd, pollingOd, type EventoOd } from './opendelivery/cliente'
 import { mapearPedidoOpenDelivery } from './opendelivery/mapear'
 import { acknowledgmentIfood, detalheDoPedidoIfood, enviarStatusIfood, EVENTO_IFOOD, pollingIfood, type EventoIfood } from './ifood/cliente'
@@ -18,7 +17,8 @@ import { aplicarEventoCorrida, statusDeEventoIfood } from '@/lib/entregas/proved
  *      na ordem certa (confirm → preparing → readyForPickup → dispatch → delivered), uma etapa por vez, sem voltar.
  * O webhook do Open Delivery (newEvent) chama `tratarEventoOd` direto — o polling é a rede de segurança.
  */
-export const MODULO_DO_CANAL: Record<Canal, Modulo> = { keeta: 'canal_opendelivery', '99food': 'canal_opendelivery', ifood: 'canal_ifood' }
+/** 20/10: canal roda se estiver liberado (CANAL_DISPONIVEL), ligado na loja e com credenciais — sem módulo pago. */
+export const canalPodeRodar = (canal: Canal) => CANAL_DISPONIVEL[canal] === true
 
 export interface ResumoSincronizacao { lojas: number; eventos: number; pedidosNovos: number; cancelados: number; statusEnviados: number; erros: string[] }
 
@@ -142,7 +142,7 @@ export async function sincronizarCanais(admin: SupabaseClient): Promise<ResumoSi
   const configs = await listarCanaisAtivos(admin)
   for (const c of configs) {
     if (!c.credenciais) continue
-    if (!(await moduloLiberado(admin, c.restauranteId, MODULO_DO_CANAL[c.canal]))) continue
+    if (!canalPodeRodar(c.canal)) continue
     resumo.lojas++
     await pollingDaLoja(admin, c, resumo)
     await sincronizarStatusDaLoja(admin, c, resumo)

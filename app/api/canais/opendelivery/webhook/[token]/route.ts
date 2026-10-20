@@ -2,8 +2,7 @@ import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { buscarConfigPorWebhookToken } from '@/lib/canais/config'
 import { assinaturaOdValida, type EventoOd } from '@/lib/canais/opendelivery/cliente'
-import { tratarEventoOd, MODULO_DO_CANAL } from '@/lib/canais/sincronizar'
-import { moduloLiberado } from '@/lib/modulos'
+import { canalPodeRodar, tratarEventoOd } from '@/lib/canais/sincronizar'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,7 +26,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
   const appId = request.headers.get('x-app-id')
   if (cfg.appIdExterno && appId && appId !== cfg.appIdExterno) return NextResponse.json({ error: 'App desconhecido' }, { status: 401 })
   if (!assinaturaOdValida(bruto, request.headers.get('x-app-signature'), cfg.credenciais?.clientSecret ?? null)) return NextResponse.json({ error: 'Assinatura inválida' }, { status: 401 })
-  if (!cfg.ativo || !(await moduloLiberado(admin, cfg.restauranteId, MODULO_DO_CANAL[cfg.canal]))) return NextResponse.json({ ok: true, ignorado: 'canal desligado' })
+  if (!cfg.ativo || !canalPodeRodar(cfg.canal)) return NextResponse.json({ ok: true, ignorado: 'canal desligado' })
   let evento: EventoOd
   try { evento = JSON.parse(bruto) as EventoOd } catch { return NextResponse.json({ error: 'Corpo inválido' }, { status: 400 }) }
   if (!evento || typeof evento.eventId !== 'string' || typeof evento.orderId !== 'string') return NextResponse.json({ error: 'Evento inválido' }, { status: 400 })

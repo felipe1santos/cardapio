@@ -17,7 +17,6 @@ import { BotaoAjudaIntegracao } from '@/components/admin/integracoes/ajuda-integ
 import { LalamoveCard } from '@/components/admin/lalamove-card'
 import { CanalCard } from '@/components/admin/integracoes/canal-card'
 import { EntregadorCard } from '@/components/admin/integracoes/entregador-card'
-import { useEstadoSessao } from '@/lib/sessao-cliente'
 
 /**
  * Integrações (repaginada em 2026-10-06, no modelo do dono — integracoes-modelo.png): faixa "Sentiu falta de
@@ -31,9 +30,10 @@ import { useEstadoSessao } from '@/lib/sessao-cliente'
  *   atendente ficam só na central do WhatsApp (canto inferior direito).
  */
 
-type IdIntegracao = 'whatsapp' | 'mercadopago' | 'facebook' | 'capi' | 'google' | 'lalamove' | 'keeta' | '99food' | 'ifood' | 'entregas-ifood' | 'foody'
+type IdIntegracao = 'whatsapp' | 'mercadopago' | 'facebook' | 'capi' | 'google' | 'lalamove' | 'keeta' | '99food' | 'ifood' | 'aiqfome' | 'entregas-ifood' | 'foody'
 type Grupo = 'Mensagens' | 'Pagamentos' | 'Marketing e medição' | 'Entregas' | 'Pedidos de apps'
-interface Definicao { id: IdIntegracao; nome: string; grupo: Grupo; logo: string; resumo: string }
+/** `emBreve` (20/10): aparece para todas as lojas com a etiqueta "Em breve" e não deixa conectar (a Menuzia ainda homologa). */
+interface Definicao { id: IdIntegracao; nome: string; grupo: Grupo; logo: string; resumo: string; emBreve?: boolean }
 
 const INTEGRACOES: Definicao[] = [
   { id: 'whatsapp', nome: 'WhatsApp', grupo: 'Mensagens', logo: '/icons/integracoes/whatsapp-icon.svg', resumo: 'Avisos do pedido e atendimento pelo WhatsApp da loja.' },
@@ -43,15 +43,16 @@ const INTEGRACOES: Definicao[] = [
   { id: 'google', nome: 'Google Analytics / Tag Manager', grupo: 'Marketing e medição', logo: '/icons/integracoes/google-analytics.svg', resumo: 'Google Analytics 4 (G-…) ou Tag Manager (GTM-…).' },
   // Lalamove (0199): só aparece com o módulo "Entregas Lalamove" liberado no Super Admin.
   { id: 'lalamove', nome: 'Lalamove', grupo: 'Entregas', logo: '/icons/integracoes/lalamove.svg', resumo: 'Chame um entregador da Lalamove pelo Kanban, com o preço antes de confirmar.' },
-  // Entregadores (0208, 19/10): só com o módulo liberado (entregas_ifood / entregas_foody).
-  { id: 'entregas-ifood', nome: 'Entregador iFood (Sob Demanda)', grupo: 'Entregas', logo: '/origens/ifood.svg', resumo: 'Chame um entregador do iFood para pedidos de fora do iFood, com cotação antes de confirmar.' },
+  // 20/10 (regra definitiva): TODAS as integrações aparecem para TODAS as lojas, grátis. As que a Menuzia ainda está
+  // homologando levam "Em breve" e não conectam (a API também recusa). Lalamove e Foody liberadas.
   { id: 'foody', nome: 'Foody Delivery', grupo: 'Entregas', logo: '/icons/integracoes/opendelivery.svg', resumo: 'Entregador da Foody pelo padrão Open Delivery, com cotação antes de confirmar.' },
-  // Canais externos (0207, 19/10): só aparecem com o módulo liberado no Super Admin (canal_opendelivery / canal_ifood).
-  { id: 'ifood', nome: 'iFood', grupo: 'Pedidos de apps', logo: '/origens/ifood.svg', resumo: 'Pedidos do iFood entram no Painel de Pedidos; aceite, pronto e despacho voltam ao iFood.' },
-  { id: 'keeta', nome: 'Keeta', grupo: 'Pedidos de apps', logo: '/icons/integracoes/opendelivery.svg', resumo: 'Pedidos da Keeta pelo padrão Open Delivery (Abrasel).' },
-  { id: '99food', nome: '99Food', grupo: 'Pedidos de apps', logo: '/icons/integracoes/opendelivery.svg', resumo: 'Pedidos do 99Food pelo padrão Open Delivery (Abrasel).' },
+  { id: 'entregas-ifood', nome: 'Entregador iFood (Sob Demanda)', grupo: 'Entregas', logo: '/origens/ifood.svg', resumo: 'Chame um entregador do iFood para pedidos de fora do iFood, com cotação antes de confirmar.', emBreve: true },
+  { id: 'ifood', nome: 'iFood', grupo: 'Pedidos de apps', logo: '/origens/ifood.svg', resumo: 'Pedidos do iFood entram no Painel de Pedidos; aceite, pronto e despacho voltam ao iFood.', emBreve: true },
+  { id: 'keeta', nome: 'Keeta', grupo: 'Pedidos de apps', logo: '/icons/integracoes/opendelivery.svg', resumo: 'Pedidos da Keeta pelo padrão Open Delivery (Abrasel).', emBreve: true },
+  { id: '99food', nome: '99Food', grupo: 'Pedidos de apps', logo: '/icons/integracoes/opendelivery.svg', resumo: 'Pedidos do 99Food pelo padrão Open Delivery (Abrasel).', emBreve: true },
+  { id: 'aiqfome', nome: 'aiqfome', grupo: 'Pedidos de apps', logo: '/icons/integracoes/opendelivery.svg', resumo: 'Pedidos do aiqfome no Painel de Pedidos (depende de parceria com integradora homologada).', emBreve: true },
 ]
-const ORDEM_GRUPOS: Grupo[] = ['Mensagens', 'Pagamentos', 'Marketing e medição', 'Entregas', 'Pedidos de apps']
+const ORDEM_GRUPOS: Grupo[] = ['Pagamentos', 'Mensagens', 'Marketing e medição', 'Pedidos de apps', 'Entregas']
 
 interface WaStatus { configurado: boolean; connected: boolean; state: string | null; numero?: string | null }
 interface Situacao {
@@ -74,6 +75,7 @@ function CardIntegracao({ def, ativa, onAbrir }: { def: Definicao; ativa: boolea
       <span className="min-w-0 flex-1">
         <span className="line-clamp-2 text-[16.5px] font-medium leading-[22px] text-[#374151]">{def.nome}</span>
         {ativa && <span className="mt-[4px] inline-flex items-center rounded-full bg-[#ECFDF5] px-[8px] py-[1px] text-[12px] font-semibold text-[#047857]" data-testid={`integracao-${def.id}-ativa`}>Ativa</span>}
+        {def.emBreve && <span className="mt-[4px] inline-flex items-center rounded-full bg-[#F3F4F6] px-[8px] py-[1px] text-[12px] font-semibold text-[#6B7280]" data-testid={`integracao-${def.id}-em-breve`}>Em breve</span>}
       </span>
       <ChevronRight className="h-[22px] w-[22px] flex-shrink-0 text-[#9CA3AF] transition-colors group-hover:text-[#4B5563]" strokeWidth={2} />
     </>
@@ -196,12 +198,6 @@ export default function IntegracoesPage() {
   const [restauranteId, setRestauranteId] = useState<string | null>(null)
   const [sit, setSit] = useState<Situacao>({ wa: null, waFalhou: false, pixels: null, capi: null, mp: null, lalamove: null })
   const [aberta, setAberta] = useState<IdIntegracao | null>(null)
-  const modulosSessao = useEstadoSessao()?.modulos
-  const moduloLalamove = modulosSessao?.entregas_lalamove === true
-  const moduloOpenDelivery = modulosSessao?.canal_opendelivery === true
-  const moduloIfood = modulosSessao?.canal_ifood === true
-  const moduloEntregasIfood = modulosSessao?.entregas_ifood === true
-  const moduloFoody = modulosSessao?.entregas_foody === true
 
   useEffect(() => { buscarRestauranteIdDoUsuario(supabase).then(setRestauranteId) }, [supabase])
 
@@ -270,13 +266,12 @@ export default function IntegracoesPage() {
     keeta: false,
     '99food': false,
     ifood: false,
+    aiqfome: false,
     'entregas-ifood': false,
     foody: false,
   }
-  // Mercado Pago só onde o Pix online foi liberado (mesma regra do card de antes); Lalamove só com o módulo liberado.
-  const existentes = INTEGRACOES.filter((i) => (i.id !== 'mercadopago' || sit.mp?.liberada) && (i.id !== 'lalamove' || moduloLalamove)
-    && ((i.id !== 'keeta' && i.id !== '99food') || moduloOpenDelivery) && (i.id !== 'ifood' || moduloIfood)
-    && (i.id !== 'entregas-ifood' || moduloEntregasIfood) && (i.id !== 'foody' || moduloFoody))
+  // 20/10: todas as integrações para todas as lojas. Mercado Pago continua só onde o Pix online foi liberado (regra própria).
+  const existentes = INTEGRACOES.filter((i) => i.id !== 'mercadopago' || sit.mp?.liberada)
   const carregando = sit.wa === null && !sit.waFalhou || sit.pixels === null || sit.mp === null
   const ativas = existentes.filter((i) => ativa[i.id])
   const disponiveis = existentes.filter((i) => !ativa[i.id])
@@ -369,9 +364,15 @@ export default function IntegracoesPage() {
         {def?.id === 'capi' && <MetaCapiCard temPixel={!!sit.pixels?.facebook} avisar={avisarERecarregar} />}
         {def?.id === 'mercadopago' && <MercadoPagoCard avisar={avisarERecarregar} />}
         {def?.id === 'lalamove' && <LalamoveCard avisar={avisarERecarregar} />}
-        {(def?.id === 'keeta' || def?.id === '99food' || def?.id === 'ifood') && <CanalCard canal={def.id} avisar={avisarERecarregar} />}
-        {def?.id === 'entregas-ifood' && <EntregadorCard provedor="ifood" avisar={avisarERecarregar} />}
-        {def?.id === 'foody' && <EntregadorCard provedor="foody" avisar={avisarERecarregar} />}
+        {def?.emBreve && (
+          <div className="space-y-2 text-[13px] text-[#374151]" data-testid="integracao-em-breve">
+            <p className="rounded-[3px] border border-[#E5E7EB] bg-[#F9FAFB] px-3 py-2"><b>Em breve.</b> A Menuzia está homologando esta integração com o parceiro. Quando estiver liberada, ela aparece aqui pronta para conectar, sem custo.</p>
+            <p className="text-[12.5px] text-[#6B7280]">Quer ser avisado? Fale com o suporte da Menuzia pelo WhatsApp.</p>
+          </div>
+        )}
+        {!def?.emBreve && (def?.id === 'keeta' || def?.id === '99food' || def?.id === 'ifood') && <CanalCard canal={def.id} avisar={avisarERecarregar} />}
+        {!def?.emBreve && def?.id === 'entregas-ifood' && <EntregadorCard provedor="ifood" avisar={avisarERecarregar} />}
+        {!def?.emBreve && def?.id === 'foody' && <EntregadorCard provedor="foody" avisar={avisarERecarregar} />}
       </ModalCentral>
       <PilhaToasts itens={toasts.itens} />
     </div>

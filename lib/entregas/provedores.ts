@@ -6,14 +6,13 @@ import { aplicarEfeitosStatusPedidoComTrava } from '@/lib/pedido-eventos'
 import { buscarPedidoParaNotificacao, type Pedido, type StatusPedido } from '@/lib/queries/pedidos'
 import { enviarWhatsapp, formatarTelefoneWhatsapp } from '@/lib/whatsapp'
 import { registrarAuditoria } from '@/lib/auditoria'
-import { moduloLiberado } from '@/lib/modulos'
 import { buscarConfigCanal, type ConfigCanal } from '@/lib/canais/config'
 import { cancelarEntregaIfood, cotarIfoodEntrega, criarEntregaIfood } from '@/lib/custo/ifood-entrega'
 import { cancelarEntregaFoody, cotarFoody, criarEntregaFoody, type ContaFoody } from '@/lib/custo/foody-logistica'
 import { STATUS_FIM_SEM_ENTREGA, corridaAtiva, type RespostaCotacao } from './lalamove-regras'
 import { type EntregaProvedorLinha } from './lalamove-status'
 import { EntregaError, pedidoDaLoja } from './lalamove-servidor'
-import { apagarCorrida, atualizarCorrida, buscarConfig, corridaAtivaDoPedido, criarCorrida, marcosDaCorrida, registrarEventoCorrida, type ConfigProvedor, type ProvedorEntrega } from './queries'
+import { apagarCorrida, atualizarCorrida, buscarConfig, corridaAtivaDoPedido, criarCorrida, marcosDaCorrida, PROVEDOR_DISPONIVEL, registrarEventoCorrida, type ConfigProvedor, type ProvedorEntrega } from './queries'
 
 /**
  * Provedores de entrega além da Lalamove (Etapa 3, 19/10): entregador do iFood (Sob Demanda) e Foody (Open Delivery
@@ -67,6 +66,7 @@ async function lojaDe(admin: SupabaseClient, restauranteId: string): Promise<Loj
 
 /** Config do provedor pronta para uso (ligada e com o que precisa). iFood usa as credenciais do canal iFood. */
 export async function configProvedorPronta(admin: SupabaseClient, restauranteId: string, provedor: ProvedorNovo): Promise<{ cfg: ConfigProvedor; canalIfood: ConfigCanal | null; contaFoody: ContaFoody | null }> {
+  if (!PROVEDOR_DISPONIVEL[provedor]) throw new EntregaError(`${NOME_PROVEDOR[provedor]}: em breve. A Menuzia ainda está homologando esta integração.`, 409)
   const cfg = await buscarConfig(admin, restauranteId, provedor)
   if (!cfg) throw new EntregaError(`${NOME_PROVEDOR[provedor]} ainda não configurado. Veja Integrações.`, 400)
   if (!cfg.ativo) throw new EntregaError(`${NOME_PROVEDOR[provedor]} está desligado nesta loja (Integrações).`, 400)
@@ -79,13 +79,12 @@ export async function configProvedorPronta(admin: SupabaseClient, restauranteId:
   return { cfg, canalIfood: null, contaFoody: { baseUrl: cfg.baseUrl, clientId: cfg.chaves.apiKey, clientSecret: cfg.chaves.apiSecret } }
 }
 
-/** Quais provedores o Kanban deve oferecer nesta loja (módulo liberado + ligado + credenciais). */
+/** Quais provedores o Kanban deve oferecer nesta loja (20/10: disponível + ligado + credenciais; sem módulo pago). */
 export async function provedoresAtivos(admin: SupabaseClient, restauranteId: string): Promise<ProvedorEntrega[]> {
   const out: ProvedorEntrega[] = []
-  const [lala, ifo, foo] = await Promise.all([moduloLiberado(admin, restauranteId, 'entregas_lalamove'), moduloLiberado(admin, restauranteId, 'entregas_ifood'), moduloLiberado(admin, restauranteId, 'entregas_foody')])
-  if (lala) { const c = await buscarConfig(admin, restauranteId, 'lalamove').catch(() => null); if (c?.ativo && c.chaves) out.push('lalamove') }
-  if (ifo) { const c = await buscarConfig(admin, restauranteId, 'ifood').catch(() => null); if (c?.ativo) out.push('ifood') }
-  if (foo) { const c = await buscarConfig(admin, restauranteId, 'foody').catch(() => null); if (c?.ativo && c.chaves && c.baseUrl) out.push('foody') }
+  if (PROVEDOR_DISPONIVEL.lalamove) { const c = await buscarConfig(admin, restauranteId, 'lalamove').catch(() => null); if (c?.ativo && c.chaves) out.push('lalamove') }
+  if (PROVEDOR_DISPONIVEL.ifood) { const c = await buscarConfig(admin, restauranteId, 'ifood').catch(() => null); if (c?.ativo) out.push('ifood') }
+  if (PROVEDOR_DISPONIVEL.foody) { const c = await buscarConfig(admin, restauranteId, 'foody').catch(() => null); if (c?.ativo && c.chaves && c.baseUrl) out.push('foody') }
   return out
 }
 

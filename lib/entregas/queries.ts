@@ -10,6 +10,8 @@ import { ENTREGA_PROVEDOR_SELECT, mapEntregaProvedor, type EntregaProvedorLinha 
 export const PROVEDOR = 'lalamove'
 /** Provedores de entrega (0208): a Lalamove e, pela MESMA tabela/vocabulário de status, iFood Sob Demanda e Foody. */
 export type ProvedorEntrega = 'lalamove' | 'ifood' | 'foody'
+/** 20/10: provedor liberado para conectar. iFood Sob Demanda depende do aplicativo iFood homologado → "Em breve". */
+export const PROVEDOR_DISPONIVEL: Record<ProvedorEntrega, boolean> = { lalamove: true, ifood: false, foody: true }
 
 export interface ConfigProvedor {
   restauranteId: string

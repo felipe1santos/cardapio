@@ -6,13 +6,13 @@ import { registrarAuditoria } from '@/lib/auditoria'
 import { buscarConfigCanal, canalValido, paraPublica, salvarConfigCanal } from '@/lib/canais/config'
 import { tokenOd } from '@/lib/canais/opendelivery/cliente'
 import { autorizarIfood, lojasIfood, pedirUserCodeIfood, tokenIfood } from '@/lib/canais/ifood/cliente'
-import { NOME_CANAL } from '@/lib/canais/tipos'
+import { CANAL_DISPONIVEL, NOME_CANAL } from '@/lib/canais/tipos'
 
 export const dynamic = 'force-dynamic'
 
 /**
- * Integrações › Keeta / 99Food / iFood (Etapa 2, 19/10). Só dono e gerente. O middleware já exige o módulo
- * (canal_opendelivery / canal_ifood) liberado no Super Admin — sem ele, 403 antes de chegar aqui.
+ * Integrações › Keeta / 99Food / iFood (Etapa 2, 19/10). Só dono e gerente. Grátis para todas as lojas (20/10); enquanto o
+ * canal não estiver homologado (CANAL_DISPONIVEL = false) a tela mostra "Em breve" e PUT/POST respondem 409.
  *   GET            → config pública + itens do app sem vínculo + itens do cardápio (para vincular)
  *   PUT  { ... }   → salva credenciais/URL/merchant/ativo
  *   POST { acao }  → 'testar' (token no app) · 'lojas' (iFood: lista merchants) · 'usercode' (iFood distribuído, passo 1)
@@ -25,6 +25,7 @@ async function contexto(canal: string) {
   if (!canalValido(canal)) return { erro: NextResponse.json({ error: 'Canal inválido.' }, { status: 404 }) }
   return { sessao, canal, admin: getAdminSupabase() }
 }
+const emBreve = (canal: keyof typeof CANAL_DISPONIVEL) => (CANAL_DISPONIVEL[canal] ? null : NextResponse.json({ error: `${NOME_CANAL[canal]}: em breve. A Menuzia ainda está homologando esta integração.`, codigo: 'em_breve' }, { status: 409 }))
 
 const URL_PUBLICA = () => (process.env.MENUZIA_URL_PUBLICA ?? process.env.APP_URL ?? 'https://app.menuzia.com.br').replace(/\/$/, '')
 
@@ -49,6 +50,8 @@ export async function GET(_: Request, { params }: { params: Promise<{ canal: str
 export async function PUT(request: Request, { params }: { params: Promise<{ canal: string }> }) {
   const ctx = await contexto((await params).canal)
   if ('erro' in ctx) return ctx.erro
+  const bloqueio = emBreve(ctx.canal)
+  if (bloqueio) return bloqueio
   const c = (await request.json().catch(() => null)) as { ativo?: unknown; ambiente?: unknown; baseUrl?: unknown; clientId?: unknown; clientSecret?: unknown; limparCredenciais?: unknown; merchantIdExterno?: unknown; appIdExterno?: unknown } | null
   if (!c || typeof c !== 'object') return NextResponse.json({ error: 'Corpo inválido.' }, { status: 400 })
   const patch: Parameters<typeof salvarConfigCanal>[3] = { porNome: ctx.sessao.nome }
@@ -86,6 +89,8 @@ export async function PUT(request: Request, { params }: { params: Promise<{ cana
 export async function POST(request: Request, { params }: { params: Promise<{ canal: string }> }) {
   const ctx = await contexto((await params).canal)
   if ('erro' in ctx) return ctx.erro
+  const bloqueio = emBreve(ctx.canal)
+  if (bloqueio) return bloqueio
   const corpo = (await request.json().catch(() => null)) as { acao?: string; codigoExterno?: string; itemId?: string | null; authorizationCode?: string; authorizationCodeVerifier?: string } | null
   const acao = corpo?.acao
   const cfg = await buscarConfigCanal(ctx.admin, ctx.sessao.restauranteId, ctx.canal).catch(() => null)

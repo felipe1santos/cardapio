@@ -3,7 +3,7 @@ import { getServerSupabase } from '@/lib/supabase/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { getCurrentSession } from '@/lib/auth/session'
 import { registrarAuditoria } from '@/lib/auditoria'
-import { buscarConfig, paraPublica, salvarConfig } from '@/lib/entregas/queries'
+import { buscarConfig, paraPublica, PROVEDOR_DISPONIVEL, salvarConfig } from '@/lib/entregas/queries'
 import { buscarConfigCanal } from '@/lib/canais/config'
 import { configProvedorPronta, ehProvedorNovo, NOME_PROVEDOR } from '@/lib/entregas/provedores'
 import { criptografiaPronta } from '@/lib/pagamentos/cripto'
@@ -42,6 +42,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ prov
   if ('erro' in ctx) return ctx.erro
   const c = (await request.json().catch(() => null)) as { ativo?: unknown; baseUrl?: unknown; clientId?: unknown; clientSecret?: unknown; limparCredenciais?: unknown } | null
   if (!c || typeof c !== 'object') return NextResponse.json({ error: 'Corpo inválido.' }, { status: 400 })
+  if (!PROVEDOR_DISPONIVEL[ctx.provedor]) return NextResponse.json({ error: `${NOME_PROVEDOR[ctx.provedor]}: em breve. A Menuzia ainda está homologando esta integração.`, codigo: 'em_breve' }, { status: 409 })
   const patch: Parameters<typeof salvarConfig>[2] = { porNome: ctx.sessao.nome }
   if (typeof c.ativo === 'boolean') patch.ativo = c.ativo
   if (ctx.provedor === 'foody') {
