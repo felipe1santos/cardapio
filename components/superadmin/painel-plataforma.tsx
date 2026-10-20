@@ -307,7 +307,7 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis, usoI
                       <p className="truncate font-semibold text-text-main" data-testid="linha-loja-nome">{l.loja || <span className="font-normal italic text-text-subtle">Loja ainda sem nome</span>}</p>
                       {l.slug && <a href={`/loja/${l.slug}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[11.5px] text-primary hover:underline"><ExternalLink className="h-3 w-3" />/{l.slug}</a>}
                     </td>
-                    <td className="px-3 py-2.5"><SeloSituacao l={l} /></td>
+                    <td className="px-3 py-2.5"><SeloSituacao l={l} />{l.whatsappCaiuEm && <p className="mt-1 whitespace-nowrap text-[11px] font-semibold text-[#B91C1C]" data-testid="linha-whatsapp-caiu" title={`WhatsApp da loja caiu sozinho em ${new Date(l.whatsappCaiuEm).toLocaleString('pt-BR')}`}>WhatsApp desconectado</p>}</td>
                     <td className="max-w-[180px] px-3 py-2.5"><p className="truncate">{l.responsavel || '—'}</p><p className="truncate text-[11.5px] text-text-subtle">{l.telefone || ''}</p></td>
                     <td className="max-w-[220px] px-3 py-2.5"><p className="truncate">{l.email}</p><p className="truncate text-[11.5px] font-medium text-text-subtle">{l.login ? `@${l.login}` : ''}</p></td>
                     <td className="px-3 py-2.5"><BotaoSublogins l={l} /></td>

@@ -167,6 +167,9 @@ export const ROTULO_EVENTO: Record<string, string> = {
   'entregas.foody_chamada': 'Chamou entregador da Foody para um pedido',
   'entregas.foody_cancelada': 'Cancelou a corrida da Foody',
   'entregas.foody_config': 'Alterou a configuração da Foody',
+  // Monitor do WhatsApp (0209, 20/10).
+  'whatsapp.caiu': 'WhatsApp da loja desconectou sozinho (loja avisada)',
+  'whatsapp.reconectado': 'WhatsApp da loja voltou (avisos pendentes reenviados)',
   'pix_online.devolvido': 'Devolveu Pix online ao cliente',
   'pix_online.conta_conectada': 'Conectou a conta do Mercado Pago',
   'pix_online.conexao_recusada': 'Conexão com o Mercado Pago recusada',

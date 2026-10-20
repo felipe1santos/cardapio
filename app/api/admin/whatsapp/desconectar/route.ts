@@ -3,6 +3,7 @@ import { getServerSupabase } from '@/lib/supabase/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { desconectarInstancia } from '@/lib/evolution'
+import { marcarDesconexaoManual } from '@/lib/whatsapp-monitor'
 
 /** Desconecta o WhatsApp do restaurante logado (mantém a instância para reconectar depois). */
 export async function POST() {
@@ -16,5 +17,7 @@ export async function POST() {
   if (!loja.evolution_instance) return NextResponse.json({ ok: true })
 
   await desconectarInstancia(loja.evolution_instance)
+  // Etapa 3 (20/10): desconexão feita no painel não dispara o alerta de "caiu sozinho".
+  await marcarDesconexaoManual(admin, restauranteId).catch(() => null)
   return NextResponse.json({ ok: true })
 }

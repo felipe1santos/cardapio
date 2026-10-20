@@ -26,12 +26,13 @@ const PASSOS: Record<'ifood' | 'foody', { titulo: string; passos: string[] }> = 
     ],
   },
   foody: {
-    titulo: 'Como ligar a Foody Delivery (Open Delivery)',
+    titulo: 'Como ligar a Foody Delivery (você mesmo gera as credenciais no painel da Foody)',
     passos: [
-      'No painel da Foody: Menu › Minha conta › APIs e Hooks › criar credencial do tipo Open Delivery. Copie o Client ID, o Client Secret e a URL base da API.',
-      'Cole os três aqui e clique em "Testar conexão".',
-      'Cadastre na Foody a URL do webhook (abaixo) para os eventos da entrega chegarem em tempo real.',
-      'Ligue. No Painel de Pedidos, em "Pronto p/ Despacho", aparece o botão Foody: cotação → confirmar → corrida. O custo entra no Financeiro ao concluir.',
+      'No painel da Foody: Menu ➡ Minha conta ➡ APIs e Hooks ➡ "Criar credencial". Dê um nome (ex.: Menuzia) e em "Tipo" escolha "Open Delivery".',
+      'Na lista de credenciais, no menu "Ações" (três pontos), copie clientId, clientSecret e baseUrl. Cole os três aqui, clique em Salvar e depois em "Testar conexão".',
+      'De volta à Foody: Menu ➡ Minha conta ➡ APIs e Hooks ➡ "Criar gatilho", escolha a credencial criada e cole a URL do webhook mostrada abaixo. A Foody testa na hora (o Menuzia responde ok).',
+      'Ligue "Chamar pelo Kanban". No Painel de Pedidos, em "Pronto p/ Despacho", aparece o botão Foody: cotação (preço e prazo) → Confirmar → corrida. Coletou = pedido em rota; entregou = pedido entregue e custo no Financeiro.',
+      'Guia completo com os links da Foody: docs/integracoes/foody.md (central de ajuda: help.foodydelivery.com › Open Delivery API e Webhooks).',
     ],
   },
 }

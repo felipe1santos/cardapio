@@ -5,6 +5,7 @@ import { garantirWebhookDeTempoEmTempo } from '@/lib/mensageria/webhook-loja'
 import { avisarAtendentesPendentes } from '@/lib/agente-ia/avisos'
 import { escalarSolicitacoesPendentes } from '@/lib/pedidos/solicitacoes'
 import { sugerirComIaUmaLoja } from '@/lib/robo-auto/sugestao-ia'
+import { monitorarTodas } from '@/lib/whatsapp-monitor'
 
 /**
  * Cron da fila do WhatsApp: novas tentativas (espera crescente) e retenção de 90 dias.
@@ -31,5 +32,7 @@ export async function POST(request: Request) {
   // sem passar pelo painel, também deixa o SAIR e a central funcionando.
   const { data: lojas } = await admin.from('restaurantes').select('id').not('evolution_instance', 'is', null)
   for (const l of (lojas ?? []) as { id: string }[]) await garantirWebhookDeTempoEmTempo(admin, l.id, 30 * 60_000).catch(() => null)
-  return NextResponse.json({ enviados: fila.enviados, falhas: fila.falhas, limpeza: limpeza ?? null })
+  // Monitor da conexão (Etapa 3, 20/10): 1 GET connectionState por loja a cada 2 min (throttle interno); caiu sozinha → faixa, push e alerta; voltou → reenvia avisos que falharam.
+  const monitor = await monitorarTodas(admin).catch((e) => { console.error('[whatsapp] monitor:', (e as Error).message); return null })
+  return NextResponse.json({ enviados: fila.enviados, falhas: fila.falhas, limpeza: limpeza ?? null, monitor })
 }

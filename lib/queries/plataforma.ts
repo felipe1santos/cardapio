@@ -47,6 +47,8 @@ export interface LojaPlataforma {
   pedidos: number
   ticket: number
   betaLiberado: boolean
+  /** Etapa 3 (20/10): WhatsApp caiu sozinho (hora da queda) — linha vermelha no Super Admin. */
+  whatsappCaiuEm: string | null
   sublogins: Sublogin[]
 }
 
@@ -100,7 +102,7 @@ function principal(donos: UsuarioRaw[]): UsuarioRaw {
 /** Agrupa contas por loja (função pura — testada em plataforma.test.ts). */
 export function agruparPorLoja(
   usuarios: UsuarioRaw[],
-  restaurantes: { id: string; nome: string; slug: string; impressao_beta_liberado?: boolean | null }[],
+  restaurantes: { id: string; nome: string; slug: string; impressao_beta_liberado?: boolean | null; whatsapp_caiu_em?: string | null; whatsapp_estado?: string | null; whatsapp_desconexao_manual_em?: string | null }[],
   metricas: Map<string, { faturamento: number; qtdPedidos: number }>,
   agora = Date.now(),
 ): LojaPlataforma[] {
@@ -149,6 +151,7 @@ export function agruparPorLoja(
       pedidos: m?.qtdPedidos ?? 0,
       ticket: m && m.qtdPedidos > 0 ? m.faturamento / m.qtdPedidos : 0,
       betaLiberado: !!r.impressao_beta_liberado,
+      whatsappCaiuEm: r.whatsapp_estado && r.whatsapp_estado !== 'open' && r.whatsapp_estado !== 'sem_instancia' && !(r.whatsapp_desconexao_manual_em && Date.now() - Date.parse(r.whatsapp_desconexao_manual_em) < 30 * 60_000) ? (r.whatsapp_caiu_em ?? null) : null,
       sublogins,
     })
   }
@@ -172,6 +175,7 @@ export function agruparPorLoja(
       pedidos: 0,
       ticket: 0,
       betaLiberado: false,
+      whatsappCaiuEm: null,
       sublogins: [],
     })
   }
@@ -218,12 +222,12 @@ export async function metricasEntreguesPorLoja(admin: SupabaseClient): Promise<M
 export async function listarLojasPlataforma(admin: SupabaseClient, agora = Date.now()): Promise<{ lojas: LojaPlataforma[]; resumo: ResumoPlataforma }> {
   const [us, rs, metricas] = await Promise.all([
     admin.from('usuarios').select('id, email, usuario, nome, nome_loja, telefone, papel, cargo, autorizado, restaurante_id, ultimo_login_em, criado_em, acesso_expira_em, logins_total, desativado_em, situacao'),
-    admin.from('restaurantes').select('id, nome, slug, impressao_beta_liberado'),
+    admin.from('restaurantes').select('id, nome, slug, impressao_beta_liberado, whatsapp_caiu_em, whatsapp_estado, whatsapp_desconexao_manual_em'),
     metricasEntreguesPorLoja(admin),
   ])
   if (us.error) throw us.error
   if (rs.error) throw rs.error
-  const lojas = agruparPorLoja((us.data ?? []) as UsuarioRaw[], (rs.data ?? []) as { id: string; nome: string; slug: string; impressao_beta_liberado: boolean | null }[], metricas, agora)
+  const lojas = agruparPorLoja((us.data ?? []) as UsuarioRaw[], (rs.data ?? []) as { id: string; nome: string; slug: string; impressao_beta_liberado: boolean | null; whatsapp_caiu_em: string | null; whatsapp_estado: string | null; whatsapp_desconexao_manual_em: string | null }[], metricas, agora)
   return { lojas, resumo: resumir(lojas) }
 }
 

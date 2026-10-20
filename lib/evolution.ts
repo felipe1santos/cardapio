@@ -8,12 +8,12 @@ export function evolutionConfigurado(): boolean {
   return Boolean(process.env.EVOLUTION_API_URL && process.env.EVOLUTION_API_KEY)
 }
 
-function evolutionUrl(path: string): string {
+export function evolutionUrl(path: string): string {
   const base = process.env.EVOLUTION_API_URL!
   return `${base.replace(/\/$/, '')}${path}`
 }
 
-function evolutionHeaders(): Record<string, string> {
+export function evolutionHeaders(): Record<string, string> {
   return { 'Content-Type': 'application/json', apikey: process.env.EVOLUTION_API_KEY! }
 }
 
