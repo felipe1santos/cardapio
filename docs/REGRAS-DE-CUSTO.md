@@ -136,3 +136,13 @@ O módulo pago "Agente de IA" usa o **Claude (Anthropic)**, em modo híbrido com
   (6 chamadas: consultar, responder, montar, responder, criar) ≈ US$ 0,0004; uma dúvida ≈ US$ 0,0001. Loja grande (cardápio de
   200 itens, ~4 mil tokens fixos) fica em torno de US$ 0,001 por pedido. Com o teto de US$ 0,50/dia, cabem centenas de
   conversas por loja; o teto do sistema (US$ 5/dia ≈ R$ 27) é o pior caso.
+
+## Áudio do WhatsApp — transcrição (20/10/2026, aprovado pelo dono)
+
+- Só em lojas com o módulo **Agente de IA** ligado. A única requisição à OpenAI do sistema é `lib/custo/openai-audio.ts`
+  (modelo `gpt-4o-mini-transcribe`, ≈ US$ 0,003/min ≈ R$ 0,008 por áudio de 30 s). Chave: `OPENAI_API_KEY` (Coolify, sem
+  Build time). Sem a chave, nada é chamado e o robô responde "não consigo ouvir áudio" como antes.
+- Duas guardas: `chamarApiPaga` api `audio` (trava de disparo + `LIMITE_AUDIO_DIA`, padrão 200 áudios/dia por loja e no
+  sistema) e, dentro, `chamarIa` (o MESMO teto em US$ do Agente de IA — `LIMITE_IA_USD_DIA_LOJA` ou o teto da loja — e o
+  registro do custo em `ia_uso_dia` com o modelo da transcrição). Áudio acima de 20 MB não é enviado.
+- Estimativa: Ponto 400 ≈ 260 áudios/mês ≈ R$ 2,15/mês; todas as lojas com IA hoje ≈ R$ 10/mês.

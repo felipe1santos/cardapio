@@ -32,6 +32,7 @@ function InfoQuandoEntra() {
       <p className="mt-[2px]">Não dá desconto, não muda preço e não inventa item. Se o cliente pedir uma pessoa, chama o atendente (aparece em amarelo na central).</p>
       <p className="mt-[10px] font-semibold text-[#1F2937]">Custo</p>
       <p className="mt-[2px]">Cada resposta custa uma fração de centavo. Ao chegar no teto do dia, a IA para até a meia-noite e o robô continua respondendo sozinho.</p>
+      <p className="mt-[2px]">Áudios do cliente também são entendidos (transcritos automaticamente, menos de 1 centavo cada): entram no mesmo teto, até 200 áudios por dia por loja.</p>
     </>
   )
 }

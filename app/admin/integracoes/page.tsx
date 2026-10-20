@@ -30,7 +30,7 @@ import { EntregadorCard } from '@/components/admin/integracoes/entregador-card'
  *   atendente ficam só na central do WhatsApp (canto inferior direito).
  */
 
-type IdIntegracao = 'whatsapp' | 'mercadopago' | 'facebook' | 'capi' | 'google' | 'lalamove' | 'keeta' | '99food' | 'ifood' | 'aiqfome' | 'entregas-ifood' | 'foody'
+type IdIntegracao = 'whatsapp' | 'mercadopago' | 'facebook' | 'capi' | 'google' | 'lalamove' | 'keeta' | '99food' | 'ifood' | 'aiqfome' | 'entregas-ifood' | 'foody' | 'machine'
 type Grupo = 'Mensagens' | 'Pagamentos' | 'Marketing e medição' | 'Entregas' | 'Pedidos de apps'
 /** `emBreve` (20/10): aparece para todas as lojas com a etiqueta "Em breve" e não deixa conectar (a Menuzia ainda homologa). */
 interface Definicao { id: IdIntegracao; nome: string; grupo: Grupo; logo: string; resumo: string; emBreve?: boolean }
@@ -46,6 +46,8 @@ const INTEGRACOES: Definicao[] = [
   // 20/10 (regra definitiva): TODAS as integrações aparecem para TODAS as lojas, grátis. As que a Menuzia ainda está
   // homologando levam "Em breve" e não conectam (a API também recusa). Lalamove e Foody liberadas.
   { id: 'foody', nome: 'Foody Delivery', grupo: 'Entregas', logo: '/icons/integracoes/opendelivery.svg', resumo: 'Entregador da Foody pelo padrão Open Delivery, com cotação antes de confirmar.' },
+  // Machine/Gaudium (20/10): app dos motoboys do interior; logística Open Delivery como a Foody, credenciais pela central Machine → "Em breve".
+  { id: 'machine', nome: 'Machine (motoboys da cidade)', grupo: 'Entregas', logo: '/icons/integracoes/opendelivery.svg', resumo: 'Entregadores da central Machine da sua cidade pelo padrão Open Delivery, com cotação antes de confirmar.', emBreve: true },
   { id: 'entregas-ifood', nome: 'Entregador iFood (Sob Demanda)', grupo: 'Entregas', logo: '/origens/ifood.svg', resumo: 'Chame um entregador do iFood para pedidos de fora do iFood, com cotação antes de confirmar.', emBreve: true },
   { id: 'ifood', nome: 'iFood', grupo: 'Pedidos de apps', logo: '/origens/ifood.svg', resumo: 'Pedidos do iFood entram no Painel de Pedidos; aceite, pronto e despacho voltam ao iFood.', emBreve: true },
   { id: 'keeta', nome: 'Keeta', grupo: 'Pedidos de apps', logo: '/icons/integracoes/opendelivery.svg', resumo: 'Pedidos da Keeta pelo padrão Open Delivery (Abrasel).', emBreve: true },
@@ -269,6 +271,7 @@ export default function IntegracoesPage() {
     aiqfome: false,
     'entregas-ifood': false,
     foody: false,
+    machine: false,
   }
   // 20/10: todas as integrações para todas as lojas. Mercado Pago continua só onde o Pix online foi liberado (regra própria).
   const existentes = INTEGRACOES.filter((i) => i.id !== 'mercadopago' || sit.mp?.liberada)
@@ -373,6 +376,7 @@ export default function IntegracoesPage() {
         {!def?.emBreve && (def?.id === 'keeta' || def?.id === '99food' || def?.id === 'ifood') && <CanalCard canal={def.id} avisar={avisarERecarregar} />}
         {!def?.emBreve && def?.id === 'entregas-ifood' && <EntregadorCard provedor="ifood" avisar={avisarERecarregar} />}
         {!def?.emBreve && def?.id === 'foody' && <EntregadorCard provedor="foody" avisar={avisarERecarregar} />}
+        {!def?.emBreve && def?.id === 'machine' && <EntregadorCard provedor="machine" avisar={avisarERecarregar} />}
       </ModalCentral>
       <PilhaToasts itens={toasts.itens} />
     </div>

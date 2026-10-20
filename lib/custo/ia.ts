@@ -25,6 +25,9 @@ export const PRECOS_IA: Record<string, PrecoIa> = {
   'claude-haiku-5-5': { entrada: 0.1, saida: 0.5, cacheEscrita: 0.125, cacheLeitura: 0.01 },
   'claude-sonnet-5-5': { entrada: 2, saida: 10, cacheEscrita: 2.5, cacheLeitura: 0.1 },
   'claude-opus-5-5': { entrada: 4, saida: 20, cacheEscrita: 5, cacheLeitura: 0.2 },
+  // Transcrição de áudio (OpenAI, 20/10): US$ 3/M tokens de áudio na entrada (texto da entrada cobrado como áudio — nunca
+  // subestima), US$ 5/M na saída ≈ US$ 0,003/min. Conferido em platform.openai.com/docs/pricing em 20/10/2026.
+  'gpt-4o-mini-transcribe': { entrada: 3, saida: 5, cacheEscrita: 0, cacheLeitura: 0 },
 }
 /** Modelo desconhecido: cobra como o mais caro da tabela — o contador nunca subestima. */
 const PRECO_DESCONHECIDO: PrecoIa = PRECOS_IA['claude-opus-5-5']

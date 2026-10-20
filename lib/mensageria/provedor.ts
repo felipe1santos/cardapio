@@ -66,6 +66,8 @@ export interface ProvedorWhatsapp {
   fotoDePerfil(instancia: string, numero: string): Promise<{ ok: true; url: string | null } | { ok: false }>
   /** Foto que o CLIENTE mandou (Agente de IA lê a imagem). null = indisponível. */
   baixarImagem(instancia: string, waId: string): Promise<{ base64: string; mimetype: string } | null>
+  /** Áudio do cliente (20/10): para a transcrição (lib/agente-ia/audio.ts). null = indisponível. */
+  baixarAudio(instancia: string, waId: string): Promise<{ base64: string; mimetype: string } | null>
 }
 
 export type EstadoConexaoProvedor = 'aberto' | 'fechado' | 'desconhecido'
@@ -224,7 +226,8 @@ async function fotoEvolution(inst: string, numero: string): Promise<{ ok: true; 
 }
 
 /** Foto do cliente pela Evolution (chat/getBase64FromMediaMessage), prazo de 8 s. */
-async function imagemEvolution(inst: string, waId: string): Promise<{ base64: string; mimetype: string } | null> {
+/** Mídia da mensagem pela Evolution (getBase64FromMediaMessage): foto e áudio usam a mesma rota. */
+async function midiaEvolution(inst: string, waId: string, timeoutMs: number): Promise<{ base64: string; mimetype: string } | null> {
   const url = process.env.EVOLUTION_API_URL
   const chave = process.env.EVOLUTION_API_KEY
   if (!url || !chave) return null
@@ -233,15 +236,26 @@ async function imagemEvolution(inst: string, waId: string): Promise<{ base64: st
       method: 'POST',
       headers: { 'Content-Type': 'application/json', apikey: chave },
       body: JSON.stringify({ message: { key: { id: waId } }, convertToMp4: false }),
-      signal: AbortSignal.timeout(8_000),
+      signal: AbortSignal.timeout(timeoutMs),
     })
     if (!res.ok) return null
     const j = (await res.json().catch(() => null)) as { base64?: string; mimetype?: string } | null
     if (!j?.base64) return null
-    return { base64: j.base64, mimetype: j.mimetype && /^image\/(jpeg|png|webp|gif)$/.test(j.mimetype) ? j.mimetype : 'image/jpeg' }
+    return { base64: j.base64, mimetype: j.mimetype ?? '' }
   } catch {
     return null
   }
+}
+
+async function imagemEvolution(inst: string, waId: string): Promise<{ base64: string; mimetype: string } | null> {
+  const m = await midiaEvolution(inst, waId, 8_000)
+  return m ? { base64: m.base64, mimetype: /^image\/(jpeg|png|webp|gif)$/.test(m.mimetype) ? m.mimetype : 'image/jpeg' } : null
+}
+
+/** Áudio do cliente (20/10): ogg/opus na Evolution; o mimetype vai como veio (a transcrição escolhe a extensão). */
+async function audioEvolution(inst: string, waId: string): Promise<{ base64: string; mimetype: string } | null> {
+  const m = await midiaEvolution(inst, waId, 12_000)
+  return m ? { base64: m.base64, mimetype: m.mimetype || 'audio/ogg' } : null
 }
 
 export const provedorEvolution: ProvedorWhatsapp = {
@@ -273,6 +287,7 @@ export const provedorEvolution: ProvedorWhatsapp = {
   },
   fotoDePerfil: fotoEvolution,
   baixarImagem: imagemEvolution,
+  baixarAudio: audioEvolution,
 }
 
 // ─── Simulado (testes) ─────────────────────────────────────────────────────────
@@ -341,6 +356,8 @@ export function provedorSimulado(arquivo: string): ProvedorWhatsapp {
     },
     // Imagem de teste: PNG de 1×1 (o e2e confere que a IA recebeu uma imagem).
     baixarImagem: async () => ({ base64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', mimetype: 'image/png' }),
+    // Áudio de teste: bytes fixos (a transcrição só sai com OPENAI_API_KEY; sem ela, o robô avisa como antes).
+    baixarAudio: async () => ({ base64: Buffer.from('OggS-simulado').toString('base64'), mimetype: 'audio/ogg' }),
   }
 }
 

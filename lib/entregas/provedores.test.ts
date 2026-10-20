@@ -31,6 +31,8 @@ describe('provedores de entrega: eventos → status da corrida', () => {
   it('provedores novos e nomes', () => {
     expect(ehProvedorNovo('ifood')).toBe(true)
     expect(ehProvedorNovo('foody')).toBe(true)
+    expect(ehProvedorNovo('machine')).toBe(true)
+    expect(NOME_PROVEDOR.machine).toBe('Machine')
     expect(ehProvedorNovo('lalamove')).toBe(false)
     expect(NOME_PROVEDOR.foody).toBe('Foody')
   })

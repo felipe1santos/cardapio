@@ -15,7 +15,7 @@ const CAMPO = 'w-full rounded-[3px] border border-[#D1D5DB] bg-white px-2.5 py-1
 const BOTAO = 'rounded-[3px] border border-[#D1D5DB] bg-white px-3 py-[6px] text-[11px] font-semibold uppercase tracking-wide text-[#1F2937] hover:bg-[#F3F4F6] disabled:opacity-50'
 const BOTAO_AZUL = 'rounded-[3px] bg-[#0688D4] px-3 py-[6px] text-[11px] font-semibold uppercase tracking-wide text-white hover:bg-[#0570AE] disabled:opacity-50'
 
-const PASSOS: Record<'ifood' | 'foody', { titulo: string; passos: string[] }> = {
+const PASSOS: Record<'ifood' | 'foody' | 'machine', { titulo: string; passos: string[] }> = {
   ifood: {
     titulo: 'Como ligar o entregador do iFood (Sob Demanda)',
     passos: [
@@ -35,9 +35,19 @@ const PASSOS: Record<'ifood' | 'foody', { titulo: string; passos: string[] }> = 
       'Guia completo com os links da Foody: docs/integracoes/foody.md (central de ajuda: help.foodydelivery.com › Open Delivery API e Webhooks).',
     ],
   },
+  machine: {
+    titulo: 'Como ligar a Machine (motoboys da sua cidade) — as credenciais vêm da central Machine, não é autoatendimento',
+    passos: [
+      'Fale com a central Machine da sua cidade (a empresa de motoboys que usa o app Machine) e peça a integração "Open Delivery — Logística" para o Menuzia: eles pedem à Machine/Gaudium a credencial e devolvem URL base, Client ID e Client Secret.',
+      'Cole os três aqui, clique em Salvar e depois em "Testar conexão".',
+      'Passe para a central a URL do webhook mostrada abaixo (eventos de status da entrega: aceita, a caminho, coletou, entregou, cancelada).',
+      'Ligue "Chamar pelo Kanban". No Painel de Pedidos, em "Pronto p/ Despacho", aparece o botão Machine: cotação (preço e prazo) → Confirmar → corrida. Coletou = pedido em rota; entregou = pedido entregue e custo no Financeiro.',
+      'Enquanto nenhuma loja tiver a credencial, a Machine aparece como "Em breve". Guia: docs/integracoes/machine.md.',
+    ],
+  },
 }
 
-export function EntregadorCard({ provedor, avisar }: { provedor: 'ifood' | 'foody'; avisar: (m: string) => void }) {
+export function EntregadorCard({ provedor, avisar }: { provedor: 'ifood' | 'foody' | 'machine'; avisar: (m: string) => void }) {
   const [estado, setEstado] = useState<Estado | null>(null)
   const [form, setForm] = useState({ baseUrl: '', clientId: '', clientSecret: '' })
   const [ocupado, setOcupado] = useState<string | null>(null)
@@ -67,22 +77,22 @@ export function EntregadorCard({ provedor, avisar }: { provedor: 'ifood' | 'food
   const pronto = provedor === 'ifood' ? estado.canalIfoodPronto === true : !!(cfg?.temChaves && cfg.baseUrl)
   return (
     <div className="space-y-3 text-[13px] text-[#1F2937]" data-testid={`entregador-card-${provedor}`}>
-      {provedor === 'foody' && !estado.cofrePronto && <p className="rounded-[3px] border border-[#FCD34D] bg-[#FEF3C7] px-3 py-2 text-[12.5px] text-[#92400E]">O cofre de segredos do servidor não está configurado: as credenciais não podem ser salvas. Fale com a Menuzia.</p>}
+      {provedor !== 'ifood' && !estado.cofrePronto && <p className="rounded-[3px] border border-[#FCD34D] bg-[#FEF3C7] px-3 py-2 text-[12.5px] text-[#92400E]">O cofre de segredos do servidor não está configurado: as credenciais não podem ser salvas. Fale com a Menuzia.</p>}
       <details className="rounded-[3px] border border-[#E5E7EB] bg-[#F9FAFB] px-3 py-2">
         <summary className="cursor-pointer font-semibold">{passos.titulo}</summary>
         <ol className="mt-2 list-decimal space-y-1 pl-5 text-[12.5px] text-[#374151]">{passos.passos.map((p, i) => <li key={i}>{p}</li>)}</ol>
       </details>
-      {provedor === 'foody' && (
+      {provedor !== 'ifood' && (
         <>
           <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-            <label className="block md:col-span-2"><span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[#6B7280]">URL base da API da Foody</span><input className={CAMPO} value={form.baseUrl} onChange={(e) => setForm({ ...form, baseUrl: e.target.value })} placeholder="https://…" /></label>
+            <label className="block md:col-span-2"><span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[#6B7280]">URL base da API Open Delivery ({estado.nome})</span><input className={CAMPO} value={form.baseUrl} onChange={(e) => setForm({ ...form, baseUrl: e.target.value })} placeholder="https://…" /></label>
             <label className="block"><span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[#6B7280]">Client ID {cfg?.temChaves ? `(salvo · …${cfg.apiKeyFinal})` : ''}</span><input className={CAMPO} value={form.clientId} onChange={(e) => setForm({ ...form, clientId: e.target.value })} placeholder={cfg?.temChaves ? 'Cole para trocar' : ''} autoComplete="off" /></label>
             <label className="block"><span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[#6B7280]">Client Secret</span><input className={CAMPO} type="password" value={form.clientSecret} onChange={(e) => setForm({ ...form, clientSecret: e.target.value })} placeholder={cfg?.temChaves ? 'Cole para trocar' : ''} autoComplete="new-password" /></label>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" className={BOTAO_AZUL} disabled={!!ocupado} onClick={() => void chamar('PUT', { baseUrl: form.baseUrl, ...(form.clientId.trim() && form.clientSecret.trim() ? { clientId: form.clientId, clientSecret: form.clientSecret } : {}) }, 'salvar').then((j) => { if (j) { setForm((f) => ({ ...f, clientId: '', clientSecret: '' })); setOkMsg('Salvo.'); avisar('Configuração salva.'); void carregar() } })}>{ocupado === 'salvar' ? 'Salvando…' : 'Salvar'}</button>
             <button type="button" className={BOTAO} disabled={!!ocupado || !pronto} onClick={() => void chamar('POST', { acao: 'testar' }, 'testar').then((j) => { if (j) setOkMsg(String(j.mensagem ?? 'Ok.')) })}>{ocupado === 'testar' ? 'Testando…' : 'Testar conexão'}</button>
-            {cfg?.temChaves && <button type="button" className={`${BOTAO} text-[#B91C1C]`} disabled={!!ocupado} onClick={() => { if (confirm('Apagar as credenciais salvas da Foody?')) void chamar('PUT', { limparCredenciais: true, ativo: false }, 'limpar').then((j) => { if (j) void carregar() }) }}>Apagar credenciais</button>}
+            {cfg?.temChaves && <button type="button" className={`${BOTAO} text-[#B91C1C]`} disabled={!!ocupado} onClick={() => { if (confirm(`Apagar as credenciais salvas (${estado.nome})?`)) void chamar('PUT', { limparCredenciais: true, ativo: false }, 'limpar').then((j) => { if (j) void carregar() }) }}>Apagar credenciais</button>}
           </div>
           {estado.webhookUrl && <p className="rounded-[3px] border border-[#E5E7EB] px-3 py-2 text-[12.5px]"><span className="font-semibold">URL do webhook (deliveryUpdate):</span> <code className="break-all font-mono text-[11.5px]">{estado.webhookUrl}</code></p>}
         </>

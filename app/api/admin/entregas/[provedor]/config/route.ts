@@ -32,7 +32,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ provedor: 
   const canalIfood = ctx.provedor === 'ifood' ? await buscarConfigCanal(ctx.admin, ctx.sessao.restauranteId, 'ifood').catch(() => null) : null
   return NextResponse.json({
     provedor: ctx.provedor, nome: NOME_PROVEDOR[ctx.provedor], config: cfg ? paraPublica(cfg) : null, cofrePronto: criptografiaPronta(),
-    webhookUrl: ctx.provedor === 'foody' && cfg ? `${URL_PUBLICA()}/api/entregas/foody/webhook/${cfg.webhookToken}` : null,
+    webhookUrl: ctx.provedor !== 'ifood' && cfg ? `${URL_PUBLICA()}/api/entregas/${ctx.provedor}/webhook/${cfg.webhookToken}` : null,
     canalIfoodPronto: ctx.provedor === 'ifood' ? !!(canalIfood?.credenciais && canalIfood.merchantIdExterno) : null,
   }, { headers: { 'Cache-Control': 'no-store' } })
 }
@@ -45,7 +45,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ prov
   if (!PROVEDOR_DISPONIVEL[ctx.provedor]) return NextResponse.json({ error: `${NOME_PROVEDOR[ctx.provedor]}: em breve. A Menuzia ainda está homologando esta integração.`, codigo: 'em_breve' }, { status: 409 })
   const patch: Parameters<typeof salvarConfig>[2] = { porNome: ctx.sessao.nome }
   if (typeof c.ativo === 'boolean') patch.ativo = c.ativo
-  if (ctx.provedor === 'foody') {
+  if (ctx.provedor !== 'ifood') {
     if (typeof c.baseUrl === 'string') {
       const u = c.baseUrl.trim()
       if (u && !/^https:\/\/[a-z0-9.-]+(\/[^\s]*)?$/i.test(u)) return NextResponse.json({ error: 'URL base inválida (precisa começar com https://).' }, { status: 400 })
@@ -59,8 +59,8 @@ export async function PUT(request: Request, { params }: { params: Promise<{ prov
       const canal = await buscarConfigCanal(ctx.admin, ctx.sessao.restauranteId, 'ifood').catch(() => null)
       if (!canal?.credenciais || !canal.merchantIdExterno) return NextResponse.json({ error: 'Conecte a loja ao iFood em Integrações › iFood (credenciais e id da loja) antes de ligar o entregador.' }, { status: 409 })
     } else {
-      const atual = await buscarConfig(ctx.admin, ctx.sessao.restauranteId, 'foody').catch(() => null)
-      if (!(patch.chaves || atual?.chaves) || !(patch.baseUrl ?? atual?.baseUrl)) return NextResponse.json({ error: 'Para ligar, salve antes a URL base e as credenciais da Foody.' }, { status: 409 })
+      const atual = await buscarConfig(ctx.admin, ctx.sessao.restauranteId, ctx.provedor).catch(() => null)
+      if (!(patch.chaves || atual?.chaves) || !(patch.baseUrl ?? atual?.baseUrl)) return NextResponse.json({ error: `Para ligar, salve antes a URL base e as credenciais (${NOME_PROVEDOR[ctx.provedor]}).` }, { status: 409 })
     }
   }
   try {
@@ -79,10 +79,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
   if (corpo?.acao !== 'testar') return NextResponse.json({ error: 'Ação inválida.' }, { status: 400 })
   try {
     const pronta = await configProvedorPronta(ctx.admin, ctx.sessao.restauranteId, ctx.provedor)
-    if (ctx.provedor === 'foody' && pronta.contaFoody) {
+    if (ctx.provedor !== 'ifood' && pronta.contaFoody) {
       const res = await fetch(`${pronta.contaFoody.baseUrl}/oauth/token`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ grant_type: 'client_credentials', client_id: pronta.contaFoody.clientId, client_secret: pronta.contaFoody.clientSecret }), signal: AbortSignal.timeout(12_000) })
-      if (!res.ok) return NextResponse.json({ error: `A Foody recusou as credenciais (HTTP ${res.status}).` }, { status: 502 })
-      return NextResponse.json({ ok: true, mensagem: 'Conexão ok: a Foody aceitou as credenciais.' })
+      if (!res.ok) return NextResponse.json({ error: `${NOME_PROVEDOR[ctx.provedor]} recusou as credenciais (HTTP ${res.status}).` }, { status: 502 })
+      return NextResponse.json({ ok: true, mensagem: `Conexão ok: ${NOME_PROVEDOR[ctx.provedor]} aceitou as credenciais.` })
     }
     return NextResponse.json({ ok: true, mensagem: 'Pronto: a loja está conectada ao iFood e o entregador pode ser chamado pelo Kanban.' })
   } catch (e) {

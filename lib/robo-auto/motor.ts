@@ -23,6 +23,7 @@ import { textoFechadaManual } from '@/lib/timezone'
 import { abrirSolicitacao } from '@/lib/pedidos/solicitacoes'
 import { corridaAtivaDoPedido } from '@/lib/entregas/queries'
 import { pedidoEditavel } from '@/lib/pedido-editavel'
+import { transcreverAudioDoCliente } from '@/lib/agente-ia/audio'
 import { categoriasDoCardapio, escolherOpcao, itemEscolhidoNaLista, linkJaEnviado, pedeOpcoes, respondeuSimAoPedido, textoCategorias, textoItensDaCategoria } from './categorias'
 import {
   agenteLigadoNaLoja, atenderComIa, estadoIaDaConversa, historicoDaConversa, iaEsgotadaNaConversa, registrarFalhaIa, registrarRespostaIa,
@@ -317,8 +318,19 @@ export async function processarMensagemAuto(
     return { respostas, motivo: 'reativada' }
   }
 
+  // Áudio (20/10, aprovado pelo dono): com o Agente de IA ligado na loja, o áudio vira TEXTO pela OpenAI (lib/agente-ia/audio.ts:
+  // LIMITE_AUDIO_DIA + o mesmo teto em US$ da IA) e segue o caminho normal — robô e IA tratam como se o cliente tivesse escrito.
+  // Sem chave, teto, mídia ou falha: segue como áudio e o aviso de sempre sai ("não consigo ouvir áudio").
+  let cTexto = c
+  if (m.tipo === 'audio' && ctx.instancia && (await agenteLigadoNaLoja(admin, restauranteId, cfg as ConfigAuto & ConfigIa))) {
+    const t = await transcreverAudioDoCliente(admin, { restauranteId, conversaId: e.conversa_id, mensagemId: e.mensagem_id ?? null, instancia: ctx.instancia, waId: m.waId, tetoLojaUsd: (cfg as ConfigAuto & ConfigIa).ia_teto_usd_dia })
+    if (t.ok) {
+      m = { ...m, tipo: 'texto', texto: t.texto }
+      cTexto = classificar(t.texto, extras)
+    }
+  }
   // Mídia (11/10): a decisão trata pelo tipo — foto/vídeo/documento não respondem, áudio avisa 1× a cada 6 h.
-  let classificacao: Classificacao = c ?? { intencao: 'outro' as const, assunto: 'outro' as const, porNumero: false, normalizado: '' }
+  let classificacao: Classificacao = cTexto ?? { intencao: 'outro' as const, assunto: 'outro' as const, porNumero: false, normalizado: '' }
   // 16/10: "quanto tempo pra entrega?" sem tempo cadastrado NEM média do sistema (19/10) = ninguém sabe → atendente
   // direto (nunca "não sei"); a conversa fica amarela na central com o motivo.
   if (classificacao.intencao === 'tempo_entrega' && !loja.tempoEntrega) classificacao = { ...classificacao, intencao: 'atendente', assunto: 'atendente' }

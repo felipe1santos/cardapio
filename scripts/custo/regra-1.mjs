@@ -13,6 +13,8 @@ export const PAGAS = [
   /rest(\.sandbox)?\.lalamove\.com/,
   // Entregador iFood (Sob Demanda) e Foody/Open Delivery Logistics (19/10): a corrida é paga pela loja; só lib/custo/.
   /\/shipping\/v1\.0\//, /\/v1\/logistics\//,
+  // Machine/Gaudium (20/10): API nativa paga pela loja; só lib/custo/ (hoje via Open Delivery Logistics).
+  /api\.taximachine\.com\.br/,
   /\bnew\s+google\.maps\.(Geocoder|DirectionsService|DistanceMatrixService|ElevationService)\b/,
   /\bgoogle\.maps\.places\b/, /\b(PlacesService|AutocompleteService|DistanceMatrixService)\b/,
   /\bnew\s+(OpenAI|Anthropic|GoogleGenerativeAI)\s*\(/, /from\s+['"](openai|@anthropic-ai\/sdk|@google\/generative-ai|@google\/genai)['"]/,

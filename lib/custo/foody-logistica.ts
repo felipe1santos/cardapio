@@ -17,23 +17,27 @@ const tokens = new Map<string, { token: string; expira: number }>()
 
 export class FoodyError extends Error { constructor(m: string, readonly status: number, readonly corpo: unknown = null) { super(m); this.name = 'FoodyError' } }
 
-export interface ContaFoody { baseUrl: string; clientId: string; clientSecret: string }
+/** `api`/`nome` (20/10): o mesmo cliente serve a Machine (Gaudium) — conta na guarda dela e fala o nome dela nos erros. */
+export interface ContaFoody { baseUrl: string; clientId: string; clientSecret: string; api?: 'foody' | 'machine'; nome?: string }
+const nomeDe = (c: ContaFoody) => c.nome ?? 'Foody'
 
 async function token(conta: ContaFoody): Promise<string> {
   const chave = `${conta.baseUrl}|${conta.clientId}`
+  const nome = nomeDe(conta)
   const c = tokens.get(chave)
   if (c && c.expira > Date.now()) return c.token
   const res = await fetch(`${conta.baseUrl}/oauth/token`, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ grant_type: 'client_credentials', client_id: conta.clientId, client_secret: conta.clientSecret }), signal: AbortSignal.timeout(TIMEOUT_MS) })
-  if (!res.ok) throw new FoodyError(res.status === 401 ? 'A Foody recusou as credenciais.' : `Foody (token) respondeu ${res.status}.`, res.status)
+  if (!res.ok) throw new FoodyError(res.status === 401 ? `${nome} recusou as credenciais.` : `${nome} (token) respondeu ${res.status}.`, res.status)
   const j = (await res.json()) as { access_token?: string; accessToken?: string; expires_in?: number }
   const t = j.access_token ?? j.accessToken
-  if (!t) throw new FoodyError('A Foody não devolveu o token.', 502)
+  if (!t) throw new FoodyError(`${nome} não devolveu o token.`, 502)
   tokens.set(chave, { token: t, expira: Date.now() + Math.max(60, Number(j.expires_in ?? 3600) - 60) * 1000 })
   return t
 }
 
 async function chamar(admin: SupabaseClient, loja: string, conta: ContaFoody, metodo: 'GET' | 'POST', caminho: string, corpo: unknown, chaveGuarda: string): Promise<unknown> {
-  const r = await chamarApiPaga(admin, { api: 'foody', chave: chaveGuarda, loja }, async () => {
+  const nome = nomeDe(conta)
+  const r = await chamarApiPaga(admin, { api: conta.api ?? 'foody', chave: chaveGuarda, loja }, async () => {
     const t = await token(conta)
     const res = await fetch(`${conta.baseUrl}${caminho}`, {
       method: metodo, headers: { Authorization: `Bearer ${t}`, Accept: 'application/json', ...(corpo !== undefined ? { 'Content-Type': 'application/json' } : {}) },
@@ -43,16 +47,16 @@ async function chamar(admin: SupabaseClient, loja: string, conta: ContaFoody, me
     let j: unknown = null
     try { j = texto ? JSON.parse(texto) : null } catch { j = texto }
     if (!res.ok) {
-      console.error(`[foody] ${metodo} ${caminho} → ${res.status}`)
+      console.error(`[${conta.api ?? 'foody'}] ${metodo} ${caminho} → ${res.status}`)
       const msg = (j && typeof j === 'object' && 'message' in (j as Record<string, unknown>)) ? String((j as Record<string, unknown>).message) : ''
-      throw new FoodyError(res.status === 401 || res.status === 403 ? 'A Foody não autorizou (confira as credenciais).' : res.status === 404 ? 'A Foody não atende este endereço ou não encontrou a entrega.' : res.status === 422 || res.status === 400 ? `Foody recusou: ${msg || 'dados da entrega'}` : `Foody respondeu ${res.status}.`, res.status, j)
+      throw new FoodyError(res.status === 401 || res.status === 403 ? `${nome} não autorizou (confira as credenciais).` : res.status === 404 ? `${nome} não atende este endereço ou não encontrou a entrega.` : res.status === 422 || res.status === 400 ? `${nome} recusou: ${msg || 'dados da entrega'}` : `${nome} respondeu ${res.status}.`, res.status, j)
     }
     return j
   })
   if (r.ok) return r.valor
-  if (r.motivo === 'erro') throw new FoodyError(r.erro ?? 'Não foi possível falar com a Foody.', 0)
-  if (r.motivo === 'disparo') throw new FoodyError('Muitas chamadas iguais à Foody em 1 minuto — bloqueadas por segurança. Aguarde.', 429)
-  if (r.motivo === 'limite') throw new FoodyError('Limite diário de chamadas à Foody atingido. O suporte da Menuzia foi avisado.', 429)
+  if (r.motivo === 'erro') throw new FoodyError(r.erro ?? `Não foi possível falar com ${nome}.`, 0)
+  if (r.motivo === 'disparo') throw new FoodyError(`Muitas chamadas iguais à ${nome} em 1 minuto — bloqueadas por segurança. Aguarde.`, 429)
+  if (r.motivo === 'limite') throw new FoodyError(`Limite diário de chamadas à ${nome} atingido. O suporte da Menuzia foi avisado.`, 429)
   throw new FoodyError('Sem contagem de uso no banco — chamada não feita.', 503)
 }
 

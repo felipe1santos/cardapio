@@ -21,9 +21,10 @@ import { apagarCorrida, atualizarCorrida, buscarConfig, corridaAtivaDoPedido, cr
  * corrida no Financeiro; CANCELED/REJECTED devolvem o pedido para "pronto". Status NORMALIZADO para o vocabulário da
  * Lalamove (lib/entregas/lalamove-status.ts), então card, painel e financeiro não mudam.
  */
-export type ProvedorNovo = 'ifood' | 'foody'
-export const ehProvedorNovo = (v: unknown): v is ProvedorNovo => v === 'ifood' || v === 'foody'
-export const NOME_PROVEDOR: Record<ProvedorEntrega, string> = { lalamove: 'Lalamove', ifood: 'Entregador iFood', foody: 'Foody' }
+// 'machine' (20/10): Machine/Gaudium pela MESMA logística Open Delivery da Foody (lib/custo/foody-logistica.ts), com guarda e nome próprios.
+export type ProvedorNovo = 'ifood' | 'foody' | 'machine'
+export const ehProvedorNovo = (v: unknown): v is ProvedorNovo => v === 'ifood' || v === 'foody' || v === 'machine'
+export const NOME_PROVEDOR: Record<ProvedorEntrega, string> = { lalamove: 'Lalamove', ifood: 'Entregador iFood', foody: 'Foody', machine: 'Machine' }
 
 /** Evento do Open Delivery Logistics → status da corrida. Puro. */
 export function statusDeEventoOd(tipo: string): string | null {
@@ -75,8 +76,8 @@ export async function configProvedorPronta(admin: SupabaseClient, restauranteId:
     if (!canal?.credenciais || !canal.merchantIdExterno) throw new EntregaError('Conecte a loja ao iFood em Integrações › iFood (credenciais e id da loja) antes de chamar o entregador.', 400)
     return { cfg, canalIfood: canal, contaFoody: null }
   }
-  if (!cfg.chaves || !cfg.baseUrl) throw new EntregaError('Cole a URL base, o Client ID e o Client Secret da Foody em Integrações › Foody.', 400)
-  return { cfg, canalIfood: null, contaFoody: { baseUrl: cfg.baseUrl, clientId: cfg.chaves.apiKey, clientSecret: cfg.chaves.apiSecret } }
+  if (!cfg.chaves || !cfg.baseUrl) throw new EntregaError(`Cole a URL base, o Client ID e o Client Secret em Integrações › ${NOME_PROVEDOR[provedor]}.`, 400)
+  return { cfg, canalIfood: null, contaFoody: { baseUrl: cfg.baseUrl, clientId: cfg.chaves.apiKey, clientSecret: cfg.chaves.apiSecret, api: provedor === 'machine' ? 'machine' : 'foody', nome: NOME_PROVEDOR[provedor] } }
 }
 
 /** Quais provedores o Kanban deve oferecer nesta loja (20/10: disponível + ligado + credenciais; sem módulo pago). */
@@ -85,6 +86,7 @@ export async function provedoresAtivos(admin: SupabaseClient, restauranteId: str
   if (PROVEDOR_DISPONIVEL.lalamove) { const c = await buscarConfig(admin, restauranteId, 'lalamove').catch(() => null); if (c?.ativo && c.chaves) out.push('lalamove') }
   if (PROVEDOR_DISPONIVEL.ifood) { const c = await buscarConfig(admin, restauranteId, 'ifood').catch(() => null); if (c?.ativo) out.push('ifood') }
   if (PROVEDOR_DISPONIVEL.foody) { const c = await buscarConfig(admin, restauranteId, 'foody').catch(() => null); if (c?.ativo && c.chaves && c.baseUrl) out.push('foody') }
+  if (PROVEDOR_DISPONIVEL.machine) { const c = await buscarConfig(admin, restauranteId, 'machine').catch(() => null); if (c?.ativo && c.chaves && c.baseUrl) out.push('machine') }
   return out
 }
 
@@ -119,7 +121,7 @@ export async function cotarProvedor(admin: SupabaseClient, restauranteId: string
     delivery: enderecoOd({ rua: pedido.enderecoRua, numero: pedido.enderecoNumero, complemento: pedido.enderecoComplemento ?? '', bairro: pedido.enderecoBairro, cidade: pedido.enderecoCidade || loja.cidade, estado: loja.estado, cep: pedido.enderecoCep ?? '', referencia: pedido.enderecoReferencia ?? '', lat: c.lat, lng: c.lng }),
     totalOrderPrice: pedido.total, orderDeliveryFee: Number((pedido as { taxaEntrega?: number }).taxaEntrega ?? 0), specialInstructions: pedido.observacao ?? '',
   }, pedidoId)
-  if (!q.disponivel) throw new EntregaError('A Foody não atende este endereço agora.', 409)
+  if (!q.disponivel) throw new EntregaError(`${NOME_PROVEDOR[provedor]} não atende este endereço agora.`, 409)
   // Open Delivery não tem id de cotação: o preço vale 5 min e a entrega é pedida com os mesmos dados.
   return { ...base, quotationId: `od:${pedidoId}:${Date.now()}`, preco: q.preco, distanciaM: null, expiraEm: new Date(Date.now() + 5 * 60_000).toISOString(), prazoMin: q.deliveryEtaMin }
 }
