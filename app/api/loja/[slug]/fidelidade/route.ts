@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { buscarClientePorToken, buscarRestauranteIdPorSlug } from '@/lib/queries/clientes'
 import { buscarCuponsPublicos, buscarFidelidadeCliente } from '@/lib/queries/fidelidade'
+import { saldoCashbackCliente } from '@/lib/queries/cashback'
 
 /**
  * Progresso de fidelidade do cliente na vitrine (aba Cupons): campanhas com progresso,
@@ -25,8 +26,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
     if (telefone && token) {
       const cliente = await buscarClientePorToken(admin, restauranteId, telefone, token)
       if (cliente) {
-        const fidelidade = await buscarFidelidadeCliente(admin, restauranteId, telefone)
-        return NextResponse.json(fidelidade)
+        // Cashback (Etapa 7, 0211): saldo do cliente; falha aqui não derruba a aba Cupons.
+        const [fidelidade, cashback] = await Promise.all([buscarFidelidadeCliente(admin, restauranteId, telefone), saldoCashbackCliente(admin, restauranteId, telefone).catch(() => null)])
+        return NextResponse.json({ ...fidelidade, cashback })
       }
     }
 

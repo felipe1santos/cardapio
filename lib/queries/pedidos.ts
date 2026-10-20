@@ -7,6 +7,8 @@ import { resolverFrete } from '@/lib/frete'
 import { calcularDesconto, diasSemanaTexto, podeResgatarHoje, validarCupom, MOTIVO_CUPOM_ESGOTADO, MOTIVO_CUPOM_EXIGE_LOGIN_PEDIDO, type CupomRegra } from '@/lib/fidelidade-regras'
 import { buscarHistoricoCliente, hojeSaoPaulo, normalizarCodigoCupom } from '@/lib/queries/fidelidade'
 import { normalizarTelefone } from '@/lib/queries/clientes'
+import { consumirCashback, devolverCashback, saldoCashbackCliente, vincularCashbackAoPedido, type ConsumoCashback } from '@/lib/queries/cashback'
+import { valorCashbackAplicavel } from '@/lib/cashback-regras'
 import { grupoEstaAtivoAgora, itemDisponivelHoje, lojaEstaAberta } from '@/lib/timezone'
 import { configAgendamento, motivoAgendamentoInvalido } from '@/lib/agendamento'
 import { itemDisponivelNoCanal } from '@/lib/canais-item'
@@ -1188,6 +1190,11 @@ export interface NovoPedidoInput {
    * Exclusivo com `cupomCodigo`.
    */
   recompensaId?: string
+  /**
+   * Cashback (Etapa 7, 20/10): usar o saldo do cliente neste pedido. Só caminhos de servidor com telefone
+   * verificado (vitrine logada, IA). O valor nunca vem do payload — o servidor lê o saldo e abate do subtotal.
+   */
+  usarCashback?: boolean
   /** Token do cadastro do cliente (vitrine com código confirmado). Sem ele o pedido da vitrine é "não verificado". */
   clienteToken?: string
   /**
@@ -1548,6 +1555,7 @@ export async function criarPedido(
   let cupomAplicado: { id: string; codigo: string; usos: number } | null = null
   let cupomReservaCliente: { cupomId: string; telefone: string } | null = null
   let recompensaResgatada: string | null = null
+  let cashbackUsado: ConsumoCashback = { valor: 0, usos: [] }
 
   /**
    * Aplica o prêmio (de cupom ou de recompensa) sobre subtotal/taxa já calculados.
@@ -1737,6 +1745,7 @@ export async function criarPedido(
   // recusa daqui até o insert precisa devolvê-los, senão o cliente perde o prêmio e o
   // cupom queima um uso do teto num pedido que não nasceu.
   const devolverReservas = async () => {
+    if (cashbackUsado.usos.length) await devolverCashback(admin, restauranteId, cashbackUsado.usos)
     if (recompensaResgatada) {
       try {
         await admin
@@ -1760,6 +1769,25 @@ export async function criarPedido(
       } catch (reverterError) {
         console.error(`[criarPedido] falha ao devolver o uso do cupom ${cupomAplicado.codigo}:`, reverterError)
       }
+    }
+  }
+
+  // ── Cashback (Etapa 7, 20/10): usado sozinho, só com telefone VERIFICADO (vitrine logada / IA). Abate do
+  // subtotal depois de cupom/prêmio, nunca do frete. Reserva antes do insert (claim-first) e devolve se o pedido
+  // não nascer. Best-effort: falha aqui só deixa o pedido sem cashback — nunca derruba o pedido.
+  if (input.usarCashback === true && !opcoes.gravar && input.origem !== 'pdv') {
+    try {
+      const verificado = opcoes.telefoneConfirmado || await telefoneClienteVerificado(admin, restauranteId, input.cliente.telefone, input.clienteToken ?? null)
+      if (verificado) {
+        const { saldo } = await saldoCashbackCliente(admin, restauranteId, input.cliente.telefone)
+        const querUsar = valorCashbackAplicavel(saldo, subtotal, desconto)
+        if (querUsar > 0) {
+          cashbackUsado = await consumirCashback(admin, restauranteId, input.cliente.telefone, querUsar)
+          desconto = centavos(desconto + cashbackUsado.valor)
+        }
+      }
+    } catch (e) {
+      console.error('[criarPedido] cashback indisponível, pedido segue sem:', (e as Error).message)
     }
   }
 
@@ -1839,6 +1867,8 @@ export async function criarPedido(
       lancado_via: input.lancadoVia ?? null,
       cupom_codigo: cupomAplicado?.codigo ?? null,
       recompensa_id: recompensaResgatada,
+      // Só entra no insert quando houve uso (a coluna é da 0211; pedidos sem cashback não dependem dela).
+      ...(cashbackUsado.valor > 0 ? { cashback_usado: cashbackUsado.valor } : {}),
       ...(agendadoPara ? { agendado_para: agendadoPara } : {}),
     })
     .select('id, numero')
@@ -1857,6 +1887,7 @@ export async function criarPedido(
       .eq('id', recompensaResgatada)
     if (vinculoError) console.error(`[criarPedido] falha ao vincular recompensa ${recompensaResgatada} ao pedido ${pedido.id}:`, vinculoError)
   }
+  if (cashbackUsado.usos.length) await vincularCashbackAoPedido(admin, restauranteId, cashbackUsado.usos, pedido.id)
 
   const { error: itensInsertError } = await admin.from('pedido_itens').insert(
     linhas.map((l) => ({ ...l, pedido_id: pedido.id }))

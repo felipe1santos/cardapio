@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { normalizarTelefone } from './clientes'
+import type { CashbackCliente } from './cashback'
 import {
   podeResgatarHoje,
   resumoProgresso,
@@ -114,6 +115,8 @@ export interface FidelidadeCliente {
   }[]
   recompensas: RecompensaDisponivel[]
   cuponsPublicos: CupomVitrine[]
+  /** Cashback (Etapa 7, 20/10): saldo do cliente logado; null quando indisponível. Só a rota da vitrine preenche. */
+  cashback?: CashbackCliente | null
 }
 
 // ─── Motor (helpers de apoio — a orquestração fica em lib/fidelidade.ts) ───

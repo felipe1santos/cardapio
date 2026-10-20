@@ -22,6 +22,7 @@ import { tamanhosVendidosDaPizza } from '@/lib/pizza-tamanhos'
 import { saborDoProprioItem, saboresDoTamanho } from '@/lib/pizza-sabores'
 import { massasParaEscolha } from '@/lib/massa-padrao'
 import { calcularDesconto, diasSemanaTexto, premioLabelCampanha, fracaoProgresso } from '@/lib/fidelidade-regras'
+import { diaMesSaoPaulo, valorCashbackAplicavel } from '@/lib/cashback-regras'
 import type { CupomVitrine, FidelidadeCliente, RecompensaDisponivel } from '@/lib/queries/fidelidade'
 import { itemVendavelNaVitrine } from '@/lib/vitrine-item-vendavel'
 import { EtiquetasUtilitarias, LojaEtiquetasContext, NomeComEtiquetas, PrecoVitrine, SeloMaisPedidos, VitrineNovaContext } from '@/components/vitrine/etiquetas'
@@ -1166,6 +1167,13 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     ? calcularDesconto(beneficio.tipo, beneficio.valor, subtotal, 0)
     : { descontoSubtotal: 0, zeraFrete: false }
 
+  // ── Cashback (Etapa 7, 20/10): a API só devolve o saldo com a sessão confirmada. Entra sozinho no pedido
+  // (o cliente pode desligar na sacola); abate do subtotal depois de cupom/prêmio, nunca do frete. Prévia —
+  // o servidor lê o saldo, reserva e grava o valor de verdade (criarPedido › usarCashback).
+  const [usarCashback, setUsarCashback] = useState(true)
+  const cashbackSaldo = fidelidade?.cashback?.saldo ?? 0
+  const cashbackPreview = usarCashback ? valorCashbackAplicavel(cashbackSaldo, subtotal, desconto) : 0
+
   // ── Checkout form state (hoisted so fee can access endereco) ───────────────
   // ── Canal do pedido: entrega ou retirada ──────────────────────────────────
   // A vitrine só sabia vender entrega. Loja que não tem entregador (ou que só
@@ -1259,7 +1267,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   // O total só soma a taxa quando ela é um valor confirmado (`freteRotulo` nulo).
   // Somar o palpite enquanto a linha diz "A calcular" deixava a conta sem fechar
   // na tela: subtotal 14 + "a calcular" = total 17.
-  const total = Math.max(0, subtotal - desconto) + (cart.length && !freteRotulo ? fee : 0)
+  const total = Math.max(0, subtotal - desconto - cashbackPreview) + (cart.length && !freteRotulo ? fee : 0)
 
   // Autopreenche rua/bairro/cidade ao digitar o CEP (ViaCEP).
   // `alvo` escolhe qual endereço recebe o preenchimento: o do checkout (padrão)
@@ -2605,6 +2613,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     }
     linhas.push('')
     if (desconto > 0) linhas.push(`Desconto${cupomAplicado ? ` (cupom ${cupomAplicado.codigo})` : ' (prêmio fidelidade)'}: -${brl(desconto)}`)
+    if (cashbackPreview > 0) linhas.push(`Cashback: -${brl(cashbackPreview)}`)
     if (beneficio?.tipo === 'item_gratis') linhas.push(`Item grátis: ${nomeLimpo(beneficio.itemNome) || 'prêmio'}`)
     linhas.push(`Total: ${brl(total)}`)
     linhas.push(`Pagamento: ${rotuloPagamento(payMethod, tipoPedido)}`)
@@ -2648,6 +2657,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         // o desconto (o preview do client nunca é enviado).
         cupomCodigo: recompensaSelecionada ? undefined : cupomAplicado?.codigo,
         recompensaId: recompensaSelecionada?.id,
+        // Cashback (Etapa 7): só a vontade de usar viaja; o servidor confere token e saldo e abate o que der.
+        usarCashback: cashbackPreview > 0 ? true : undefined,
         // Token do cadastro (código confirmado): o servidor só marca "verificado" com ele.
         clienteToken: clienteSessao?.token || undefined,
         agendadoPara: agendando && agData && agHora ? instanteDoHorario(agData, agHora) : undefined,
@@ -3140,7 +3151,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
   // Quanto o cliente economiza: desconto dos itens em promoção + cupom/prêmio.
   const economiaItens = cart.reduce((soma, l) => { const o = originalDaLinha(l); return o === null ? soma : soma + (o - l.unit * l.qty) }, 0)
-  const economia = economiaItens + desconto
+  const economia = economiaItens + desconto + cashbackPreview
   const resumoValores = (
     <div className="mb-[16px]" data-testid="resumo-valores">
       <TituloSecao>Resumo de valores</TituloSecao>
@@ -3155,6 +3166,21 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         />
       )}
       {beneficio?.tipo === 'item_gratis' && <LinhaValor rotulo="Item grátis" valor={nomeLimpo(beneficio.itemNome) || 'prêmio'} verde />}
+      {cashbackSaldo > 0 && (
+        <LinhaValor
+          rotulo={(
+            <span className="inline-flex items-center gap-[6px]">
+              <span>Cashback{cashbackPreview > 0 ? '' : ' (guardado)'}</span>
+              <button type="button" onClick={() => setUsarCashback((v) => !v)} className="text-[11px] font-semibold underline" data-testid="cashback-alternar">
+                {usarCashback ? 'não usar agora' : 'usar'}
+              </button>
+            </span>
+          )}
+          valor={cashbackPreview > 0 ? `-${brl(cashbackPreview)}` : `${brl(cashbackSaldo)} disponível`}
+          verde={cashbackPreview > 0}
+          testid="linha-cashback"
+        />
+      )}
       <LinhaValor rotulo={rotuloLinhaFrete} valor={valorLinhaFrete} testid="linha-frete" />
       <div className="mt-[6px] border-t border-[#EFEFEF] pt-[8px]"><LinhaValor rotulo="Total" valor={brl(total)} forte testid="linha-total" /></div>
     </div>
@@ -4223,7 +4249,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
           )
           const missoes = fidelidade.campanhas
           const cuponsLoja = fidelidade.cuponsPublicos
-          const nadaParaMostrar = recompensas.length === 0 && missoes.length === 0 && cuponsLoja.length === 0
+          const cashbackVitrine = fidelidade.cashback && fidelidade.cashback.saldo > 0 ? fidelidade.cashback : null
+          const nadaParaMostrar = recompensas.length === 0 && missoes.length === 0 && cuponsLoja.length === 0 && !cashbackVitrine
           return (
             <div className="space-y-6 px-4 pb-8 pt-5 lg:mx-auto lg:max-w-2xl lg:px-8 lg:pt-10">
               {/* Não logado: cupons públicos aparecem, progresso exige sessão. Sem nada para mostrar,
@@ -4242,6 +4269,29 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   </span>
                   <span className="flex-shrink-0 text-text-subtle">→</span>
                 </button>
+              )}
+
+              {/* Cashback (Etapa 7, 20/10): saldo do cliente, até quando vale e de onde veio. Entra sozinho no próximo pedido. */}
+              {cashbackVitrine && (
+                <section data-testid="cashback-vitrine" className="rounded-md border border-[#BBF7D0] bg-[#F0FDF4] p-4 shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-[12px] font-semibold uppercase tracking-wide text-[#15803D]">Seu cashback</div>
+                      <div className="mt-0.5 text-[24px] font-semibold leading-none text-[#15803D]">{brl(cashbackVitrine.saldo)}</div>
+                      {cashbackVitrine.proximaExpiracao && (
+                        <div className="mt-1.5 text-[12px] text-text-subtle">Use até {diaMesSaoPaulo(cashbackVitrine.proximaExpiracao)} — é descontado sozinho no seu próximo pedido.</div>
+                      )}
+                    </div>
+                    <button onClick={() => setTab('home')} className="flex-shrink-0 rounded-md bg-[#15803D] px-3 py-2 text-[12px] font-semibold text-white">Pedir agora</button>
+                  </div>
+                  {cashbackVitrine.creditos.length > 0 && (
+                    <ul className="mt-3 space-y-1 border-t border-[#BBF7D0] pt-2.5 text-[12px] text-text-subtle">
+                      {cashbackVitrine.creditos.slice(0, 4).map((c) => (
+                        <li key={c.id} className="flex items-center justify-between gap-2"><span className="min-w-0 truncate">{nomeLimpo(c.itemNome)}</span><span className="flex-shrink-0">{brl(c.saldo)} · até {diaMesSaoPaulo(c.expiraEm)}</span></li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
               )}
 
               {/* Prêmios prontos pra resgatar */}

@@ -10,6 +10,8 @@ export type AcaoAuto =
   | 'saudacao' | 'menu_curto' | 'cardapio' | 'entrega' | 'entrega_perguntar_bairro' | 'status' | 'status_numero'
   | 'horario' | 'pagamento' | 'endereco' | 'reclamacao' | 'atendente' | 'parar' | 'nao_entendeu' | 'audio' | 'nada'
   | 'pix_chave' | 'resumo_pedido' | 'tempo_entrega' | 'duvida'
+  // Etapa 7 (20/10): "4 Ver meu progresso" — cashback, prêmios, missões e cupons (o motor monta o texto).
+  | 'fidelidade'
   | 'pedir_link' | 'pedir_sem_link'
   // 19/10 (dono): loja fechada — quem quer pedir ouve que está fechada e quando abre; nada é anotado.
   | 'pedir_fechada'
@@ -76,7 +78,7 @@ export interface EntradaDecisao {
 
 const ACAO_DO_ASSUNTO: Record<Assunto, AcaoAuto> = {
   saudacao: 'saudacao', cardapio: 'cardapio', entrega: 'entrega', status_pedido: 'status', horario: 'horario', pagamento_pix: 'pagamento',
-  endereco_retirada: 'endereco', reclamacao: 'reclamacao', atendente: 'atendente', parar: 'parar',
+  endereco_retirada: 'endereco', reclamacao: 'reclamacao', atendente: 'atendente', parar: 'parar', fidelidade: 'fidelidade',
 }
 
 function valido(estado: EstadoAuto, agora: Date): boolean {
@@ -122,8 +124,8 @@ export function decidir(e: EntradaDecisao): Decisao {
   if (emEspera?.startsWith('alterar_pedido:') && respostaDeAlteracao && intencao !== 'parar' && intencao !== 'reclamacao') {
     return { acao: 'alterar_pedido_registrar', intencao: 'status_pedido', estado: entendido(limpo), naoEntendida: false, pedidoId: emEspera.slice('alterar_pedido:'.length) }
   }
-  // "7" do menu, ou "mudar/cancelar o pedido" com pedido aberto editável: pergunta o que mudar (em vez do atendente).
-  if (e.pedidoEditavelId && (/^(?:opcao )?7$/.test(classificacao.normalizado) || (intencao === 'atendente' && ehAlteracaoDePedido(classificacao.normalizado)))) {
+  // "8" do menu (era 7 até 20/10), ou "mudar/cancelar o pedido" com pedido aberto editável: pergunta o que mudar (em vez do atendente).
+  if (e.pedidoEditavelId && (/^(?:opcao )?8$/.test(classificacao.normalizado) || (intencao === 'atendente' && ehAlteracaoDePedido(classificacao.normalizado)))) {
     return { acao: 'alterar_pedido_perguntar', intencao: 'status_pedido', estado: { ...entendido(limpo), autoEstado: `alterar_pedido:${e.pedidoEditavelId}`, autoEstadoEm: agoraIso }, naoEntendida: false, pedidoId: e.pedidoEditavelId }
   }
 

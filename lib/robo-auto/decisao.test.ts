@@ -83,9 +83,10 @@ describe('decisão do robô de autoatendimento', () => {
   it('mapeia cada assunto para a ação', () => {
     expect(d('1').acao).toBe('cardapio')
     expect(d('3').acao).toBe('status')
-    expect(d('4').acao).toBe('horario')
-    expect(d('5').acao).toBe('pagamento')
-    expect(d('6').acao).toBe('endereco')
+    expect(d('4').acao).toBe('fidelidade')
+    expect(d('5').acao).toBe('horario')
+    expect(d('6').acao).toBe('pagamento')
+    expect(d('7').acao).toBe('endereco')
   })
 })
 

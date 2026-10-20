@@ -5,7 +5,7 @@ import { ModalRevisao, pareceInstrucao, type ItemRevisao } from './revisar-nao-e
 const item = (id: string, acao: 'robo' | 'ia' | 'pedido' | 'ignorar'): ItemRevisao => ({
   id, texto: id, exemplo: `mensagem ${id}`, vezes: 1, ultima_em: '2026-10-16T22:00:00Z', contexto: null, palavras: ['bacon'], sugestao: { acao, fonte: 'regras' },
 })
-const rotulos = { saudacao: 'Saudação', cardapio: 'Cardápio', entrega: 'Entrega', status_pedido: 'Status', horario: 'Horário', pagamento_pix: 'Pix', endereco_retirada: 'Endereço', reclamacao: 'Reclamação', atendente: 'Atendente', parar: 'Parar' }
+const rotulos = { saudacao: 'Saudação', cardapio: 'Cardápio', entrega: 'Entrega', status_pedido: 'Status', horario: 'Horário', pagamento_pix: 'Pix', endereco_retirada: 'Endereço', reclamacao: 'Reclamação', atendente: 'Atendente', parar: 'Parar', fidelidade: 'Progresso' }
 
 describe('modal "Revisar mensagens"', () => {
   it('abre com o botão SUGERIDO selecionado (bug de 16/10: etiqueta no "É pedido", selecionado "IA responde")', () => {

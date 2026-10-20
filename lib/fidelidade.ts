@@ -24,6 +24,7 @@ import {
   type RecompensaParaMensagem,
 } from '@/lib/fidelidade-regras'
 import {
+  buscarFidelidadeCliente,
   buscarProgressoCliente,
   criarRecompensaDisponivel,
   listarCampanhasFidelidadeAtivas,
@@ -31,6 +32,8 @@ import {
   salvarProgressoCliente,
 } from '@/lib/queries/fidelidade'
 import { enviarWhatsapp, formatarTelefoneWhatsapp } from '@/lib/whatsapp'
+import { creditarCashbackDoPedido, reverterCashbackDoPedidoCancelado, saldoCashbackCliente } from '@/lib/queries/cashback'
+import { montarBlocoCashbackGanho, montarMensagemProgresso, type CreditoNovo } from '@/lib/cashback-regras'
 import { diaSemanaSaoPaulo } from '@/lib/timezone'
 
 /** Busca em lote o nome dos itens premiados (premio_tipo=item_gratis), pra não fazer 1 query por campanha. */
@@ -72,11 +75,18 @@ export async function processarFidelidadePedidoEntregue(admin: SupabaseClient, r
     // Pedido de conta presencial (PDV/salão) não conta sozinho: a conta inteira conta uma
     // vez, quando é FECHADA (processarFidelidadeComandaFechada).
     if (!pedido.clienteTelefone || pedido.origem === 'pdv') return
+    // Cashback (Etapa 7, 20/10): crédito por item entregue. Falha aqui não trava a fidelidade.
+    let cashback: { criados: CreditoNovo[]; saldoTotal: number } = { criados: [], saldoTotal: 0 }
+    try {
+      cashback = await creditarCashbackDoPedido(admin, restauranteId, pedidoId, pedido.clienteTelefone)
+    } catch (e) {
+      console.error('[cashback] crédito do pedido', pedidoId, (e as Error).message)
+    }
     await aplicarFidelidade(admin, restauranteId, pedido.clienteTelefone, {
       subtotal: pedido.subtotal,
       qtdItens: pedido.qtdItens,
       criadoEm: pedido.criadoEm,
-    })
+    }, montarBlocoCashbackGanho(cashback.criados, cashback.saldoTotal))
   } catch (err) {
     console.error('[fidelidade] erro ao processar progresso do pedido', pedidoId, err)
   }
@@ -105,9 +115,11 @@ async function aplicarFidelidade(
   restauranteId: string,
   telefone: string,
   compra: { subtotal: number; qtdItens: number; criadoEm: string },
+  /** Bloco "você ganhou R$ X de cashback" (Etapa 7) — vai na mesma mensagem, mesmo sem campanha. */
+  blocoCashback: string | null = null,
 ): Promise<void> {
   const campanhas = await listarCampanhasFidelidadeAtivas(admin, restauranteId)
-  if (campanhas.length === 0) return
+  if (campanhas.length === 0 && !blocoCashback) return
 
   const diaSemanaPedido = diaSemanaSaoPaulo(compra.criadoEm)
 
@@ -126,7 +138,7 @@ async function aplicarFidelidade(
     resultados.push({ campanha, progresso: novo, completou })
   }
 
-  if (resultados.length === 0) return
+  if (resultados.length === 0 && !blocoCashback) return
 
   const itemIds = [...new Set(
     resultados
@@ -148,13 +160,37 @@ async function aplicarFidelidade(
   }
 
   const { nome: nomeLoja, evolutionInstance } = await buscarDadosLoja(admin, restauranteId)
-  const mensagem = montarMensagemFidelidade(progressos, recompensasNovas, nomeLoja)
+  const base = montarMensagemFidelidade(progressos, recompensasNovas, nomeLoja)
+  const mensagem = blocoCashback ? `${base ?? 'Pedido entregue! ✅'}\n\n${blocoCashback}` : base
   if (!mensagem || !evolutionInstance) return
 
   const numero = formatarTelefoneWhatsapp(telefone)
   if (!numero) return
 
   await enviarWhatsapp(numero, mensagem, evolutionInstance, { admin, origem: 'automatico', restauranteId })
+}
+
+/**
+ * "Ver meu progresso" (robô opção 4 / IA — Etapa 7, 20/10): cashback disponível, prêmios prontos, missões em
+ * andamento e cupons públicos da loja, num texto só (lib/cashback-regras.ts › montarMensagemProgresso).
+ * O telefone vem do WhatsApp (55DDD…) ou do pedido (DDD…): a camada de dados normaliza os dois.
+ */
+export async function mensagemProgressoCliente(
+  admin: SupabaseClient, restauranteId: string, telefone: string, nomeCliente: string | null, loja: { nome: string; link: string },
+): Promise<string> {
+  const [f, cb] = await Promise.all([
+    buscarFidelidadeCliente(admin, restauranteId, telefone),
+    saldoCashbackCliente(admin, restauranteId, telefone).catch(() => null),
+  ])
+  return montarMensagemProgresso({
+    nomeLoja: loja.nome,
+    nomeCliente,
+    linkCardapio: loja.link,
+    cashback: cb ? { saldo: cb.saldo, proximaExpiracao: cb.proximaExpiracao } : null,
+    campanhas: f.campanhas.map((c) => ({ faltaTexto: c.resumo.faltaTexto, premioLabel: premioLabelCampanha(c.campanha, c.campanha.premioItemNome), percentual: c.resumo.percentual })),
+    recompensas: f.recompensas.map((r) => ({ premioLabel: premioLabelCampanha({ premioTipo: r.premioTipo, premioValor: r.premioValor }, r.premioItemNome), podeResgatarHoje: r.podeResgatarHoje })),
+    cupons: f.cuponsPublicos.map((c) => ({ codigo: c.codigo, descricao: c.descricao })),
+  })
 }
 
 /**
@@ -190,6 +226,9 @@ export async function reverterBeneficiosPedidoCancelado(admin: SupabaseClient, r
       .maybeSingle()
     if (error) throw error
     if (!pedido) return // não existe, não é dessa loja, ou não está cancelado — nada a reverter.
+
+    // Cashback (Etapa 7, 0211): o que o pedido usou volta como crédito; o que ele gerou fica revertido. Tolerante.
+    await reverterCashbackDoPedidoCancelado(admin, restauranteId, pedidoId).catch((e) => console.error('[cashback] reversão', pedidoId, (e as Error).message))
 
     if (pedido.recompensa_id) {
       const { error: recompensaError } = await admin

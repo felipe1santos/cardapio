@@ -3,7 +3,7 @@
  *
  * 1. Normaliza: minúsculas, sem acento, sem pontuação/emoji, abreviações comuns ("vcs", "qnto", "hj")
  *    e letras repetidas ("oiiii", "diaa").
- * 2. Número do menu sozinho (1–6, 0) decide na hora.
+ * 2. Número do menu sozinho (1–8, 0) decide na hora.
  * 3. Passada EXATA: a primeira palavra/expressão encontrada, na ordem de prioridade, vence.
  * 4. Só sem nenhum acerto exato: passada TOLERANTE (distância de edição 1 em palavras de 5–7 letras,
  *    2 a partir de 8), na mesma ordem. Assim "atendendo" (horário, exato) não vira "atendente".
@@ -16,6 +16,8 @@
 export type Assunto =
   | 'saudacao' | 'cardapio' | 'entrega' | 'status_pedido' | 'horario' | 'pagamento_pix'
   | 'endereco_retirada' | 'reclamacao' | 'atendente' | 'parar'
+  // Etapa 7 (20/10): "Ver meu progresso" — cashback, prêmios, missões e cupons do cliente (opção 4 do menu).
+  | 'fidelidade'
 
 /**
  * 'pedir' (11/10): vontade de pedir PELA CONVERSA — com o Agente de IA ligado, a IA anota; sem ele, o robô manda o link.
@@ -25,7 +27,7 @@ export type Assunto =
 export type Intencao = Assunto | 'pedir' | 'pix_chave' | 'resumo_pedido' | 'tempo_entrega' | 'duvida' | 'ok' | 'voltar' | 'outro'
 
 export const ASSUNTOS: Assunto[] = [
-  'atendente', 'reclamacao', 'parar', 'status_pedido', 'entrega', 'pagamento_pix', 'horario', 'endereco_retirada', 'cardapio', 'saudacao',
+  'atendente', 'reclamacao', 'parar', 'status_pedido', 'entrega', 'pagamento_pix', 'horario', 'endereco_retirada', 'fidelidade', 'cardapio', 'saudacao',
 ]
 
 /** Palavras extras que o dono cadastra (por assunto), já em texto livre. */
@@ -55,14 +57,14 @@ export function normalizarTexto(texto: string): string {
     .join(' ')
 }
 
-/** "3", "opção 3", "3." → 3. Qualquer outro número (ex.: nº de pedido) → null. */
+/** "3", "opção 3", "3." → 3. Qualquer outro número (ex.: nº de pedido) → null. (1–8 e 0; o 8 é "alterar", só com pedido aberto.) */
 export function opcaoDoMenu(texto: string): number | null {
-  const m = /^(?:opcao )?([0-6])$/.exec(normalizarTexto(texto))
+  const m = /^(?:opcao )?([0-8])$/.exec(normalizarTexto(texto))
   return m ? Number(m[1]) : null
 }
 
 export const MENU_NUMEROS: Record<number, Assunto> = {
-  1: 'cardapio', 2: 'entrega', 3: 'status_pedido', 4: 'horario', 5: 'pagamento_pix', 6: 'endereco_retirada', 0: 'atendente',
+  1: 'cardapio', 2: 'entrega', 3: 'status_pedido', 4: 'fidelidade', 5: 'horario', 6: 'pagamento_pix', 7: 'endereco_retirada', 0: 'atendente',
 }
 
 /** Palavras e expressões padrão (já normalizadas). Expressões casam palavra por palavra, em sequência. */
@@ -111,6 +113,10 @@ export const PALAVRAS_PADRAO: Record<Assunto, string[]> = {
   endereco_retirada: [
     'endereco', 'onde fica', 'onde ficam', 'onde voces ficam', 'onde voces e', 'onde voces sao', 'onde e a loja', 'onde e ai', 'onde e voces', 'localizacao', 'retirar', 'retirada', 'retiro', 'buscar', 'busco',
     'pegar ai', 'pegar na loja', 'balcao', 'como chego', 'ponto de referencia',
+  ],
+  fidelidade: [
+    'cashback', 'cash back', 'meu progresso', 'progresso', 'fidelidade', 'meus pontos', 'pontos', 'meu saldo', 'saldo', 'premio', 'premios',
+    'cupom', 'cupons', 'recompensa', 'recompensas', 'meu credito de volta',
   ],
   cardapio: [
     'cardapio', 'menu', 'pedir', 'fazer um pedido', 'fazer pedido', 'encomendar', 'link', 'site', 'preco', 'precos', 'valor', 'valores',
@@ -295,7 +301,7 @@ export function classificar(texto: string | null, extras?: PalavrasExtras): Clas
   if (pedidoEnsinado.some((f) => f.every((w) => tokens.some((t) => t === w || (w.length >= 5 && contem([t], [w], true)))))) return { ...r('pedir'), pedidoSemLink: true }
 
   const opcao = opcaoDoMenu(bruto)
-  if (opcao !== null) return r(MENU_NUMEROS[opcao], true)
+  if (opcao !== null && MENU_NUMEROS[opcao]) return r(MENU_NUMEROS[opcao], true)
   if (PARAR_INTEIRA.has(normalizado)) return r('parar')
   if (VOLTAR_INTEIRA.has(normalizado)) return r('voltar')
 
