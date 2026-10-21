@@ -4,15 +4,17 @@ import { getAdminSupabase } from '@/lib/supabase/admin'
 import { isSuperAdminEmail } from '@/lib/auth/superadmin'
 import { concluirEntrada } from '@/lib/auth/entrada'
 import { criadoAgoraSoPeloGoogle } from '@/lib/auth/google'
+import { urlPublica } from '@/lib/url-publica'
 
 /**
  * Volta do "Continuar com Google" (20/10/2026). Só entra quem JÁ tem conta Menuzia com o mesmo e-mail: o Supabase
  * vincula o Google à conta existente (e-mail confirmado) e o id é o mesmo da linha em `usuarios`. E-mail sem conta →
  * sai, apaga o usuário que o Supabase criou agora e mostra a mensagem do suporte. Depois, as mesmas regras do login
- * com senha (lib/auth/entrada.ts).
+ * com senha (lib/auth/entrada.ts). Os redirecionamentos usam o endereço público: atrás do proxy, request.url é o
+ * endereço interno do servidor (localhost:3000) — foi para lá que o 1º teste em produção voltou (21/10).
  */
 export async function GET(request: NextRequest) {
-  const erro = (codigo: string) => NextResponse.redirect(new URL(`/login?error=${codigo}`, request.url))
+  const erro = (codigo: string) => NextResponse.redirect(new URL(`/login?error=${codigo}`, urlPublica()))
   const code = request.nextUrl.searchParams.get('code')
   if (!code) return erro('google-falhou')
 
@@ -32,5 +34,5 @@ export async function GET(request: NextRequest) {
   }
 
   const destino = await concluirEntrada(supabase, user, null)
-  return NextResponse.redirect(new URL(destino, request.url))
+  return NextResponse.redirect(new URL(destino, urlPublica()))
 }

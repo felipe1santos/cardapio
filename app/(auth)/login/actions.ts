@@ -9,6 +9,7 @@ import { headers } from 'next/headers'
 import { criarLimitador, ipDaRequisicao } from '@/lib/limite-taxa'
 import { dispositivoDaRequisicao } from '@/lib/financeiro/contexto'
 import { concluirEntrada } from '@/lib/auth/entrada'
+import { urlPublica } from '@/lib/url-publica'
 import { registrarAuditoria } from '@/lib/auditoria'
 import { nivelFinanceiro } from '@/lib/financeiro/nivel'
 
@@ -81,8 +82,8 @@ async function auditarFalhaDeLogin(email: string) {
  * e-mail tem conta Menuzia. O endereço de volta precisa estar em Authentication › URL Configuration › Redirect URLs.
  */
 export async function entrarComGoogle() {
-  const h = await headers()
-  const origem = h.get('origin') ?? `${h.get('x-forwarded-proto') ?? 'https'}://${h.get('x-forwarded-host') ?? h.get('host')}`
+  // Endereço público fixo, nunca o Origin/Host da requisição (lib/url-publica.ts).
+  const origem = urlPublica()
   const supabase = await getServerSupabase()
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
