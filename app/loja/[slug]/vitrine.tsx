@@ -5,10 +5,11 @@ import { fotosDaVitrine } from '@/lib/fotos-item'
 import { comVideo, midiasDaFicha, type Midia, type VideoItem } from '@/lib/video-vitrine'
 import { VideoLoop } from '@/components/vitrine/video-loop'
 import { BarraNav } from '@/components/vitrine/barra-nav'
+import { House as PhHouse, Receipt as PhReceipt, Ticket as PhTicket, User as PhUser } from '@phosphor-icons/react'
 import { TelaPixOnline, type PixAguardando } from '@/components/vitrine/tela-pix-online'
 import { TelaCartaoOnline, type CartaoAguardando } from '@/components/vitrine/tela-cartao-online'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { UtensilsCrossed, HandPlatter, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, ChevronRight, ChevronLeft, Clock, Gift, Ticket, Percent, Check, RotateCcw, Store, User, House, ReceiptText, TicketPercent, CircleUserRound } from 'lucide-react'
+import { UtensilsCrossed, HandPlatter, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, ChevronRight, ChevronLeft, Clock, Gift, Ticket, Percent, Check, RotateCcw, Store, User } from 'lucide-react'
 import { BarraTotal, DiamanteRoxo, LinhaValor, OpcaoRadio, SeloRoxo, StepperRedondo, TituloSecao, VERDE_DESCONTO } from '@/components/vitrine/sacola-ifood'
 import { FichaLoja } from '@/components/vitrine/ficha-loja'
 import { EstadoVazioIlustrado, FotoItemPedido, ILUSTRACOES, IlustracaoStatus, ModalSaiuParaEntrega, usePedidoSaiuParaAvisar } from '@/components/vitrine/ilustracoes-pedido'
@@ -4542,20 +4543,11 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
           )}
           {/* Barra com a bolha da referência (21/10/2026): ícones de linha finos; o ativo sobe numa bolha na cor da loja. */}
           <BarraNav itens={[
-            { id: 'home', label: 'Home', onClick: () => setTab('home'), active: !contaOpen && tab === 'home', icon: <House className="h-[22px] w-[22px]" strokeWidth={1.6} /> },
-            { id: 'pedidos', label: 'Pedidos', onClick: () => setTab('pedidos'), active: !contaOpen && tab === 'pedidos', icon: <ReceiptText className="h-[22px] w-[22px]" strokeWidth={1.6} /> },
-            { id: 'cupons', label: 'Cupons', onClick: () => setTab('cupons'), active: !contaOpen && tab === 'cupons', icon: <TicketPercent className="h-[22px] w-[22px]" strokeWidth={1.6} />, badge: recompensasDisponiveis, piscar: cuponsPiscando },
-            {
-              id: 'perfil',
-              label: perfilCliente ? 'Perfil' : 'Entrar',
-              onClick: () => setContaOpen(true),
-              active: contaOpen,
-              icon: perfilCliente ? (
-                <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full border-[1.6px] border-current text-[11px] font-semibold">
-                  {(perfilCliente.nome || perfilCliente.telefone).charAt(0).toUpperCase()}
-                </span>
-              ) : <CircleUserRound className="h-[22px] w-[22px]" strokeWidth={1.6} />,
-            },
+            { id: 'home', label: 'Home', onClick: () => setTab('home'), active: !contaOpen && tab === 'home', icon: <PhHouse weight="light" /> },
+            { id: 'pedidos', label: 'Pedidos', onClick: () => setTab('pedidos'), active: !contaOpen && tab === 'pedidos', icon: <PhReceipt weight="light" /> },
+            { id: 'cupons', label: 'Cupons', onClick: () => setTab('cupons'), active: !contaOpen && tab === 'cupons', icon: <PhTicket weight="light" />, badge: recompensasDisponiveis, piscar: cuponsPiscando },
+            // Perfil: sempre o bonequinho (nunca a inicial do nome).
+            { id: 'perfil', label: perfilCliente ? 'Perfil' : 'Entrar', onClick: () => setContaOpen(true), active: contaOpen, icon: <PhUser weight="light" /> },
           ]} />
         </nav>
         </div>
