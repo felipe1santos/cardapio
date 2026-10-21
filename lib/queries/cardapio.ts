@@ -11,6 +11,7 @@ import { focoValido, type Foco } from '@/lib/foco-imagem'
 import { normalizarForaDaLista, type FreteForaDaLista } from '@/lib/frete'
 import { itemDisponivelNoCanal } from '@/lib/canais-item'
 import { cardapioOrdenado, ordenar } from '@/lib/ordem-cardapio'
+import { videoDoBanner, videoDoItem, type VideoBanner, type VideoItem } from '@/lib/video-vitrine'
 import { ErroCadastroCardapio, chaveNomeCatalogo, ehViolacaoDeUnicidade, nomeRepetidoNoCatalogo } from '@/lib/nomes-catalogo'
 
 export type StatusItem = 'disponivel' | 'pausado' | 'esgotado'
@@ -163,6 +164,8 @@ export interface ItemCardapio {
   promocaoHoraFim?: string | null
   /** Fotos extras do produto (0130), até 4. */
   imagensExtras?: { url: string; thumb: string | null }[]
+  /** Vídeo em loop (0213): card da home e/ou carrossel da ficha. */
+  video?: VideoItem | null
   maisVendido: boolean
   /** Etiqueta de destaque exibida na vitrine (ex.: 'mais_pedido'). Null = sem tag. */
   tag: TagItem | null
@@ -227,6 +230,7 @@ interface ItemRow {
   promocao_hora_inicio?: string | null
   promocao_hora_fim?: string | null
   imagens_extras?: { url: string; thumb: string | null }[] | null
+  video?: unknown
   mais_vendido: boolean
   tag: TagItem | null
   novidade_ate?: string | null
@@ -291,6 +295,7 @@ function mapItem(row: ItemRow): ItemCardapio {
     promocaoPrecoCadastrado: row.promocao_preco === null ? null : Number(row.promocao_preco),
     ...agendaDaLinha(row),
     imagensExtras: Array.isArray(row.imagens_extras) ? row.imagens_extras.filter((f) => f && typeof f.url === 'string') : [],
+    video: videoDoItem(row.video),
     maisVendido: row.mais_vendido,
     tag: row.tag ?? null,
     novidadeAte: row.novidade_ate ?? null,
@@ -511,7 +516,7 @@ export async function removerGrupo(supabase: SupabaseClient, grupoId: string) {
 
 const ITEM_SELECT = `
   id, grupo_id, nome, descricao, preco, imagem_url, imagem_thumb_url, status, dias_disponiveis, promocao_preco, mais_vendido, tag, tipo_item,
-  promocao_inicio, promocao_fim, promocao_dias, promocao_hora_inicio, promocao_hora_fim, imagens_extras,
+  promocao_inicio, promocao_fim, promocao_dias, promocao_hora_inicio, promocao_hora_fim, imagens_extras, video,
   novidade_ate, edicao_limitada, item_promocional, entrega_gratis, serve_pessoas, combo_especial, tag_personalizada, tag_personalizada_cor,
   disponivel_delivery, disponivel_salao, pizza_tamanhos_ocultos, posicao, criado_em,
   item_complementos ( id, nome, preco, grupo_id, preset_origem_id, imagem_url, pausado, posicao ),
@@ -537,6 +542,8 @@ export async function listarItens(supabase: ClienteLeitura, restauranteId: strin
 export interface ExtrasItemInput {
   agenda?: AgendaPromocao
   imagensExtras?: { url: string; thumb: string | null }[]
+  /** Vídeo (0213). null apaga; ausente = não mexe. */
+  video?: VideoItem | null
 }
 
 function colunasExtras(input: ExtrasItemInput): Record<string, unknown> {
@@ -551,6 +558,7 @@ function colunasExtras(input: ExtrasItemInput): Record<string, unknown> {
     c.promocao_hora_fim = comHora ? a.promocaoHoraFim : null
   }
   if (input.imagensExtras) c.imagens_extras = input.imagensExtras.slice(0, 4)
+  if (input.video !== undefined) c.video = input.video
   return c
 }
 
@@ -1151,6 +1159,8 @@ export interface RestauranteVitrine {
   bannerPromocionalUrl: string | null
   /** Imagens do banner promocional (0077). Mais de uma = carrossel. */
   bannerPromoUrls: string[]
+  /** Vídeo do banner promocional (0213), como um slide. */
+  bannerPromoVideo: VideoBanner | null
   /** Aviso em texto no lugar do banner promocional (0077). */
   bannerPromoTexto: string | null
   /** Ponto de foco da capa — ancoragem do object-cover. */
@@ -1212,7 +1222,7 @@ export async function buscarRestaurantePorSlug(supabase: ClienteLeitura, slug: s
   const { data, error } = await supabase
     .from('restaurantes')
     .select(
-      'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_promo_urls, banner_promo_texto, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, instagram_url, endereco, endereco_bairro, endereco_cidade, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio, cor_tema, imagem_grande, vitrine_imagem_tamanho, vitrine_fonte, vitrine_nova, status_loja, horario_funcionamento, avaliacao_nota, avaliacao_qtd, aceita_entrega, aceita_retirada, pizza_calculo_preco, agendamento_ativo, agendamento_quando, agendamento_dias, agendamento_antecedencia_min, agendamento_intervalo_min, agendamento_limite, agendamento_entrega, agendamento_retirada, agendamento_libera_min, aviso_cor_texto, aviso_cor_fundo, aviso_pulsar'
+      'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_promo_urls, banner_promo_texto, banner_promo_video, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, instagram_url, endereco, endereco_bairro, endereco_cidade, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio, cor_tema, imagem_grande, vitrine_imagem_tamanho, vitrine_fonte, vitrine_nova, status_loja, horario_funcionamento, avaliacao_nota, avaliacao_qtd, aceita_entrega, aceita_retirada, pizza_calculo_preco, agendamento_ativo, agendamento_quando, agendamento_dias, agendamento_antecedencia_min, agendamento_intervalo_min, agendamento_limite, agendamento_entrega, agendamento_retirada, agendamento_libera_min, aviso_cor_texto, aviso_cor_fundo, aviso_pulsar'
     )
     .eq('slug', slug)
     .maybeSingle()
@@ -1233,6 +1243,7 @@ export async function buscarRestaurantePorSlug(supabase: ClienteLeitura, slug: s
     bannerMobileUrl: data.banner_mobile_url ?? null,
     bannerPromocionalUrl: data.banner_promocional_url,
     bannerPromoUrls: (data.banner_promo_urls as string[] | null) ?? [],
+    bannerPromoVideo: videoDoBanner(data.banner_promo_video),
     bannerPromoTexto: (data.banner_promo_texto as string | null) ?? null,
     bannerFoco: focoValido(data.banner_foco_x, data.banner_foco_y),
     bannerPromoFoco: focoValido(data.banner_promo_foco_x, data.banner_promo_foco_y),

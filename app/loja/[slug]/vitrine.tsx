@@ -2,10 +2,13 @@
 
 import { FotosCarrossel } from './fotos-carrossel'
 import { fotosDaVitrine } from '@/lib/fotos-item'
+import { comVideo, midiasDaFicha, type Midia, type VideoItem } from '@/lib/video-vitrine'
+import { VideoLoop } from '@/components/vitrine/video-loop'
+import { BarraNav } from '@/components/vitrine/barra-nav'
 import { TelaPixOnline, type PixAguardando } from '@/components/vitrine/tela-pix-online'
 import { TelaCartaoOnline, type CartaoAguardando } from '@/components/vitrine/tela-cartao-online'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { UtensilsCrossed, HandPlatter, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, ChevronRight, ChevronLeft, Clock, Gift, Ticket, Percent, Check, RotateCcw, Store, User } from 'lucide-react'
+import { UtensilsCrossed, HandPlatter, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, ChevronRight, ChevronLeft, Clock, Gift, Ticket, Percent, Check, RotateCcw, Store, User, House, ReceiptText, TicketPercent, CircleUserRound } from 'lucide-react'
 import { BarraTotal, DiamanteRoxo, LinhaValor, OpcaoRadio, SeloRoxo, StepperRedondo, TituloSecao, VERDE_DESCONTO } from '@/components/vitrine/sacola-ifood'
 import { FichaLoja } from '@/components/vitrine/ficha-loja'
 import { EstadoVazioIlustrado, FotoItemPedido, ILUSTRACOES, IlustracaoStatus, ModalSaiuParaEntrega, usePedidoSaiuParaAvisar } from '@/components/vitrine/ilustracoes-pedido'
@@ -470,27 +473,36 @@ function DescricaoItem({ texto, className = '' }: { texto: string; className?: s
  * trilho de categorias, e um slide lateral ali competiria com o gesto de rolar
  * as categorias no toque.
  */
-function CarrosselPromo({ urls, foco }: { urls: string[]; foco: string }) {
+function CarrosselPromo({ slides, foco }: { slides: Midia[]; foco: string }) {
   const [atual, setAtual] = useState(0)
+  const urls = slides.map((m) => m.url)
 
+  // Vídeo (0213) fica mais tempo no ar que a imagem: dá para ver o loop inteiro (até 15 s) antes de passar.
+  const ehVideo = slides[atual]?.tipo === 'video'
   useEffect(() => {
-    if (urls.length < 2) return
-    const t = setInterval(() => setAtual((i) => (i + 1) % urls.length), 5000)
-    return () => clearInterval(t)
-  }, [urls.length])
+    if (slides.length < 2) return
+    const t = setTimeout(() => setAtual((i) => (i + 1) % slides.length), ehVideo ? 12000 : 5000)
+    return () => clearTimeout(t)
+  }, [slides.length, atual, ehVideo])
 
   // Lista encolheu (a loja apagou uma imagem) com o índice já lá na frente.
   useEffect(() => {
-    if (atual >= urls.length) setAtual(0)
-  }, [atual, urls.length])
+    if (atual >= slides.length) setAtual(0)
+  }, [atual, slides.length])
 
   return (
     <div data-testid="banner-promo" className="relative aspect-[141/100] w-full overflow-hidden rounded-[10px] border border-border lg:mx-auto lg:max-w-[640px]">
-      {urls.map((url, i) => (
+      {slides.map((m, i) => m.tipo === 'video' ? (
+        // Só o slide da vez toca; os outros mostram a capa (nada é baixado à toa).
+        i === atual
+          ? <VideoLoop key={m.url} url={m.url} capa={m.capa} alt="" className="absolute inset-0 h-full w-full object-cover" style={{ objectPosition: foco }} />
+          // eslint-disable-next-line @next/next/no-img-element
+          : <img key={m.url} src={m.capa} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover opacity-0" style={{ objectPosition: foco }} />
+      ) : (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          key={url}
-          src={url}
+          key={m.url}
+          src={m.url}
           alt=""
           // A primeira carrega logo (está na dobra); as outras só quando a vez
           // delas chega perto — não vale disputar banda com as fotos dos pratos.
@@ -523,7 +535,7 @@ function CarrosselPromo({ urls, foco }: { urls: string[]; foco: string }) {
  * porque prêmios de fidelidade, cupons e linhas do carrinho carregam só a URL
  * cheia — nesses casos o fallback resolve.
  */
-type FotoDeItem = { nome: string; imagemUrl: string | null; imagemThumbUrl?: string | null }
+type FotoDeItem = { nome: string; imagemUrl: string | null; imagemThumbUrl?: string | null; video?: VideoItem | null }
 
 /**
  * Foto que aparece numa listagem. Usa a miniatura de 400 px; quando o item ainda
@@ -535,6 +547,10 @@ function urlDeListagem(item: FotoDeItem): string | null {
 
 function ProductThumb({ item, size = 96, fallbackIcon: FallbackIcon = HandPlatter }: { item: FotoDeItem; size?: number; fallbackIcon?: typeof UtensilsCrossed }) {
   const src = urlDeListagem(item)
+  // Vídeo marcado para o card da home (0213): toca no lugar da foto, com a capa enquanto carrega.
+  if (item.video?.home) {
+    return <VideoLoop url={item.video.url} capa={item.video.capa} alt={item.nome} className="flex-shrink-0 rounded-[8px] object-cover" style={{ width: size, height: size }} />
+  }
   if (src) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
@@ -581,6 +597,9 @@ function ProductImage({ item, className = '', prioritaria = false }: { item: Fot
   // Prioritária = está substituindo a capa da loja, ocupando a largura toda:
   // aí vale a full. Nos cards de listagem, a miniatura basta.
   const src = prioritaria ? item.imagemUrl : urlDeListagem(item)
+  if (!prioritaria && item.video?.home) {
+    return <VideoLoop url={item.video.url} capa={item.video.capa} alt={item.nome} className={`object-cover ${className}`} />
+  }
   if (src) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
@@ -1058,6 +1077,11 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         texto: restaurante?.bannerPromoTexto,
       }),
     [restaurante?.bannerPromoUrls, restaurante?.bannerPromocionalUrl, restaurante?.bannerPromoTexto],
+  )
+  // Vídeo do banner (0213) entra como um slide na posição escolhida; sozinho, ele mesmo vira o banner.
+  const slidesPromo = useMemo(
+    () => comVideo(bannerPromo.tipo === 'imagens' ? bannerPromo.urls : [], restaurante?.bannerPromoVideo ?? null),
+    [bannerPromo, restaurante?.bannerPromoVideo],
   )
 
   // ── Navigation ────────────────────────────────────────────────────────────
@@ -3686,15 +3710,15 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 da dobra: o cliente abria o cardápio e via um anúncio no lugar da
                 comida. Aqui ela é a primeira coisa dentro do cardápio, que é
                 onde um anúncio é lido sem atrapalhar quem já sabe o que quer. */}
-            {bannerPromo.tipo !== 'nenhum' && !gavetaEmTela && (
+            {(bannerPromo.tipo !== 'nenhum' || slidesPromo.length > 0) && !gavetaEmTela && (
               <div className="mx-[16px] mt-[16px] lg:mx-8">
-                {bannerPromo.tipo === 'texto' ? (
+                {slidesPromo.length === 0 && bannerPromo.tipo === 'texto' ? (
                   // Aviso escrito pela loja, para quem não tem arte pronta. Usa a
                   // cor do tema para pertencer à loja, e não parecer erro do app.
                   <AvisoVitrine texto={bannerPromo.texto} estilo={restaurante.avisoEstilo ?? AVISO_PADRAO} />
                 ) : (
                   <CarrosselPromo
-                    urls={bannerPromo.urls}
+                    slides={slidesPromo}
                     foco={objectPosition(restaurante.bannerPromoFoco)}
                   />
                 )}
@@ -4516,45 +4540,23 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
               <svg viewBox="0 0 24 24" className="h-[14px] w-[14px] fill-[#9CA3AF]" aria-hidden><path d="M8.6 5.4 7.2 6.8 12.4 12l-5.2 5.2 1.4 1.4L15.2 12z" /></svg>
             </a>
           )}
-          <div className="flex" data-testid="nav-botoes">
-            {([
-              { id: 'home' as Tab, label: 'Home', onClick: () => setTab('home'), active: tab === 'home', icon: <svg viewBox="0 0 24 24" className="h-[22px] w-[22px] fill-current"><path d="M12 3.1 2.5 11.4a1 1 0 0 0 .66 1.75H4.5V20a1 1 0 0 0 1 1h3.75a1 1 0 0 0 1-1v-4.25h3.5V20a1 1 0 0 0 1 1h3.75a1 1 0 0 0 1-1v-6.85h1.34a1 1 0 0 0 .66-1.75L12 3.1z" /></svg> },
-              { id: 'pedidos' as Tab, label: 'Pedidos', onClick: () => setTab('pedidos'), active: tab === 'pedidos', icon: <svg viewBox="0 0 24 24" className="h-[22px] w-[22px] fill-current"><path d="M9 2a1 1 0 0 0-1 1v1H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2V3a1 1 0 0 0-1-1H9zm1 2h4v1h-4V4zM8 11h8v1.8H8V11zm0 4h8v1.8H8V15z" /></svg> },
-              { id: 'cupons' as Tab, label: 'Cupons', onClick: () => setTab('cupons'), active: tab === 'cupons', icon: <svg viewBox="0 0 24 24" className="h-[22px] w-[22px] fill-current"><path d="M3.4 5.25h17.2c.66 0 1.15.5 1.15 1.13v3.03a1.1 1.1 0 0 1-.72 1.03 2 2 0 0 0 0 3.12c.44.17.72.57.72 1.03v3.03c0 .63-.5 1.13-1.15 1.13H3.4c-.66 0-1.15-.5-1.15-1.13v-3.03c0-.46.28-.86.72-1.03a2 2 0 0 0 0-3.12 1.1 1.1 0 0 1-.72-1.03V6.38c0-.63.5-1.13 1.15-1.13zM15.6 7.4v2.05h1.5V7.4h-1.5zm0 4.05v2.05h1.5v-2.05h-1.5zm0 4.05v2.1h1.5v-2.1h-1.5z" /></svg> },
-              {
-                id: 'perfil' as const,
-                label: perfilCliente ? 'Perfil' : 'Entrar',
-                onClick: () => setContaOpen(true),
-                active: contaOpen,
-                icon: perfilCliente ? (
-                  <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full bg-[var(--tema-primaria)] text-[11px] font-semibold text-white">
-                    {(perfilCliente.nome || perfilCliente.telefone).charAt(0).toUpperCase()}
-                  </span>
-                ) : (
-                  <svg viewBox="0 0 24 24" className="h-[22px] w-[22px] fill-current"><path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10zm0 2c-4.42 0-8 2.24-8 5v1a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-1c0-2.76-3.58-5-8-5z" /></svg>
-                ),
-              },
-            ] as const).map((item) => (
-              <button
-                key={item.id}
-                onClick={item.onClick}
-                // Piscar 3x quando o cliente ganhou progresso/prêmio de fidelidade.
-                style={item.id === 'cupons' && cuponsPiscando ? { animation: 'cupons-piscar 0.7s ease-in-out 3' } : undefined}
-                className={['relative flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] font-semibold transition-colors', item.active ? 'text-[var(--tema-primaria)]' : 'text-text-subtle hover:text-text-main'].join(' ')}
-              >
-                <span className="relative">
-                  {item.icon}
-                  {/* Badge: quantidade de prêmios disponíveis pra resgatar */}
-                  {item.id === 'cupons' && recompensasDisponiveis > 0 && (
-                    <span className="absolute -right-2 -top-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[#EF4444] px-1 text-[9px] font-semibold leading-none text-white">
-                      {recompensasDisponiveis}
-                    </span>
-                  )}
+          {/* Barra com a bolha da referência (21/10/2026): ícones de linha finos; o ativo sobe numa bolha na cor da loja. */}
+          <BarraNav itens={[
+            { id: 'home', label: 'Home', onClick: () => setTab('home'), active: !contaOpen && tab === 'home', icon: <House className="h-[22px] w-[22px]" strokeWidth={1.6} /> },
+            { id: 'pedidos', label: 'Pedidos', onClick: () => setTab('pedidos'), active: !contaOpen && tab === 'pedidos', icon: <ReceiptText className="h-[22px] w-[22px]" strokeWidth={1.6} /> },
+            { id: 'cupons', label: 'Cupons', onClick: () => setTab('cupons'), active: !contaOpen && tab === 'cupons', icon: <TicketPercent className="h-[22px] w-[22px]" strokeWidth={1.6} />, badge: recompensasDisponiveis, piscar: cuponsPiscando },
+            {
+              id: 'perfil',
+              label: perfilCliente ? 'Perfil' : 'Entrar',
+              onClick: () => setContaOpen(true),
+              active: contaOpen,
+              icon: perfilCliente ? (
+                <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full border-[1.6px] border-current text-[11px] font-semibold">
+                  {(perfilCliente.nome || perfilCliente.telefone).charAt(0).toUpperCase()}
                 </span>
-                {item.label}
-              </button>
-            ))}
-          </div>
+              ) : <CircleUserRound className="h-[22px] w-[22px]" strokeWidth={1.6} />,
+            },
+          ]} />
         </nav>
         </div>
       </div>
@@ -4739,8 +4741,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   trocá-la por outra no mesmo gesto parece que ele foi parar em
                   outro lugar. Nos demais caminhos manda a foto do item. */}
               {/* "Novidades em teste" (0178): com mais de 1 foto (e sem a capa da gaveta), carrossel. */}
-              {!sheetGaveta?.capaUrl && fotosDaVitrine(productSheet).length > 1
-                ? <FotosCarrossel urls={fotosDaVitrine(productSheet)} nome={productSheet.nome} />
+              {!sheetGaveta?.capaUrl && (midiasDaFicha(fotosDaVitrine(productSheet), productSheet.video ?? null).length > 1 || productSheet.video?.carrossel)
+                ? <FotosCarrossel midias={midiasDaFicha(fotosDaVitrine(productSheet), productSheet.video ?? null)} nome={productSheet.nome} />
                 : (sheetGaveta?.capaUrl ?? productSheet.imagemUrl)
                 // O sheet só é montado depois do clique, então não concorre com o
                 // carregamento inicial — aqui a foto é o conteúdo principal.

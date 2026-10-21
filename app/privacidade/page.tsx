@@ -12,7 +12,7 @@ export default function PrivacidadePage() {
   return (
     <main className="min-h-screen bg-[#EDEEF1] px-4 py-10">
       <article className="mx-auto max-w-[720px] rounded-[3px] border border-[#E5E7EB] bg-white px-5 py-8 text-[14px] leading-[22px] text-[#1F2937] sm:px-8">
-        <h1 className="text-[22px] font-bold">Política de Privacidade — Menuzia</h1>
+        <h1 className="text-[22px] font-semibold">Política de Privacidade — Menuzia</h1>
         <p className="mt-1 text-[12px] text-[#6B7280]">Atualizada em 20/10/2026</p>
 
         <p className="mt-5">

@@ -5,6 +5,7 @@ import { composeEndereco } from '@/lib/endereco'
 import { otimizarImagem, otimizarParImagem, CACHE_CONTROL_SEGUNDOS, type PerfilImagem } from '@/lib/imagem'
 import { focoValido, type Foco } from '@/lib/foco-imagem'
 import { normalizarForaDaLista, type FreteForaDaLista } from '@/lib/frete'
+import { videoDoBanner, type VideoBanner } from '@/lib/video-vitrine'
 
 export interface ConfigLoja {
   id: string
@@ -16,6 +17,8 @@ export interface ConfigLoja {
   bannerMobileUrl: string | null
   bannerPromocionalUrl: string | null
   bannerPromoUrls: string[]
+  /** Vídeo do banner promocional (0213). */
+  bannerPromoVideo: VideoBanner | null
   bannerPromoTexto: string | null
   /** Aviso em texto: cores e efeito (0123). */
   avisoCorTexto: string | null
@@ -86,6 +89,7 @@ interface ConfigRow {
   banner_mobile_url: string | null
   banner_promocional_url: string | null
   banner_promo_urls: string[] | null
+  banner_promo_video?: unknown
   banner_promo_texto: string | null
   aviso_cor_texto?: string | null
   aviso_cor_fundo?: string | null
@@ -132,7 +136,7 @@ interface ConfigRow {
   modulo_mesas_ativo: boolean | null
 }
 
-const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_promo_urls, banner_promo_texto, aviso_cor_texto, aviso_cor_fundo, aviso_pulsar, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, endereco, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, cep, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, instagram_url, layout_cardapio, cor_tema, imagem_grande, vitrine_imagem_tamanho, vitrine_fonte, vitrine_nova, latitude, longitude, avaliacao_nota, avaliacao_qtd, horario_funcionamento, status_loja, usa_logistica, entrega_sem_entregador, aceita_entrega, aceita_retirada, modulo_mesas_ativo, tempo_entrega, tempo_retirada, pix_chave, pix_chave_tipo'
+const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_promo_urls, banner_promo_texto, banner_promo_video, aviso_cor_texto, aviso_cor_fundo, aviso_pulsar, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, endereco, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, cep, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, instagram_url, layout_cardapio, cor_tema, imagem_grande, vitrine_imagem_tamanho, vitrine_fonte, vitrine_nova, latitude, longitude, avaliacao_nota, avaliacao_qtd, horario_funcionamento, status_loja, usa_logistica, entrega_sem_entregador, aceita_entrega, aceita_retirada, modulo_mesas_ativo, tempo_entrega, tempo_retirada, pix_chave, pix_chave_tipo'
 
 function mapConfig(row: ConfigRow): ConfigLoja {
   return {
@@ -144,6 +148,7 @@ function mapConfig(row: ConfigRow): ConfigLoja {
     bannerMobileUrl: row.banner_mobile_url ?? null,
     bannerPromocionalUrl: row.banner_promocional_url,
     bannerPromoUrls: (row.banner_promo_urls as string[] | null) ?? [],
+    bannerPromoVideo: videoDoBanner(row.banner_promo_video),
     bannerPromoTexto: (row.banner_promo_texto as string | null) ?? null,
     avisoCorTexto: (row.aviso_cor_texto as string | null) ?? null,
     avisoCorFundo: (row.aviso_cor_fundo as string | null) ?? null,
@@ -206,6 +211,7 @@ export interface ConfigLojaPatch {
   bannerMobileUrl?: string | null
   bannerPromocionalUrl?: string | null
   bannerPromoUrls?: string[]
+  bannerPromoVideo?: VideoBanner | null
   bannerPromoTexto?: string | null
   avisoCorTexto?: string | null
   avisoCorFundo?: string | null
@@ -255,6 +261,7 @@ export async function atualizarConfigLoja(supabase: SupabaseClient, restauranteI
   if (patch.bannerMobileUrl !== undefined) row.banner_mobile_url = patch.bannerMobileUrl
   if (patch.bannerPromocionalUrl !== undefined) row.banner_promocional_url = patch.bannerPromocionalUrl
   if (patch.bannerPromoUrls !== undefined) row.banner_promo_urls = patch.bannerPromoUrls
+  if (patch.bannerPromoVideo !== undefined) row.banner_promo_video = patch.bannerPromoVideo
   if (patch.bannerPromoTexto !== undefined) row.banner_promo_texto = patch.bannerPromoTexto
   if (patch.avisoCorTexto !== undefined) row.aviso_cor_texto = patch.avisoCorTexto
   if (patch.avisoCorFundo !== undefined) row.aviso_cor_fundo = patch.avisoCorFundo

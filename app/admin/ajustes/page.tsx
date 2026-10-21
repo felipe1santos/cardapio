@@ -33,6 +33,8 @@ import { buscarRestauranteIdDoUsuario, IMAGEM_TAMANHOS, type LayoutCardapio, typ
 import { AjustarFoco } from '@/components/ajustar-foco'
 import { FOCO_PADRAO, objectPosition, type Foco } from '@/lib/foco-imagem'
 import { BANNER_PROMO_MAX_IMAGENS, BANNER_PROMO_MAX_TEXTO, bannerPromocional } from '@/lib/banner-promocional'
+import { VideoDaVitrine } from '@/components/admin/video-vitrine'
+import type { VideoBanner } from '@/lib/video-vitrine'
 import {
   buscarConfigLoja,
   atualizarConfigLoja,
@@ -193,6 +195,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
     bannerMobileUrl: '',
     bannerPromocionalUrl: '',
     bannerPromoUrls: [] as string[],
+    bannerPromoVideo: null as VideoBanner | null,
     bannerPromoTexto: '',
     avisoCorTexto: null as string | null,
     avisoCorFundo: null as string | null,
@@ -246,6 +249,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         bannerMobileUrl: c.bannerMobileUrl ?? '',
         bannerPromocionalUrl: c.bannerPromocionalUrl ?? '',
         bannerPromoUrls: c.bannerPromoUrls ?? [],
+        bannerPromoVideo: c.bannerPromoVideo ?? null,
         bannerPromoTexto: c.bannerPromoTexto ?? '',
         avisoCorTexto: c.avisoCorTexto,
         avisoCorFundo: c.avisoCorFundo,
@@ -475,6 +479,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         bannerMobileUrl: form.bannerMobileUrl.trim() || null,
         bannerPromocionalUrl: form.bannerPromocionalUrl.trim() || null,
         bannerPromoUrls: form.bannerPromoUrls,
+        bannerPromoVideo: form.bannerPromoVideo,
         bannerPromoTexto: form.bannerPromoTexto.trim() || null,
         avisoCorTexto: form.avisoCorTexto,
         avisoCorFundo: form.avisoCorFundo,
@@ -639,6 +644,13 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
                 {imagensPromo.length >= BANNER_PROMO_MAX_IMAGENS && (
                   <span className="text-[11px] text-text-subtle">Limite de {BANNER_PROMO_MAX_IMAGENS} imagens.</span>
                 )}
+              </div>
+
+              {/* Vídeo em loop (0213): um slide a mais do carrossel, na posição escolhida. */}
+              <div className="border-t border-border pt-3">
+                <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Vídeo no banner</div>
+                <VideoDaVitrine destino="banner" valor={form.bannerPromoVideo} totalImagens={imagensPromo.length} rotuloPosicao="Posição no banner:"
+                  onChange={(v) => { setForm((prev) => ({ ...prev, bannerPromoVideo: v })); setSaved(false) }} />
               </div>
 
               {/* Alternativa para quem não tem arte pronta. Só aparece no

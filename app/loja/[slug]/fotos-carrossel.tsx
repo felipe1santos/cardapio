@@ -4,11 +4,15 @@
  * Carrossel das fotos do item na ficha (tela de adicionais) — Bloco 1, 10/10/2026, só com "Novidades em teste" (0178).
  * Deslizar nativo (scroll-snap) no celular, setas no computador e bolinhas. A 1ª foto carrega na hora (é o conteúdo
  * principal da ficha); as outras só quando chegam perto (loading="lazy"). Com 1 foto a ficha usa a imagem de sempre.
+ * Vídeo (0213): entra na posição escolhida pela loja e só toca quando está à vista.
  */
 import { useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import type { Midia } from '@/lib/video-vitrine'
+import { VideoLoop } from '@/components/vitrine/video-loop'
 
-export function FotosCarrossel({ urls, nome }: { urls: string[]; nome: string }) {
+export function FotosCarrossel({ midias, nome }: { midias: Midia[]; nome: string }) {
+  const urls = midias.map((m) => m.url)
   const trilho = useRef<HTMLDivElement>(null)
   const [atual, setAtual] = useState(0)
 
@@ -39,11 +43,13 @@ export function FotosCarrossel({ urls, nome }: { urls: string[]; nome: string })
         onScroll={aoRolar}
         className="flex h-[42vh] w-full snap-x snap-mandatory overflow-x-auto overscroll-x-contain [scrollbar-width:none] lg:h-[260px] [&::-webkit-scrollbar]:hidden"
       >
-        {urls.map((u, i) => (
+        {midias.map((m, i) => m.tipo === 'video' ? (
+          <VideoLoop key={m.url} url={m.url} capa={m.capa} alt={`${nome} — vídeo`} className="h-full w-full flex-shrink-0 snap-center object-cover" />
+        ) : (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            key={u}
-            src={u}
+            key={m.url}
+            src={m.url}
             alt={`${nome} — foto ${i + 1} de ${urls.length}`}
             loading={i === 0 ? 'eager' : 'lazy'}
             decoding="async"

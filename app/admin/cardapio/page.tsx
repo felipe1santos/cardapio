@@ -73,6 +73,8 @@ import { PilhaToasts, useToasts } from '@/components/admin/toasts'
 import { ToggleSwitch } from '@/components/admin/campos-ajustes'
 import { resumoAgenda } from '@/lib/promocao-agenda'
 import { FotosDoItem } from '@/components/admin/cardapio/fotos-item'
+import { VideoDaVitrine } from '@/components/admin/video-vitrine'
+import type { VideoItem } from '@/lib/video-vitrine'
 import { juntarFotos, separarFotos } from '@/lib/fotos-item'
 import { CarregandoPagina } from '@/components/admin/barra-carregamento'
 
@@ -131,6 +133,8 @@ interface ItemFormState {
   promocaoHoraFim: string
   /** Fotos extras (0130). */
   imagensExtras: { url: string; thumb: string | null }[]
+  /** Vídeo em loop (0213). */
+  video: VideoItem | null
   /** Custo e códigos (0130, tabela itens_cardapio_gestao — só gestor lê). */
   precoCusto: string
   codigoPdv: string
@@ -158,7 +162,7 @@ function blankForm(grupoId: string | null): ItemFormState {
     novidade: false, novidadeAteAtual: null, novidadeDias: '30', edicaoLimitada: false, itemPromocional: false, entregaGratis: false, servePessoas: '',
     comboEspecial: false, tagPersonalizadaLigada: false, tagPersonalizada: '', tagPersonalizadaCor: 'preta',
     promoLigada: false, promocaoInicio: '', promocaoFim: '', promocaoDias: [], promocaoHoraInicio: '', promocaoHoraFim: '',
-    imagensExtras: [], precoCusto: '', codigoPdv: '', codigoInterno: '',
+    imagensExtras: [], video: null, precoCusto: '', codigoPdv: '', codigoInterno: '',
     // Item novo nasce nos dois canais: é o comportamento de sempre e o default da 0069.
     disponivelDelivery: true, disponivelSalao: true,
   }
@@ -203,6 +207,7 @@ function formFromItem(item: ItemCardapio): ItemFormState {
     promocaoHoraInicio: item.promocaoHoraInicio?.slice(0, 5) ?? '',
     promocaoHoraFim: item.promocaoHoraFim?.slice(0, 5) ?? '',
     imagensExtras: item.imagensExtras ?? [],
+    video: item.video ?? null,
     // Custo e códigos chegam depois (consulta à parte, só gestor).
     precoCusto: '', codigoPdv: '', codigoInterno: '',
   }
@@ -1133,6 +1138,7 @@ export default function CardapioPage() {
           ? { promocaoInicio: form.promocaoInicio || null, promocaoFim: form.promocaoFim || null, promocaoDias: form.promocaoDias, promocaoHoraInicio: form.promocaoHoraInicio || null, promocaoHoraFim: form.promocaoHoraFim || null }
           : { promocaoInicio: null, promocaoFim: null, promocaoDias: [], promocaoHoraInicio: null, promocaoHoraFim: null },
         imagensExtras: form.imagensExtras,
+        video: form.video,
         tag: form.tag,
         tipoItem: form.tipoItem,
         disponivelDelivery: form.disponivelDelivery,
@@ -2293,6 +2299,10 @@ export default function CardapioPage() {
                             return { url, thumb: thumbUrl }
                           }}
                         />
+                        <div className="mt-3">
+                          <VideoDaVitrine destino="item" valor={form.video} onChange={(v) => setForm((p) => ({ ...p, video: v }))}
+                            totalImagens={juntarFotos(form).length} rotuloPosicao="Posição no carrossel:" />
+                        </div>
                     </div>
 
                     {/* Campos */}
