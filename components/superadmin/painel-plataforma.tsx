@@ -16,8 +16,9 @@ import type { ModulosDaLoja } from '@/lib/modulos'
 import { ModulosLoja } from './modulos-loja'
 import {
   alterarValidadeAction, alternarBetaImpressaoAction, bloquearAction, desbloquearAction, excluirDadosAction,
-  preCadastrarAction, removerPreCadastroAction, sairAction, type ResultadoAcao,
+  preCadastrarAction, removerPreCadastroAction, resetarSenhaAction, sairAction, type ResultadoAcao,
 } from '@/app/superadmin/actions'
+import { SENHA_PADRAO, textoDoReset } from '@/lib/auth/senha-padrao'
 
 /**
  * Painel da plataforma (2026-10-04): uma linha por loja, sublogins num modal, cadastro de
@@ -135,6 +136,7 @@ type ModalAberto =
   | { tipo: 'desbloquear'; loja: LojaPlataforma }
   | { tipo: 'confirmar'; loja: LojaPlataforma; acao: 'bloquear' | 'remover' | 'beta_liberar' | 'beta_retirar' }
   | { tipo: 'excluir'; loja: LojaPlataforma }
+  | { tipo: 'resetar'; usuarioId: string; nome: string; login: string; loja: string; voltar?: LojaPlataforma }
 
 export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis, usoIa, modulos }: { lojas: LojaPlataforma[]; resumo: ResumoPlataforma; emailSuperadmin: string; usoApis?: UsoApis | null; usoIa?: UsoIa | null; modulos?: Record<string, ModulosDaLoja> }) {
   const router = useRouter()
@@ -375,6 +377,7 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis, usoI
               <button role="menuitem" type="button" className={ITEM} onClick={() => abrir({ tipo: 'detalhes', loja: l })} data-testid="acao-detalhes">Ver detalhes</button>
               {l.slug && <a role="menuitem" href={`/loja/${l.slug}`} target="_blank" rel="noreferrer" className={ITEM} onClick={() => setMenu(null)}>Abrir vitrine <ExternalLink className="ml-auto h-3.5 w-3.5" /></a>}
               {l.restauranteId && <button role="menuitem" type="button" className={ITEM} onClick={() => abrir({ tipo: 'sublogins', loja: l })}>Ver sublogins ({l.sublogins.length})</button>}
+              {l.restauranteId && <button role="menuitem" type="button" className={ITEM} onClick={() => abrir({ tipo: 'resetar', usuarioId: l.contaId, nome: l.responsavel || 'Dono', login: l.email, loja: l.loja })} data-testid="acao-resetar-senha">Resetar senha do dono</button>}
               {(ativo || l.situacao === 'pendente') && <button role="menuitem" type="button" className={`${ITEM} border-t border-border`} onClick={() => abrir({ tipo: 'validade', loja: l })} data-testid="acao-validade">{l.acessoExpiraEm ? 'Renovar / alterar validade' : 'Definir validade'}</button>}
               {ativo && <button role="menuitem" type="button" className={`${ITEM} text-[#B91C1C]`} onClick={() => abrir({ tipo: 'confirmar', loja: l, acao: 'bloquear' })} data-testid="acao-bloquear">Bloquear acesso</button>}
               {semAcesso && <button role="menuitem" type="button" className={`${ITEM} border-t border-border text-[#15803D]`} onClick={() => abrir({ tipo: 'desbloquear', loja: l })} data-testid="acao-desbloquear">Desbloquear acesso</button>}
@@ -391,7 +394,9 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis, usoI
       </Flutuante>
 
       {modal?.tipo === 'cadastrar' && <ModalCadastrar ocupado={pendente} onFechar={fecharModal} onEnviar={(d) => executar(() => preCadastrarAction(d), () => { setBusca(''); setFiltro('todos') })} />}
-      {modal?.tipo === 'sublogins' && <ModalSublogins loja={modal.loja} onFechar={fecharModal} />}
+      {modal?.tipo === 'sublogins' && <ModalSublogins loja={modal.loja} onFechar={fecharModal}
+        onResetar={(s) => setModal({ tipo: 'resetar', usuarioId: s.id, nome: s.nome, login: s.login ? `@${s.login}` : s.nome, loja: modal.loja.loja, voltar: modal.loja })} />}
+      {modal?.tipo === 'resetar' && <ModalResetarSenha alvo={modal} onFechar={() => setModal(modal.voltar ? { tipo: 'sublogins', loja: modal.voltar } : null)} />}
       {modal?.tipo === 'detalhes' && <ModalDetalhes loja={modal.loja} onFechar={fecharModal} />}
       {modal?.tipo === 'validade' && <ModalValidade loja={modal.loja} ocupado={pendente} onFechar={fecharModal} onEnviar={(v) => executar(() => alterarValidadeAction(modal.loja.contaId, v))} />}
       {modal?.tipo === 'desbloquear' && <ModalValidade loja={modal.loja} desbloquear ocupado={pendente} onFechar={fecharModal} onEnviar={(v) => executar(() => desbloquearAction(modal.loja.contaId, v))} />}
@@ -439,16 +444,16 @@ function ModalCadastrar({ ocupado, onFechar, onEnviar }: { ocupado: boolean; onF
   )
 }
 
-function ModalSublogins({ loja, onFechar }: { loja: LojaPlataforma; onFechar: () => void }) {
+function ModalSublogins({ loja, onFechar, onResetar }: { loja: LojaPlataforma; onFechar: () => void; onResetar: (s: Sublogin) => void }) {
   return (
     <Modal titulo={`Sublogins · ${loja.loja}`} testid="modal-sublogins" onFechar={onFechar} largura={760}>
-      <p className="mb-3 text-[12.5px] text-text-subtle">Funcionários com login nesta loja. Só leitura: a gestão (criar, pausar, bloquear) é na tela <b>Equipe</b> da própria loja.</p>
+      <p className="mb-3 text-[12.5px] text-text-subtle">Funcionários com login nesta loja. A gestão (criar, pausar, bloquear) é na tela <b>Equipe</b> da própria loja; daqui só dá para resetar a senha.</p>
       {loja.sublogins.length === 0 ? (
         <p className="rounded-[4px] bg-page px-4 py-6 text-center text-[13px] text-text-subtle" data-testid="sublogins-vazio">Esta loja não tem sublogins.</p>
       ) : (
         <>
           <table className="hidden w-full text-[13px] sm:table" data-testid="sublogins-tabela">
-            <thead><tr className="border-b border-border text-left text-[11px] font-semibold uppercase tracking-wide text-text-subtle"><th className="py-2 pr-3">Nome</th><th className="py-2 pr-3">Login</th><th className="py-2 pr-3">Cargo / papel</th><th className="py-2 pr-3">Status</th><th className="py-2 pr-3">Último acesso</th><th className="py-2">Criado em</th></tr></thead>
+            <thead><tr className="border-b border-border text-left text-[11px] font-semibold uppercase tracking-wide text-text-subtle"><th className="py-2 pr-3">Nome</th><th className="py-2 pr-3">Login</th><th className="py-2 pr-3">Cargo / papel</th><th className="py-2 pr-3">Status</th><th className="py-2 pr-3">Último acesso</th><th className="py-2 pr-3">Criado em</th><th className="py-2" /></tr></thead>
             <tbody>
               {loja.sublogins.map((s) => (
                 <tr key={s.id} className="border-b border-border last:border-0" data-testid="sublogin">
@@ -457,7 +462,8 @@ function ModalSublogins({ loja, onFechar }: { loja: LojaPlataforma; onFechar: ()
                   <td className="py-2 pr-3">{[s.cargo ? CARGO[s.cargo] ?? s.cargo : null, PAPEL[s.papel] ?? s.papel].filter(Boolean).join(' · ')}</td>
                   <td className="py-2 pr-3"><span className="rounded-[4px] px-2 py-[2px] text-[11px] font-semibold text-white" style={{ backgroundColor: SELO_SUB[s.status][1] }}>{SELO_SUB[s.status][0]}</span></td>
                   <td className="whitespace-nowrap py-2 pr-3 text-[12px]">{dataHora(s.ultimoLoginEm)}</td>
-                  <td className="whitespace-nowrap py-2 text-[12px] text-text-subtle">{dataCurta(s.criadoEm)}</td>
+                  <td className="whitespace-nowrap py-2 pr-3 text-[12px] text-text-subtle">{dataCurta(s.criadoEm)}</td>
+                  <td className="py-2 text-right"><button type="button" onClick={() => onResetar(s)} className="whitespace-nowrap rounded-[4px] border border-border px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-[#0369A1] hover:bg-[#E0F2FE]" data-testid="sublogin-resetar">Resetar senha</button></td>
                 </tr>
               ))}
             </tbody>
@@ -468,6 +474,7 @@ function ModalSublogins({ loja, onFechar }: { loja: LojaPlataforma; onFechar: ()
                 <div className="flex items-center justify-between gap-2"><p className="truncate font-semibold">{s.nome}</p><span className="rounded-[4px] px-2 py-[2px] text-[11px] font-semibold text-white" style={{ backgroundColor: SELO_SUB[s.status][1] }}>{SELO_SUB[s.status][0]}</span></div>
                 <p className="text-[12.5px] text-text-subtle">{s.login ? `@${s.login}` : '—'} · {[s.cargo ? CARGO[s.cargo] ?? s.cargo : null, PAPEL[s.papel] ?? s.papel].filter(Boolean).join(' · ')}</p>
                 <p className="text-[12px] text-text-subtle">Último acesso {dataHora(s.ultimoLoginEm)} · criado em {dataCurta(s.criadoEm)}</p>
+                <button type="button" onClick={() => onResetar(s)} className="mt-2 h-[36px] rounded-[4px] border border-border px-3 text-[11px] font-semibold uppercase tracking-wide text-[#0369A1]" data-testid="sublogin-resetar">Resetar senha</button>
               </div>
             ))}
           </div>
@@ -556,6 +563,54 @@ function ModalExcluir({ loja, ocupado, onFechar, onConfirmar }: { loja: LojaPlat
       <label><span className={ROTULO}>Digite o nome da loja para confirmar</span>
         <input value={texto} onChange={(e) => setTexto(e.target.value)} className={CAMPO} data-testid="excluir-nome" />
       </label>
+    </Modal>
+  )
+}
+
+/** Resetar senha (20/10): confirma mostrando o login → senha padrão pelo servidor → "Copiar" para mandar ao cliente. */
+function ModalResetarSenha({ alvo, onFechar }: { alvo: Extract<ModalAberto, { tipo: 'resetar' }>; onFechar: () => void }) {
+  const [ocupado, setOcupado] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+  const [feito, setFeito] = useState<string | null>(null)
+  const [copiado, setCopiado] = useState(false)
+  async function resetar() {
+    setOcupado(true); setErro(null)
+    try {
+      const r = await resetarSenhaAction(alvo.usuarioId)
+      if (r.ok) setFeito(textoDoReset(r.login))
+      else setErro(r.erro)
+    } catch {
+      setErro('Não foi possível resetar. Tente de novo.')
+    } finally {
+      setOcupado(false)
+    }
+  }
+  async function copiar() {
+    if (!feito) return
+    try { await navigator.clipboard.writeText(feito); setCopiado(true) } catch { setCopiado(false) }
+  }
+  return (
+    <Modal titulo={`Resetar senha · ${alvo.loja}`} testid="modal-resetar-senha" onFechar={onFechar}
+      rodape={feito ? <>
+        <button type="button" className={BTN_NEUTRO} onClick={onFechar}>Fechar</button>
+        <button type="button" className={BTN_PRIMARIO} onClick={() => void copiar()} data-testid="resetar-copiar">{copiado ? 'Copiado ✓' : 'Copiar'}</button>
+      </> : <>
+        <button type="button" className={BTN_NEUTRO} onClick={onFechar}>Cancelar</button>
+        <button type="button" className={BTN_PERIGO} disabled={ocupado} onClick={() => void resetar()} data-testid="resetar-confirmar">{ocupado ? 'Resetando…' : 'Resetar senha'}</button>
+      </>}>
+      {feito ? (
+        <div data-testid="resetar-feito">
+          <p className="mb-2 text-[14px] font-semibold text-[#15803D]">Senha resetada.</p>
+          <p className="select-all rounded-[4px] bg-page px-3 py-2.5 font-mono text-[14px] text-text-main" data-testid="resetar-texto">{feito}</p>
+          <p className="mt-2 text-[12.5px] text-text-subtle">Ao entrar, a pessoa vê uma faixa amarela pedindo para trocar a senha (em Minha conta).</p>
+        </div>
+      ) : (
+        <>
+          <p className="text-[14px] text-text-main">A senha de <b>{alvo.nome}</b> passa a ser <b>{SENHA_PADRAO}</b>. A senha antiga deixa de funcionar.</p>
+          <p className="mt-2 rounded-[4px] bg-page px-3 py-2 text-[13.5px] text-text-main" data-testid="resetar-login">Login: <b>{alvo.login}</b></p>
+          {erro && <p className="mt-3 rounded-[4px] bg-[#FEE2E2] px-3 py-2 text-[13px] text-[#B91C1C]">{erro}</p>}
+        </>
+      )}
     </Modal>
   )
 }

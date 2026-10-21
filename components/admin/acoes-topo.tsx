@@ -9,6 +9,7 @@ import { ICONES } from '@/lib/icones-painel'
 import { ROTULO_IMPRESSORA, estadoDaImpressora, type EstadoImpressora } from '@/lib/suporte'
 import { ModalSuporte } from '@/components/admin/modal-suporte'
 import { ModalMeuPin } from '@/components/admin/modal-meu-pin'
+import { EVENTO_ABRIR_MINHA_CONTA, ModalMinhaConta } from '@/components/admin/modal-minha-conta'
 import { AvisoCaixa } from '@/components/financeiro/aviso-caixa'
 import { pedirTrava, sairDoPainel, useEstadoSessao } from '@/lib/sessao-cliente'
 import { Dica, Flutuante } from '@/components/ui/flutuante'
@@ -34,6 +35,13 @@ export function AcoesTopo() {
   const [quem, setQuem] = useState<{ loja: string | null; usuario: string | null; papel: string | null }>({ loja: null, usuario: null, papel: null })
   const [menuAberto, setMenuAberto] = useState(false)
   const [pinAberto, setPinAberto] = useState(false)
+  const [contaAberta, setContaAberta] = useState(false)
+  // A faixa da senha padrão (aviso-senha-padrao.tsx) abre a mesma janela.
+  useEffect(() => {
+    const abrir = () => setContaAberta(true)
+    window.addEventListener(EVENTO_ABRIR_MINHA_CONTA, abrir)
+    return () => window.removeEventListener(EVENTO_ABRIR_MINHA_CONTA, abrir)
+  }, [])
   // Financeiro ligado (0132): PIN pessoal, travar a tela e trocar de operador.
   const sessao = useEstadoSessao()
   const botaoConta = useRef<HTMLButtonElement>(null)
@@ -126,6 +134,7 @@ export function AcoesTopo() {
           <span className="hidden whitespace-nowrap xl:inline">Suporte</span>
         </button>
       </Dica>
+      {contaAberta && <ModalMinhaConta onFechar={() => setContaAberta(false)} />}
       {pinAberto && <ModalMeuPin temPin={!!sessao?.temPin} onFechar={() => setPinAberto(false)} />}
       <ModalSuporte aberto={suporteAberto} onFechar={() => setSuporteAberto(false)} loja={quem.loja} usuario={quem.usuario} papel={quem.papel} />
 
@@ -152,6 +161,16 @@ export function AcoesTopo() {
         <p className="truncate border-b border-[var(--adm-borda)] px-3.5 py-2.5 text-[12px] text-[var(--adm-texto-suave)]">
           {email ?? 'Sessão ativa'}
         </p>
+        <button type="button" data-testid="menu-minha-conta"
+          onClick={() => { setMenuAberto(false); setContaAberta(true) }}
+          className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-[12.8px] text-[var(--adm-texto)] transition-colors hover:bg-[var(--adm-hover)]">
+          <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] fill-[var(--adm-texto-suave)]" aria-hidden="true">
+            {ICONES.perfil.map((d) => (
+              <path key={d} d={d} />
+            ))}
+          </svg>
+          Minha conta
+        </button>
         <button
           type="button"
           onClick={() => {

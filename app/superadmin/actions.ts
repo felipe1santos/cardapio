@@ -9,6 +9,7 @@ import { registrarAuditoria } from '@/lib/auditoria'
 import { alterarValidadeLojista, concederAcessoLojista, convidarLojista, excluirLojistaCompleto, removerConvitePendente, revogarAcessoLojista } from '@/lib/queries/lojistas'
 import { auditarPlataforma } from '@/lib/queries/plataforma'
 import { INFO_MODULO, MODULOS, type Modulo } from '@/lib/modulos'
+import { SENHA_PADRAO, loginParaMostrar } from '@/lib/auth/senha-padrao'
 
 /**
  * Ações do Painel da plataforma. Todas conferem o superadmin NO SERVIDOR (o layout só esconde
@@ -239,6 +240,38 @@ export async function definirLimitesCampanhasAction(v: { disparoTetoDia: string;
   await auditarPlataforma(admin, { ator: quem.email, acao: 'plataforma.limites_campanhas', dados: { disparo, freq, push } })
   revalidatePath('/superadmin/gasto')
   return { ok: true, mensagem: 'Limites salvos.' }
+}
+
+/**
+ * Resetar senha (20/10/2026): cliente sem conseguir entrar → o suporte define a senha padrão (123456) pela API admin
+ * do Supabase (chave de serviço, só aqui no servidor) e manda ao cliente. A marca `senha_padrao` no app_metadata faz o
+ * painel mostrar a faixa amarela até a pessoa trocar. Vale para o dono e para a equipe; nunca para o próprio superadmin.
+ */
+export async function resetarSenhaAction(usuarioId: string): Promise<{ ok: true; mensagem: string; login: { rotulo: 'E-mail' | 'Usuário'; valor: string } } | { ok: false; erro: string }> {
+  const quem = await ensureSuperAdmin()
+  if (!UUID.test(usuarioId)) return { ok: false, erro: 'Conta inválida.' }
+  const admin = getAdminSupabase()
+  const { data: u } = await admin.from('usuarios').select('email, usuario, nome, restaurante_id, restaurantes(nome)').eq('id', usuarioId).maybeSingle()
+  if (!u) return { ok: false, erro: 'Usuário não encontrado.' }
+  if (isSuperAdminEmail(u.email as string)) return { ok: false, erro: 'A conta do Super Admin não é resetada por aqui.' }
+  const { data: atual, error: e1 } = await admin.auth.admin.getUserById(usuarioId)
+  if (e1 || !atual.user) return { ok: false, erro: 'Usuário não encontrado no login.' }
+  const { error } = await admin.auth.admin.updateUserById(usuarioId, {
+    password: SENHA_PADRAO,
+    app_metadata: { ...(atual.user.app_metadata ?? {}), senha_padrao: true },
+  })
+  if (error) return { ok: false, erro: `Não foi possível resetar a senha: ${error.message}` }
+  const login = loginParaMostrar({ email: (u.email as string | null) ?? null, usuario: (u.usuario as string | null) ?? null })
+  const restauranteId = (u.restaurante_id as string | null) ?? null
+  const loja = (u.restaurantes as { nome?: string } | null)?.nome ?? null
+  await auditarPlataforma(admin, { ator: quem.email, acao: 'plataforma.resetou_senha', restauranteId, usuarioId, alvo: login.valor, dados: { nome: u.nome, loja } })
+  if (restauranteId) {
+    await registrarAuditoria(admin, {
+      restauranteId, usuarioId: null, usuarioNome: `Plataforma (${quem.email})`,
+      acao: 'plataforma.resetou_senha', entidade: 'usuario', entidadeId: usuarioId, dados: { usuario: (u.nome as string) || login.valor },
+    }).catch(() => {})
+  }
+  return { ok: true, mensagem: 'Senha resetada.', login }
 }
 
 export async function sairAction() {

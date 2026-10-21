@@ -242,6 +242,7 @@ export const ROTULO_EVENTO: Record<string, string> = {
   'plataforma.desbloqueou': 'Plataforma desbloqueou o acesso da loja',
   'plataforma.alterou_validade': 'Plataforma alterou a validade do acesso da loja',
   'plataforma.excluiu_dados': 'Plataforma excluiu os dados da loja',
+  'plataforma.resetou_senha': 'Plataforma resetou a senha do usuário (senha padrão)',
   'plataforma.beta_liberou': 'Plataforma liberou o Assistente Beta para a loja',
   'novidades.ligadas': 'Plataforma ligou as Novidades em teste na loja',
   'novidades.desligadas': 'Plataforma desligou as Novidades em teste na loja',

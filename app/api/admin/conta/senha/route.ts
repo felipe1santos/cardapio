@@ -4,6 +4,7 @@ import { getServerSupabase } from '@/lib/supabase/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { registrarAuditoria } from '@/lib/auditoria'
 import { criarLimitador } from '@/lib/limite-taxa'
+import { SENHA_PADRAO } from '@/lib/auth/senha-padrao'
 
 /**
  * Troca de senha pelo painel (Ajustes → Conta). Exige a senha ATUAL (B16): antes quem
@@ -39,7 +40,8 @@ export async function POST(request: Request) {
   errosPorUsuario.limpar(user.id)
 
   const admin = getAdminSupabase()
-  const { error } = await admin.auth.admin.updateUserById(user.id, { password: nova })
+  // Trocou a senha padrão do reset (Super Admin): a faixa amarela some. Voltar para 123456 mantém a faixa.
+  const { error } = await admin.auth.admin.updateUserById(user.id, { password: nova, app_metadata: { ...(user.app_metadata ?? {}), senha_padrao: nova === SENHA_PADRAO } })
   if (error) return NextResponse.json({ error: 'Não foi possível alterar a senha. Tente novamente.' }, { status: 500 })
 
   const { data: perfil } = await admin.from('usuarios').select('restaurante_id, nome').eq('id', user.id).maybeSingle()

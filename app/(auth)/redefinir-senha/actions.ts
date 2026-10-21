@@ -4,6 +4,8 @@ import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import { getServerSupabase } from '@/lib/supabase/server'
 import { COOKIE_RECUPERACAO } from '@/lib/auth/recuperacao'
+import { getAdminSupabase } from '@/lib/supabase/admin'
+import { SENHA_PADRAO, estaComSenhaPadrao } from '@/lib/auth/senha-padrao'
 
 export async function redefinirSenha(formData: FormData) {
   const senha = String(formData.get('senha') ?? '')
@@ -35,6 +37,11 @@ export async function redefinirSenha(formData: FormData) {
   const { error } = await supabase.auth.updateUser({ password: senha })
   if (error) {
     redirect(`/redefinir-senha?error=${encodeURIComponent(error.message)}`)
+  }
+
+  // Trocou pelo link do e-mail depois de um reset do Super Admin: a faixa da senha padrão some.
+  if (estaComSenhaPadrao(user) && senha !== SENHA_PADRAO) {
+    await getAdminSupabase().auth.admin.updateUserById(user.id, { app_metadata: { ...(user.app_metadata ?? {}), senha_padrao: false } }).catch(() => {})
   }
 
   // Encerra a sessão de recuperação e força login com a nova senha.
