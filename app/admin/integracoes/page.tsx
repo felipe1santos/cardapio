@@ -30,7 +30,7 @@ import { EntregadorCard } from '@/components/admin/integracoes/entregador-card'
  *   atendente ficam só na central do WhatsApp (canto inferior direito).
  */
 
-type IdIntegracao = 'whatsapp' | 'mercadopago' | 'facebook' | 'capi' | 'google' | 'lalamove' | 'keeta' | '99food' | 'ifood' | 'aiqfome' | 'entregas-ifood' | 'foody' | 'machine'
+type IdIntegracao = 'whatsapp' | 'mercadopago' | 'facebook' | 'capi' | 'google' | 'lalamove' | 'keeta' | '99food' | 'ifood' | 'aiqfome' | 'entregas-ifood' | 'foody' | 'machine' | 'uber' | 'borzo'
 type Grupo = 'Mensagens' | 'Pagamentos' | 'Marketing e medição' | 'Entregas' | 'Pedidos de apps'
 /** `emBreve` (20/10): aparece para todas as lojas com a etiqueta "Em breve" e não deixa conectar (a Menuzia ainda homologa). */
 interface Definicao { id: IdIntegracao; nome: string; grupo: Grupo; logo: string; resumo: string; emBreve?: boolean }
@@ -48,6 +48,10 @@ const INTEGRACOES: Definicao[] = [
   { id: 'foody', nome: 'Foody Delivery', grupo: 'Entregas', logo: '/origens/foody.png', resumo: 'Entregador da Foody pelo padrão Open Delivery, com cotação antes de confirmar.' },
   // Machine/Gaudium (20/10): app dos motoboys do interior; logística Open Delivery como a Foody, credenciais pela central Machine → "Em breve".
   { id: 'machine', nome: 'Machine (motoboys da cidade)', grupo: 'Entregas', logo: '/origens/machine.png', resumo: 'Entregadores da central Machine da sua cidade pelo padrão Open Delivery, com cotação antes de confirmar.', emBreve: true },
+  // Uber Direct (21/10): conector pronto; o card mostra "Em breve" sozinho até a Menuzia liberar no servidor (ENTREGAS_UBER_LIBERADO).
+  { id: 'uber', nome: 'Uber Direct', grupo: 'Entregas', logo: '/origens/uber-direct.svg', resumo: 'Chame um entregador da Uber pelo Kanban, com o preço antes de confirmar (pedidos já pagos).' },
+  // Borzo (21/10): saiu do Brasil — site só Índia/Indonésia e API brasileira fora do ar. Fica listada para a loja saber.
+  { id: 'borzo', nome: 'Borzo', grupo: 'Entregas', logo: '/origens/borzo.svg', resumo: 'Entregas por motoboy da Borzo (antiga Clickentregas).', emBreve: true },
   { id: 'entregas-ifood', nome: 'Entregador iFood (Sob Demanda)', grupo: 'Entregas', logo: '/origens/ifood.svg', resumo: 'Chame um entregador do iFood para pedidos de fora do iFood, com cotação antes de confirmar.', emBreve: true },
   { id: 'ifood', nome: 'iFood', grupo: 'Pedidos de apps', logo: '/origens/ifood.svg', resumo: 'Pedidos do iFood entram no Painel de Pedidos; aceite, pronto e despacho voltam ao iFood.', emBreve: true },
   { id: 'keeta', nome: 'Keeta', grupo: 'Pedidos de apps', logo: '/origens/keeta.png', resumo: 'Pedidos da Keeta pelo padrão Open Delivery (Abrasel).', emBreve: true },
@@ -272,6 +276,8 @@ export default function IntegracoesPage() {
     'entregas-ifood': false,
     foody: false,
     machine: false,
+    uber: false,
+    borzo: false,
   }
   // 20/10: todas as integrações para todas as lojas. Mercado Pago continua só onde o Pix online foi liberado (regra própria).
   const existentes = INTEGRACOES.filter((i) => i.id !== 'mercadopago' || sit.mp?.liberada)
@@ -367,7 +373,13 @@ export default function IntegracoesPage() {
         {def?.id === 'capi' && <MetaCapiCard temPixel={!!sit.pixels?.facebook} avisar={avisarERecarregar} />}
         {def?.id === 'mercadopago' && <MercadoPagoCard avisar={avisarERecarregar} />}
         {def?.id === 'lalamove' && <LalamoveCard avisar={avisarERecarregar} />}
-        {def?.emBreve && (
+        {def?.emBreve && def.id === 'borzo' && (
+          <div className="space-y-2 text-[13px] text-[#374151]" data-testid="integracao-indisponivel-borzo">
+            <p className="rounded-[3px] border border-[#FCD34D] bg-[#FEF3C7] px-3 py-2 text-[#92400E]"><b>Não atende o Brasil no momento.</b> A Borzo (antiga Clickentregas) deixou de operar aqui: o site dela hoje só atende Índia e Indonésia e a API brasileira está fora do ar. Se ela voltar, a Menuzia liga a integração.</p>
+            <p className="text-[12.5px] text-[#6B7280]">Para entregador por aplicativo, use a Lalamove, a Foody ou a Uber Direct.</p>
+          </div>
+        )}
+        {def?.emBreve && def.id !== 'borzo' && (
           <div className="space-y-2 text-[13px] text-[#374151]" data-testid="integracao-em-breve">
             <p className="rounded-[3px] border border-[#E5E7EB] bg-[#F9FAFB] px-3 py-2"><b>Em breve.</b> A Menuzia está homologando esta integração com o parceiro. Quando estiver liberada, ela aparece aqui pronta para conectar, sem custo.</p>
             <p className="text-[12.5px] text-[#6B7280]">Quer ser avisado? Fale com o suporte da Menuzia pelo WhatsApp.</p>
@@ -377,6 +389,7 @@ export default function IntegracoesPage() {
         {!def?.emBreve && def?.id === 'entregas-ifood' && <EntregadorCard provedor="ifood" avisar={avisarERecarregar} />}
         {!def?.emBreve && def?.id === 'foody' && <EntregadorCard provedor="foody" avisar={avisarERecarregar} />}
         {!def?.emBreve && def?.id === 'machine' && <EntregadorCard provedor="machine" avisar={avisarERecarregar} />}
+        {def?.id === 'uber' && <EntregadorCard provedor="uber" avisar={avisarERecarregar} />}
       </ModalCentral>
       <PilhaToasts itens={toasts.itens} />
     </div>

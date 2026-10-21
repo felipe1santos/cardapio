@@ -304,7 +304,7 @@ export default function PedidosPage() {
     return { ok: !!r?.ok, semProposta: j.codigo === 'sem_proposta', erro: j.error }
   }
   // Entregadores (0199 Lalamove; 0208 iFood Sob Demanda e Foody): o servidor diz quais botões mostrar (módulo + ligado + credenciais).
-  const [entregadoresAtivos, setEntregadoresAtivos] = useState<('lalamove' | 'ifood' | 'foody')[]>([])
+  const [entregadoresAtivos, setEntregadoresAtivos] = useState<('lalamove' | 'ifood' | 'foody' | 'uber')[]>([])
   useEffect(() => {
     if (!restauranteId) { setEntregadoresAtivos([]); return }
     let vivo = true

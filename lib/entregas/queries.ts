@@ -9,13 +9,15 @@ import { ENTREGA_PROVEDOR_SELECT, mapEntregaProvedor, type EntregaProvedorLinha 
  */
 export const PROVEDOR = 'lalamove'
 /** Provedores de entrega (0208): a Lalamove e, pela MESMA tabela/vocabulário de status, iFood Sob Demanda e Foody. */
-export type ProvedorEntrega = 'lalamove' | 'ifood' | 'foody' | 'machine'
+export type ProvedorEntrega = 'lalamove' | 'ifood' | 'foody' | 'machine' | 'uber' | 'borzo'
 /**
  * 20/10: provedor liberado para conectar. iFood Sob Demanda depende do aplicativo iFood homologado → "Em breve".
  * Machine (Gaudium, 20/10): logística Open Delivery como a Foody, mas as credenciais vêm da central Machine da cidade
  * (não é autoatendimento) → "Em breve" até a primeira loja receber URL base + client id/secret e o teste passar.
  */
-export const PROVEDOR_DISPONIVEL: Record<ProvedorEntrega, boolean> = { lalamove: true, ifood: false, foody: true, machine: false }
+// Uber Direct (21/10): pronta no código; liga no servidor (ENTREGAS_UBER_LIBERADO=1 no Coolify) depois do 1º teste no sandbox.
+// Borzo: saiu do Brasil (site só Índia/Indonésia; API BR fora do ar em 21/10) → nunca disponível até voltar.
+export const PROVEDOR_DISPONIVEL: Record<ProvedorEntrega, boolean> = { lalamove: true, ifood: false, foody: true, machine: false, uber: process.env.ENTREGAS_UBER_LIBERADO === '1', borzo: false }
 
 export interface ConfigProvedor {
   restauranteId: string
@@ -32,6 +34,10 @@ export interface ConfigProvedor {
   /** Foody (Open Delivery): URL base da API do provedor. */
   baseUrl: string
   provedor: ProvedorEntrega
+  /** Uber Direct (0215): customer_id da conta (não é segredo). */
+  contaId: string
+  /** Uber Direct (0215): signing key do webhook, decifrada. Null = não salva. */
+  webhookSegredo: string | null
 }
 
 export interface ConfigPublica {
@@ -46,9 +52,16 @@ export interface ConfigPublica {
   webhookRegistradoEm: string | null
   baseUrl: string
   provedor: ProvedorEntrega
+  contaId: string
+  temWebhookSegredo: boolean
 }
 
-const SELECT = 'restaurante_id, ativo, ambiente, api_key_cifrada, api_secret_cifrada, api_key_final, cidade_locode, cidade_nome, servico, webhook_token, webhook_registrado_em, base_url'
+const SELECT = 'restaurante_id, ativo, ambiente, api_key_cifrada, api_secret_cifrada, api_key_final, cidade_locode, cidade_nome, servico, webhook_token, webhook_registrado_em, base_url, conta_id, webhook_segredo_cifrado'
+
+function segredoDecifrado(v: unknown): string | null {
+  if (!v || !criptografiaPronta()) return null
+  try { return decifrar(String(v)) } catch { return null }
+}
 
 function mapConfig(r: Record<string, unknown>): ConfigProvedor {
   let chaves: ChavesLalamove | null = null
@@ -60,11 +73,12 @@ function mapConfig(r: Record<string, unknown>): ConfigProvedor {
     apiKeyFinal: String(r.api_key_final ?? ''), cidadeLocode: String(r.cidade_locode ?? ''), cidadeNome: String(r.cidade_nome ?? ''),
     servico: String(r.servico ?? 'MOTORCYCLE'), webhookToken: String(r.webhook_token), webhookRegistradoEm: (r.webhook_registrado_em as string | null) ?? null,
     baseUrl: String(r.base_url ?? ''), provedor: (r.provedor as ProvedorEntrega) ?? 'lalamove',
+    contaId: String(r.conta_id ?? ''), webhookSegredo: segredoDecifrado(r.webhook_segredo_cifrado),
   }
 }
 
 export function paraPublica(c: ConfigProvedor): ConfigPublica {
-  return { ativo: c.ativo, ambiente: c.ambiente, temChaves: !!c.chaves, apiKeyFinal: c.apiKeyFinal, cidadeLocode: c.cidadeLocode, cidadeNome: c.cidadeNome, servico: c.servico, webhookToken: c.webhookToken, webhookRegistradoEm: c.webhookRegistradoEm, baseUrl: c.baseUrl, provedor: c.provedor }
+  return { ativo: c.ativo, ambiente: c.ambiente, temChaves: !!c.chaves, apiKeyFinal: c.apiKeyFinal, cidadeLocode: c.cidadeLocode, cidadeNome: c.cidadeNome, servico: c.servico, webhookToken: c.webhookToken, webhookRegistradoEm: c.webhookRegistradoEm, baseUrl: c.baseUrl, provedor: c.provedor, contaId: c.contaId, temWebhookSegredo: !!c.webhookSegredo }
 }
 
 export async function buscarConfig(admin: SupabaseClient, restauranteId: string, provedor: ProvedorEntrega = PROVEDOR): Promise<ConfigProvedor | null> {
@@ -91,6 +105,10 @@ export interface ConfigPatch {
   webhookRegistradoEm?: string | null
   porNome?: string
   baseUrl?: string
+  /** Uber Direct (0215). */
+  contaId?: string
+  /** Uber Direct: signing key do webhook; null apaga. */
+  webhookSegredo?: string | null
 }
 
 export async function salvarConfig(admin: SupabaseClient, restauranteId: string, p: ConfigPatch, provedor: ProvedorEntrega = PROVEDOR): Promise<ConfigProvedor> {
@@ -102,6 +120,12 @@ export async function salvarConfig(admin: SupabaseClient, restauranteId: string,
   else if (p.chaves) {
     if (!criptografiaPronta()) throw new Error('PAGAMENTOS_CHAVE ausente no servidor: não dá para guardar as chaves com segurança.')
     linha.api_key_cifrada = cifrar(p.chaves.apiKey); linha.api_secret_cifrada = cifrar(p.chaves.apiSecret); linha.api_key_final = p.chaves.apiKey.slice(-4)
+  }
+  if (p.contaId !== undefined) linha.conta_id = p.contaId.trim().slice(0, 80)
+  if (p.webhookSegredo === null) linha.webhook_segredo_cifrado = null
+  else if (p.webhookSegredo) {
+    if (!criptografiaPronta()) throw new Error('PAGAMENTOS_CHAVE ausente no servidor: não dá para guardar as chaves com segurança.')
+    linha.webhook_segredo_cifrado = cifrar(p.webhookSegredo)
   }
   if (p.cidadeLocode !== undefined) linha.cidade_locode = p.cidadeLocode
   if (p.cidadeNome !== undefined) linha.cidade_nome = p.cidadeNome

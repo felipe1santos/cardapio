@@ -9,6 +9,7 @@ import { registrarAuditoria } from '@/lib/auditoria'
 import { buscarConfigCanal, type ConfigCanal } from '@/lib/canais/config'
 import { cancelarEntregaIfood, cotarIfoodEntrega, criarEntregaIfood } from '@/lib/custo/ifood-entrega'
 import { cancelarEntregaFoody, cotarFoody, criarEntregaFoody, type ContaFoody } from '@/lib/custo/foody-logistica'
+import { cancelarEntregaUber, cotarUber, criarEntregaUber, statusDeUber, type ContaUber, type EnderecoUber } from '@/lib/custo/uber-direct'
 import { STATUS_FIM_SEM_ENTREGA, corridaAtiva, type RespostaCotacao } from './lalamove-regras'
 import { type EntregaProvedorLinha } from './lalamove-status'
 import { EntregaError, pedidoDaLoja } from './lalamove-servidor'
@@ -22,9 +23,10 @@ import { apagarCorrida, atualizarCorrida, buscarConfig, corridaAtivaDoPedido, cr
  * Lalamove (lib/entregas/lalamove-status.ts), então card, painel e financeiro não mudam.
  */
 // 'machine' (20/10): Machine/Gaudium pela MESMA logística Open Delivery da Foody (lib/custo/foody-logistica.ts), com guarda e nome próprios.
-export type ProvedorNovo = 'ifood' | 'foody' | 'machine'
-export const ehProvedorNovo = (v: unknown): v is ProvedorNovo => v === 'ifood' || v === 'foody' || v === 'machine'
-export const NOME_PROVEDOR: Record<ProvedorEntrega, string> = { lalamove: 'Lalamove', ifood: 'Entregador iFood', foody: 'Foody', machine: 'Machine' }
+// 'uber' (21/10): Uber Direct, API própria da Uber (lib/custo/uber-direct.ts). 'borzo': só o card (saiu do Brasil).
+export type ProvedorNovo = 'ifood' | 'foody' | 'machine' | 'uber' | 'borzo'
+export const ehProvedorNovo = (v: unknown): v is ProvedorNovo => v === 'ifood' || v === 'foody' || v === 'machine' || v === 'uber' || v === 'borzo'
+export const NOME_PROVEDOR: Record<ProvedorEntrega, string> = { lalamove: 'Lalamove', ifood: 'Entregador iFood', foody: 'Foody', machine: 'Machine', uber: 'Uber Direct', borzo: 'Borzo' }
 
 /** Evento do Open Delivery Logistics → status da corrida. Puro. */
 export function statusDeEventoOd(tipo: string): string | null {
@@ -66,7 +68,7 @@ async function lojaDe(admin: SupabaseClient, restauranteId: string): Promise<Loj
 }
 
 /** Config do provedor pronta para uso (ligada e com o que precisa). iFood usa as credenciais do canal iFood. */
-export async function configProvedorPronta(admin: SupabaseClient, restauranteId: string, provedor: ProvedorNovo): Promise<{ cfg: ConfigProvedor; canalIfood: ConfigCanal | null; contaFoody: ContaFoody | null }> {
+export async function configProvedorPronta(admin: SupabaseClient, restauranteId: string, provedor: ProvedorNovo): Promise<{ cfg: ConfigProvedor; canalIfood: ConfigCanal | null; contaFoody: ContaFoody | null; contaUber?: ContaUber | null }> {
   if (!PROVEDOR_DISPONIVEL[provedor]) throw new EntregaError(`${NOME_PROVEDOR[provedor]}: em breve. A Menuzia ainda está homologando esta integração.`, 409)
   const cfg = await buscarConfig(admin, restauranteId, provedor)
   if (!cfg) throw new EntregaError(`${NOME_PROVEDOR[provedor]} ainda não configurado. Veja Integrações.`, 400)
@@ -75,6 +77,10 @@ export async function configProvedorPronta(admin: SupabaseClient, restauranteId:
     const canal = await buscarConfigCanal(admin, restauranteId, 'ifood')
     if (!canal?.credenciais || !canal.merchantIdExterno) throw new EntregaError('Conecte a loja ao iFood em Integrações › iFood (credenciais e id da loja) antes de chamar o entregador.', 400)
     return { cfg, canalIfood: canal, contaFoody: null }
+  }
+  if (provedor === 'uber') {
+    if (!cfg.chaves || !cfg.contaId) throw new EntregaError('Cole o Customer ID, o Client ID e o Client Secret em Integrações › Uber Direct.', 400)
+    return { cfg, canalIfood: null, contaFoody: null, contaUber: { customerId: cfg.contaId, clientId: cfg.chaves.apiKey, clientSecret: cfg.chaves.apiSecret, teste: cfg.ambiente !== 'producao' } }
   }
   if (!cfg.chaves || !cfg.baseUrl) throw new EntregaError(`Cole a URL base, o Client ID e o Client Secret em Integrações › ${NOME_PROVEDOR[provedor]}.`, 400)
   return { cfg, canalIfood: null, contaFoody: { baseUrl: cfg.baseUrl, clientId: cfg.chaves.apiKey, clientSecret: cfg.chaves.apiSecret, api: provedor === 'machine' ? 'machine' : 'foody', nome: NOME_PROVEDOR[provedor] } }
@@ -87,6 +93,7 @@ export async function provedoresAtivos(admin: SupabaseClient, restauranteId: str
   if (PROVEDOR_DISPONIVEL.ifood) { const c = await buscarConfig(admin, restauranteId, 'ifood').catch(() => null); if (c?.ativo) out.push('ifood') }
   if (PROVEDOR_DISPONIVEL.foody) { const c = await buscarConfig(admin, restauranteId, 'foody').catch(() => null); if (c?.ativo && c.chaves && c.baseUrl) out.push('foody') }
   if (PROVEDOR_DISPONIVEL.machine) { const c = await buscarConfig(admin, restauranteId, 'machine').catch(() => null); if (c?.ativo && c.chaves && c.baseUrl) out.push('machine') }
+  if (PROVEDOR_DISPONIVEL.uber) { const c = await buscarConfig(admin, restauranteId, 'uber').catch(() => null); if (c?.ativo && c.chaves && c.contaId) out.push('uber') }
   return out
 }
 
@@ -102,18 +109,28 @@ async function destinoDoPedido(admin: SupabaseClient, restauranteId: string, ped
   return c
 }
 
+/** Endereços no formato da Uber Direct (coordenadas da loja e do pedido geocodificado — nunca do navegador). */
+const enderecoDaLoja = (l: Loja): EnderecoUber => ({ rua: l.rua, numero: l.numero, complemento: l.complemento, bairro: l.bairro, cidade: l.cidade, estado: l.estado, cep: l.cep, lat: l.lat as number, lng: l.lng as number })
+const enderecoDoCliente = (p: Pedido, l: Loja, c: { lat: number; lng: number }): EnderecoUber => ({ rua: p.enderecoRua, numero: p.enderecoNumero, complemento: p.enderecoComplemento ?? '', bairro: p.enderecoBairro, cidade: p.enderecoCidade || l.cidade, estado: l.estado, cep: p.enderecoCep ?? '', lat: c.lat, lng: c.lng })
+
 const enderecoOd = (p: { rua: string; numero: string; complemento: string; bairro: string; cidade: string; estado: string; cep: string; referencia: string; lat: number; lng: number }) =>
   ({ street: p.rua, number: p.numero, complement: p.complemento, district: p.bairro, city: p.cidade, state: p.estado, postalCode: p.cep, reference: p.referencia, latitude: p.lat, longitude: p.lng })
 
 export async function cotarProvedor(admin: SupabaseClient, restauranteId: string, provedor: ProvedorNovo, pedidoId: string): Promise<CotacaoProvedor> {
-  const { cfg, canalIfood, contaFoody } = await configProvedorPronta(admin, restauranteId, provedor)
+  const { cfg, canalIfood, contaFoody, contaUber } = await configProvedorPronta(admin, restauranteId, provedor)
   const [loja, pedido] = await Promise.all([lojaDe(admin, restauranteId), pedidoDaLoja(admin, restauranteId, pedidoId)])
+  // Uber Direct não cobra o cliente na entrega: só pedido já pago (Pix/cartão online).
+  if (provedor === 'uber' && !pedido.pago) throw new EntregaError('A Uber Direct não cobra na entrega: use para pedido já pago. Para pagamento na entrega, use outro entregador.', 409)
   const c = await destinoDoPedido(admin, restauranteId, pedido, loja)
   const enderecoCliente = [pedido.enderecoRua, pedido.enderecoNumero, pedido.enderecoBairro, pedido.enderecoCidade || loja.cidade].filter(Boolean).join(', ')
   const base = { pedidoNumero: pedido.numero, pagamentoNaEntrega: !pedido.pago, trocoPara: pedido.formaPagamento === 'dinheiro' ? pedido.trocoPara : null, ambiente: cfg.ambiente, moeda: 'BRL', paradas: [loja.endereco || loja.nome, enderecoCliente], provedor }
   if (provedor === 'ifood') {
     const q = await cotarIfoodEntrega(admin, restauranteId, canalIfood as ConfigCanal, (canalIfood as ConfigCanal).merchantIdExterno, { lat: c.lat, lng: c.lng }, pedidoId)
     return { ...base, quotationId: q.quoteId, preco: q.preco, distanciaM: q.distanciaM, expiraEm: q.expiraEm ?? new Date(Date.now() + 5 * 60_000).toISOString(), prazoMin: q.prazoMin }
+  }
+  if (provedor === 'uber') {
+    const q = await cotarUber(admin, restauranteId, contaUber as ContaUber, { origem: enderecoDaLoja(loja), destino: enderecoDoCliente(pedido, loja, c), telefoneLoja: loja.telefone, telefoneCliente: pedido.clienteTelefone, valorPedido: pedido.total, lojaId: restauranteId }, pedidoId)
+    return { ...base, quotationId: q.quoteId, preco: q.preco, distanciaM: null, expiraEm: q.expiraEm ?? new Date(Date.now() + 10 * 60_000).toISOString(), prazoMin: q.prazoMin }
   }
   const q = await cotarFoody(admin, restauranteId, contaFoody as ContaFoody, {
     merchant: { id: restauranteId, name: loja.nome },
@@ -127,7 +144,7 @@ export async function cotarProvedor(admin: SupabaseClient, restauranteId: string
 }
 
 export async function chamarProvedor(admin: SupabaseClient, restauranteId: string, provedor: ProvedorNovo, pedidoId: string, cotacao: RespostaCotacao, por: { id: string | null; nome: string }): Promise<EntregaProvedorLinha> {
-  const { cfg, canalIfood, contaFoody } = await configProvedorPronta(admin, restauranteId, provedor)
+  const { cfg, canalIfood, contaFoody, contaUber } = await configProvedorPronta(admin, restauranteId, provedor)
   const [loja, pedido] = await Promise.all([lojaDe(admin, restauranteId), pedidoDaLoja(admin, restauranteId, pedidoId)])
   if (pedido.status !== 'pronto') throw new EntregaError(`O pedido #${pedido.numero} não está mais pronto para despacho.`, 409)
   if (cotacao.paradas.length < 2) throw new EntregaError('Cotação incompleta. Cote de novo.', 400)
@@ -148,6 +165,16 @@ export async function chamarProvedor(admin: SupabaseClient, restauranteId: strin
       })
       externoId = r.id
       if (r.status) status = statusDeEventoIfood(r.status) ?? 'ASSIGNING_DRIVER'
+    } else if (provedor === 'uber') {
+      const r = await criarEntregaUber(admin, restauranteId, contaUber as ContaUber, {
+        quoteId: cotacao.quotationId, pedidoId, numero: pedido.numero,
+        loja: { nome: loja.nome, telefone: loja.telefone, endereco: enderecoDaLoja(loja) },
+        cliente: { nome: pedido.clienteNome, telefone: pedido.clienteTelefone, endereco: enderecoDoCliente(pedido, loja, destino), referencia: pedido.enderecoReferencia ?? '' },
+        itens: pedido.itens.map((i) => ({ nome: i.nome, quantidade: i.quantidade })), total: pedido.total, observacao: pedido.observacao ?? '',
+      })
+      externoId = r.id
+      status = statusDeUber(r.status) ?? 'ASSIGNING_DRIVER'
+      shareLink = r.trackingUrl
     } else {
       const r = await criarEntregaFoody(admin, restauranteId, contaFoody as ContaFoody, {
         orderId: pedidoId, orderDisplayId: String(pedido.numero), merchant: { id: restauranteId, name: loja.nome },
@@ -175,8 +202,9 @@ export async function cancelarProvedor(admin: SupabaseClient, restauranteId: str
   if (!corridaAtiva(corrida.status)) throw new EntregaError('Esta corrida já terminou.', 409)
   if (!corrida.externoId) throw new EntregaError('Corrida sem número no provedor.', 409)
   const provedor = corrida.provedor as ProvedorNovo
-  const { canalIfood, contaFoody } = await configProvedorPronta(admin, restauranteId, provedor)
+  const { canalIfood, contaFoody, contaUber } = await configProvedorPronta(admin, restauranteId, provedor)
   if (provedor === 'ifood') await cancelarEntregaIfood(admin, restauranteId, canalIfood as ConfigCanal, corrida.externoId)
+  else if (provedor === 'uber') await cancelarEntregaUber(admin, restauranteId, contaUber as ContaUber, corrida.externoId)
   else await cancelarEntregaFoody(admin, restauranteId, contaFoody as ContaFoody, corrida.externoId, 'Cancelado pela loja')
   await atualizarCorrida(admin, corrida.id, { status: 'CANCELED', canceladoPorNome: por.nome })
   await registrarEventoCorrida(admin, corrida.id, { tipo: 'cancelada_pelo_menuzia', por: por.nome })

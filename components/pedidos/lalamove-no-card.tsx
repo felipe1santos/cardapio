@@ -4,11 +4,12 @@ import { useCallback, useRef, useState } from 'react'
 import { ExternalLink, Loader2, RefreshCw } from 'lucide-react'
 
 /** Provedores de entrega no card (0199 Lalamove; 0208 iFood Sob Demanda e Foody): mesma janela, mesma corrida, muda a marca e a API. */
-export type ProvedorNoCard = 'lalamove' | 'ifood' | 'foody'
+export type ProvedorNoCard = 'lalamove' | 'ifood' | 'foody' | 'uber'
 const MARCA: Record<ProvedorNoCard, { nome: string; curto: string; logo: string; borda: string; texto: string; fundo: string }> = {
   lalamove: { nome: 'Lalamove', curto: 'Lalamove', logo: '/icons/integracoes/lalamove.svg', borda: '#F16622', texto: '#C2410C', fundo: '#F16622' },
   ifood: { nome: 'Entregador iFood', curto: 'iFood', logo: '/origens/ifood.svg', borda: '#EA1D2C', texto: '#B91C1C', fundo: '#EA1D2C' },
   foody: { nome: 'Foody', curto: 'Foody', logo: '/origens/foody.png', borda: '#D3131A', texto: '#B91C1C', fundo: '#D3131A' },
+  uber: { nome: 'Uber Direct', curto: 'Uber', logo: '/origens/uber-direct.svg', borda: '#000000', texto: '#111827', fundo: '#000000' },
 }
 // eslint-disable-next-line @next/next/no-img-element
 const Logo = ({ className, provedor = 'lalamove' }: { className: string; provedor?: ProvedorNoCard }) => <img src={MARCA[provedor].logo} alt="" className={className} aria-hidden />
@@ -104,7 +105,7 @@ export function ChamarLalamove({ pedido, onChamada, onErro, className = '', prov
 
 /** Estado da corrida no card (Pronto ou Em trânsito): etiqueta + rastreio + Atualizar + Cancelar. */
 export function CorridaLalamoveNoCard({ corrida, onMudou, onErro, compacto = false }: { corrida: EntregaProvedorLinha; onMudou: () => void; onErro: (m: string) => void; compacto?: boolean }) {
-  const provedor: ProvedorNoCard = corrida.provedor === 'ifood' || corrida.provedor === 'foody' ? corrida.provedor : 'lalamove'
+  const provedor: ProvedorNoCard = corrida.provedor === 'ifood' || corrida.provedor === 'foody' || corrida.provedor === 'uber' ? corrida.provedor : 'lalamove'
   const marca = MARCA[provedor]
   const [ocupado, setOcupado] = useState<'cancelar' | 'atualizar' | null>(null)
   const [confirmando, setConfirmando] = useState(false)
