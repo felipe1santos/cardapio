@@ -1,3 +1,20 @@
+## ⚠️ MODO AUTÔNOMO PADRÃO (regra permanente do dono, 20/10/2026)
+
+- Fazer SEMPRE sozinho, sem perguntar, tudo o que der pelo terminal, código, APIs ou pelo Chrome do dono (extensão
+  Claude in Chrome, contas já logadas): portais de desenvolvedor, Google Cloud, Supabase, Coolify, Mercado Pago,
+  Lalamove, Uber Direct, Borzo, iFood etc.; preencher cadastros com os dados que já temos; publicar e testar.
+- Decidir pelo caminho mais seguro, anotar a decisão no relatório do dia e seguir.
+- SÓ chamar o dono quando for impossível sem ele: 2 fatores / código por SMS-e-mail-WhatsApp / aprovação no celular /
+  captcha; senha que não temos (ele digita; nunca pedir senha no chat); verificação de identidade; pagamento ou cobrança
+  nova (avisar ANTES de gastar); dado de cadastro que não achamos (CNPJ, endereço, telefone); decisão irreversível
+  (apagar produção sem backup, desligar algo das lojas). Ao parar: dizer o que ele faz em 1–3 passos e continuar.
+- Limites do próprio Claude que essa regra não muda: não cria conta nova em serviço, não digita senha, não cola chave /
+  client secret / token em campo nenhum (o dono cola; Claude deixa o resto pronto), não paga nada. Enviar mensagem ou
+  formulário em nome do dono e aceitar termos: Claude pede um "ok" único no chat no início da sessão, para o lote todo.
+- Continuam valendo: segredos nunca no chat/terminal/arquivo/git/log; testes só na Menuzia; não mexer em impressão /
+  Assistente; regra nº 1 de custo; dados de clientes fora do git; publicado vale para TODAS as lojas; conferir que os
+  pedidos seguem entrando depois de cada deploy.
+
 ## ⚠️ LEIA PRIMEIRO: TUDO É PARA TODAS AS LOJAS (16/10/2026)
 
 Tudo que existe no sistema (telas, menus, funcionalidades, visual, robô, Agente de IA, Financeiro, Disparos, KDS,
