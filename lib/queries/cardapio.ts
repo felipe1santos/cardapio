@@ -12,6 +12,7 @@ import { normalizarForaDaLista, type FreteForaDaLista } from '@/lib/frete'
 import { itemDisponivelNoCanal } from '@/lib/canais-item'
 import { cardapioOrdenado, ordenar } from '@/lib/ordem-cardapio'
 import { videoDoBanner, videoDoItem, type VideoBanner, type VideoItem } from '@/lib/video-vitrine'
+import { cabecalhoVitrine, type CabecalhoVitrine } from '@/lib/vitrine-cabecalho'
 import { ErroCadastroCardapio, chaveNomeCatalogo, ehViolacaoDeUnicidade, nomeRepetidoNoCatalogo } from '@/lib/nomes-catalogo'
 
 export type StatusItem = 'disponivel' | 'pausado' | 'esgotado'
@@ -1161,6 +1162,8 @@ export interface RestauranteVitrine {
   bannerPromoUrls: string[]
   /** Vídeo do banner promocional (0213), como um slide. */
   bannerPromoVideo: VideoBanner | null
+  /** O que o cabeçalho da loja mostra (0214). */
+  cabecalho: CabecalhoVitrine
   /** Aviso em texto no lugar do banner promocional (0077). */
   bannerPromoTexto: string | null
   /** Ponto de foco da capa — ancoragem do object-cover. */
@@ -1222,7 +1225,7 @@ export async function buscarRestaurantePorSlug(supabase: ClienteLeitura, slug: s
   const { data, error } = await supabase
     .from('restaurantes')
     .select(
-      'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_promo_urls, banner_promo_texto, banner_promo_video, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, instagram_url, endereco, endereco_bairro, endereco_cidade, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio, cor_tema, imagem_grande, vitrine_imagem_tamanho, vitrine_fonte, vitrine_nova, status_loja, horario_funcionamento, avaliacao_nota, avaliacao_qtd, aceita_entrega, aceita_retirada, pizza_calculo_preco, agendamento_ativo, agendamento_quando, agendamento_dias, agendamento_antecedencia_min, agendamento_intervalo_min, agendamento_limite, agendamento_entrega, agendamento_retirada, agendamento_libera_min, aviso_cor_texto, aviso_cor_fundo, aviso_pulsar'
+      'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_promo_urls, banner_promo_texto, banner_promo_video, vitrine_cabecalho, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, instagram_url, endereco, endereco_bairro, endereco_cidade, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio, cor_tema, imagem_grande, vitrine_imagem_tamanho, vitrine_fonte, vitrine_nova, status_loja, horario_funcionamento, avaliacao_nota, avaliacao_qtd, aceita_entrega, aceita_retirada, pizza_calculo_preco, agendamento_ativo, agendamento_quando, agendamento_dias, agendamento_antecedencia_min, agendamento_intervalo_min, agendamento_limite, agendamento_entrega, agendamento_retirada, agendamento_libera_min, aviso_cor_texto, aviso_cor_fundo, aviso_pulsar'
     )
     .eq('slug', slug)
     .maybeSingle()
@@ -1244,6 +1247,7 @@ export async function buscarRestaurantePorSlug(supabase: ClienteLeitura, slug: s
     bannerPromocionalUrl: data.banner_promocional_url,
     bannerPromoUrls: (data.banner_promo_urls as string[] | null) ?? [],
     bannerPromoVideo: videoDoBanner(data.banner_promo_video),
+    cabecalho: cabecalhoVitrine(data.vitrine_cabecalho),
     bannerPromoTexto: (data.banner_promo_texto as string | null) ?? null,
     bannerFoco: focoValido(data.banner_foco_x, data.banner_foco_y),
     bannerPromoFoco: focoValido(data.banner_promo_foco_x, data.banner_promo_foco_y),

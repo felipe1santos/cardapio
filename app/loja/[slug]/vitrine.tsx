@@ -5,6 +5,7 @@ import { fotosDaVitrine } from '@/lib/fotos-item'
 import { comVideo, midiasDaFicha, type Midia, type VideoItem } from '@/lib/video-vitrine'
 import { VideoLoop } from '@/components/vitrine/video-loop'
 import { BarraNav } from '@/components/vitrine/barra-nav'
+import { CABECALHO_PADRAO } from '@/lib/vitrine-cabecalho'
 import { House as PhHouse, Receipt as PhReceipt, Ticket as PhTicket, User as PhUser } from '@phosphor-icons/react'
 import { TelaPixOnline, type PixAguardando } from '@/components/vitrine/tela-pix-online'
 import { TelaCartaoOnline, type CartaoAguardando } from '@/components/vitrine/tela-cartao-online'
@@ -282,18 +283,31 @@ function abreviarProximaAbertura(texto: string | null): string | null {
  * sistema (#E0F2FE / #0369A1), ticket SVG local que balança a cada ~3 s e pulsar leve.
  * Efeitos só CSS (globals.css), pausados fora da tela e desligados com "reduzir movimento".
  */
-function FaixaResgate({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+/** Abas de categoria (21/10/2026): sem fundo nem pílula; a ativa ganha só a linha de baixo na cor da loja. */
+const ABA = 'inline-flex flex-shrink-0 items-center gap-[6px] whitespace-nowrap border-b-[2.5px] pb-[10px] pt-[6px] text-[14px] leading-[20px] transition-colors'
+const ABA_ATIVA = 'border-[var(--tema-primaria)] font-semibold text-[var(--v-texto)]'
+const ABA_INATIVA = 'border-transparent font-medium text-[#6B7280] hover:text-[var(--v-texto)]'
+
+// 21/10/2026: compacta, uma linha, ticket pequeno. Verde = cupom/desconto; roxo = prêmio da fidelidade.
+const COR_RESGATE = {
+  cupom: 'border-[#BBF7D0] bg-[#F0FDF4] text-[#15803D]',
+  premio: 'border-[#E9D5FF] bg-[#FAF5FF] text-[#7E22CE]',
+} as const
+
+function FaixaResgate({ onClick, tipo, children }: { onClick: () => void; tipo: keyof typeof COR_RESGATE; children: React.ReactNode }) {
   const [ref, visivel] = useVisivel<HTMLButtonElement>()
   return (
     <button
       ref={ref}
       onClick={onClick}
       data-testid="faixa-resgate"
+      data-tipo={tipo}
       data-visivel={visivel ? 'sim' : 'nao'}
-      className="efeito-pulsar flex w-full items-center gap-3 rounded-md border border-[#7DD3FC] bg-[#E0F2FE] px-3.5 py-3 text-left text-[#0369A1] shadow-sm"
+      className={`flex min-w-0 flex-1 items-center gap-[8px] rounded-[8px] border px-[10px] py-[7px] text-left ${COR_RESGATE[tipo]}`}
     >
-      <span className="efeito-balancar inline-flex"><IconeTagSvg nome="ticket" tamanho={22} /></span>
-      <span className="flex-1 text-[13px] font-semibold">{children}</span>
+      <span className="efeito-balancar inline-flex flex-shrink-0"><IconeTagSvg nome="ticket" tamanho={16} /></span>
+      <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold leading-[16px]">{children}</span>
+      <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={2.5} />
     </button>
   )
 }
@@ -1079,6 +1093,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       }),
     [restaurante?.bannerPromoUrls, restaurante?.bannerPromocionalUrl, restaurante?.bannerPromoTexto],
   )
+  const cab = restaurante?.cabecalho ?? CABECALHO_PADRAO
   // Vídeo do banner (0213) entra como um slide na posição escolhida; sozinho, ele mesmo vira o banner.
   const slidesPromo = useMemo(
     () => comVideo(bannerPromo.tipo === 'imagens' ? bannerPromo.urls : [], restaurante?.bannerPromoVideo ?? null),
@@ -3397,7 +3412,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       data-fonte-vitrine={restaurante.fonteVitrine}
       style={{ '--tema-primaria': paleta.primaria, '--tema-dark': paleta.dark, '--tema-light': paleta.light, '--tema-from': paleta.from } as React.CSSProperties}
     >
-      <style>{`@keyframes toast-pop-top{from{opacity:0;transform:translateY(-10px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}@keyframes cupons-piscar{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(1.15)}}`}</style>
+      <style>{`@keyframes toast-pop-top{from{opacity:0;transform:translateY(-10px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}@keyframes ponto-aberta{0%,100%{opacity:1}50%{opacity:.3}}@keyframes cupons-piscar{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(1.15)}}`}</style>
 
       {/* ── Desktop top nav ──────────────────────────────────────────────── */}
       <header className="sticky top-0 z-30 hidden border-b border-border bg-white lg:block">
@@ -3512,7 +3527,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             <div className={[
               'relative z-10 px-[16px] lg:px-8',
               // Sem capa não há o que encavalar: a folha começa rente ao topo.
-              gavetaAtiva ? '' : semCapa ? 'bg-white pt-[16px] lg:bg-transparent lg:pt-0' : '-mt-[24px] rounded-t-[24px] bg-white pt-[24px] lg:mt-0 lg:rounded-none lg:bg-transparent lg:pt-0',
+              gavetaAtiva ? '' : semCapa ? 'bg-white pt-[16px] lg:bg-transparent lg:pt-0' : '-mt-[24px] rounded-t-[24px] bg-white pt-[12px] lg:mt-0 lg:rounded-none lg:bg-transparent lg:pt-0',
             ].join(' ')}>
               {/* Logo grande e o texto do lado ocupando a mesma altura: nome,
                   status, tempo/nota e endereço somam a altura da logo. */}
@@ -3540,12 +3555,11 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                       linha própria, ele lê antes mesmo do nome da loja.
                       Aberta: verde, com o ponto pulsando. Fechada: vermelho,
                       com a próxima abertura, sem pulsar — nada a acompanhar. */}
-                  {restaurante.lojaAberta ? (
-                    <span className="mb-[2px] flex items-center gap-1.5 text-[11px] font-semibold leading-[16px] text-[var(--v-aberto)]">
-                      <span className="relative flex h-[7px] w-[7px] flex-shrink-0">
-                        <span className="animate-ping-lento absolute inline-flex h-full w-full rounded-full bg-[var(--v-aberto)] opacity-70" />
-                        <span className="relative inline-flex h-[7px] w-[7px] rounded-full bg-[var(--v-aberto)]" />
-                      </span>
+                  {/* Cabeçalho configurável (0214): o que a loja desligou em Perfil some, sem deixar buraco. */}
+                  {!cab.status ? null : restaurante.lojaAberta ? (
+                    <span className="mb-[2px] flex items-center gap-1.5 text-[11px] font-semibold leading-[16px] text-[var(--v-aberto)]" data-testid="status-aberta">
+                      {/* Pontinho verde piscando suave (para com "reduzir movimento"). */}
+                      <span className="inline-flex h-[7px] w-[7px] flex-shrink-0 rounded-full bg-[var(--v-aberto)] [animation:ponto-aberta_1.6s_ease-in-out_infinite] motion-reduce:[animation:none]" />
                       {restaurante.fechamentoHoraTexto ? `Aberta até ${restaurante.fechamentoHoraTexto}` : 'Aberta agora'}
                     </span>
                   ) : restaurante.somenteAgendado ? (
@@ -3569,11 +3583,14 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                       já escolheu; a tela agora é do cardápio. No desktop, onde
                       sobra largura, ele volta a crescer. */}
                   <h1 className="truncate text-[14px] font-semibold leading-[20px] text-[var(--v-texto)] sm:text-[20px] lg:text-[24px]">{storeName}</h1>
-                  <div className="mt-[8px] flex items-center gap-[12px] text-[12px] font-medium text-petrol sm:text-[12.5px]">
+                  {(cab.tempo || (cab.avaliacao && restaurante.avaliacaoNota !== null && restaurante.avaliacaoQtd !== null)) && (
+                  <div className="mt-[6px] flex items-center gap-[12px] text-[12px] font-medium text-petrol sm:text-[12.5px]">
+                    {cab.tempo && (
                     <span className="inline-flex flex-shrink-0 items-center gap-1">
                       <Truck className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={2.5} /> 30–45 min
                     </span>
-                    {restaurante.avaliacaoNota !== null && restaurante.avaliacaoQtd !== null && (
+                    )}
+                    {cab.avaliacao && restaurante.avaliacaoNota !== null && restaurante.avaliacaoQtd !== null && (
                       <span className="inline-flex flex-shrink-0 items-center gap-1">
                         <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 flex-shrink-0 fill-petrol"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
                         {formatarNota(restaurante.avaliacaoNota)}
@@ -3581,8 +3598,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                       </span>
                     )}
                   </div>
-                  {(restaurante.bairro || restaurante.cidade) && (
-                    <p className="mt-[8px] truncate text-[12px] font-normal leading-[1.2] text-[var(--v-secundario)] sm:text-[12.5px]">
+                  )}
+                  {cab.endereco && (restaurante.bairro || restaurante.cidade) && (
+                    <p className="mt-[6px] truncate text-[12px] font-normal leading-[1.2] text-[var(--v-secundario)] sm:text-[12.5px]">
                       📍 {capitalizarTexto([restaurante.bairro, restaurante.cidade].filter(Boolean).join(', '))}
                     </p>
                   )}
@@ -3676,13 +3694,13 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 entrada nesse modo — e a barra inteira some quando a loja não
                 tem promoção. */}
             {(!gavetaAtiva || (promoItems.length > 0 && !gavetaEmTela)) && (
-            <div className="sticky top-0 z-10 flex gap-2 overflow-x-auto border-b border-[var(--v-borda)] bg-white px-[16px] pb-[8px] pt-[12px] [scrollbar-width:none] lg:top-16 lg:mt-3 lg:px-0 lg:py-2">
+            <div className="sticky top-0 z-10 flex gap-[20px] overflow-x-auto border-b border-[var(--v-borda)] bg-white px-[16px] pt-[8px] [scrollbar-width:none] lg:top-16 lg:mt-3 lg:px-0">
               {promoItems.length > 0 && (
                 <button
                   onClick={() => setActiveCategory('__promos__')}
                   // Cores da tag de desconto (ESTILO_DESCONTO: #EAFFF5 / #24A96A); acende só quando ativa.
                   data-chip-promocoes
-                  className={['inline-flex flex-shrink-0 items-center gap-[6px] whitespace-nowrap rounded-full border px-[14px] py-[6px] text-[14px] font-medium leading-[20px] transition-colors', activeCategory === '__promos__' ? 'border-[#24A96A] bg-[#EAFFF5] font-semibold text-[#24A96A]' : 'border-border bg-white text-text-subtle hover:border-[#24A96A] hover:text-[#24A96A]'].join(' ')}
+                  className={[ABA, activeCategory === '__promos__' ? ABA_ATIVA : ABA_INATIVA].join(' ')}
                 >
                   <span className="inline-flex -rotate-45 text-[#24A96A]"><IconeTagSvg nome="ticket" tamanho={15} /></span>
                   Promoções
@@ -3695,10 +3713,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     setActiveCategory(cat.nome)
                     document.getElementById(`sec-${cat.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                   }}
-                  className={['flex-shrink-0 whitespace-nowrap rounded-full border px-[14px] py-[6px] text-[14px] font-medium leading-[20px] transition-colors',
-                    activeCategory === cat.nome
-                      ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)] text-white'
-                      : 'border-border bg-white text-text-subtle hover:border-[var(--tema-primaria)] hover:text-[var(--tema-primaria)]'].join(' ')}
+                  className={[ABA, activeCategory === cat.nome ? ABA_ATIVA : ABA_INATIVA].join(' ')}
                 >
                   {cat.nome}
                 </button>
@@ -3756,10 +3771,17 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
             {/* Banner ÚNICO de resgate: prêmios prontos hoje + cupons públicos da loja */}
             {bannerResgateTexto && activeCategory !== '__promos__' && !search.trim() && !gavetaEmTela && (
-              <div className="px-4 pt-3 lg:px-0">
-                <FaixaResgate onClick={() => { setTab('cupons'); setDestacarCupons(true); window.scrollTo({ top: 0 }) }}>
-                  {bannerResgateTexto}
-                </FaixaResgate>
+              <div className="flex gap-[8px] px-4 pt-3 lg:px-0">
+                {premiosProntosHoje > 0 && (
+                  <FaixaResgate tipo="premio" onClick={() => { setTab('cupons'); setDestacarCupons(true); window.scrollTo({ top: 0 }) }}>
+                    {premiosProntosHoje} {premiosProntosHoje === 1 ? 'prêmio' : 'prêmios'} pra resgatar
+                  </FaixaResgate>
+                )}
+                {cuponsPublicosCount > 0 && (
+                  <FaixaResgate tipo="cupom" onClick={() => { setTab('cupons'); setDestacarCupons(true); window.scrollTo({ top: 0 }) }}>
+                    {premiosProntosHoje > 0 ? `${cuponsPublicosCount} ${cuponsPublicosCount === 1 ? 'cupom' : 'cupons'}` : `Você tem ${cuponsPublicosCount} ${cuponsPublicosCount === 1 ? 'cupom' : 'cupons'} pra resgatar`}
+                  </FaixaResgate>
+                )}
               </div>
             )}
 
@@ -4524,23 +4546,6 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
           data-testid="nav-rodape"
           data-oculta="nao"
         >
-          {/* "Tirar dúvidas no WhatsApp": faixa no topo do próprio menu, sempre visível (inclusive
-              com a sacola) em todas as abas. Só some no checkout, na ficha do produto e na loja
-              sem WhatsApp configurado. */}
-          {numeroWaLoja() && !checkoutOpen && !productSheet && (
-            <a
-              href={linkDuvidasWa}
-              target="_blank"
-              rel="noopener noreferrer"
-              data-testid="tirar-duvidas-whatsapp"
-              className="-mt-1 mb-1 flex h-[38px] items-center justify-center gap-[8px] border-b border-[var(--v-borda)] text-[13px] font-medium text-[#6B7280]"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/vitrine/whatsapp.svg" alt="" width={16} height={16} className="h-[16px] w-[16px]" />
-              <span>Tirar dúvidas no WhatsApp</span>
-              <svg viewBox="0 0 24 24" className="h-[14px] w-[14px] fill-[#9CA3AF]" aria-hidden><path d="M8.6 5.4 7.2 6.8 12.4 12l-5.2 5.2 1.4 1.4L15.2 12z" /></svg>
-            </a>
-          )}
           {/* Barra com a bolha da referência (21/10/2026): ícones de linha finos; o ativo sobe numa bolha na cor da loja. */}
           <BarraNav itens={[
             { id: 'home', label: 'Home', onClick: () => setTab('home'), active: !contaOpen && tab === 'home', icon: <PhHouse weight="light" /> },

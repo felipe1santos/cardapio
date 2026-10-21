@@ -14,7 +14,7 @@ import { TabQrCode } from '@/components/admin/ajustes-qrcode'
 import { SubmenuVertical } from '@/components/admin/submenu-vertical'
 import { IlustracaoLanche } from '@/components/admin/ilustracao-lanche'
 import { getBrowserSupabase } from '@/lib/supabase/client'
-import { Building2, Clock, Image as ImageIcon, Link2, MapPin, Megaphone, PanelTop, Palette, Star } from 'lucide-react'
+import { Building2, Clock, Eye, Image as ImageIcon, Link2, MapPin, Megaphone, PanelTop, Palette, Star } from 'lucide-react'
 import { CartaoLinksDivulgar } from '@/components/admin/links-divulgar'
 import { SeletorCorLoja } from '@/components/admin/seletor-cor-loja'
 import { MensagensAutomaticas } from '@/components/admin/campanhas/mensagens-automaticas'
@@ -35,6 +35,7 @@ import { FOCO_PADRAO, objectPosition, type Foco } from '@/lib/foco-imagem'
 import { BANNER_PROMO_MAX_IMAGENS, BANNER_PROMO_MAX_TEXTO, bannerPromocional } from '@/lib/banner-promocional'
 import { VideoDaVitrine } from '@/components/admin/video-vitrine'
 import type { VideoBanner } from '@/lib/video-vitrine'
+import { CABECALHO_PADRAO, type CabecalhoVitrine } from '@/lib/vitrine-cabecalho'
 import {
   buscarConfigLoja,
   atualizarConfigLoja,
@@ -196,6 +197,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
     bannerPromocionalUrl: '',
     bannerPromoUrls: [] as string[],
     bannerPromoVideo: null as VideoBanner | null,
+    cabecalhoVitrine: CABECALHO_PADRAO as CabecalhoVitrine,
     bannerPromoTexto: '',
     avisoCorTexto: null as string | null,
     avisoCorFundo: null as string | null,
@@ -250,6 +252,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         bannerPromocionalUrl: c.bannerPromocionalUrl ?? '',
         bannerPromoUrls: c.bannerPromoUrls ?? [],
         bannerPromoVideo: c.bannerPromoVideo ?? null,
+        cabecalhoVitrine: c.cabecalhoVitrine ?? CABECALHO_PADRAO,
         bannerPromoTexto: c.bannerPromoTexto ?? '',
         avisoCorTexto: c.avisoCorTexto,
         avisoCorFundo: c.avisoCorFundo,
@@ -480,6 +483,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         bannerPromocionalUrl: form.bannerPromocionalUrl.trim() || null,
         bannerPromoUrls: form.bannerPromoUrls,
         bannerPromoVideo: form.bannerPromoVideo,
+        cabecalhoVitrine: form.cabecalhoVitrine,
         bannerPromoTexto: form.bannerPromoTexto.trim() || null,
         avisoCorTexto: form.avisoCorTexto,
         avisoCorFundo: form.avisoCorFundo,
@@ -948,6 +952,20 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
               })}
             </div>
           </Field>
+        </Secao>
+
+        <Secao titulo="O que mostrar na vitrine" descricao="Escolha o que aparece no cabeçalho da loja, ao lado da logo. O que ficar desligado some e o resto se ajusta sozinho." icone={<Eye />} testid="secao-cabecalho-vitrine">
+          <div className="divide-y divide-border">
+            {([
+              ['status', 'Aberta / fechada', 'O status da loja com o pontinho verde (ou vermelho quando fechada).'],
+              ['tempo', 'Tempo de entrega', 'O tempo estimado de entrega.'],
+              ['avaliacao', 'Avaliação', 'Nota e quantidade de avaliações (preenchidas em Prova social).'],
+              ['endereco', 'Endereço', 'Bairro e cidade da loja.'],
+            ] as const).map(([chave, rotulo, dica]) => (
+              <ToggleRow key={chave} label={rotulo} hint={dica} checked={form.cabecalhoVitrine[chave]}
+                onChange={(v) => { setForm((prev) => ({ ...prev, cabecalhoVitrine: { ...prev.cabecalhoVitrine, [chave]: v } })); setSaved(false) }} />
+            ))}
+          </div>
         </Secao>
 
         <Secao titulo="Aparência da vitrine" descricao="Cor, formato da lista, tamanho da imagem e fonte do cardápio que o cliente vê." icone={<Palette />} testid="secao-aparencia">
