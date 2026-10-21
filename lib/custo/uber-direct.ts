@@ -31,7 +31,14 @@ export async function tokenUber(conta: ContaUber): Promise<string> {
   if (c && c.expira > Date.now()) return c.token
   const corpo = new URLSearchParams({ client_id: conta.clientId, client_secret: conta.clientSecret, grant_type: 'client_credentials', scope: 'eats.deliveries' })
   const res = await fetch(TOKEN_URL, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: corpo, signal: AbortSignal.timeout(TIMEOUT_MS) })
-  if (!res.ok) throw new UberError(res.status === 401 || res.status === 400 ? 'A Uber recusou o Client ID / Client Secret.' : `Uber (token) respondeu ${res.status}.`, res.status)
+  if (!res.ok) {
+    // O código da Uber (invalid_client, invalid_scope, unauthorized_client…) diz o que corrigir; nunca a chave.
+    const e = (await res.json().catch(() => ({}))) as { error?: string; error_description?: string }
+    const codigo = String(e.error ?? '').slice(0, 40)
+    console.error(`[uber] token → ${res.status} ${codigo}`)
+    const dica = codigo === 'invalid_scope' ? ' (a conta não tem o escopo de entregas liberado)' : codigo === 'invalid_client' ? ' (Client ID ou Client Secret errado, ou de outro ambiente)' : ''
+    throw new UberError(res.status === 401 || res.status === 400 ? `A Uber recusou as credenciais${codigo ? ` [${codigo}]` : ''}${dica}.` : `Uber (token) respondeu ${res.status}.`, res.status, codigo || null)
+  }
   const j = (await res.json()) as { access_token?: string; expires_in?: number }
   if (!j.access_token) throw new UberError('A Uber não devolveu o token.', 502)
   tokens.set(chave, { token: j.access_token, expira: Date.now() + Math.max(300, Number(j.expires_in ?? 3600) - 3600) * 1000 })
