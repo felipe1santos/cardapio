@@ -24,11 +24,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
   if (bruto.length > 128 * 1024) return NextResponse.json({ ok: true, ignorado: 'corpo grande demais' })
   if (cfg.webhookSegredo) {
     const assinatura = request.headers.get('x-uber-signature') ?? request.headers.get('x-postmates-signature')
-    if (!assinaturaUberValida(bruto, assinatura, cfg.webhookSegredo)) return NextResponse.json({ ok: true, ignorado: 'assinatura inválida' })
+    if (!assinaturaUberValida(bruto, assinatura, cfg.webhookSegredo)) {
+      console.warn(`[uber webhook] assinatura inválida (cabeçalho ${assinatura ? 'presente' : 'ausente'}) — confira a Signing Key salva na loja`)
+      return NextResponse.json({ ok: true, ignorado: 'assinatura inválida' })
+    }
   }
   let ev: Record<string, unknown>
   try { ev = JSON.parse(bruto) as Record<string, unknown> } catch { return NextResponse.json({ ok: true, ignorado: 'corpo inválido' }) }
   const deliveryId = String(ev.delivery_id ?? (ev.data as { id?: string } | undefined)?.id ?? '')
+  console.log(`[uber webhook] ${String(ev.kind ?? '?')} ${String(ev.status ?? '')} ${deliveryId.slice(0, 14)}`)
   if (!deliveryId) return NextResponse.json({ ok: true, ignorado: 'sem delivery_id' })
   try {
     const corrida = await buscarCorridaPorExterno(admin, deliveryId, 'uber')

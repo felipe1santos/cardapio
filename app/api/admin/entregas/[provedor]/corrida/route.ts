@@ -5,7 +5,7 @@ import { getCurrentSession } from '@/lib/auth/session'
 import { podeNotificarCanal } from '@/lib/auth/permissoes'
 import { buscarCorrida } from '@/lib/entregas/queries'
 import { erroEntrega } from '@/lib/entregas/lalamove-servidor'
-import { cancelarProvedor, ehProvedorNovo } from '@/lib/entregas/provedores'
+import { cancelarProvedor, ehProvedorNovo, atualizarCorridaUber } from '@/lib/entregas/provedores'
 
 /**
  * Ações sobre uma corrida do iFood/Foody (quem despacha):
@@ -29,6 +29,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
       await cancelarProvedor(admin, sessao.restauranteId, corrida, { id: sessao.userId, nome: sessao.nome })
       return NextResponse.json({ ok: true, status: 'CANCELED' })
     }
+    // Uber (21/10): consulta a própria Uber (plano B do webhook). Os outros seguem só com webhook/polling.
+    if (corpo?.acao === 'atualizar' && provedor === 'uber') return NextResponse.json({ ok: true, ...(await atualizarCorridaUber(admin, sessao.restauranteId, corrida)) })
     if (corpo?.acao === 'atualizar') return NextResponse.json({ ok: true, status: corrida.status, mudou: false })
     return NextResponse.json({ error: 'Ação inválida.' }, { status: 400 })
   } catch (e) {

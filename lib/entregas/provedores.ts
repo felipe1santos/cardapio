@@ -9,7 +9,7 @@ import { registrarAuditoria } from '@/lib/auditoria'
 import { buscarConfigCanal, type ConfigCanal } from '@/lib/canais/config'
 import { cancelarEntregaIfood, cotarIfoodEntrega, criarEntregaIfood } from '@/lib/custo/ifood-entrega'
 import { cancelarEntregaFoody, cotarFoody, criarEntregaFoody, type ContaFoody } from '@/lib/custo/foody-logistica'
-import { cancelarEntregaUber, cotarUber, criarEntregaUber, statusDeUber, type ContaUber, type EnderecoUber } from '@/lib/custo/uber-direct'
+import { buscarEntregaUber, cancelarEntregaUber, cotarUber, criarEntregaUber, statusDeUber, type ContaUber, type EnderecoUber } from '@/lib/custo/uber-direct'
 import { STATUS_FIM_SEM_ENTREGA, corridaAtiva, type RespostaCotacao } from './lalamove-regras'
 import { type EntregaProvedorLinha } from './lalamove-status'
 import { EntregaError, pedidoDaLoja } from './lalamove-servidor'
@@ -210,6 +210,16 @@ export async function cancelarProvedor(admin: SupabaseClient, restauranteId: str
   await registrarEventoCorrida(admin, corrida.id, { tipo: 'cancelada_pelo_menuzia', por: por.nome })
   await encerrarNoPedido(admin, corrida, 'CANCELED')
   await registrarAuditoria(admin, { restauranteId, usuarioId: por.id, usuarioNome: por.nome, acao: `entregas.${provedor}_cancelada`, entidade: 'pedido', entidadeId: corrida.pedidoId, dados: { corrida: corrida.externoId } }).catch(() => null)
+}
+
+/** Uber: consulta a entrega na própria Uber e aplica o status (botão "Atualizar"; plano B do webhook). */
+export async function atualizarCorridaUber(admin: SupabaseClient, restauranteId: string, corrida: EntregaProvedorLinha): Promise<{ status: string; mudou: boolean }> {
+  if (!corrida.externoId) throw new EntregaError('Corrida sem número na Uber.', 409)
+  const { contaUber } = await configProvedorPronta(admin, restauranteId, 'uber')
+  const r = await buscarEntregaUber(admin, restauranteId, contaUber as ContaUber, corrida.externoId)
+  const novo = statusDeUber(r.status)
+  if (!novo) return { status: corrida.status, mudou: false }
+  return aplicarEventoCorrida(admin, corrida, novo, { motorista: r.motorista, shareLink: r.trackingUrl, preco: r.preco, evento: { tipo: 'consulta', status: r.status, liveMode: r.liveMode }, origem: 'consulta' })
 }
 
 async function moverPedido(admin: SupabaseClient, pedidoId: string, de: StatusPedido[], para: StatusPedido): Promise<boolean> {

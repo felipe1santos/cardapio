@@ -257,8 +257,13 @@ export function erroEntrega(err: unknown): { mensagem: string; status: number } 
   if (err instanceof EntregaError) return { mensagem: err.message, status: err.status }
   if (err instanceof LalamoveError) return { mensagem: err.message, status: err.status >= 400 && err.status < 600 ? err.status : 400 }
   if (err instanceof Error && /já tem uma corrida/.test(err.message)) return { mensagem: err.message, status: 409 }
-  console.error('[lalamove] erro inesperado:', err)
-  return { mensagem: 'Erro inesperado ao falar com a Lalamove.', status: 500 }
+  // Uber/Foody/Machine/iFood (21/10): os erros deles já vêm com a mensagem para o dono.
+  if (err instanceof Error && /^(UberError|FoodyError|IfoodEntregaError)$/.test(err.name)) {
+    const st = Number((err as { status?: number }).status)
+    return { mensagem: err.message, status: st >= 400 && st < 600 ? st : 502 }
+  }
+  console.error('[entregas] erro inesperado:', err)
+  return { mensagem: 'Erro inesperado ao falar com o entregador.', status: 500 }
 }
 
 export { textoStatusLalamove }

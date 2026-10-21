@@ -147,6 +147,17 @@ export async function cancelarEntregaUber(admin: SupabaseClient, loja: string, c
   await chamar(admin, loja, conta, 'POST', `/deliveries/${encodeURIComponent(deliveryId)}/cancel`, {}, `cancelar:${deliveryId}`)
 }
 
+/** Consulta a entrega na Uber (botão "Atualizar" e plano B quando o webhook não chega). */
+export async function buscarEntregaUber(admin: SupabaseClient, loja: string, conta: ContaUber, deliveryId: string): Promise<{ status: string; motorista: { nome: string; telefone: string | null; placa: string | null } | null; trackingUrl: string | null; preco: number | null; liveMode: boolean | null }> {
+  const j = await chamar(admin, loja, conta, 'GET', `/deliveries/${encodeURIComponent(deliveryId)}`, undefined, `consulta:${deliveryId}:${Math.floor(Date.now() / 20_000)}`)
+  const c = j.courier as { name?: string; phone_number?: string; vehicle_license_plate?: string; public_phone_info?: { formatted_phone_number?: string } } | undefined
+  return {
+    status: String(j.status ?? ''), trackingUrl: (j.tracking_url as string | undefined) ?? null, preco: typeof j.fee === 'number' ? j.fee / 100 : null,
+    liveMode: typeof j.live_mode === 'boolean' ? j.live_mode : null,
+    motorista: c?.name ? { nome: c.name, telefone: c.public_phone_info?.formatted_phone_number ?? c.phone_number ?? null, placa: c.vehicle_license_plate ?? null } : null,
+  }
+}
+
 /** Status da entrega na Uber → status da corrida (vocabulário da Lalamove). Puro. */
 export function statusDeUber(status: string): string | null {
   switch ((status || '').toLowerCase()) {
