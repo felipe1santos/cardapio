@@ -135,6 +135,11 @@ export async function criarEntregaUber(admin: SupabaseClient, loja: string, cont
   }, `criar:${p.pedidoId}`)
   const id = String(j.id ?? '')
   if (!id) throw new UberError('A Uber não devolveu o número da entrega.', 502)
+  // Trava: loja em "Teste" com chave de PRODUÇÃO criaria entregador de verdade — cancela na hora e avisa.
+  if (conta.teste && j.live_mode === true) {
+    await cancelarEntregaUber(admin, loja, conta, id).catch(() => {})
+    throw new UberError('Estas chaves são de PRODUÇÃO, mas a loja está em "Teste". A corrida foi cancelada na hora; troque o Ambiente para Produção ou use as chaves de teste.', 409)
+  }
   return { id, status: String(j.status ?? 'pending'), trackingUrl: (j.tracking_url as string | undefined) ?? null, preco: j.fee === undefined ? null : Number(j.fee) / 100 }
 }
 
