@@ -101,7 +101,7 @@ export function EntregadorCard({ provedor, avisar }: { provedor: ProvedorCard; a
         <summary className="cursor-pointer font-semibold">{passos.titulo}</summary>
         <ol className="mt-2 list-decimal space-y-1 pl-5 text-[12.5px] text-[#374151]">{passos.passos.map((p, i) => <li key={i}>{p}</li>)}</ol>
       </details>
-      {provedor === 'uber' && <p className="rounded-[3px] border border-[#E5E7EB] px-3 py-2 text-[12.5px] text-[#374151]"><b>Onde atende:</b> principais cidades do Brasil (São Paulo, Rio de Janeiro, Goiânia, Curitiba e dezenas de outras). Se a sua cidade não for atendida, a cotação avisa &ldquo;não atende este endereço ou esta cidade&rdquo;.</p>}
+      {provedor === 'uber' && <p className="rounded-[3px] border border-[#E5E7EB] px-3 py-2 text-[12.5px] text-[#374151]"><b>Onde atende:</b> principais cidades do Brasil (São Paulo, Rio de Janeiro, Goiânia, Curitiba e dezenas de outras). Se a sua cidade não for atendida, a cotação avisa &ldquo;não atende sua cidade&rdquo;.</p>}
       {provedor !== 'ifood' && (
         <>
           <div className="grid grid-cols-1 gap-2 md:grid-cols-2">

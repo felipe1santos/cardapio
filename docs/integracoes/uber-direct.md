@@ -1,7 +1,7 @@
 # Uber Direct — entregador da Uber pelo Kanban (21/10/2026)
 
-**Estado:** conector pronto em `lib/custo/uber-direct.ts`; desligado no servidor até o 1º teste no sandbox
-(`ENTREGAS_UBER_LIBERADO=1` no Coolify libera para todas as lojas). Sem a variável, o card mostra "Em breve".
+**Estado:** liberada para todas as lojas em 21/10 (`ENTREGAS_UBER_LIBERADO=1` no Coolify). Sem a variável, o card
+mostra "Em breve". Conector em `lib/custo/uber-direct.ts`.
 
 ## Como funciona
 - Cada loja usa a **própria** conta Uber Direct (direct.uber.com, autoatendimento). Credenciais em
@@ -21,6 +21,3 @@
   Uber). Fora da área, a cotação devolve `address_undeliverable` → "não atende este endereço ou esta cidade".
 - Guarda de custo: api `uber`, `LIMITE_UBER_DIA` (padrão 600 chamadas/dia no sistema).
 
-## Borzo
-Fora do Brasil desde 2026: o site só oferece Índia e Indonésia e `robot(apitest)-br.borzodelivery.com` responde 522.
-O card aparece como "Não atende o Brasil no momento"; não há conector.

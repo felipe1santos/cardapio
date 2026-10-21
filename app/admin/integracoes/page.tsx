@@ -30,7 +30,7 @@ import { EntregadorCard } from '@/components/admin/integracoes/entregador-card'
  *   atendente ficam só na central do WhatsApp (canto inferior direito).
  */
 
-type IdIntegracao = 'whatsapp' | 'mercadopago' | 'facebook' | 'capi' | 'google' | 'lalamove' | 'keeta' | '99food' | 'ifood' | 'aiqfome' | 'entregas-ifood' | 'foody' | 'machine' | 'uber' | 'borzo'
+type IdIntegracao = 'whatsapp' | 'mercadopago' | 'facebook' | 'capi' | 'google' | 'lalamove' | 'keeta' | '99food' | 'ifood' | 'aiqfome' | 'entregas-ifood' | 'foody' | 'machine' | 'uber'
 type Grupo = 'Mensagens' | 'Pagamentos' | 'Marketing e medição' | 'Entregas' | 'Pedidos de apps'
 /** `emBreve` (20/10): aparece para todas as lojas com a etiqueta "Em breve" e não deixa conectar (a Menuzia ainda homologa). */
 interface Definicao { id: IdIntegracao; nome: string; grupo: Grupo; logo: string; resumo: string; emBreve?: boolean }
@@ -48,10 +48,8 @@ const INTEGRACOES: Definicao[] = [
   { id: 'foody', nome: 'Foody Delivery', grupo: 'Entregas', logo: '/origens/foody.png', resumo: 'Entregador da Foody pelo padrão Open Delivery, com cotação antes de confirmar.' },
   // Machine/Gaudium (20/10): app dos motoboys do interior; logística Open Delivery como a Foody, credenciais pela central Machine → "Em breve".
   { id: 'machine', nome: 'Machine (motoboys da cidade)', grupo: 'Entregas', logo: '/origens/machine.png', resumo: 'Entregadores da central Machine da sua cidade pelo padrão Open Delivery, com cotação antes de confirmar.', emBreve: true },
-  // Uber Direct (21/10): conector pronto; o card mostra "Em breve" sozinho até a Menuzia liberar no servidor (ENTREGAS_UBER_LIBERADO).
+  // Uber Direct (21/10): liberada para todas (ENTREGAS_UBER_LIBERADO=1 no Coolify); sem a variável o card mostra "Em breve".
   { id: 'uber', nome: 'Uber Direct', grupo: 'Entregas', logo: '/origens/uber-direct.svg', resumo: 'Chame um entregador da Uber pelo Kanban, com o preço antes de confirmar (pedidos já pagos).' },
-  // Borzo (21/10): saiu do Brasil — site só Índia/Indonésia e API brasileira fora do ar. Fica listada para a loja saber.
-  { id: 'borzo', nome: 'Borzo', grupo: 'Entregas', logo: '/origens/borzo.svg', resumo: 'Entregas por motoboy da Borzo (antiga Clickentregas).', emBreve: true },
   { id: 'entregas-ifood', nome: 'Entregador iFood (Sob Demanda)', grupo: 'Entregas', logo: '/origens/ifood.svg', resumo: 'Chame um entregador do iFood para pedidos de fora do iFood, com cotação antes de confirmar.', emBreve: true },
   { id: 'ifood', nome: 'iFood', grupo: 'Pedidos de apps', logo: '/origens/ifood.svg', resumo: 'Pedidos do iFood entram no Painel de Pedidos; aceite, pronto e despacho voltam ao iFood.', emBreve: true },
   { id: 'keeta', nome: 'Keeta', grupo: 'Pedidos de apps', logo: '/origens/keeta.png', resumo: 'Pedidos da Keeta pelo padrão Open Delivery (Abrasel).', emBreve: true },
@@ -80,13 +78,13 @@ function CardIntegracao({ def, ativa, onAbrir }: { def: Definicao; ativa: boolea
       <img src={def.logo} alt="" width={48} height={48} className="h-[48px] w-[48px] flex-shrink-0 object-contain" />
       <span className="min-w-0 flex-1">
         <span className="line-clamp-2 text-[16.5px] font-medium leading-[22px] text-[#374151]">{def.nome}</span>
-        {ativa && <span className="mt-[4px] inline-flex items-center rounded-full bg-[#ECFDF5] px-[8px] py-[1px] text-[12px] font-semibold text-[#047857]" data-testid={`integracao-${def.id}-ativa`}>Ativa</span>}
-        {def.emBreve && <span className="mt-[4px] inline-flex items-center rounded-full bg-[#F3F4F6] px-[8px] py-[1px] text-[12px] font-semibold text-[#6B7280]" data-testid={`integracao-${def.id}-em-breve`}>Em breve</span>}
+        {ativa && <span className="mt-[4px] inline-flex items-center gap-[6px] rounded-full bg-[#ECFDF5] px-[8px] py-[1px] text-[12px] font-semibold text-[#047857]" data-testid={`integracao-${def.id}-ativa`}><span className="h-[7px] w-[7px] rounded-full bg-[#10B981]" aria-hidden />Ativa</span>}
+        {def.emBreve && <span className="mt-[4px] inline-flex items-center rounded-full bg-[#F3E8FF] px-[8px] py-[1px] text-[12px] font-semibold text-[#6B21A8]" data-testid={`integracao-${def.id}-em-breve`}>Em breve</span>}
       </span>
       <ChevronRight className="h-[22px] w-[22px] flex-shrink-0 text-[#9CA3AF] transition-colors group-hover:text-[#4B5563]" strokeWidth={2} />
     </>
   )
-  const classe = 'group flex min-h-[88px] w-full items-center gap-[18px] rounded-[6px] border border-[#E5E7EB] bg-white px-[20px] py-[16px] text-left transition-[border-color,box-shadow] hover:border-[#C9CED6] hover:shadow-[0_2px_8px_rgba(16,24,40,0.06)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2B7BC8]'
+  const classe = 'group flex min-h-[88px] w-full items-center gap-[18px] rounded-[6px] border border-[#E5E7EB] bg-white px-[20px] py-[16px] text-left shadow-[0_1px_3px_rgba(16,24,40,0.08),0_1px_2px_rgba(16,24,40,0.04)] transition-[border-color,box-shadow] hover:border-[#C9CED6] hover:shadow-[0_4px_12px_rgba(16,24,40,0.10)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2B7BC8]'
   // Mercado Pago: "i" de ajuda no canto, irmão do card (botão dentro de botão não vale).
   if (def.id === 'mercadopago') {
     return (
@@ -277,7 +275,6 @@ export default function IntegracoesPage() {
     foody: false,
     machine: false,
     uber: false,
-    borzo: false,
   }
   // 20/10: todas as integrações para todas as lojas. Mercado Pago continua só onde o Pix online foi liberado (regra própria).
   const existentes = INTEGRACOES.filter((i) => i.id !== 'mercadopago' || sit.mp?.liberada)
@@ -373,13 +370,7 @@ export default function IntegracoesPage() {
         {def?.id === 'capi' && <MetaCapiCard temPixel={!!sit.pixels?.facebook} avisar={avisarERecarregar} />}
         {def?.id === 'mercadopago' && <MercadoPagoCard avisar={avisarERecarregar} />}
         {def?.id === 'lalamove' && <LalamoveCard avisar={avisarERecarregar} />}
-        {def?.emBreve && def.id === 'borzo' && (
-          <div className="space-y-2 text-[13px] text-[#374151]" data-testid="integracao-indisponivel-borzo">
-            <p className="rounded-[3px] border border-[#FCD34D] bg-[#FEF3C7] px-3 py-2 text-[#92400E]"><b>Não atende o Brasil no momento.</b> A Borzo (antiga Clickentregas) deixou de operar aqui: o site dela hoje só atende Índia e Indonésia e a API brasileira está fora do ar. Se ela voltar, a Menuzia liga a integração.</p>
-            <p className="text-[12.5px] text-[#6B7280]">Para entregador por aplicativo, use a Lalamove, a Foody ou a Uber Direct.</p>
-          </div>
-        )}
-        {def?.emBreve && def.id !== 'borzo' && (
+        {def?.emBreve && (
           <div className="space-y-2 text-[13px] text-[#374151]" data-testid="integracao-em-breve">
             <p className="rounded-[3px] border border-[#E5E7EB] bg-[#F9FAFB] px-3 py-2"><b>Em breve.</b> A Menuzia está homologando esta integração com o parceiro. Quando estiver liberada, ela aparece aqui pronta para conectar, sem custo.</p>
             <p className="text-[12.5px] text-[#6B7280]">Quer ser avisado? Fale com o suporte da Menuzia pelo WhatsApp.</p>

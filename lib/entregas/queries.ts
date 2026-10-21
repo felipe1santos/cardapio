@@ -9,15 +9,14 @@ import { ENTREGA_PROVEDOR_SELECT, mapEntregaProvedor, type EntregaProvedorLinha 
  */
 export const PROVEDOR = 'lalamove'
 /** Provedores de entrega (0208): a Lalamove e, pela MESMA tabela/vocabulário de status, iFood Sob Demanda e Foody. */
-export type ProvedorEntrega = 'lalamove' | 'ifood' | 'foody' | 'machine' | 'uber' | 'borzo'
+export type ProvedorEntrega = 'lalamove' | 'ifood' | 'foody' | 'machine' | 'uber'
 /**
  * 20/10: provedor liberado para conectar. iFood Sob Demanda depende do aplicativo iFood homologado → "Em breve".
  * Machine (Gaudium, 20/10): logística Open Delivery como a Foody, mas as credenciais vêm da central Machine da cidade
  * (não é autoatendimento) → "Em breve" até a primeira loja receber URL base + client id/secret e o teste passar.
  */
-// Uber Direct (21/10): pronta no código; liga no servidor (ENTREGAS_UBER_LIBERADO=1 no Coolify) depois do 1º teste no sandbox.
-// Borzo: saiu do Brasil (site só Índia/Indonésia; API BR fora do ar em 21/10) → nunca disponível até voltar.
-export const PROVEDOR_DISPONIVEL: Record<ProvedorEntrega, boolean> = { lalamove: true, ifood: false, foody: true, machine: false, uber: process.env.ENTREGAS_UBER_LIBERADO === '1', borzo: false }
+// Uber Direct (21/10): liberada para todas as lojas pelo servidor (ENTREGAS_UBER_LIBERADO=1 no Coolify).
+export const PROVEDOR_DISPONIVEL: Record<ProvedorEntrega, boolean> = { lalamove: true, ifood: false, foody: true, machine: false, uber: process.env.ENTREGAS_UBER_LIBERADO === '1' }
 
 export interface ConfigProvedor {
   restauranteId: string

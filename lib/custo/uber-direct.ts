@@ -41,7 +41,7 @@ export async function tokenUber(conta: ContaUber): Promise<string> {
 /** Código de erro da Uber → mensagem para o dono. Puro. */
 export function mensagemErroUber(status: number, codigo: string, mensagem: string): string {
   const c = (codigo || '').toLowerCase()
-  if (/undeliverable|out_of_range|unknown_location|outside|not_serviced|service_area/.test(c)) return 'A Uber Direct não atende este endereço ou esta cidade agora.'
+  if (/undeliverable|out_of_range|unknown_location|outside|not_serviced|service_area/.test(c)) return 'A Uber Direct não atende sua cidade (ou este endereço) agora.'
   if (/couriers?_busy|limited_couriers/.test(c)) return 'Sem entregadores da Uber disponíveis agora. Tente de novo em alguns minutos.'
   if (/expired/.test(c)) return 'A cotação da Uber venceu. Cote de novo.'
   if (status === 401 || status === 403) return 'A Uber não autorizou (confira Customer ID, Client ID e Client Secret).'

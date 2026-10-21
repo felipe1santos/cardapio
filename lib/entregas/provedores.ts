@@ -23,10 +23,10 @@ import { apagarCorrida, atualizarCorrida, buscarConfig, corridaAtivaDoPedido, cr
  * Lalamove (lib/entregas/lalamove-status.ts), então card, painel e financeiro não mudam.
  */
 // 'machine' (20/10): Machine/Gaudium pela MESMA logística Open Delivery da Foody (lib/custo/foody-logistica.ts), com guarda e nome próprios.
-// 'uber' (21/10): Uber Direct, API própria da Uber (lib/custo/uber-direct.ts). 'borzo': só o card (saiu do Brasil).
-export type ProvedorNovo = 'ifood' | 'foody' | 'machine' | 'uber' | 'borzo'
-export const ehProvedorNovo = (v: unknown): v is ProvedorNovo => v === 'ifood' || v === 'foody' || v === 'machine' || v === 'uber' || v === 'borzo'
-export const NOME_PROVEDOR: Record<ProvedorEntrega, string> = { lalamove: 'Lalamove', ifood: 'Entregador iFood', foody: 'Foody', machine: 'Machine', uber: 'Uber Direct', borzo: 'Borzo' }
+// 'uber' (21/10): Uber Direct, API própria da Uber (lib/custo/uber-direct.ts).
+export type ProvedorNovo = 'ifood' | 'foody' | 'machine' | 'uber'
+export const ehProvedorNovo = (v: unknown): v is ProvedorNovo => v === 'ifood' || v === 'foody' || v === 'machine' || v === 'uber'
+export const NOME_PROVEDOR: Record<ProvedorEntrega, string> = { lalamove: 'Lalamove', ifood: 'Entregador iFood', foody: 'Foody', machine: 'Machine', uber: 'Uber Direct' }
 
 /** Evento do Open Delivery Logistics → status da corrida. Puro. */
 export function statusDeEventoOd(tipo: string): string | null {
