@@ -32,7 +32,9 @@ const PEDIDOS = [
     itens: [['Mega Burguer', 27.9, 1], ['Molho especial', 4.6, 1]] },
 ]
 const NOME = { ifood: 'iFood', '99food': '99Food', keeta: 'Keeta' }
+// `node pedidos-fake-apps.mjs keeta` → só os pedidos daquele app.
 for (const [i, p] of PEDIDOS.entries()) {
+  if (process.argv[2] && p.app !== process.argv[2]) continue
   const display = String(4000 + Math.floor(Math.random() * 5000))
   const itens = p.itens.filter(([, , q]) => q > 0)
   const subtotal = Math.round((p.total - p.taxa) * 100) / 100

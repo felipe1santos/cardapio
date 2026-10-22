@@ -1212,7 +1212,6 @@ export default function PedidosPage() {
                             <>
                               {/* Pedido de app a receber (22/10): a cobrança é do app — nada de Pix da loja; parceiro que não recebe some. */}
                               {entregadoresAtivos.filter((prov) => !precisaPixAntes(prov, order) || (pixOnlineLoja && !pedidoDeApp(order.origemCanal))).map((prov) => <ChamarLalamove key={prov} provedor={prov} pedido={order} onChamada={aoChamarLalamove} onErro={setError} className="!h-[26px] !min-h-0 !rounded-[2px] !py-0 !text-[11.5px] !normal-case !tracking-normal" />)}
-                              {entregadoresAtivos.some((prov) => precisaPixAntes(prov, order)) && (pedidoDeApp(order.origemCanal) || !pixOnlineLoja) && <span className="text-[11px] text-text-subtle" data-testid="parceiro-pix-dica">{pedidoDeApp(order.origemCanal) ? 'Pagamento na entrega pelo app: entregue com motoboy próprio' : 'Conecte o Pix online para usar parceiros em pedidos em dinheiro'}</span>}
                             </>
                           )}
                           {usaDespachoDeRotas(fluxo) && restauranteId && (
@@ -1242,7 +1241,10 @@ export default function PedidosPage() {
                         }}
                         rodape={solicitacoes[order.id] ? (
                           <SolicitacaoNoCard s={solicitacoes[order.id]} onAplicar={() => decidirSolicitacao(solicitacoes[order.id], 'aplicar')} onRecusar={(motivo) => decidirSolicitacao(solicitacoes[order.id], 'recusar', motivo).then(() => {})} onEditarAMao={() => setEditando(order.id)} />
-                        ) : corridaAtiva ? <CorridaLalamoveNoCard corrida={corridaAtiva} onMudou={() => { if (restauranteId) refetch(restauranteId) }} onErro={setError} /> : order.parceiroPix && order.status === 'pronto' ? <ParceiroPixNoCard pedidoId={order.id} pp={order.parceiroPix} onErro={setError} /> : (order.agendadoPara ? <Badge tone="alert">Agendado {textoAgendado(order.agendadoPara)}</Badge> : undefined)}
+                        ) : corridaAtiva ? <CorridaLalamoveNoCard corrida={corridaAtiva} onMudou={() => { if (restauranteId) refetch(restauranteId) }} onErro={setError} /> : order.parceiroPix && order.status === 'pronto' ? <ParceiroPixNoCard pedidoId={order.id} pp={order.parceiroPix} onErro={setError} />
+                          // Parceiro escondido por falta de Pix (ou pedido de app a receber): a dica na linha de baixo, sem apertar os botões.
+                          : order.status === 'pronto' && order.tipo === 'entrega' && entregadoresAtivos.some((prov) => precisaPixAntes(prov, order)) && (pedidoDeApp(order.origemCanal) || !pixOnlineLoja)
+                            ? <span className="text-[11.5px] text-text-subtle" data-testid="parceiro-pix-dica">{pedidoDeApp(order.origemCanal) ? 'Pagamento na entrega pelo app: entregue com motoboy próprio.' : 'Conecte o Pix online para usar parceiros em pedidos em dinheiro.'}</span> : (order.agendadoPara ? <Badge tone="alert">Agendado {textoAgendado(order.agendadoPara)}</Badge> : undefined)}
                       />
                     )
                   })}
