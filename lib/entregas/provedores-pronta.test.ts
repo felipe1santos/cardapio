@@ -5,7 +5,19 @@ import { describe, expect, it, vi } from 'vitest'
 const cfgDesligada = { ativo: false, ambiente: 'producao', contaId: 'b82dec7e-0000', chaves: { apiKey: 'cid', apiSecret: 'sec' } }
 vi.mock('./queries', async (orig) => ({ ...(await orig<typeof import('./queries')>()), buscarConfig: vi.fn(async () => cfgDesligada) }))
 
-const { configProvedorPronta } = await import('./provedores')
+const { configProvedorPronta, precoDoEvento } = await import('./provedores')
+
+// 22/10, 1ª corrida real da Uber: um aviso com fee 0 zerou o preço cotado (R$ 12,40) → o custo não iria ao Financeiro.
+describe('precoDoEvento', () => {
+  it('só preço positivo substitui o da cotação', () => {
+    expect(precoDoEvento(12.4)).toBe(12.4)
+    expect(precoDoEvento(0)).toBeNull()
+    expect(precoDoEvento(-1)).toBeNull()
+    expect(precoDoEvento(null)).toBeNull()
+    expect(precoDoEvento(undefined)).toBeNull()
+    expect(precoDoEvento(Number.NaN)).toBeNull()
+  })
+})
 const admin = {} as never
 
 describe('configProvedorPronta com a integração desligada', () => {

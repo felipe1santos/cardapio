@@ -304,11 +304,21 @@ async function avisarClienteRastreio(admin: SupabaseClient, corrida: EntregaProv
  * ON_GOING/PICKED_UP com entregador → aviso de rastreio; PICKED_UP → pedido em rota; COMPLETED → entregue + custo;
  * CANCELED/REJECTED → pedido volta para pronto. Idempotente; corrida encerrada não reabre por evento atrasado.
  */
+/**
+ * Preço que um evento/consulta do parceiro pode gravar na corrida. 22/10 (1ª corrida real da Uber): no meio da corrida
+ * a Uber mandou `fee: 0` e o preço cotado (R$ 12,40) virou R$ 0 — o custo não seria lançado no Financeiro. Zero, negativo
+ * ou inválido não substitui o preço da cotação.
+ */
+export function precoDoEvento(preco: number | null | undefined): number | null {
+  return typeof preco === 'number' && Number.isFinite(preco) && preco > 0 ? preco : null
+}
+
 export async function aplicarEventoCorrida(admin: SupabaseClient, corrida: EntregaProvedorLinha, novo: string, extra: { motorista?: { nome: string; telefone?: string | null; placa?: string | null; id?: string | null } | null; shareLink?: string | null; preco?: number | null; evento?: unknown; origem?: string } = {}): Promise<{ status: string; mudou: boolean }> {
   const anterior = corrida.status
   const patch: Parameters<typeof atualizarCorrida>[2] = {}
   if (extra.shareLink) patch.shareLink = extra.shareLink
-  if (extra.preco !== undefined && extra.preco !== null) patch.preco = extra.preco
+  const precoNovo = precoDoEvento(extra.preco)
+  if (precoNovo !== null) patch.preco = precoNovo
   if (extra.motorista?.nome) { patch.motoristaNome = extra.motorista.nome; patch.motoristaTelefone = extra.motorista.telefone ?? null; patch.motoristaPlaca = extra.motorista.placa ?? null; if (extra.motorista.id) patch.motoristaId = extra.motorista.id }
   const reabriria = !corridaAtiva(anterior) && corridaAtiva(novo)
   if (novo !== anterior && !reabriria) patch.status = novo

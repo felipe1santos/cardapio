@@ -76,6 +76,14 @@ checagem B-n** no script.
 - Conferência de migration de permissão: comparar antes/depois **na mesma transação em REPEATABLE READ** — foto tirada
   fora acusa "diferença" por visita/mensagem que chegou no meio (1ª tentativa da 0218).
 
+## Aviso do parceiro com preço zero apagava o preço da corrida · 22/10/2026 · teste
+
+- **Onde:** 1ª corrida real da Uber (#581): no meio da corrida a Uber mandou um aviso com `fee: 0` e o preço cotado
+  (R$ 12,40) virou R$ 0 — se o último aviso viesse assim, o custo NÃO seria lançado no Financeiro
+  (`lancarCustoCorrida` ignora preço 0). O aviso seguinte trouxe 1240 de volta, por sorte.
+- **Como evitar:** dado vindo de parceiro só substitui o nosso se for válido (`precoDoEvento`: só > 0).
+- **Teste:** `lib/entregas/provedores-pronta.test.ts` (precoDoEvento).
+
 ## Testar conexão exigia a integração ligada · 22/10/2026 · teste
 
 - **Onde:** `configProvedorPronta` recusava "está desligado" e o botão **Conectar** testa ANTES de ligar →
