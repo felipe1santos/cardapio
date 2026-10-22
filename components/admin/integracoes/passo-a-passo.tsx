@@ -12,7 +12,7 @@ const PASSOS: Record<Provedor, { titulo: string; passos: string[]; prints?: { sr
     passos: [
       'Entre em direct.uber.com com a conta Uber da loja (se não tiver, crie: dados da empresa e aceite dos termos).',
       'Gerenciamento ➡ Pagamento ➡ Configurar: sem o pagamento configurado a Uber não libera entregas de verdade.',
-      'Menu Desenvolvedor ➡ aba "Chaves de API": copie o "ID do usuário" (= Customer ID), o "ID de cliente do desenvolvedor" (= Client ID) e o "Client Secret" (botão Copiar). Cole aqui e toque em Conectar.',
+      'Menu Desenvolvedor ➡ aba "Chaves de API": copie o "ID do usuário", o "ID de cliente do desenvolvedor" e o "Client Secret" (botão Copiar de cada um) e cole nos campos de mesmo nome aqui embaixo. Toque em Conectar.',
     ],
     prints: [
       { src: '/ajuda/uber-pagamento.webp', legenda: 'Página inicial: "Configurar o pagamento" (obrigatório para produção).' },

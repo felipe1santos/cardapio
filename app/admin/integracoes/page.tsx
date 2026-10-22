@@ -32,28 +32,33 @@ import { EntregadorCard } from '@/components/admin/integracoes/entregador-card'
 
 type IdIntegracao = 'whatsapp' | 'mercadopago' | 'facebook' | 'capi' | 'google' | 'lalamove' | 'keeta' | '99food' | 'ifood' | 'aiqfome' | 'entregas-ifood' | 'foody' | 'machine' | 'uber'
 type Grupo = 'Mensagens' | 'Pagamentos' | 'Marketing e medição' | 'Entregas' | 'Pedidos de apps'
-/** `emBreve` (20/10): aparece para todas as lojas com a etiqueta "Em breve" e não deixa conectar (a Menuzia ainda homologa). */
-interface Definicao { id: IdIntegracao; nome: string; grupo: Grupo; logo: string; resumo: string; emBreve?: boolean }
+/**
+ * Situação (22/10, regra do dono): 'disponivel' = validada de ponta a ponta em produção → etiqueta roxa "Disponível",
+ * qualquer loja conecta. 'em_breve' = em teste ou esperando o parceiro aprovar → etiqueta laranja "Em breve"; a loja não
+ * conecta, só a Menuzia e o Super Admin abrem (para testar). Validou uma nova? Troque para 'disponivel' aqui.
+ */
+type SituacaoIntegracao = 'disponivel' | 'em_breve'
+interface Definicao { id: IdIntegracao; nome: string; grupo: Grupo; logo: string; resumo: string; situacao: SituacaoIntegracao }
 
 const INTEGRACOES: Definicao[] = [
-  { id: 'whatsapp', nome: 'WhatsApp', grupo: 'Mensagens', logo: '/icons/integracoes/whatsapp-icon.svg', resumo: 'Avisos do pedido e atendimento pelo WhatsApp da loja.' },
-  { id: 'mercadopago', nome: 'Mercado Pago', grupo: 'Pagamentos', logo: '/icons/integracoes/mercado-pago.svg', resumo: 'Pix online: o cliente paga na hora pelo QR.' },
-  { id: 'facebook', nome: 'Facebook Pixel', grupo: 'Marketing e medição', logo: '/icons/integracoes/facebook.svg', resumo: 'Mede o cardápio para os anúncios do Facebook e do Instagram.' },
-  { id: 'capi', nome: 'API de Conversões (Meta)', grupo: 'Marketing e medição', logo: '/icons/integracoes/meta-icon.svg', resumo: 'Manda a compra pelo servidor, com o mesmo código do pixel.' },
-  { id: 'google', nome: 'Google Analytics / Tag Manager', grupo: 'Marketing e medição', logo: '/icons/integracoes/google-analytics.svg', resumo: 'Google Analytics 4 (G-…) ou Tag Manager (GTM-…).' },
+  { id: 'whatsapp', nome: 'WhatsApp', grupo: 'Mensagens', logo: '/icons/integracoes/whatsapp-icon.svg', resumo: 'Avisos do pedido e atendimento pelo WhatsApp da loja.', situacao: 'disponivel' },
+  { id: 'mercadopago', nome: 'Mercado Pago', grupo: 'Pagamentos', logo: '/icons/integracoes/mercado-pago.svg', resumo: 'Pix online: o cliente paga na hora pelo QR.', situacao: 'disponivel' },
+  { id: 'facebook', nome: 'Facebook Pixel', grupo: 'Marketing e medição', logo: '/icons/integracoes/facebook.svg', resumo: 'Mede o cardápio para os anúncios do Facebook e do Instagram.', situacao: 'disponivel' },
+  { id: 'capi', nome: 'API de Conversões (Meta)', grupo: 'Marketing e medição', logo: '/icons/integracoes/meta-icon.svg', resumo: 'Manda a compra pelo servidor, com o mesmo código do pixel.', situacao: 'disponivel' },
+  { id: 'google', nome: 'Google Analytics / Tag Manager', grupo: 'Marketing e medição', logo: '/icons/integracoes/google-analytics.svg', resumo: 'Google Analytics 4 (G-…) ou Tag Manager (GTM-…).', situacao: 'disponivel' },
   // Lalamove (0199): só aparece com o módulo "Entregas Lalamove" liberado no Super Admin.
-  { id: 'lalamove', nome: 'Lalamove', grupo: 'Entregas', logo: '/icons/integracoes/lalamove.svg', resumo: 'Chame um entregador da Lalamove pelo Kanban, com o preço antes de confirmar.' },
+  { id: 'lalamove', nome: 'Lalamove', grupo: 'Entregas', logo: '/icons/integracoes/lalamove.svg', resumo: 'Chame um entregador da Lalamove pelo Kanban, com o preço antes de confirmar.', situacao: 'em_breve' },
   // 20/10 (regra definitiva): TODAS as integrações aparecem para TODAS as lojas, grátis. As que a Menuzia ainda está
   // homologando levam "Em breve" e não conectam (a API também recusa). Lalamove e Foody liberadas.
-  { id: 'foody', nome: 'Foody Delivery', grupo: 'Entregas', logo: '/origens/foody.png', resumo: 'Entregador da Foody pelo padrão Open Delivery, com cotação antes de confirmar.' },
+  { id: 'foody', nome: 'Foody Delivery', grupo: 'Entregas', logo: '/origens/foody.png', resumo: 'Entregador da Foody pelo padrão Open Delivery, com cotação antes de confirmar.', situacao: 'em_breve' },
   // 21/10 (ordem do dono): Machine, Uber, Entregador iFood, iFood, Keeta e 99Food liberados para todas as lojas.
-  { id: 'machine', nome: 'Machine (motoboys da cidade)', grupo: 'Entregas', logo: '/origens/machine.png', resumo: 'Entregadores da central Machine da sua cidade pelo padrão Open Delivery, com cotação antes de confirmar.' },
-  { id: 'uber', nome: 'Uber Direct', grupo: 'Entregas', logo: '/origens/uber-direct.svg', resumo: 'Chame um entregador da Uber pelo Kanban, com o preço antes de confirmar — pedido em dinheiro é cobrado por Pix antes.' },
-  { id: 'entregas-ifood', nome: 'Entregador iFood (Sob Demanda)', grupo: 'Entregas', logo: '/origens/ifood.svg', resumo: 'Chame um entregador do iFood para pedidos de fora do iFood, com cotação antes de confirmar.' },
-  { id: 'ifood', nome: 'iFood', grupo: 'Pedidos de apps', logo: '/origens/ifood.svg', resumo: 'Pedidos do iFood entram no Painel de Pedidos; aceite, pronto e despacho voltam ao iFood.' },
-  { id: 'keeta', nome: 'Keeta', grupo: 'Pedidos de apps', logo: '/origens/keeta.png', resumo: 'Pedidos da Keeta pelo padrão Open Delivery (Abrasel).' },
-  { id: '99food', nome: '99Food', grupo: 'Pedidos de apps', logo: '/origens/99food.png', resumo: 'Pedidos do 99Food pelo padrão Open Delivery (Abrasel).' },
-  { id: 'aiqfome', nome: 'aiqfome', grupo: 'Pedidos de apps', logo: '/origens/aiqfome.svg', resumo: 'Pedidos do aiqfome no Painel de Pedidos (depende de parceria com integradora homologada).', emBreve: true },
+  { id: 'machine', nome: 'Machine (motoboys da cidade)', grupo: 'Entregas', logo: '/origens/machine.png', resumo: 'Entregadores da central Machine da sua cidade pelo padrão Open Delivery, com cotação antes de confirmar.', situacao: 'em_breve' },
+  { id: 'uber', nome: 'Uber Direct', grupo: 'Entregas', logo: '/origens/uber-direct.svg', resumo: 'Chame um entregador da Uber pelo Kanban, com o preço antes de confirmar — pedido em dinheiro é cobrado por Pix antes.', situacao: 'disponivel' },
+  { id: 'entregas-ifood', nome: 'Entregador iFood (Sob Demanda)', grupo: 'Entregas', logo: '/origens/ifood.svg', resumo: 'Chame um entregador do iFood para pedidos de fora do iFood, com cotação antes de confirmar.', situacao: 'em_breve' },
+  { id: 'ifood', nome: 'iFood', grupo: 'Pedidos de apps', logo: '/origens/ifood.svg', resumo: 'Pedidos do iFood entram no Painel de Pedidos; aceite, pronto e despacho voltam ao iFood.', situacao: 'em_breve' },
+  { id: 'keeta', nome: 'Keeta', grupo: 'Pedidos de apps', logo: '/origens/keeta.png', resumo: 'Pedidos da Keeta pelo padrão Open Delivery (Abrasel).', situacao: 'em_breve' },
+  { id: '99food', nome: '99Food', grupo: 'Pedidos de apps', logo: '/origens/99food.png', resumo: 'Pedidos do 99Food pelo padrão Open Delivery (Abrasel).', situacao: 'em_breve' },
+  { id: 'aiqfome', nome: 'aiqfome', grupo: 'Pedidos de apps', logo: '/origens/aiqfome.svg', resumo: 'Pedidos do aiqfome no Painel de Pedidos (depende de parceria com integradora homologada).', situacao: 'em_breve' },
 ]
 const ORDEM_GRUPOS: Grupo[] = ['Pagamentos', 'Mensagens', 'Marketing e medição', 'Pedidos de apps', 'Entregas']
 
@@ -67,6 +72,8 @@ interface Situacao {
   lalamove: boolean | null
   /** Entregadores ligados (21/10): marca "Ativa" na lista. */
   entregas?: string[]
+  /** Loja de teste (Menuzia) ou Super Admin: abre as "Em breve" para testar (22/10). */
+  testes?: boolean
 }
 
 const FONTE_MODELO = { fontFamily: 'var(--font-submenu), var(--font-painel), system-ui, sans-serif' }
@@ -79,8 +86,9 @@ function CardIntegracao({ def, ativa, onAbrir }: { def: Definicao; ativa: boolea
       <img src={def.logo} alt="" width={48} height={48} className="h-[48px] w-[48px] flex-shrink-0 object-contain" />
       <span className="min-w-0 flex-1">
         <span className="line-clamp-2 text-[16.5px] font-medium leading-[22px] text-[#374151]">{def.nome}</span>
-        {ativa && <span className="mt-[4px] inline-flex items-center gap-[6px] rounded-full bg-[#ECFDF5] px-[8px] py-[1px] text-[12px] font-semibold text-[#047857]" data-testid={`integracao-${def.id}-ativa`}><span className="h-[7px] w-[7px] rounded-full bg-[#10B981]" aria-hidden />Ativa</span>}
-        {def.emBreve && <span className="mt-[4px] inline-flex items-center rounded-full bg-[#F3E8FF] px-[8px] py-[1px] text-[12px] font-semibold text-[#6B21A8]" data-testid={`integracao-${def.id}-em-breve`}>Em breve</span>}
+        {ativa ? <span className="mt-[4px] inline-flex items-center gap-[6px] rounded-full bg-[#ECFDF5] px-[8px] py-[1px] text-[12px] font-semibold text-[#047857]" data-testid={`integracao-${def.id}-ativa`}><span className="h-[7px] w-[7px] rounded-full bg-[#10B981]" aria-hidden />Ativa</span>
+          : def.situacao === 'disponivel' ? <span className="mt-[4px] inline-flex items-center rounded-full bg-[#F3E8FF] px-[8px] py-[1px] text-[12px] font-semibold text-[#6B21A8]" data-testid={`integracao-${def.id}-disponivel`}>Disponível</span>
+          : <span className="mt-[4px] inline-flex items-center rounded-full bg-[#FFEDD5] px-[8px] py-[1px] text-[12px] font-semibold text-[#C2410C]" data-testid={`integracao-${def.id}-em-breve`}>Em breve</span>}
       </span>
       <ChevronRight className="h-[22px] w-[22px] flex-shrink-0 text-[#9CA3AF] transition-colors group-hover:text-[#4B5563]" strokeWidth={2} />
     </>
@@ -235,6 +243,7 @@ export default function IntegracoesPage() {
       mp: mp ? { liberada: Boolean(mp.lojaLiberada), conectada: Boolean(mp.conta?.conectada) } : { liberada: false, conectada: false },
       lalamove: Boolean(lalamove?.config?.ativo),
       entregas: Array.isArray(entregas?.ativos) ? entregas.ativos : [],
+      testes: entregas?.testes === true,
     }))
   }, [])
 
@@ -300,6 +309,8 @@ export default function IntegracoesPage() {
   }
 
   const def = aberta ? INTEGRACOES.find((i) => i.id === aberta)! : null
+  // "Em breve": a loja só vê o aviso; Menuzia/Super Admin abrem a configuração para testar (aiqfome não tem nenhuma).
+  const emBreveFechada = def?.situacao === 'em_breve' && (!sit.testes || def.id === 'aiqfome')
   // Estáveis: os cards dependem de `avisar` em efeitos.
   const avisarERecarregar = useCallback((m: string) => { mostrarToast('ok', m); void lerOutras() }, [mostrarToast, lerOutras])
   const linkSugestao = `https://wa.me/${SUPORTE_MENUZIA.whatsapp}?text=${encodeURIComponent('Gostaria de sugerir a integração: ')}`
@@ -332,7 +343,8 @@ export default function IntegracoesPage() {
                 <div className="space-y-[28px]" data-testid="secao-disponiveis">
                   <p className="-mb-[12px] text-[13px] font-semibold uppercase tracking-[0.06em] text-[#6B7280]">Integrações disponíveis</p>
                   {ORDEM_GRUPOS.map((g) => {
-                    const doGrupo = disponiveis.filter((d) => d.grupo === g)
+                    // Dentro do grupo: "Disponível" primeiro, "Em breve" depois (22/10).
+                    const doGrupo = disponiveis.filter((d) => d.grupo === g).sort((a, b) => Number(a.situacao === 'em_breve') - Number(b.situacao === 'em_breve'))
                     if (!doGrupo.length) return null
                     return (
                       <Secao key={g} titulo={g}>
@@ -372,17 +384,20 @@ export default function IntegracoesPage() {
         )}
         {def?.id === 'capi' && <MetaCapiCard temPixel={!!sit.pixels?.facebook} avisar={avisarERecarregar} />}
         {def?.id === 'mercadopago' && <MercadoPagoCard avisar={avisarERecarregar} />}
-        {def?.id === 'lalamove' && <LalamoveCard avisar={avisarERecarregar} />}
-        {def?.emBreve && (
+        {emBreveFechada && (
           <div className="space-y-2 text-[13px] text-[#374151]" data-testid="integracao-em-breve">
-            <p className="rounded-[3px] border border-[#E5E7EB] bg-[#F9FAFB] px-3 py-2"><b>Em breve.</b> A Menuzia está homologando esta integração com o parceiro. Quando estiver liberada, ela aparece aqui pronta para conectar, sem custo.</p>
+            <p className="rounded-[3px] border border-[#FED7AA] bg-[#FFF7ED] px-3 py-2"><b>Em breve.</b> A Menuzia está testando esta integração com o parceiro. Quando estiver validada, ela aparece aqui como &ldquo;Disponível&rdquo;, pronta para conectar, sem custo.</p>
             <p className="text-[12.5px] text-[#6B7280]">Quer ser avisado? Fale com o suporte da Menuzia pelo WhatsApp.</p>
           </div>
         )}
-        {!def?.emBreve && (def?.id === 'keeta' || def?.id === '99food' || def?.id === 'ifood') && <CanalCard canal={def.id} avisar={avisarERecarregar} />}
-        {!def?.emBreve && def?.id === 'entregas-ifood' && <EntregadorCard provedor="ifood" avisar={avisarERecarregar} />}
-        {!def?.emBreve && def?.id === 'foody' && <EntregadorCard provedor="foody" avisar={avisarERecarregar} />}
-        {!def?.emBreve && def?.id === 'machine' && <EntregadorCard provedor="machine" avisar={avisarERecarregar} />}
+        {def?.situacao === 'em_breve' && !emBreveFechada && (
+          <p className="mb-3 rounded-[3px] border border-[#FED7AA] bg-[#FFF7ED] px-3 py-2 text-[12.5px] text-[#9A3412]" data-testid="integracao-em-breve-teste">Em breve para as lojas. Você vê a configuração porque está na loja de teste (Menuzia) ou é Super Admin.</p>
+        )}
+        {!emBreveFechada && def?.id === 'lalamove' && <LalamoveCard avisar={avisarERecarregar} />}
+        {!emBreveFechada && (def?.id === 'keeta' || def?.id === '99food' || def?.id === 'ifood') && <CanalCard canal={def.id} avisar={avisarERecarregar} />}
+        {!emBreveFechada && def?.id === 'entregas-ifood' && <EntregadorCard provedor="ifood" avisar={avisarERecarregar} />}
+        {!emBreveFechada && def?.id === 'foody' && <EntregadorCard provedor="foody" avisar={avisarERecarregar} />}
+        {!emBreveFechada && def?.id === 'machine' && <EntregadorCard provedor="machine" avisar={avisarERecarregar} />}
         {def?.id === 'uber' && <EntregadorCard provedor="uber" avisar={avisarERecarregar} />}
       </ModalCentral>
       <PilhaToasts itens={toasts.itens} />

@@ -75,16 +75,22 @@ export function EntregadorCard({ provedor, avisar }: { provedor: ProvedorCard; a
   return (
     <div className="space-y-3 text-[13px] text-[#1F2937]" data-testid={`entregador-card-${provedor}`}>
       {provedor !== 'ifood' && !estado.cofrePronto && <p className="rounded-[8px] border border-[#FCD34D] bg-[#FEF3C7] px-3 py-2 text-[12.5px] text-[#92400E]">O cofre de segredos do servidor não está configurado: as credenciais não podem ser salvas. Fale com a Menuzia.</p>}
-      {provedor === 'uber' && <p className="text-[12.5px] text-[#6B7280]">Atende as principais cidades do Brasil. Se a sua não for atendida, a cotação avisa &ldquo;não atende sua cidade&rdquo;.</p>}
       <PassoAPasso provedor={provedor} />
 
       {provedor === 'ifood' ? (
         <p className={`rounded-[8px] border px-3 py-2 text-[12.5px] ${estado.canalIfoodPronto ? 'border-[#BBF7D0] bg-[#F0FDF4] text-[#166534]' : 'border-[#FCD34D] bg-[#FEF3C7] text-[#92400E]'}`}>
           {estado.canalIfoodPronto ? 'Loja conectada ao iFood: o entregador usa a mesma conexão.' : 'Conecte primeiro a loja ao iFood em Integrações › iFood.'}
         </p>
+      ) : provedor === 'uber' ? (
+        // Uber validada de ponta a ponta (22/10): os 3 campos com o MESMO nome da tela da Uber (Desenvolvedor › Chaves
+        // de API), um embaixo do outro, na ordem em que aparecem lá. Nada de "Customer ID"/"Client ID" em inglês.
+        <div className="space-y-2">
+          <CampoConexao rotulo="ID do usuário" valor={form.customerId} onChange={(v) => setForm({ ...form, customerId: v })} salvo={temConta} final={cfg?.contaId.slice(-4)} testid="uber-customer-id" />
+          <CampoConexao rotulo="ID de cliente do desenvolvedor" valor={form.clientId} onChange={(v) => setForm({ ...form, clientId: v })} salvo={temChaves} final={cfg?.apiKeyFinal} testid="uber-client-id" />
+          <CampoConexao rotulo="Client Secret" valor={form.clientSecret} onChange={(v) => setForm({ ...form, clientSecret: v })} salvo={temChaves} segredo testid="uber-client-secret" />
+        </div>
       ) : (
         <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-          {provedor === 'uber' && <CampoConexao rotulo="Customer ID" dica='"ID do usuário" na Uber' valor={form.customerId} onChange={(v) => setForm({ ...form, customerId: v })} salvo={temConta} final={cfg?.contaId.slice(-4)} testid="uber-customer-id" />}
           {(provedor === 'foody' || provedor === 'machine') && <div className="md:col-span-2"><CampoConexao rotulo="URL base" valor={form.baseUrl} onChange={(v) => setForm({ ...form, baseUrl: v })} salvo={temBase} final={cfg?.baseUrl ? ` ${cfg.baseUrl.replace(/^https:\/\//, '').slice(0, 30)}` : ''} testid={`${provedor}-base-url`} /></div>}
           <CampoConexao rotulo="Client ID" valor={form.clientId} onChange={(v) => setForm({ ...form, clientId: v })} salvo={temChaves} final={cfg?.apiKeyFinal} testid={`${provedor}-client-id`} />
           <CampoConexao rotulo="Client Secret" valor={form.clientSecret} onChange={(v) => setForm({ ...form, clientSecret: v })} salvo={temChaves} segredo testid={`${provedor}-client-secret`} />
@@ -101,7 +107,9 @@ export function EntregadorCard({ provedor, avisar }: { provedor: ProvedorCard; a
       </div>
       <ResultadoConexao ok={ok} erro={erro} />
 
-      {provedor !== 'ifood' && cfg && (
+      {/* Uber (22/10): o lojista não precisa de nada técnico — ambiente, webhook e "apagar credenciais" só para a
+          Menuzia / Super Admin. Sem webhook, o status chega pela consulta automática a cada minuto. */}
+      {provedor !== 'ifood' && cfg && (provedor !== 'uber' || estado.podeTeste) && (
         <ModoAvancado testid={`${provedor}-avancado`}>
           {provedor === 'uber' && (
             <>
