@@ -178,3 +178,23 @@ Relatório por bloco em `docs/relatorios/2026-10-19-kanban-ajustes.md`.
 - **Pedido novo chegando** (`.animate-new-order`): entrada com deslize/vibrada de 0,45 s, pisca amarelo `#FEF3C7` ↔
   verde `#DCFCE7` 3× (3 s, junto com o som), verde claro por ~15 s, volta ao normal. `prefers-reduced-motion`: só
   acende. Solicitação pendente do cliente: anel amarelo fixo (`.card-atencao`).
+
+## 10. PDV — redesign visual (22/10/2026, branch `feat/pdv-visual`, em aprovação)
+
+Referências do dono: cabeçalho azul e item selecionado laranja-bege (PDV de balcão) + botões grandes coloridos com ícone (tablet).
+Só visual — lógica, rotas e fluxo de lançar intocados.
+
+| Token (`app/globals.css`) | Valor | Uso |
+|---|---|---|
+| `--pdv-azul` | `#003E83` | cabeçalho do PDV e do painel "Pedido", forma de pagamento escolhida, "Ver conta" |
+| `--pdv-azul-escuro` | `#002B5C` | hover |
+| `--pdv-azul-barra` | `#0A4C9A` | barra de categorias + busca |
+| `--pdv-azul-suave` | `#E7EEF8` | botão de pagamento não escolhido, faixa "Novo pedido", total da conta |
+| `--pdv-selecao` / `--pdv-selecao-borda` | `#FDEBDD` / `#F28C5B` | item na comanda (grade) e linha do último item tocado (pedido) |
+| `--pdv-selecao-forte` | `#C2410C` | contador "2×" no card |
+
+- Categoria escolhida: fundo branco + texto azul (destaque sobre a barra azul); as outras em branco translúcido.
+- Pagamento e "Cobrar agora / Receber": blocos de 48–52 px, cantos 8 px, ícone Phosphor (Pix = `IconePix` do Kanban),
+  azul suave → azul cheio com ✓ quando escolhido; "afundam" ao tocar (`active:scale`).
+- Rodapé: "Balcão" cinza, "Ver conta" azul, "Lançar na cozinha" verde (`--btn-verde`) com ícone de panela, 68 px.
+- Tela cheia/Sair sobre o azul: classe `.pdv-topo-azul` (globals.css) troca as cores sem mexer no componente.

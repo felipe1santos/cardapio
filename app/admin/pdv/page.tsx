@@ -34,6 +34,7 @@ import { FotoItem } from '@/components/pdv/foto-item'
 import { ConfigurarItem, precoUnitarioPdv, type EstadoConfig } from '@/components/pdv/configurar-item'
 import { BotaoPdv, ICONES_PDV, TelaPdv, saindoDaPilha } from '@/components/pdv/tela-pdv'
 import { BotaoTelaCheia } from '@/components/ui/tela-cheia'
+import { ArrowLeft, CookingPot, Receipt } from '@phosphor-icons/react'
 import { MenuAcoesCelular } from '@/components/ui/menu-acoes-celular'
 import { AvisoCaixa } from '@/components/financeiro/aviso-caixa'
 import { useEstadoSessao } from '@/lib/sessao-cliente'
@@ -375,6 +376,8 @@ export default function PdvPage() {
 
   // ── Cardápio filters ───────────────────────────────────────────────────────
   const [busca, setBusca] = useState('')
+  // Redesign visual (22/10): último item tocado na grade — a linha dele ganha o destaque laranja-bege no pedido.
+  const [ultimoItemId, setUltimoItemId] = useState<string | null>(null)
   const [grupoFiltro, setGrupoFiltro] = useState<string | null>(null)
 
   // ── Comanda da mesa (pedidos já lançados) ─────────────────────────────────
@@ -1369,36 +1372,36 @@ export default function PdvPage() {
                 ].join(' ')}
               >
                 {/* Voltar ao painel + local atual */}
-                <div className="flex items-center gap-2 border-b border-border bg-white px-3 py-2">
+                <div className="flex items-center gap-2 bg-[var(--pdv-azul)] px-3 py-2" data-testid="pdv-topo">
                   <button
                     type="button"
                     onClick={voltarParaMesas}
                     data-testid="pdv-voltar-mesas"
-                    className="flex h-[40px] flex-shrink-0 items-center gap-1 rounded-menuzia bg-primary pl-2 pr-3 text-[13px] font-semibold text-white transition-colors hover:bg-primary-dark active:scale-[0.97] sm:h-[44px] sm:pr-4 sm:text-[14px]"
+                    className="flex h-[48px] flex-shrink-0 items-center gap-1 rounded-[6px] border border-white/35 bg-white/15 pl-2 pr-3 text-[14px] font-semibold text-white transition-colors hover:bg-white/25 active:scale-[0.97] sm:pr-4"
                   >
                     <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
                       <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
                     </svg>
                     {pdvV2 && telaBalcao ? 'Balcão' : 'Mesas'}
                   </button>
-                  <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-text-main" data-testid="pdv-alvo">
+                  <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-white" data-testid="pdv-alvo">
                     {pdvV2 ? (alvoV2?.rotulo ?? '—') : (mesaSelecionada?.nome ?? 'Balcão')}
                   </span>
-                  <div className="flex flex-shrink-0 items-center gap-2">{botaoTelaCheia}{botaoSair}{extrasCelular}</div>
+                  <div className="pdv-topo-azul flex flex-shrink-0 items-center gap-2">{botaoTelaCheia}{botaoSair}{extrasCelular}</div>
                 </div>
             {/* Categorias à esquerda + busca à direita, numa linha só (2026-10-01). A linha não rola
                 com os produtos (só a grade rola). Telas estreitas: a busca vira uma lupa que expande. */}
-            <div className="flex items-center gap-2 border-b border-border bg-white px-3 py-2" data-testid="pdv-linha-filtros">
+            <div className="flex items-center gap-2 bg-[var(--pdv-azul-barra)] px-3 py-2" data-testid="pdv-linha-filtros">
               {!(buscaAberta && !buscaLarga) && (
                 <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-testid="pdv-categorias">
                   <button
                     type="button"
                     onClick={() => { setGrupoFiltro(null); setBusca('') }}
                     className={[
-                      'h-[52px] flex-shrink-0 whitespace-nowrap rounded-menuzia border px-4 text-[15px] font-semibold transition-colors',
+                      'h-[52px] flex-shrink-0 whitespace-nowrap rounded-[6px] border-2 px-4 text-[15px] font-semibold transition-colors active:scale-[0.97]',
                       grupoFiltro === null && !busca
-                        ? 'border-primary bg-primary text-white'
-                        : 'border-border bg-white text-text-subtle hover:border-primary hover:text-primary',
+                        ? 'border-white bg-white text-[var(--pdv-azul)] shadow-[0_2px_6px_rgba(0,0,0,0.25)]'
+                        : 'border-transparent bg-white/15 text-white hover:bg-white/25',
                     ].join(' ')}
                   >
                     Todos
@@ -1409,10 +1412,10 @@ export default function PdvPage() {
                       type="button"
                       onClick={() => { setGrupoFiltro(g.id); setBusca('') }}
                       className={[
-                        'h-[52px] flex-shrink-0 whitespace-nowrap rounded-menuzia border px-4 text-[15px] font-semibold transition-colors',
+                        'h-[52px] flex-shrink-0 whitespace-nowrap rounded-[6px] border-2 px-4 text-[15px] font-semibold transition-colors active:scale-[0.97]',
                         grupoFiltro === g.id && !busca
-                          ? 'border-primary bg-primary text-white'
-                          : 'border-border bg-white text-text-subtle hover:border-primary hover:text-primary',
+                          ? 'border-white bg-white text-[var(--pdv-azul)] shadow-[0_2px_6px_rgba(0,0,0,0.25)]'
+                          : 'border-transparent bg-white/15 text-white hover:bg-white/25',
                       ].join(' ')}
                     >
                       {g.nome}
@@ -1433,7 +1436,7 @@ export default function PdvPage() {
                     placeholder="Buscar item…"
                     aria-label="Buscar item"
                     data-testid="pdv-busca"
-                    className="h-[52px] w-full rounded-menuzia border border-border bg-white pl-10 pr-11 text-[15px] text-text-main placeholder:text-text-subtle/60 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary [&::-webkit-search-cancel-button]:hidden"
+                    className="h-[52px] w-full rounded-[6px] border border-transparent bg-white pl-10 pr-11 text-[15px] text-text-main placeholder:text-text-subtle/70 focus:outline-none focus:ring-2 focus:ring-[var(--pdv-selecao-borda)] [&::-webkit-search-cancel-button]:hidden"
                   />
                   {(busca || !buscaLarga) && (
                     <button
@@ -1455,7 +1458,7 @@ export default function PdvPage() {
                   onClick={() => setBuscaAberta(true)}
                   aria-label="Buscar item"
                   data-testid="pdv-busca-abrir"
-                  className="flex h-[52px] w-[52px] flex-shrink-0 items-center justify-center rounded-menuzia border border-border bg-white text-text-main hover:border-primary hover:text-primary"
+                  className="flex h-[52px] w-[52px] flex-shrink-0 items-center justify-center rounded-[6px] bg-white/15 text-white hover:bg-white/25"
                 >
                   <svg viewBox="0 0 24 24" className="h-6 w-6 fill-current" aria-hidden>
                     <path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
@@ -1476,15 +1479,15 @@ export default function PdvPage() {
                     <button
                       key={item.id}
                       type="button"
-                      onClick={() => addItem(item)}
+                      onClick={() => { setUltimoItemId(item.id); addItem(item) }}
                       aria-label={`Adicionar ${item.nome}`}
                       className={[
-                        'group relative flex flex-col overflow-hidden rounded-menuzia border bg-white text-left transition-all hover:border-primary hover:shadow-md active:scale-[0.98]',
-                        (qtdNaComanda.get(item.id) ?? 0) > 0 ? 'border-primary' : 'border-border',
+                        'group relative flex flex-col overflow-hidden rounded-[8px] border-2 text-left transition-all hover:shadow-md active:scale-[0.97]',
+                        (qtdNaComanda.get(item.id) ?? 0) > 0 ? 'border-[var(--pdv-selecao-borda)] bg-[var(--pdv-selecao)]' : 'border-transparent bg-white shadow-[0_1px_2px_rgba(15,23,42,0.08)] hover:border-[var(--pdv-azul)]/40',
                       ].join(' ')}
                     >
                       {(qtdNaComanda.get(item.id) ?? 0) > 0 && (
-                        <span className="absolute right-1.5 top-1.5 z-10 grid h-[26px] min-w-[26px] place-items-center rounded-full bg-primary px-1.5 text-[12px] font-semibold text-white shadow">
+                        <span className="absolute right-1.5 top-1.5 z-10 grid h-[28px] min-w-[28px] place-items-center rounded-full bg-[var(--pdv-selecao-forte)] px-1.5 text-[13px] font-semibold text-white shadow">
                           {qtdNaComanda.get(item.id)}×
                         </span>
                       )}
@@ -1508,7 +1511,7 @@ export default function PdvPage() {
                         </div>
                       )}
                       <div className="flex flex-1 flex-col p-2.5">
-                        <p className="line-clamp-2 text-[14px] font-semibold leading-tight text-text-main group-hover:text-primary lg:text-[13.5px]">
+                        <p className="line-clamp-2 text-[14px] font-semibold leading-tight text-text-main lg:text-[13.5px]">
                           {item.nome}
                         </p>
                         <div className="mt-auto flex items-center justify-between gap-1 pt-1.5">
@@ -1601,9 +1604,9 @@ export default function PdvPage() {
               </div>
             )}
             {/* Header */}
-            <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
-              <p className="text-[12px] font-semibold uppercase tracking-wide text-text-subtle">Pedido</p>
-              <span className="min-w-0 truncate rounded-menuzia bg-primary/10 px-2.5 py-1 text-[13px] font-semibold text-primary">
+            <div className="flex min-h-[64px] items-center justify-between gap-2 bg-[var(--pdv-azul)] px-4 py-3" data-testid="pdv-pedido-topo">
+              <p className="text-[13px] font-semibold uppercase tracking-wide text-white">Pedido</p>
+              <span className="min-w-0 truncate rounded-[6px] bg-white/15 px-2.5 py-1 text-[13px] font-semibold text-white">
                 {pdvV2 ? (alvoV2?.rotulo ?? '—') : (mesaSelecionada?.nome ?? 'Balcão')}
               </span>
             </div>
@@ -1672,8 +1675,8 @@ export default function PdvPage() {
             )}
 
             {/* Novo pedido — o que está sendo montado agora */}
-            <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-primary">
+            <div className="flex items-center justify-between border-b border-border bg-[var(--pdv-azul-suave)] px-4 py-2.5">
+              <p className="text-[12px] font-semibold uppercase tracking-wide text-[var(--pdv-azul)]">
                 Novo pedido{comanda.length > 0 ? ` · ${comanda.reduce((s, l) => s + l.quantidade, 0)} item(ns)` : ''}
               </p>
               {!pdvV2 && (
@@ -1705,7 +1708,8 @@ export default function PdvPage() {
                     const descricao = linhaDescricao(linha)
                     const precoRef = precoLinha(linha)
                     return (
-                      <li key={linha.uid} className="flex gap-2.5 px-3 py-3">
+                      <li key={linha.uid} data-selecionado={linha.item.id === ultimoItemId ? '' : undefined}
+                        className={['flex gap-2.5 border-l-4 px-3 py-2.5 transition-colors', linha.item.id === ultimoItemId ? 'border-l-[var(--pdv-selecao-borda)] bg-[var(--pdv-selecao)]' : 'border-l-transparent'].join(' ')}>
                         <FotoItem url={linha.item.imagemThumbUrl ?? linha.item.imagemUrl} nome={linha.item.nome} tamanho={48} />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-2">
@@ -1726,7 +1730,7 @@ export default function PdvPage() {
                               type="button"
                               aria-label="Diminuir quantidade"
                               onClick={() => alterarQtd(linha.uid, -1)}
-                              className="flex h-[40px] w-[40px] items-center justify-center rounded-menuzia border-2 border-border text-text-subtle transition-colors hover:border-danger hover:text-danger active:scale-95"
+                              className="flex h-[48px] w-[48px] items-center justify-center rounded-[6px] border-2 border-border bg-white text-text-main transition-colors hover:border-danger hover:text-danger active:scale-95"
                             >
                               <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
                                 <path d="M19 13H5v-2h14v2z" />
@@ -1739,7 +1743,7 @@ export default function PdvPage() {
                               type="button"
                               aria-label="Aumentar quantidade"
                               onClick={() => alterarQtd(linha.uid, 1)}
-                              className="flex h-[40px] w-[40px] items-center justify-center rounded-menuzia border-2 border-border text-text-subtle transition-colors hover:border-primary hover:text-primary active:scale-95"
+                              className="flex h-[48px] w-[48px] items-center justify-center rounded-[6px] border-2 border-border bg-white text-text-main transition-colors hover:border-[var(--pdv-azul)] hover:text-[var(--pdv-azul)] active:scale-95"
                             >
                               <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
                                 <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
@@ -1749,7 +1753,7 @@ export default function PdvPage() {
                               type="button"
                               aria-label="Remover item"
                               onClick={() => removerLinha(linha.uid)}
-                              className="ml-auto flex h-[40px] w-[40px] items-center justify-center rounded-menuzia border-2 border-transparent text-text-subtle/60 transition-colors hover:border-danger hover:text-danger active:scale-95"
+                              className="ml-auto flex h-[48px] w-[48px] items-center justify-center rounded-[6px] border-2 border-transparent text-text-subtle transition-colors hover:border-danger hover:text-danger active:scale-95"
                             >
                               <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
                                 <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
@@ -1765,7 +1769,7 @@ export default function PdvPage() {
             </div>
 
             {/* Footer: subtotal + launch */}
-            <div className="space-y-2.5 border-t border-border p-4">
+            <div className="space-y-2 border-t border-border p-3">
               {pdvV2 && alvoV2?.comandaId && (
                 <BlocoPagamento comandaId={alvoV2.comandaId} subtotalCarrinho={subtotal} versao={versaoPag} onMudar={setEstadoPag} />
               )}
@@ -1781,9 +1785,9 @@ export default function PdvPage() {
                   onClick={voltarParaMesas}
                   data-testid="pdv-pos-lancar-mesas"
                   aria-label={pdvV2 && telaBalcao ? 'Voltar ao balcão' : 'Voltar às mesas'}
-                  className="flex h-[84px] w-[76px] flex-shrink-0 flex-col items-center justify-center gap-1 rounded-menuzia border border-border bg-white text-[13px] font-semibold text-text-main hover:border-primary hover:text-primary active:scale-[0.97]"
+                  className="flex h-[68px] w-[72px] flex-shrink-0 flex-col items-center justify-center gap-1 rounded-[8px] bg-[#E5E7EB] text-[13px] font-semibold text-text-main transition-colors hover:bg-[#D1D5DB] active:scale-[0.96]"
                 >
-                  <svg viewBox="0 0 24 24" className="h-7 w-7 fill-current" aria-hidden><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" /></svg>
+                  <ArrowLeft weight="bold" className="h-7 w-7" aria-hidden />
                   {pdvV2 && telaBalcao ? 'Balcão' : 'Mesas'}
                 </button>
                 {pdvV2 && alvoV2?.comandaId && (
@@ -1791,13 +1795,13 @@ export default function PdvPage() {
                     type="button"
                     onClick={() => setContaAberta(alvoV2.comandaId!)}
                     data-testid="pdv-ver-conta"
-                    className={['relative flex h-[84px] w-[96px] flex-shrink-0 flex-col items-center gap-1 rounded-menuzia border border-border bg-white text-[13px] font-semibold text-text-main hover:border-primary hover:text-primary active:scale-[0.97]',
+                    className={['relative flex h-[68px] w-[96px] flex-shrink-0 flex-col items-center gap-1 rounded-[8px] bg-[var(--pdv-azul)] text-[13px] font-semibold text-white transition-colors hover:bg-[var(--pdv-azul-escuro)] active:scale-[0.96]',
                       totalContaAlvo !== null && totalContaAlvo > 0 ? 'justify-end pb-2.5' : 'justify-center'].join(' ')}
                   >
-                    <svg viewBox="0 0 24 24" className="h-7 w-7 fill-current" aria-hidden><path d="M19.5 3.5 18 2l-1.5 1.5L15 2l-1.5 1.5L12 2l-1.5 1.5L9 2 7.5 3.5 6 2v14H3v3c0 1.66 1.34 3 3 3h12c1.66 0 3-1.34 3-3V2l-1.5 1.5zM19 19c0 .55-.45 1-1 1s-1-.45-1-1v-3H8V5h11v14zM9 7h6v2H9zm7 0h2v2h-2zm-7 3h6v2H9zm7 0h2v2h-2z" /></svg>
+                    <Receipt weight="bold" className="h-7 w-7" aria-hidden />
                     Ver conta
                     {totalContaAlvo !== null && totalContaAlvo > 0 && (
-                      <span className="absolute inset-x-1 top-1 truncate rounded-full bg-primary px-1.5 py-[1px] text-center text-[11px] font-semibold leading-[16px] text-white" data-testid="pdv-ver-conta-total">
+                      <span className="absolute inset-x-1 top-1 truncate rounded-full bg-white px-1.5 py-[1px] text-center text-[11px] font-semibold leading-[16px] text-[var(--pdv-azul)]" data-testid="pdv-ver-conta-total">
                         {formatBRL(totalContaAlvo)}
                       </span>
                     )}
@@ -1809,9 +1813,9 @@ export default function PdvPage() {
                   title={pdvV2 && estadoPag.exige && estadoPag.erro ? estadoPag.erro : undefined}
                   onClick={lancarNaCozinha}
                   data-testid="pdv-lancar"
-                  className="flex h-[84px] min-w-0 flex-1 items-center justify-center gap-2 rounded-menuzia bg-status-ready text-[17px] font-semibold text-white shadow-sm transition-all hover:brightness-95 active:scale-[0.98] disabled:opacity-40"
+                  className="flex h-[68px] min-w-0 flex-1 items-center justify-center gap-2 rounded-[8px] bg-[var(--btn-verde)] text-[17px] font-semibold text-white shadow-sm transition-all hover:bg-[var(--btn-verde-escuro)] active:scale-[0.97] disabled:opacity-40"
                 >
-                  <svg viewBox="0 0 24 24" className="h-7 w-7 flex-shrink-0 fill-current" aria-hidden><path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z" /></svg>
+                  <CookingPot weight="bold" className="h-8 w-8 flex-shrink-0" aria-hidden />
                   {launching ? 'Lançando…' : 'Lançar na cozinha'}
                 </button>
               </div>

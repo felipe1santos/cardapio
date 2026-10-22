@@ -32,6 +32,27 @@
   --btn-vermelho: #dc2626;
   --btn-vermelho-escuro: #b91c1c;
   --valor-dinheiro: #16a34a;
+
+  /* PDV (redesign visual, 22/10/2026 — referências do dono): cabeçalhos no AZUL do PDV, item selecionado no
+     LARANJA-BEGE claro com borda laranja. Botões de forma de pagamento: azul suave → azul cheio quando escolhido. */
+  --pdv-azul: #003e83;
+  --pdv-azul-escuro: #002b5c;
+  --pdv-azul-barra: #0a4c9a;
+  --pdv-azul-suave: #e7eef8;
+  --pdv-selecao: #fdebdd;
+  --pdv-selecao-borda: #f28c5b;
+  --pdv-selecao-forte: #c2410c;
+}
+
+/* PDV: botões do sistema (Tela cheia, Sair) sobre o cabeçalho azul — mesmo componente, cores do fundo escuro. */
+.pdv-topo-azul button {
+  min-height: 48px !important;
+  border-color: rgb(255 255 255 / 0.35) !important;
+  background-color: rgb(255 255 255 / 0.15) !important;
+  color: #fff !important;
+}
+.pdv-topo-azul button:hover {
+  background-color: rgb(255 255 255 / 0.25) !important;
 }
 
 html,

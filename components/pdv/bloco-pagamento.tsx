@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Banknote, CreditCard, QrCode } from 'lucide-react'
+import { Cardholder, CheckCircle, CreditCard, Lightning, Moped, Money, Storefront } from '@phosphor-icons/react'
+import { IconePix } from '@/components/icones/origens'
 import {
   atalhosTroco, erroPagamentoPdv, ROTULO_ESCOLHA, statusAReceber, trocoLevar, type EscolhaPdv, type PagamentoPdv,
 } from '@/lib/pdv-pagamento'
@@ -18,7 +19,18 @@ export interface EstadoPagamentoPdv {
   erro: string | null
 }
 
-const ICONE: Record<EscolhaPdv, typeof Banknote> = { dinheiro: Banknote, pix: QrCode, credito: CreditCard, debito: CreditCard }
+// Redesign visual (22/10/2026): blocos grandes com ícone (Phosphor; Pix = o ícone oficial do Kanban). Azul suave →
+// azul cheio do PDV com ✓ quando escolhido. Alvo de toque ≥ 48 px e "afundar" ao tocar.
+const ICONE: Record<EscolhaPdv, (p: { className?: string }) => React.ReactNode> = {
+  dinheiro: (p) => <Money weight="bold" {...p} />,
+  pix: (p) => <IconePix {...p} />,
+  credito: (p) => <CreditCard weight="bold" {...p} />,
+  debito: (p) => <Cardholder weight="bold" {...p} />,
+}
+const BLOCO = 'relative flex items-center gap-2.5 rounded-[8px] border-2 px-3 text-left font-semibold transition-all active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--pdv-selecao-borda)] focus-visible:ring-offset-1'
+const bloco = (sel: boolean) => `${BLOCO} ${sel ? 'border-[var(--pdv-azul)] bg-[var(--pdv-azul)] text-white shadow-[0_2px_8px_rgba(0,62,131,0.35)]' : 'border-transparent bg-[var(--pdv-azul-suave)] text-[var(--pdv-azul)] hover:border-[var(--pdv-azul)]/40'}`
+const MARCA = <CheckCircle weight="fill" className="absolute right-1.5 top-1.5 h-[18px] w-[18px] text-white" aria-hidden />
+const PILULA = (sel: boolean) => `h-[48px] min-w-[64px] rounded-[8px] border-2 px-3 text-[15px] font-semibold transition-all active:scale-[0.97] ${sel ? 'border-[var(--pdv-azul)] bg-[var(--pdv-azul)] text-white' : 'border-transparent bg-[var(--pdv-azul-suave)] text-[var(--pdv-azul)]'}`
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
 export function BlocoPagamento({ comandaId, subtotalCarrinho, versao, onMudar }: {
@@ -73,16 +85,19 @@ export function BlocoPagamento({ comandaId, subtotalCarrinho, versao, onMudar }:
   const formas = info.formas.length ? info.formas : (['dinheiro', 'pix', 'credito', 'debito'] as EscolhaPdv[])
 
   return (
-    <section className="rounded-menuzia border border-border bg-[#f9fafb] p-3" data-testid="pdv-pagamento" aria-label="Pagamento">
+    <section className="rounded-[8px] border border-border bg-white p-2.5" data-testid="pdv-pagamento" aria-label="Pagamento">
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Pagamento</span>
+        <span className="text-[12px] font-semibold uppercase tracking-wide text-[var(--pdv-azul)]">Pagamento</span>
         <span className="text-[12px] text-text-subtle">{cobrarAgora ? 'Pago no lançamento' : statusAReceber(info.entrega ? 'entrega' : 'retirada')}</span>
       </div>
       <div className="mb-2 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Quando cobrar">
         {([[true, 'Cobrar agora'], [false, info.entrega ? 'Receber na entrega' : 'Receber na retirada']] as const).map(([v, r]) => (
           <button key={r} type="button" role="radio" aria-checked={cobrarAgora === v} data-testid={v ? 'pdv-cobrar-agora' : 'pdv-cobrar-depois'}
             onClick={() => setCobrarAgora(v)}
-            className={`min-h-[44px] rounded-menuzia border px-3 text-[13px] font-semibold transition-colors ${cobrarAgora === v ? 'border-primary bg-primary text-white' : 'border-border bg-white text-text-main hover:border-primary'}`}>{r}</button>
+            className={`${bloco(cobrarAgora === v)} min-h-[48px] text-[14px]`}>
+            {v ? <Lightning weight="bold" className="h-6 w-6 flex-shrink-0" aria-hidden /> : info.entrega ? <Moped weight="bold" className="h-6 w-6 flex-shrink-0" aria-hidden /> : <Storefront weight="bold" className="h-6 w-6 flex-shrink-0" aria-hidden />}
+            <span className="leading-tight">{r}</span>{cobrarAgora === v && MARCA}
+          </button>
         ))}
       </div>
       <div className="grid grid-cols-2 gap-2">
@@ -92,9 +107,9 @@ export function BlocoPagamento({ comandaId, subtotalCarrinho, versao, onMudar }:
           return (
             <button key={f} type="button" data-testid={`pdv-pag-${f}`} aria-pressed={sel}
               onClick={() => { setEscolha(f); if (f !== 'dinheiro') { setPrecisaTroco(null); setTrocoTxt('') } }}
-              className={`flex min-h-[52px] items-center gap-2 rounded-menuzia border px-3 text-left text-[14px] font-semibold transition-colors ${sel ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-white text-text-main hover:border-primary'}`}>
-              <Icone className="h-5 w-5 flex-shrink-0" aria-hidden />
-              <span className="leading-tight">{ROTULO_ESCOLHA[f]}</span>
+              className={`${bloco(sel)} min-h-[52px] text-[14px]`}>
+              <Icone className={`h-7 w-7 flex-shrink-0 ${sel && f === 'pix' ? 'rounded-[4px] bg-white p-[3px]' : ''}`} />
+              <span className="leading-tight">{ROTULO_ESCOLHA[f]}</span>{sel && MARCA}
             </button>
           )
         })}
@@ -107,7 +122,7 @@ export function BlocoPagamento({ comandaId, subtotalCarrinho, versao, onMudar }:
             {([['Não', false], ['Sim', true]] as const).map(([r, v]) => (
               <button key={r} type="button" data-testid={`pdv-troco-${v ? 'sim' : 'nao'}`} aria-pressed={precisaTroco === v}
                 onClick={() => { setPrecisaTroco(v); if (!v) setTrocoTxt('') }}
-                className={`h-[40px] min-w-[64px] rounded-menuzia border px-3 text-[14px] font-semibold ${precisaTroco === v ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-white text-text-main'}`}>{r}</button>
+                className={PILULA(precisaTroco === v)}>{r}</button>
             ))}
           </div>
           {precisaTroco && (
@@ -116,9 +131,9 @@ export function BlocoPagamento({ comandaId, subtotalCarrinho, versao, onMudar }:
               <div className="flex flex-wrap gap-2">
                 {atalhos.map((v) => (
                   <button key={v} type="button" data-testid={`pdv-troco-atalho-${v}`} onClick={() => setTrocoTxt(String(v))}
-                    className={`h-[40px] min-w-[64px] rounded-menuzia border px-3 text-[14px] font-semibold ${trocoTxt === String(v) ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-white text-text-main'}`}>R$ {v}</button>
+                    className={PILULA(trocoTxt === String(v))}>R$ {v}</button>
                 ))}
-                <label className="flex h-[40px] min-w-[120px] flex-1 items-center rounded-menuzia border border-border bg-white px-2 focus-within:border-primary">
+                <label className="flex h-[48px] min-w-[120px] flex-1 items-center rounded-[8px] border-2 border-border bg-white px-2 focus-within:border-[var(--pdv-azul)]">
                   <span className="mr-1 text-[13px] text-text-subtle">R$</span>
                   <input inputMode="decimal" className="h-full w-full bg-transparent text-[15px] font-semibold outline-none" placeholder="outro valor"
                     value={trocoTxt} onChange={(e) => setTrocoTxt(e.target.value.replace(/[^\d.,]/g, '').slice(0, 9))} data-testid="pdv-troco-valor" />
@@ -129,9 +144,9 @@ export function BlocoPagamento({ comandaId, subtotalCarrinho, versao, onMudar }:
         </div>
       )}
 
-      <div className="mt-3 flex items-baseline justify-between text-[13px]">
-        <span className="text-text-subtle">Total da conta</span>
-        <span className="font-semibold text-text-main" data-testid="pdv-pag-total">{brl(total)}</span>
+      <div className="mt-2 flex items-baseline justify-between rounded-[6px] bg-[var(--pdv-azul-suave)] px-3 py-1.5 text-[14px]">
+        <span className="font-semibold text-[var(--pdv-azul)]">Total da conta</span>
+        <span className="text-[18px] font-semibold text-[var(--pdv-azul)]" data-testid="pdv-pag-total">{brl(total)}</span>
       </div>
       {levar > 0 && !erro && (
         <p className="mt-2 rounded-menuzia bg-[#FEF3C7] px-3 py-2 text-[15px] font-semibold text-[#92400E]" data-testid="pdv-levar-troco">
