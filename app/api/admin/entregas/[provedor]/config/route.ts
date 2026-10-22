@@ -85,7 +85,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ prov
   }
   try {
     const cfg = await salvarConfig(ctx.admin, ctx.sessao.restauranteId, patch, ctx.provedor)
-    await registrarAuditoria(ctx.admin, { restauranteId: ctx.sessao.restauranteId, usuarioId: ctx.sessao.userId, usuarioNome: ctx.sessao.nome, acao: `entregas.${ctx.provedor}_config`, entidade: 'entregas', entidadeId: ctx.provedor, dados: { ativo: cfg.ativo, credenciais: !!patch.chaves } })
+    await registrarAuditoria(ctx.admin, { restauranteId: ctx.sessao.restauranteId, usuarioId: ctx.sessao.userId, usuarioNome: ctx.sessao.nome, acao: `entregas.${ctx.provedor}_config`, entidade: 'entregas', entidadeId: ctx.sessao.restauranteId, dados: { provedor: ctx.provedor, ativo: cfg.ativo, credenciais: !!patch.chaves } })
     return NextResponse.json({ ok: true, config: paraPublica(cfg) })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message?.slice(0, 200) || 'Não foi possível salvar.' }, { status: 500 })

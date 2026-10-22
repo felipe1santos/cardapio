@@ -6,6 +6,8 @@ import { acknowledgmentOd, detalheDoPedidoOd, enviarStatusOd, pollingOd, type Ev
 import { mapearPedidoOpenDelivery } from './opendelivery/mapear'
 import { acknowledgmentIfood, detalheDoPedidoIfood, enviarStatusIfood, EVENTO_IFOOD, pollingIfood, type EventoIfood } from './ifood/cliente'
 import { mapearPedidoIfood } from './ifood/mapear'
+import { app99, detalheDoPedido99, enviarStatus99 } from './noventaenove/cliente'
+import { mapearPedido99 } from './noventaenove/mapear'
 import { buscarCorridaPorExterno } from '@/lib/entregas/queries'
 import { aplicarEventoCorrida, statusDeEventoIfood } from '@/lib/entregas/provedores'
 
@@ -45,6 +47,30 @@ export async function tratarEventoOd(admin: SupabaseClient, c: ConfigCanal, e: E
     await admin.from('pedidos_externos').update({ status_externo: e.eventType, atualizado_em: new Date().toISOString() }).eq('canal', c.canal).eq('externo_id', e.orderId)
   }
   await lembrarEvento(admin, c, e.eventId, e.eventType, e.orderId)
+  return resultado
+}
+
+/** Um aviso da 99Food (protocolo próprio, só webhook — 22/10). `orderNew` traz o pedido completo em order_info. */
+export async function tratarEvento99(admin: SupabaseClient, c: ConfigCanal, tipo: string, orderId: string, dados: Record<string, unknown>): Promise<'pedido_novo' | 'cancelado' | 'ignorado' | 'repetido'> {
+  // orderCancelApply/orderRefundApply repetem o mesmo aviso (lembrete): uma vez por tipo+pedido basta.
+  const eventoId = `${tipo}:${orderId}`
+  if (await eventoJaTratado(admin, c.canal, eventoId)) return 'repetido'
+  let resultado: 'pedido_novo' | 'cancelado' | 'ignorado' = 'ignorado'
+  if (tipo === 'orderNew') {
+    const info = (dados.order_info && typeof dados.order_info === 'object' ? dados.order_info : null) ?? await detalheDoPedido99(admin, c, orderId)
+    const r = await importarPedidoExterno(admin, c.restauranteId, mapearPedido99(info))
+    resultado = r.novo ? 'pedido_novo' : 'ignorado'
+    // Id do estabelecimento na 99Food (para suporte/monitoramento), na 1ª vez.
+    const shopId = String(((info as Record<string, unknown>).shop as Record<string, unknown> | undefined)?.shop_id ?? '')
+    if (shopId && !c.merchantIdExterno) await admin.from('canais_config').update({ merchant_id_externo: shopId.slice(0, 120) }).eq('restaurante_id', c.restauranteId).eq('canal', c.canal)
+    if (r.novo) await registrarPolling(admin, c, null, true)
+  } else if (tipo === 'orderCancel') {
+    resultado = (await cancelarPeloApp(admin, c.restauranteId, c.canal, orderId, 'orderCancel')) ? 'cancelado' : 'ignorado'
+  } else {
+    // orderConfirm/orderReady/orderFinish/deliveryStatus/orderCancelApply/orderRefundApply/orderPartialCancel: registro.
+    await admin.from('pedidos_externos').update({ status_externo: tipo, atualizado_em: new Date().toISOString() }).eq('canal', c.canal).eq('externo_id', orderId)
+  }
+  await lembrarEvento(admin, c, eventoId, tipo, orderId)
   return resultado
 }
 
@@ -109,10 +135,10 @@ export async function pollingDaLoja(admin: SupabaseClient, c: ConfigCanal, resum
 /** Status do Kanban → app, para os pedidos externos ainda abertos desta loja/canal. */
 export async function sincronizarStatusDaLoja(admin: SupabaseClient, c: ConfigCanal, resumo: ResumoSincronizacao): Promise<void> {
   const desde = new Date(Date.now() - 12 * 3600_000).toISOString()
-  const { data: exts } = await admin.from('pedidos_externos').select('id, externo_id, status_enviado, pedidos!inner ( id, status, tipo, cancelado_observacao )')
+  const { data: exts } = await admin.from('pedidos_externos').select('id, externo_id, status_enviado, pedidos!inner ( id, status, tipo, cancelado_observacao, cancelado_motivo, origem_detalhe )')
     .eq('restaurante_id', c.restauranteId).eq('canal', c.canal).gte('criado_em', desde).not('pedido_id', 'is', null).limit(200)
   for (const ext of exts ?? []) {
-    const ped = (Array.isArray(ext.pedidos) ? ext.pedidos[0] : ext.pedidos) as { id: string; status: string; tipo: 'entrega' | 'retirada'; cancelado_observacao: string | null } | null
+    const ped = (Array.isArray(ext.pedidos) ? ext.pedidos[0] : ext.pedidos) as { id: string; status: string; tipo: 'entrega' | 'retirada'; cancelado_observacao: string | null; cancelado_motivo: string | null; origem_detalhe: { entregaPor?: string } | null } | null
     if (!ped) continue
     const alvo = statusParaApp(ped.status, ped.tipo)
     if (!alvo) continue
@@ -123,7 +149,9 @@ export async function sincronizarStatusDaLoja(admin: SupabaseClient, c: ConfigCa
       try {
         const r = c.canal === 'ifood'
           ? await enviarStatusIfood(admin, c, ext.externo_id as string, etapa, { motivoCancelamento: ped.cancelado_observacao ?? undefined })
-          : await enviarStatusOd(admin, c, ext.externo_id as string, etapa, { motivoCancelamento: ped.cancelado_observacao ?? undefined })
+          : c.canal === '99food'
+            ? await enviarStatus99(admin, c, ext.externo_id as string, etapa, { entregaPelaLoja: ped.origem_detalhe?.entregaPor === 'loja', motivo: ped.cancelado_motivo, texto: ped.cancelado_observacao })
+            : await enviarStatusOd(admin, c, ext.externo_id as string, etapa, { motivoCancelamento: ped.cancelado_observacao ?? undefined })
         await admin.from('pedidos_externos').update({ status_enviado: etapa, status_enviado_em: new Date().toISOString(), erro_envio: null, atualizado_em: new Date().toISOString() }).eq('id', ext.id)
         if (r === 'ok') resumo.statusEnviados++
       } catch (err) {
@@ -141,8 +169,15 @@ export async function sincronizarCanais(admin: SupabaseClient): Promise<ResumoSi
   const resumo: ResumoSincronizacao = { lojas: 0, eventos: 0, pedidosNovos: 0, cancelados: 0, statusEnviados: 0, erros: [] }
   const configs = await listarCanaisAtivos(admin)
   for (const c of configs) {
-    if (!c.credenciais) continue
     if (!canalPodeRodar(c.canal)) continue
+    // 99Food (22/10): app ÚNICO da Menuzia no servidor (sem credencial por loja) e pedido só por webhook (sem polling).
+    if (c.canal === '99food') {
+      if (!app99()) continue
+      resumo.lojas++
+      await sincronizarStatusDaLoja(admin, c, resumo)
+      continue
+    }
+    if (!c.credenciais) continue
     resumo.lojas++
     await pollingDaLoja(admin, c, resumo)
     await sincronizarStatusDaLoja(admin, c, resumo)

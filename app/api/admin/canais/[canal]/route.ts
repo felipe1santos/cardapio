@@ -7,6 +7,7 @@ import { buscarConfigCanal, canalValido, paraPublica, salvarConfigCanal } from '
 import { tokenOd } from '@/lib/canais/opendelivery/cliente'
 import { autorizarIfood, lojasIfood, pedirUserCodeIfood, tokenIfood } from '@/lib/canais/ifood/cliente'
 import { CANAL_DISPONIVEL, NOME_CANAL } from '@/lib/canais/tipos'
+import { app99, buscarToken99, urlDeVinculo99 } from '@/lib/canais/noventaenove/cliente'
 
 export const dynamic = 'force-dynamic'
 
@@ -77,7 +78,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ cana
   }
   try {
     const cfg = await salvarConfigCanal(ctx.admin, ctx.sessao.restauranteId, ctx.canal, patch)
-    await registrarAuditoria(ctx.admin, { restauranteId: ctx.sessao.restauranteId, usuarioId: ctx.sessao.userId, usuarioNome: ctx.sessao.nome, acao: 'canal.config', entidade: 'canal', entidadeId: ctx.canal, dados: { ativo: cfg.ativo, ambiente: cfg.ambiente, credenciais: !!patch.credenciais, limpou: patch.credenciais === null } })
+    await registrarAuditoria(ctx.admin, { restauranteId: ctx.sessao.restauranteId, usuarioId: ctx.sessao.userId, usuarioNome: ctx.sessao.nome, acao: 'canal.config', entidade: 'canal', entidadeId: ctx.sessao.restauranteId, dados: { canal: ctx.canal, ativo: cfg.ativo, ambiente: cfg.ambiente, credenciais: !!patch.credenciais, limpou: patch.credenciais === null } })
     return NextResponse.json({ ok: true, config: paraPublica(cfg) })
   } catch (e) {
     if ((e as Error).message === 'cofre_indisponivel') return NextResponse.json({ error: 'O cofre de segredos não está configurado no servidor (PAGAMENTOS_CHAVE).' }, { status: 503 })
@@ -101,6 +102,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ can
       await ctx.admin.from('canal_itens_vinculo').upsert({ restaurante_id: ctx.sessao.restauranteId, canal: ctx.canal, codigo_externo: corpo.codigoExterno.slice(0, 120), item_id: itemId }, { onConflict: 'restaurante_id,canal,codigo_externo' })
       return NextResponse.json({ ok: true })
     }
+    // 99Food (22/10): app ÚNICO da Menuzia; a loja só vincula o estabelecimento e confirma. Nada de credencial na loja.
+    if (ctx.canal === '99food' && (acao === 'vincular99' || acao === 'verificar99')) {
+      if (!app99()) return NextResponse.json({ error: 'A Menuzia ainda está configurando a 99Food. Tente mais tarde.', codigo: 'app_99_pendente' }, { status: 409 })
+      const atual = cfg ?? await salvarConfigCanal(ctx.admin, ctx.sessao.restauranteId, '99food', { ativo: false, porNome: ctx.sessao.nome ?? '' })
+      if (acao === 'vincular99') return NextResponse.json({ ok: true, url: await urlDeVinculo99(ctx.sessao.restauranteId) })
+      await buscarToken99(ctx.admin, atual)
+      await salvarConfigCanal(ctx.admin, ctx.sessao.restauranteId, '99food', { ativo: true, porNome: ctx.sessao.nome ?? '' })
+      await registrarAuditoria(ctx.admin, { restauranteId: ctx.sessao.restauranteId, usuarioId: ctx.sessao.userId, usuarioNome: ctx.sessao.nome, acao: 'canal.autorizado', entidade: 'canal', entidadeId: ctx.sessao.restauranteId, dados: { canal: '99food' } })
+      return NextResponse.json({ ok: true, mensagem: 'Loja conectada à 99Food: os pedidos de lá entram no Painel de Pedidos.' })
+    }
     if (!cfg?.credenciais) return NextResponse.json({ error: 'Salve as credenciais primeiro.' }, { status: 409 })
     if (acao === 'testar') {
       if (ctx.canal === 'ifood') await tokenIfood(ctx.admin, cfg)
@@ -112,7 +123,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ can
     if (acao === 'autorizar' && ctx.canal === 'ifood') {
       if (!corpo?.authorizationCode || !corpo?.authorizationCodeVerifier) return NextResponse.json({ error: 'Cole o código de autorização.' }, { status: 400 })
       await autorizarIfood(ctx.admin, cfg, corpo.authorizationCode.trim(), corpo.authorizationCodeVerifier.trim())
-      await registrarAuditoria(ctx.admin, { restauranteId: ctx.sessao.restauranteId, usuarioId: ctx.sessao.userId, usuarioNome: ctx.sessao.nome, acao: 'canal.autorizado', entidade: 'canal', entidadeId: 'ifood' })
+      await registrarAuditoria(ctx.admin, { restauranteId: ctx.sessao.restauranteId, usuarioId: ctx.sessao.userId, usuarioNome: ctx.sessao.nome, acao: 'canal.autorizado', entidade: 'canal', entidadeId: ctx.sessao.restauranteId, dados: { canal: 'ifood' } })
       return NextResponse.json({ ok: true, mensagem: 'iFood autorizado para esta loja.' })
     }
     return NextResponse.json({ error: 'Ação inválida.' }, { status: 400 })

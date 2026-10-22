@@ -16,6 +16,7 @@ import { SUPORTE_MENUZIA } from '@/lib/suporte'
 import { BotaoAjudaIntegracao } from '@/components/admin/integracoes/ajuda-integracao'
 import { LalamoveCard } from '@/components/admin/lalamove-card'
 import { CanalCard } from '@/components/admin/integracoes/canal-card'
+import { CanalCard99 } from '@/components/admin/integracoes/canal-card-99'
 import { EntregadorCard } from '@/components/admin/integracoes/entregador-card'
 
 /**
@@ -394,7 +395,8 @@ export default function IntegracoesPage() {
           <p className="mb-3 rounded-[3px] border border-[#FED7AA] bg-[#FFF7ED] px-3 py-2 text-[12.5px] text-[#9A3412]" data-testid="integracao-em-breve-teste">Em breve para as lojas. Você vê a configuração porque está na loja de teste (Menuzia) ou é Super Admin.</p>
         )}
         {!emBreveFechada && def?.id === 'lalamove' && <LalamoveCard avisar={avisarERecarregar} />}
-        {!emBreveFechada && (def?.id === 'keeta' || def?.id === '99food' || def?.id === 'ifood') && <CanalCard canal={def.id} avisar={avisarERecarregar} />}
+        {!emBreveFechada && (def?.id === 'keeta' || def?.id === 'ifood') && <CanalCard canal={def.id} avisar={avisarERecarregar} />}
+        {!emBreveFechada && def?.id === '99food' && <CanalCard99 avisar={avisarERecarregar} />}
         {!emBreveFechada && def?.id === 'entregas-ifood' && <EntregadorCard provedor="ifood" avisar={avisarERecarregar} />}
         {!emBreveFechada && def?.id === 'foody' && <EntregadorCard provedor="foody" avisar={avisarERecarregar} />}
         {!emBreveFechada && def?.id === 'machine' && <EntregadorCard provedor="machine" avisar={avisarERecarregar} />}
