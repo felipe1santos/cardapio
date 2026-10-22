@@ -19,6 +19,10 @@ import {
 import { formatarReal } from '@/lib/moeda'
 import { NovoMotoboy } from '@/components/pedidos/novo-motoboy'
 import { useCoordenadasPedidos } from '@/lib/mapa/cliente'
+import { ChamarLalamove, CorridaLalamoveNoCard, ParceiroPixNoCard, type ProvedorNoCard } from '@/components/pedidos/lalamove-no-card'
+import { precisaPixAntes } from '@/lib/entregas/parceiro-pix'
+import { pedidoDeApp } from '@/lib/pedido-editavel'
+import { CORRIDA_ATIVA, ENTREGA_PROVEDOR_SELECT, mapEntregaProvedor, type EntregaProvedorLinha } from '@/lib/entregas/lalamove-status'
 
 // Milhar com ponto ("R$ 4.088,00"): função única do painel, ver lib/moeda.ts.
 const brl = formatarReal
@@ -157,6 +161,15 @@ function RotaPanelBase({ supabase, restauranteId, apiKey, onClose }: RotaPanelPr
   }, [supabase, restauranteId])
 
   const [novoMotoboy, setNovoMotoboy] = useState(false)
+  // Parceiros de entrega (Uber Direct etc., 22/10): o mesmo botão e a mesma corrida do card do Kanban, por pedido.
+  const [parceiros, setParceiros] = useState<ProvedorNoCard[]>([])
+  const [pixOnlineLoja, setPixOnlineLoja] = useState(false)
+  const [corridas, setCorridas] = useState<Record<string, EntregaProvedorLinha>>({})
+  useEffect(() => {
+    let vivo = true
+    fetch('/api/admin/entregas/ativos', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((j) => { if (vivo) { setParceiros(Array.isArray(j?.ativos) ? j.ativos : []); setPixOnlineLoja(j?.pixOnline === true) } }).catch(() => {})
+    return () => { vivo = false }
+  }, [])
   const refetch = useCallback(async () => {
     try {
       let rotas: Pedido[]
@@ -169,6 +182,9 @@ function RotaPanelBase({ supabase, restauranteId, apiKey, onClose }: RotaPanelPr
         ])
       }
       const prontos = rotas.filter((o) => o.status === 'pronto' && !o.entregadorId)
+      // Corridas de parceiro em andamento (falha aqui não derruba o despacho).
+      const { data: cs } = await supabase!.from('entregas_provedor').select(ENTREGA_PROVEDOR_SELECT).eq('restaurante_id', restauranteId!).in('status', [...CORRIDA_ATIVA]).limit(100)
+      setCorridas(Object.fromEntries(((cs ?? []) as Record<string, unknown>[]).map(mapEntregaProvedor).map((c) => [c.pedidoId, c])))
       setTodos(rotas)
       setPedidos(prontos)
       setDrivers(entregadores)
@@ -197,6 +213,7 @@ function RotaPanelBase({ supabase, restauranteId, apiKey, onClose }: RotaPanelPr
         .channel(`rota-panel-${restauranteId}`)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos', filter: `restaurante_id=eq.${restauranteId}` }, () => refetch())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'entregadores', filter: `restaurante_id=eq.${restauranteId}` }, () => refetch())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'entregas_provedor', filter: `restaurante_id=eq.${restauranteId}` }, () => refetch())
         .subscribe()
       return () => {
         supabase.removeChannel(channel)
@@ -487,6 +504,8 @@ function RotaPanelBase({ supabase, restauranteId, apiKey, onClose }: RotaPanelPr
               {listaEsquerda.map((p) => {
                 const ativo = marcados.has(p.id)
                 const idx = ordenados.findIndex((o) => o.id === p.id)
+                const corrida = corridas[p.id] ?? null
+                const chamaveis = parceiros.filter((prov) => !precisaPixAntes(prov, p) || (pixOnlineLoja && !pedidoDeApp(p.origemCanal)))
                 return (
                   <div
                     key={p.id}
@@ -494,7 +513,7 @@ function RotaPanelBase({ supabase, restauranteId, apiKey, onClose }: RotaPanelPr
                     onDragStart={() => onDragStart(idx)}
                     onDragOver={(e) => onDragOver(e, idx)}
                     onDragEnd={onDragEnd}
-                    onClick={() => toggleMarcado(p.id)}
+                    onClick={() => { if (!corrida) toggleMarcado(p.id) }}
                     className={[
                       'select-none overflow-hidden rounded-menuzia border-l-4 shadow-md transition-all',
                       'cursor-pointer',
@@ -521,6 +540,13 @@ function RotaPanelBase({ supabase, restauranteId, apiKey, onClose }: RotaPanelPr
                         {p.formaPagamento === 'dinheiro' && p.trocoPara !== null && <Badge tone="paused">Troco {brl(p.trocoPara)}</Badge>}
                         <span className="ml-auto text-[13px] font-extrabold text-green-700">{brl(p.total)}</span>
                       </div>
+                      {(corrida || p.parceiroPix || chamaveis.length > 0) && (
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5" onClick={(e) => e.stopPropagation()} data-testid="despacho-parceiros">
+                          {corrida ? <CorridaLalamoveNoCard corrida={corrida} onMudou={() => { void refetch() }} onErro={setError} />
+                            : p.parceiroPix ? <ParceiroPixNoCard pedidoId={p.id} pp={p.parceiroPix} onErro={setError} />
+                            : chamaveis.map((prov) => <ChamarLalamove key={prov} provedor={prov} pedido={p} onChamada={(c) => setCorridas((m) => ({ ...m, [c.pedidoId]: c }))} onErro={setError} className="!h-[26px] !min-h-0 !rounded-[2px] !py-0 !text-[11.5px] !normal-case !tracking-normal" />)}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )
