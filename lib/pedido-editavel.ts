@@ -28,6 +28,8 @@ export const TEXTO_NAO_EDITAVEL: Record<MotivoNaoEditavel, string> = {
 }
 
 const ORIGENS_EXTERNAS: readonly string[] = ['ifood', '99food', 'rappi', 'keeta', 'aiqfome']
+/** Pedido que veio de um app (iFood, 99Food, Keeta…): edição e cobrança são do app, não da loja. */
+export const pedidoDeApp = (origemCanal: string | null | undefined): boolean => !!origemCanal && ORIGENS_EXTERNAS.includes(origemCanal)
 
 /** Pode editar itens/endereço/pagamento? `corridaAtiva` = há corrida da Lalamove chamada para o pedido. */
 export function pedidoEditavel(p: PedidoParaEditar, corridaAtiva = false): Editavel {

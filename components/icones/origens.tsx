@@ -115,11 +115,12 @@ const COR_SELO: Record<string, string> = {
  * Logo de um app integrado (Bloco E, 19/10): a imagem oficial de public/origens quando existe (iFood); sem arquivo,
  * selo com o nome na cor da marca. `altura` em px (o card usa 24, o painel 20, o selo pequeno 18).
  */
-export function LogoApp({ canal, altura = 24, testid }: { canal: string; altura?: number; testid?: string }) {
+export function LogoApp({ canal, altura = 24, testid, quadrado = false }: { canal: string; altura?: number; testid?: string; quadrado?: boolean }) {
   const app = APPS_INTEGRADOS[canal]
   if (!app) return null
+  const src = (quadrado && app.icone) || app.logo
   // eslint-disable-next-line @next/next/no-img-element
-  if (app.logo) return <img src={app.logo} alt={app.nome} title={`Pedido do ${app.nome}`} style={{ height: altura }} className="inline-block w-auto flex-shrink-0 select-none" draggable={false} data-testid={testid} data-app={canal} />
+  if (src) return <img src={src} alt={app.nome} title={`Pedido do ${app.nome}`} style={{ height: altura }} className="inline-block w-auto flex-shrink-0 select-none" draggable={false} data-testid={testid} data-app={canal} />
   return <span title={`Pedido do ${app.nome}`} style={{ height: altura, backgroundColor: app.cor, fontSize: Math.round(altura * 0.5) }} className="inline-flex flex-shrink-0 items-center rounded-[2px] px-1.5 font-semibold leading-none text-white" data-testid={testid} data-app={canal}>{app.nome}</span>
 }
 
@@ -127,7 +128,7 @@ export function LogoApp({ canal, altura = 24, testid }: { canal: string; altura?
 const LOGO_SELO: Record<string, string> = { instagram: '/origens/instagram.svg', facebook: '/origens/facebook.svg', google_busca: '/origens/google.svg', google_anuncio: '/origens/google-ads.svg', meta: '/origens/meta.svg' }
 export function SeloOrigem({ canal }: { canal: string }) {
   // App integrado (19/10): o logo (pequeno) no lugar do quadradinho.
-  if (canal in APPS_INTEGRADOS) return <span className="inline-flex h-[18px] flex-shrink-0 items-center" data-selo-origem={canal}><LogoApp canal={canal} altura={18} /></span>
+  if (canal in APPS_INTEGRADOS) return <span className="inline-flex h-[18px] flex-shrink-0 items-center" data-selo-origem={canal}><LogoApp canal={canal} altura={18} quadrado /></span>
   // PDV/Balcão = caixa registradora; Salão = talheres (antes caíam no globo).
   if (canal === 'pdv') return <span className="inline-flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center text-[#1D4ED8]" data-selo-origem={canal}><IcoCaixa className="h-[18px] w-[18px]" /></span>
   if (canal === 'mesa') return <span className="inline-flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center text-[#7E22CE]" data-selo-origem={canal}><IcoMesa className="h-[18px] w-[18px]" /></span>

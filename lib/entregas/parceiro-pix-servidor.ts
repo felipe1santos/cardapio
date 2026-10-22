@@ -7,6 +7,7 @@ import { cancelarCobrancaPendente, criarCobrancaParceiro } from '@/lib/pagamento
 import { chamarLalamove, cotarPedido, EntregaError } from './lalamove-servidor'
 import { chamarProvedor, cotarProvedor, NOME_PROVEDOR, type ProvedorNovo } from './provedores'
 import type { ProvedorEntrega } from './queries'
+import { pedidoDeApp } from '@/lib/pedido-editavel'
 import { lerParceiroPix, NAO_RECEBE_NA_ENTREGA, PIX_PARCEIRO_PRAZO_MIN, precoMudouDemais, textoPixParceiro, type ParceiroPix } from './parceiro-pix'
 
 /**
@@ -24,8 +25,10 @@ async function gravar(admin: SupabaseClient, pedidoId: string, pp: ParceiroPix |
 
 export async function iniciarPixParceiro(admin: SupabaseClient, restauranteId: string, provedor: string, pedidoId: string, preco: number, por: { id: string | null; nome: string }): Promise<void> {
   if (!NAO_RECEBE_NA_ENTREGA.has(provedor)) throw new EntregaError('Este parceiro recebe na entrega: chame direto.', 400)
-  const { data: ped } = await admin.from('pedidos').select('id, numero, status, pago, tipo, cliente_telefone, restaurante_id').eq('id', pedidoId).eq('restaurante_id', restauranteId).maybeSingle()
+  const { data: ped } = await admin.from('pedidos').select('id, numero, status, pago, tipo, cliente_telefone, restaurante_id, origem_canal').eq('id', pedidoId).eq('restaurante_id', restauranteId).maybeSingle()
   if (!ped) throw new EntregaError('Pedido não encontrado.', 404)
+  // Pedido de app (iFood, 99Food, Keeta…): o pagamento é do app; a loja não cobra Pix por fora (22/10).
+  if (pedidoDeApp(ped.origem_canal)) throw new EntregaError('Pedido de app com pagamento na entrega: entregue com motoboy próprio.', 409)
   if (ped.status !== 'pronto' || ped.tipo !== 'entrega') throw new EntregaError(`O pedido #${ped.numero} não está pronto para entrega.`, 409)
   if (ped.pago) throw new EntregaError('Este pedido já está pago: chame o entregador direto.', 409)
   let cob

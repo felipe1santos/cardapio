@@ -142,10 +142,12 @@ const ROTULOS_CANAL_CARD: Record<string, string> = {
  * (vitrine, WhatsApp, PDV) mantém o ícone pequeno. `logo` = arquivo em public/origens (sem arquivo oficial → selo
  * com o nome na cor da marca, até o dono mandar o SVG).
  */
-export const APPS_INTEGRADOS: Record<string, { nome: string; cor: string; logo: string | null }> = {
+// 22/10 (pedido do dono): 99Food e Keeta com o logo HORIZONTAL no card (recorte das imagens oficiais,
+// .medidas/logos-horizontais.mjs); `icone` = o quadrado, para o selo pequeno.
+export const APPS_INTEGRADOS: Record<string, { nome: string; cor: string; logo: string | null; icone?: string }> = {
   ifood: { nome: 'iFood', cor: '#EA1D2C', logo: '/origens/ifood.svg' },
-  keeta: { nome: 'Keeta', cor: '#1C1C1C', logo: '/origens/keeta.png' },
-  '99food': { nome: '99Food', cor: '#F7B500', logo: '/origens/99food.png' },
+  keeta: { nome: 'Keeta', cor: '#1C1C1C', logo: '/origens/keeta-horizontal.png', icone: '/origens/keeta.png' },
+  '99food': { nome: '99Food', cor: '#F7B500', logo: '/origens/99food-horizontal.png', icone: '/origens/99food.png' },
   aiqfome: { nome: 'aiqfome', cor: '#7B1FA2', logo: '/origens/aiqfome.svg' },
   // Anúncio Meta (pedido do dono, 19/10): mesmo padrão do iFood — logo grande à direita do título.
   meta: { nome: 'Anúncio Meta', cor: '#0064E0', logo: '/origens/meta.svg' },

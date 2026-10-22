@@ -39,6 +39,7 @@ import { notificarPedido } from '@/lib/notificar'
 import { Capacete } from '@/components/icones/capacete'
 import { ChamarLalamove, CorridaLalamoveNoCard, ParceiroPixNoCard } from '@/components/pedidos/lalamove-no-card'
 import { precisaPixAntes } from '@/lib/entregas/parceiro-pix'
+import { pedidoDeApp } from '@/lib/pedido-editavel'
 import { CORRIDA_ATIVA, ENTREGA_PROVEDOR_SELECT, mapEntregaProvedor, type EntregaProvedorLinha } from '@/lib/entregas/lalamove-status'
 import { CardPedido, CARD_BOTAO_PRINCIPAL, type AcoesCard } from '@/components/pedidos/card-pedido'
 import { classeBadge, classeBotao, DINHEIRO } from '@/components/ui/botoes'
@@ -1209,8 +1210,9 @@ export default function PedidosPage() {
                         <>
                           {order.parceiroPix ? null : (
                             <>
-                              {entregadoresAtivos.filter((prov) => pixOnlineLoja || !precisaPixAntes(prov, order)).map((prov) => <ChamarLalamove key={prov} provedor={prov} pedido={order} onChamada={aoChamarLalamove} onErro={setError} className="!h-[26px] !min-h-0 !rounded-[2px] !py-0 !text-[11.5px] !normal-case !tracking-normal" />)}
-                              {!pixOnlineLoja && entregadoresAtivos.some((prov) => precisaPixAntes(prov, order)) && <span className="text-[11px] text-text-subtle" data-testid="parceiro-pix-dica">Conecte o Pix online para usar parceiros em pedidos em dinheiro</span>}
+                              {/* Pedido de app a receber (22/10): a cobrança é do app — nada de Pix da loja; parceiro que não recebe some. */}
+                              {entregadoresAtivos.filter((prov) => !precisaPixAntes(prov, order) || (pixOnlineLoja && !pedidoDeApp(order.origemCanal))).map((prov) => <ChamarLalamove key={prov} provedor={prov} pedido={order} onChamada={aoChamarLalamove} onErro={setError} className="!h-[26px] !min-h-0 !rounded-[2px] !py-0 !text-[11.5px] !normal-case !tracking-normal" />)}
+                              {entregadoresAtivos.some((prov) => precisaPixAntes(prov, order)) && (pedidoDeApp(order.origemCanal) || !pixOnlineLoja) && <span className="text-[11px] text-text-subtle" data-testid="parceiro-pix-dica">{pedidoDeApp(order.origemCanal) ? 'Pagamento na entrega pelo app: entregue com motoboy próprio' : 'Conecte o Pix online para usar parceiros em pedidos em dinheiro'}</span>}
                             </>
                           )}
                           {usaDespachoDeRotas(fluxo) && restauranteId && (
@@ -1234,7 +1236,7 @@ export default function PedidosPage() {
                           avancar: avancarCard,
                           principal,
                           onImprimir: () => void reimprimir(order),
-                          onEditar: order.canal !== 'mesa' && order.status !== 'cancelado' ? () => setEditando(order.id) : undefined,
+                          onEditar: order.canal !== 'mesa' && order.status !== 'cancelado' && !pedidoDeApp(order.origemCanal) ? () => setEditando(order.id) : undefined,
                           onMais: (ancora) => { maisInfoAncora.current = ancora; setMaisInfo((m) => (m?.pedidoId === order.id ? null : { pedidoId: order.id, ancora })) },
                           maisAberto: maisInfo?.pedidoId === order.id,
                         }}
@@ -1316,7 +1318,7 @@ export default function PedidosPage() {
           onCancelar={() => pedirCancelamento(detail)}
           corrida={corridas[detail.id] ?? null}
           lado={ladoPainel}
-          onEditar={detail.canal !== 'mesa' && detail.status !== 'cancelado' ? () => setEditando(detail.id) : undefined}
+          onEditar={detail.canal !== 'mesa' && detail.status !== 'cancelado' && !pedidoDeApp(detail.origemCanal) ? () => setEditando(detail.id) : undefined}
         />
       )}
       </div>
