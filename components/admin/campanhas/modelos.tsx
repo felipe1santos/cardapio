@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Bell, Copy, FileText, Pencil, Plus, Send, Trash2, X } from 'lucide-react'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { problemasDasVariaveis } from '@/lib/mensageria/campanhas'
-import { Confirmar, IlustracaoVazio, TextoComVariaveis } from './comum'
+import { Confirmar, TextoComVariaveis } from './comum'
 
 /** Modelos de mensagem (0129): textos prontos para começar uma campanha. RLS: dono/gerente da loja. */
 
@@ -65,7 +65,8 @@ export function Modelos({ api, onUsar, onUsarPush, onToast }: { api: ReturnType<
       {api.carregando ? <p className="text-[13px] text-[#5b6472]">Carregando…</p>
         : api.modelos.length === 0 ? (
           <div className="flex flex-col items-center rounded-[6px] border border-[#e5e7eb] bg-white px-6 py-12 text-center" data-testid="modelos-vazio">
-            <IlustracaoVazio />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/ilustracoes/campanhas-modelos-vazio.webp" alt="" width={200} height={190} className="h-auto w-[200px]" data-testid="modelos-vazio-ilustracao" />
             <p className="mt-3 text-[15px] font-semibold text-[#374151]">Nenhum modelo ainda</p>
             <p className="mt-1 text-[12.5px] text-[#5b6472]">Crie aqui, use “Salvar como modelo” ao montar uma campanha ou comece por um exemplo abaixo.</p>
           </div>
