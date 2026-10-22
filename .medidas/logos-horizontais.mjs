@@ -12,11 +12,13 @@ const cantos = (w, h, r) => Buffer.from(`<svg width="${w}" height="${h}"><rect w
   const nove = await sharp(f).extract({ left: 30, top: 56, width: 101, height: 66 }).resize({ height: H }).toBuffer()
   const food = await sharp(f).extract({ left: 28, top: 137, width: 200, height: 62 }).toBuffer()
   const wNove = (await sharp(nove).metadata()).width
-  const W = PAD + wNove + 12 + 200 + PAD, AL = H + 2 * PADV
+  void food
+  // 22/10 (dono): só o "99" no amarelo — fica melhor no card que "99 Food" por extenso.
+  const PH = 26, W = PH + wNove + PH, AL = H + 2 * PADV
   await sharp({ create: { width: W, height: AL, channels: 4, background: { ...fundo, alpha: 1 } } })
-    .composite([{ input: nove, left: PAD, top: PADV }, { input: food, left: PAD + wNove + 12, top: PADV }, { input: cantos(W, AL, 12), blend: 'dest-in' }])
-    .png().toFile('public/origens/99food-horizontal.png')
-  console.log('99food-horizontal.png', W, 'x', AL)
+    .composite([{ input: nove, left: PH, top: PADV }, { input: cantos(W, AL, 12), blend: 'dest-in' }])
+    .png().toFile('public/origens/99food-99.png')
+  console.log('99food-99.png', W, 'x', AL)
 }
 // Keeta: a faixa amarela com a palavra "keeta" (sem o verde de baixo), alargada no mesmo amarelo.
 {
