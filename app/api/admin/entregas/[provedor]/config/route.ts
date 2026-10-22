@@ -7,7 +7,8 @@ import { buscarConfig, paraPublica, PROVEDOR_DISPONIVEL, salvarConfig } from '@/
 import { buscarConfigCanal } from '@/lib/canais/config'
 import { configProvedorPronta, ehProvedorNovo, NOME_PROVEDOR } from '@/lib/entregas/provedores'
 import { criptografiaPronta } from '@/lib/pagamentos/cripto'
-import { tokenUber } from '@/lib/custo/uber-direct'
+import { tokenUber, verificarContaUber } from '@/lib/custo/uber-direct'
+import { podeUsarAmbienteTeste } from '@/lib/entregas/ambiente-teste'
 
 export const dynamic = 'force-dynamic'
 const URL_PUBLICA = () => (process.env.MENUZIA_URL_PUBLICA ?? process.env.APP_URL ?? 'https://app.menuzia.com.br').replace(/\/$/, '')
@@ -37,6 +38,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ provedor: 
     webhookUrl: ctx.provedor !== 'ifood' && cfg ? `${URL_PUBLICA()}/api/entregas/${ctx.provedor}/webhook/${cfg.webhookToken}` : null,
     canalIfoodPronto: ctx.provedor === 'ifood' ? !!(canalIfood?.credenciais && canalIfood.merchantIdExterno) : null,
     disponivel: PROVEDOR_DISPONIVEL[ctx.provedor],
+    podeTeste: await podeUsarAmbienteTeste(ctx.admin, ctx.sessao.restauranteId, ctx.sessao.email),
   }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
@@ -61,7 +63,10 @@ export async function PUT(request: Request, { params }: { params: Promise<{ prov
         patch.contaId = id
       }
       if (typeof c.webhookSecret === 'string' && c.webhookSecret.trim()) patch.webhookSegredo = c.webhookSecret.trim().slice(0, 300)
-      if (c.ambiente === 'sandbox' || c.ambiente === 'producao') patch.ambiente = c.ambiente
+      // 21/10: lojista sempre em produção; "Teste" só na Menuzia / Super Admin.
+      const podeTeste = await podeUsarAmbienteTeste(ctx.admin, ctx.sessao.restauranteId, ctx.sessao.email)
+      if (c.ambiente === 'sandbox' && podeTeste) patch.ambiente = 'sandbox'
+      else if (c.ambiente === 'producao' || !podeTeste) patch.ambiente = 'producao'
       if (c.limparCredenciais === true) patch.webhookSegredo = null
     }
     if (c.limparCredenciais === true) patch.chaves = null
@@ -96,6 +101,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
     const pronta = await configProvedorPronta(ctx.admin, ctx.sessao.restauranteId, ctx.provedor)
     if (ctx.provedor === 'uber' && pronta.contaUber) {
       await tokenUber(pronta.contaUber)
+      await verificarContaUber(ctx.admin, ctx.sessao.restauranteId, pronta.contaUber)
       return NextResponse.json({ ok: true, mensagem: `Conexão ok: a Uber aceitou as credenciais (${pronta.contaUber.teste ? 'conta de TESTE — corridas simuladas' : 'produção'}).` })
     }
     if (ctx.provedor !== 'ifood' && pronta.contaFoody) {

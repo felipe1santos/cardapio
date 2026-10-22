@@ -46,11 +46,12 @@ export async function tokenUber(conta: ContaUber): Promise<string> {
 }
 
 /** Código de erro da Uber → mensagem para o dono. Puro. */
-export function mensagemErroUber(status: number, codigo: string, mensagem: string): string {
+export function mensagemErroUber(status: number, codigo: string, mensagem: string, producao = false): string {
   const c = (codigo || '').toLowerCase()
   if (/undeliverable|out_of_range|unknown_location|outside|not_serviced|service_area/.test(c)) return 'A Uber Direct não atende sua cidade (ou este endereço) agora.'
   if (/couriers?_busy|limited_couriers/.test(c)) return 'Sem entregadores da Uber disponíveis agora. Tente de novo em alguns minutos.'
   if (/expired/.test(c)) return 'A cotação da Uber venceu. Cote de novo.'
+  if (/not_approved|billing|payment|unauthorized_customer|customer_suspended/.test(c) || (status === 403 && producao)) return 'A Uber ainda não liberou sua conta para produção — configure o pagamento em direct.uber.com (Gerenciamento › Pagamento).'
   if (status === 401 || status === 403) return 'A Uber não autorizou (confira Customer ID, Client ID e Client Secret).'
   if (status === 404) return 'A Uber não encontrou a conta ou a entrega (confira o Customer ID).'
   if (status === 400 || status === 422) return `A Uber recusou: ${mensagem || c || 'dados da entrega'}`
@@ -69,7 +70,7 @@ async function chamar(admin: SupabaseClient, loja: string, conta: ContaUber, met
     try { j = texto ? JSON.parse(texto) as Record<string, unknown> : {} } catch { j = {} }
     if (!res.ok) {
       console.error(`[uber] ${metodo} ${caminho.split('/').slice(0, 2).join('/')} → ${res.status} ${String(j.code ?? '')}`)
-      throw new UberError(mensagemErroUber(res.status, String(j.code ?? ''), String(j.message ?? '')), res.status, String(j.code ?? '') || null)
+      throw new UberError(mensagemErroUber(res.status, String(j.code ?? ''), String(j.message ?? ''), !conta.teste), res.status, String(j.code ?? '') || null)
     }
     return j
   })
@@ -145,6 +146,11 @@ export async function criarEntregaUber(admin: SupabaseClient, loja: string, cont
 
 export async function cancelarEntregaUber(admin: SupabaseClient, loja: string, conta: ContaUber, deliveryId: string): Promise<void> {
   await chamar(admin, loja, conta, 'POST', `/deliveries/${encodeURIComponent(deliveryId)}/cancel`, {}, `cancelar:${deliveryId}`)
+}
+
+/** "Conectar": confere que o Customer ID é desta conta e que ela pode usar a API (lista 1 entrega; não cria nada). */
+export async function verificarContaUber(admin: SupabaseClient, loja: string, conta: ContaUber): Promise<void> {
+  await chamar(admin, loja, conta, 'GET', '/deliveries?limit=1', undefined, `verificar:${loja}:${Math.floor(Date.now() / 20_000)}`)
 }
 
 /** Consulta a entrega na Uber (botão "Atualizar" e plano B quando o webhook não chega). */

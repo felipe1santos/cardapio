@@ -107,6 +107,14 @@ export async function cancelarEntregaFoody(admin: SupabaseClient, loja: string, 
   await chamar(admin, loja, conta, 'POST', `/v1/logistics/cancel/${encodeURIComponent(orderId)}`, { reason: motivo.slice(0, 200), cancellationCode: 'MERCHANT_CANCELLED' }, `cancelar:${orderId}`)
 }
 
+/** Consulta a entrega (21/10: plano B sem webhook). Open Delivery: GET /v1/logistics/delivery/{orderId}. */
+export async function buscarEntregaFoody(admin: SupabaseClient, loja: string, conta: ContaFoody, orderId: string): Promise<{ tipo: string; motorista: { id: string | null; nome: string; telefone: string | null } | null; trackingUrl: string | null }> {
+  const j = await chamar(admin, loja, conta, 'GET', `/v1/logistics/delivery/${encodeURIComponent(orderId)}`, undefined, `consulta:${orderId}:${Math.floor(Date.now() / 20_000)}`) as Record<string, unknown> | null
+  const ev = (j?.event as { type?: string } | undefined) ?? (j?.lastEvent as { type?: string } | undefined)
+  const dp = (j?.deliveryPerson as { id?: string; name?: string; phone?: string } | undefined)
+  return { tipo: String(ev?.type ?? j?.status ?? ''), motorista: dp?.name ? { id: dp.id ?? null, nome: dp.name, telefone: dp.phone ?? null } : null, trackingUrl: (j?.externalTrackingURL as string | undefined) ?? (j?.deliveryDetailsURL as string | undefined) ?? null }
+}
+
 export async function prontoParaColetaFoody(admin: SupabaseClient, loja: string, conta: ContaFoody, orderId: string): Promise<void> {
   await chamar(admin, loja, conta, 'POST', `/v1/logistics/readyForPickup/${encodeURIComponent(orderId)}`, {}, `pronto:${orderId}`)
 }

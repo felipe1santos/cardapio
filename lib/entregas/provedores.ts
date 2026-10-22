@@ -8,11 +8,11 @@ import { enviarWhatsapp, formatarTelefoneWhatsapp } from '@/lib/whatsapp'
 import { registrarAuditoria } from '@/lib/auditoria'
 import { buscarConfigCanal, type ConfigCanal } from '@/lib/canais/config'
 import { cancelarEntregaIfood, cotarIfoodEntrega, criarEntregaIfood } from '@/lib/custo/ifood-entrega'
-import { cancelarEntregaFoody, cotarFoody, criarEntregaFoody, type ContaFoody } from '@/lib/custo/foody-logistica'
+import { buscarEntregaFoody, cancelarEntregaFoody, cotarFoody, criarEntregaFoody, type ContaFoody } from '@/lib/custo/foody-logistica'
 import { buscarEntregaUber, cancelarEntregaUber, cotarUber, criarEntregaUber, statusDeUber, type ContaUber, type EnderecoUber } from '@/lib/custo/uber-direct'
 import { STATUS_FIM_SEM_ENTREGA, corridaAtiva, type RespostaCotacao } from './lalamove-regras'
 import { ENTREGA_PROVEDOR_SELECT, mapEntregaProvedor, type EntregaProvedorLinha } from './lalamove-status'
-import { EntregaError, pedidoDaLoja } from './lalamove-servidor'
+import { EntregaError, pedidoDaLoja, sincronizarCorrida } from './lalamove-servidor'
 import { apagarCorrida, atualizarCorrida, buscarConfig, corridaAtivaDoPedido, criarCorrida, marcosDaCorrida, PROVEDOR_DISPONIVEL, registrarEventoCorrida, type ConfigProvedor, type ProvedorEntrega } from './queries'
 
 /**
@@ -223,21 +223,34 @@ export async function atualizarCorridaUber(admin: SupabaseClient, restauranteId:
 }
 
 /**
- * Cron de 1 min (/api/cron/canais): corridas da Uber em andamento sem novidade há 50 s são consultadas na própria Uber.
- * Rede de segurança do webhook (signing key errada, Uber fora do ar…): o pedido anda do mesmo jeito.
+ * Cron de 1 min (/api/cron/canais), 21/10: corridas EM ANDAMENTO (Uber, Lalamove, Foody, Machine) sem novidade há 50 s
+ * são consultadas no próprio parceiro. Sem webhook configurado (ou com webhook falhando) o pedido anda do mesmo jeito;
+ * terminada/cancelada a corrida, ela sai da consulta. Webhook funcionando = corrida sempre "fresca" = não consulta.
  */
-export async function sincronizarCorridasUber(admin: SupabaseClient): Promise<{ consultadas: number; mudaram: number; erros: string[] }> {
+export async function sincronizarCorridasAtivas(admin: SupabaseClient): Promise<{ consultadas: number; mudaram: number; erros: string[] }> {
   const out = { consultadas: 0, mudaram: 0, erros: [] as string[] }
-  if (!PROVEDOR_DISPONIVEL.uber) return out
-  const { data, error } = await admin.from('entregas_provedor').select(ENTREGA_PROVEDOR_SELECT).eq('provedor', 'uber').in('status', ['ASSIGNING_DRIVER', 'ON_GOING', 'PICKED_UP']).lt('atualizado_em', new Date(Date.now() - 50_000).toISOString()).limit(40)
+  const { data, error } = await admin.from('entregas_provedor').select(ENTREGA_PROVEDOR_SELECT).in('provedor', ['uber', 'lalamove', 'foody', 'machine']).in('status', ['ASSIGNING_DRIVER', 'ON_GOING', 'PICKED_UP']).lt('atualizado_em', new Date(Date.now() - 50_000).toISOString()).limit(40)
   if (error) { out.erros.push(error.message); return out }
   for (const linha of data ?? []) {
     const corrida = mapEntregaProvedor(linha as Record<string, unknown>)
     try {
-      const r = await atualizarCorridaUber(admin, corrida.restauranteId, corrida)
+      let r: { status: string; mudou: boolean }
+      if (corrida.provedor === 'uber') r = await atualizarCorridaUber(admin, corrida.restauranteId, corrida)
+      else if (corrida.provedor === 'lalamove') {
+        const cfg = await buscarConfig(admin, corrida.restauranteId, 'lalamove')
+        if (!cfg) continue
+        r = await sincronizarCorrida(admin, cfg, corrida, 'painel')
+      } else {
+        const { contaFoody } = await configProvedorPronta(admin, corrida.restauranteId, corrida.provedor as ProvedorNovo)
+        if (!corrida.externoId || !contaFoody) continue
+        const e = await buscarEntregaFoody(admin, corrida.restauranteId, contaFoody, corrida.pedidoId)
+        const novo = statusDeEventoOd(e.tipo)
+        if (!novo) { await atualizarCorrida(admin, corrida.id, {}); continue }
+        r = await aplicarEventoCorrida(admin, corrida, novo, { motorista: e.motorista, shareLink: e.trackingUrl, evento: { tipo: 'consulta', status: e.tipo }, origem: 'consulta' })
+      }
       out.consultadas++
       if (r.mudou) out.mudaram++
-    } catch (e) { out.erros.push(`uber ${corrida.externoId?.slice(0, 12)}: ${(e as Error).message?.slice(0, 80)}`) }
+    } catch (e) { out.erros.push(`${corrida.provedor} ${corrida.externoId?.slice(0, 12)}: ${(e as Error).message?.slice(0, 80)}`) }
   }
   return out
 }

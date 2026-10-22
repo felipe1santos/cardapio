@@ -9,6 +9,7 @@ import { ambienteDaChave } from '@/lib/entregas/lalamove-regras'
 import { cidadeDaLoja, coberturaLalamove } from '@/lib/entregas/lalamove-cidades'
 import { buscarConfig, paraPublica, salvarConfig, type ConfigPatch } from '@/lib/entregas/queries'
 import { urlWebhook } from '@/lib/entregas/lalamove-servidor'
+import { podeUsarAmbienteTeste } from '@/lib/entregas/ambiente-teste'
 
 /**
  * Integrações › Lalamove (0199). Só o dono. As chaves ficam cifradas e NUNCA voltam: o GET diz só se existem e os 4
@@ -23,7 +24,7 @@ async function sessaoDono() {
   return { sessao, admin: getAdminSupabase() } as const
 }
 
-async function resposta(admin: ReturnType<typeof getAdminSupabase>, restauranteId: string) {
+async function resposta(admin: ReturnType<typeof getAdminSupabase>, restauranteId: string, podeTeste = false) {
   const [cfg, { data: loja }] = await Promise.all([
     buscarConfig(admin, restauranteId),
     admin.from('restaurantes').select('endereco, endereco_cidade').eq('id', restauranteId).maybeSingle(),
@@ -34,13 +35,14 @@ async function resposta(admin: ReturnType<typeof getAdminSupabase>, restauranteI
     cobertura: coberturaLalamove(cidade),
     webhookUrl: cfg ? urlWebhook(cfg.webhookToken) : null,
     cofrePronto: criptografiaPronta(),
+    podeTeste,
   }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
 export async function GET() {
   const c = await sessaoDono()
   if ('erro' in c) return c.erro
-  return resposta(c.admin, c.sessao.restauranteId)
+  return resposta(c.admin, c.sessao.restauranteId, await podeUsarAmbienteTeste(c.admin, c.sessao.restauranteId, c.sessao.email))
 }
 
 export async function PUT(request: Request) {
@@ -60,9 +62,13 @@ export async function PUT(request: Request) {
     patch.chaves = { apiKey, apiSecret }
     // O ambiente segue a chave colada (pk_test → Teste, pk_prod → Produção); a escolha manual só vale se a chave não disser.
     patch.ambiente = ambienteDaChave(apiKey) ?? (corpo.ambiente === 'producao' ? 'producao' : 'sandbox')
+    // 21/10: lojista sempre em produção; chave de teste (pk_test) só na loja Menuzia / Super Admin.
+    if (patch.ambiente === 'sandbox' && !(await podeUsarAmbienteTeste(c.admin, c.sessao.restauranteId, c.sessao.email))) {
+      return NextResponse.json({ error: 'Use as chaves de PRODUÇÃO da Lalamove (começam com pk_prod_ e sk_prod_). As de teste não fazem entregas de verdade.' }, { status: 400 })
+    }
     auditoria.chaves = 'definidas'; auditoria.ambiente = patch.ambiente
   }
-  if (corpo.ambiente === 'sandbox' || corpo.ambiente === 'producao') { patch.ambiente = patch.ambiente ?? corpo.ambiente; auditoria.ambiente = patch.ambiente }
+  if (corpo.ambiente === 'producao' || (corpo.ambiente === 'sandbox' && (await podeUsarAmbienteTeste(c.admin, c.sessao.restauranteId, c.sessao.email)))) { patch.ambiente = patch.ambiente ?? corpo.ambiente; auditoria.ambiente = patch.ambiente }
   if (typeof corpo.ativo === 'boolean') {
     if (corpo.ativo) {
       const atual = await buscarConfig(c.admin, c.sessao.restauranteId)
@@ -78,5 +84,5 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: 'Não foi possível salvar.' }, { status: 500 })
   }
   await registrarAuditoria(c.admin, { restauranteId: c.sessao.restauranteId, usuarioId: c.sessao.userId, usuarioNome: c.sessao.nome, acao: 'integracoes.lalamove', entidade: 'restaurante', entidadeId: c.sessao.restauranteId, dados: auditoria }).catch(() => {})
-  return resposta(c.admin, c.sessao.restauranteId)
+  return resposta(c.admin, c.sessao.restauranteId, await podeUsarAmbienteTeste(c.admin, c.sessao.restauranteId, c.sessao.email))
 }

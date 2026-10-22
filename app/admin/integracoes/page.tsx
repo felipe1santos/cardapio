@@ -66,6 +66,8 @@ interface Situacao {
   capi: boolean | null
   mp: { liberada: boolean; conectada: boolean } | null
   lalamove: boolean | null
+  /** Entregadores ligados (21/10): marca "Ativa" na lista. */
+  entregas?: string[]
 }
 
 const FONTE_MODELO = { fontFamily: 'var(--font-submenu), var(--font-painel), system-ui, sans-serif' }
@@ -222,16 +224,18 @@ export default function IntegracoesPage() {
   }, [mostrarToast])
 
   const lerOutras = useCallback(async () => {
-    const [capi, mp, lalamove] = await Promise.all([
+    const [capi, mp, lalamove, entregas] = await Promise.all([
       fetch('/api/admin/integracoes/meta-capi', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
       fetch('/api/admin/pix-online', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
       fetch('/api/admin/entregas/lalamove/config', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      fetch('/api/admin/entregas/ativos', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
     ])
     setSit((s) => ({
       ...s,
       capi: Boolean(capi?.configurado),
       mp: mp ? { liberada: Boolean(mp.lojaLiberada), conectada: Boolean(mp.conta?.conectada) } : { liberada: false, conectada: false },
       lalamove: Boolean(lalamove?.config?.ativo),
+      entregas: Array.isArray(entregas?.ativos) ? entregas.ativos : [],
     }))
   }, [])
 
@@ -271,10 +275,10 @@ export default function IntegracoesPage() {
     '99food': false,
     ifood: false,
     aiqfome: false,
-    'entregas-ifood': false,
-    foody: false,
-    machine: false,
-    uber: false,
+    'entregas-ifood': Boolean(sit.entregas?.includes('ifood')),
+    foody: Boolean(sit.entregas?.includes('foody')),
+    machine: Boolean(sit.entregas?.includes('machine')),
+    uber: Boolean(sit.entregas?.includes('uber')),
   }
   // 20/10: todas as integrações para todas as lojas. Mercado Pago continua só onde o Pix online foi liberado (regra própria).
   const existentes = INTEGRACOES.filter((i) => i.id !== 'mercadopago' || sit.mp?.liberada)

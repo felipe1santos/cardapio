@@ -27,6 +27,7 @@ describe('Uber Direct — regras puras', () => {
   it('fora da área vira "não atende"', () => {
     expect(mensagemErroUber(400, 'address_undeliverable', '')).toMatch(/não atende/)
     expect(mensagemErroUber(401, '', '')).toMatch(/Customer ID/)
+    expect(mensagemErroUber(403, 'forbidden', '', true)).toMatch(/ainda não liberou sua conta para produção/)
   })
 
   it('assinatura do webhook (hex do corpo bruto)', () => {
