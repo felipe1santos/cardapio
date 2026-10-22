@@ -49,7 +49,7 @@ const INTEGRACOES: Definicao[] = [
   // Machine/Gaudium (20/10): app dos motoboys do interior; logística Open Delivery como a Foody, credenciais pela central Machine → "Em breve".
   { id: 'machine', nome: 'Machine (motoboys da cidade)', grupo: 'Entregas', logo: '/origens/machine.png', resumo: 'Entregadores da central Machine da sua cidade pelo padrão Open Delivery, com cotação antes de confirmar.', emBreve: true },
   // Uber Direct (21/10): liberada para todas (ENTREGAS_UBER_LIBERADO=1 no Coolify); sem a variável o card mostra "Em breve".
-  { id: 'uber', nome: 'Uber Direct', grupo: 'Entregas', logo: '/origens/uber-direct.svg', resumo: 'Chame um entregador da Uber pelo Kanban, com o preço antes de confirmar (pedidos já pagos).' },
+  { id: 'uber', nome: 'Uber Direct', grupo: 'Entregas', logo: '/origens/uber-direct.svg', resumo: 'Chame um entregador da Uber pelo Kanban, com o preço antes de confirmar — pedido em dinheiro é cobrado por Pix antes.' },
   { id: 'entregas-ifood', nome: 'Entregador iFood (Sob Demanda)', grupo: 'Entregas', logo: '/origens/ifood.svg', resumo: 'Chame um entregador do iFood para pedidos de fora do iFood, com cotação antes de confirmar.', emBreve: true },
   { id: 'ifood', nome: 'iFood', grupo: 'Pedidos de apps', logo: '/origens/ifood.svg', resumo: 'Pedidos do iFood entram no Painel de Pedidos; aceite, pronto e despacho voltam ao iFood.', emBreve: true },
   { id: 'keeta', nome: 'Keeta', grupo: 'Pedidos de apps', logo: '/origens/keeta.png', resumo: 'Pedidos da Keeta pelo padrão Open Delivery (Abrasel).', emBreve: true },
