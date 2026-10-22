@@ -57,7 +57,7 @@ export function FormasPagamentoPerfil({ valor, onChange, mesa, onMesa, conectado
                 <tr key={o} data-testid={`forma-${o}`}>
                   <td className="py-2.5 pr-2">
                     <div className="font-medium text-text-main">{rotulo}</div>
-                    {dica && <div className={`text-[12px] ${semConta ? 'text-[#92400E]' : 'text-text-subtle'}`}>{dica}</div>}
+                    {dica && <div className={`text-[12px] ${semConta ? 'mt-1 inline-block rounded-[3px] bg-[#FFEDD5] px-2 py-[3px] font-medium text-[#9A3412]' : 'text-text-subtle'}`} data-testid={semConta ? `forma-${o}-aviso` : undefined}>{dica}</div>}
                   </td>
                   {(['entrega', 'retirada'] as const).map((canal) => (
                     <td key={canal} className="py-2.5 text-center">
@@ -101,7 +101,7 @@ export function FormasPagamentoPerfil({ valor, onChange, mesa, onMesa, conectado
           className="h-[32px] rounded-[3px] border border-border bg-white px-3 text-[11px] font-semibold uppercase tracking-wide text-text-main hover:border-primary hover:text-primary disabled:opacity-50">
           Somente pagamento online
         </button>
-        <span className="text-[12px] text-text-subtle">{temOnline ? 'Entrega e retirada só com Pix/cartão online. A mesa não muda.' : 'Conecte o Mercado Pago em Integrações para aceitar só online.'}</span>
+        <span className={`text-[12px] ${temOnline ? 'text-text-subtle' : 'rounded-[3px] bg-[#FFEDD5] px-2 py-[3px] font-medium text-[#9A3412]'}`}>{temOnline ? 'Entrega e retirada só com Pix/cartão online. A mesa não muda.' : 'Conecte o Mercado Pago em Integrações para aceitar só online.'}</span>
       </div>
     </div>
   )

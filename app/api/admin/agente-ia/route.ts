@@ -4,12 +4,11 @@ import { getAdminSupabase } from '@/lib/supabase/admin'
 import { getCurrentSession } from '@/lib/auth/session'
 import { pode } from '@/lib/auth/permissoes'
 import { registrarAuditoria } from '@/lib/auditoria'
-import { gastoIaHojeDaLoja, limitesIa } from '@/lib/custo/ia'
 
 /**
  * Agente de IA (Claude, 0183) — Ajustes › Agente de IA. Módulo pago: o middleware já barra quem não tem o módulo
  * (lib/modulos.ts, '/api/admin/agente-ia'). Dono (integracoes.gerenciar). A loja vem só da sessão.
- *   GET → interruptor, robô ligado?, IA disponível no servidor?, gasto de hoje e teto
+ *   GET → interruptor, robô ligado?, IA disponível no servidor? (gasto e teto só no Super Admin, 22/10)
  *   PUT { ativo: boolean }
  */
 const semCache = { 'Cache-Control': 'no-store' }
@@ -25,20 +24,12 @@ export async function GET() {
   const ctx = await contexto()
   if ('erro' in ctx) return ctx.erro
   const loja = ctx.sessao.restauranteId
-  const [{ data: cfg }, gasto] = await Promise.all([
-    ctx.admin.from('whatsapp_robo_config').select('ia_ativo, ia_teto_usd_dia, autoatendimento_ativo').eq('restaurante_id', loja).maybeSingle(),
-    gastoIaHojeDaLoja(ctx.admin, loja),
-  ])
-  const c = (cfg ?? {}) as { ia_ativo?: boolean; ia_teto_usd_dia?: number | string | null; autoatendimento_ativo?: boolean }
-  const lim = limitesIa()
-  const teto = c.ia_teto_usd_dia === null || c.ia_teto_usd_dia === undefined ? lim.usdDiaLoja : Number(c.ia_teto_usd_dia)
+  const { data: cfg } = await ctx.admin.from('whatsapp_robo_config').select('ia_ativo, autoatendimento_ativo').eq('restaurante_id', loja).maybeSingle()
+  const c = (cfg ?? {}) as { ia_ativo?: boolean; autoatendimento_ativo?: boolean }
   return NextResponse.json({
     ativo: c.ia_ativo !== false, // módulo liberado = ligado por padrão (16/10)
     roboAtivo: c.autoatendimento_ativo === true,
     disponivel: Boolean(process.env.ANTHROPIC_API_KEY),
-    gastoHojeMicroUsd: gasto,
-    tetoUsd: teto,
-    cotacao: lim.cotacao,
   }, { headers: semCache })
 }
 
