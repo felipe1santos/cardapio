@@ -20,6 +20,7 @@
 import fs from 'fs'
 import path from 'path'
 import { createClient } from '@supabase/supabase-js'
+import { otimizarBuffer } from '../imagens/otimizar.mjs'
 
 const SLUG = 'pizza-do-rosa'
 const MARCA = 'import-expresso-2026-09' // mesma pasta do import, pra reversão continuar pegando tudo
@@ -63,8 +64,12 @@ async function baixarESubir(url, caminho) {
     console.warn('  ! leitura falhou', url, String(e.message ?? e))
     return null
   }
-  const { error } = await db.storage.from('cardapio').upload(caminho, buf, {
-    contentType: r.headers.get('content-type') ?? 'image/jpeg',
+  // 22/10: mesmas regras do painel (WebP, 1200/400 px) — antes subia a foto crua.
+  const o = await otimizarBuffer(buf, caminho.includes('-thumb') ? 'thumb' : 'produto', r.headers.get('content-type') ?? '')
+  if (o.mudou) caminho = caminho.replace(/\.[a-z0-9]+$/i, '.webp')
+  const { error } = await db.storage.from('cardapio').upload(caminho, o.buffer, {
+    contentType: o.mudou ? 'image/webp' : (r.headers.get('content-type') ?? 'image/jpeg'),
+    cacheControl: '31536000',
     upsert: true,
   })
   if (error) { console.warn('  ! upload falhou', caminho, error.message); return null }

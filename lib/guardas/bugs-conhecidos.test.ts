@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
-import { verificarB1, verificarB2, verificarB3, verificarB4, verificarBugsConhecidos } from '../../scripts/guardas/bugs-conhecidos.mjs'
+import { verificarB1, verificarB2, verificarB3, verificarB4, verificarB5, verificarBugsConhecidos } from '../../scripts/guardas/bugs-conhecidos.mjs'
 
 /** Bugs conhecidos (docs/BUGS-CONHECIDOS.md): o código de verdade não pode ter nenhum de volta. */
 describe('bugs conhecidos no código de verdade', () => {
@@ -37,6 +37,14 @@ describe('a guarda pega quem reintroduz', () => {
     const e = verificarB4(base) as string[]
     expect(e).toHaveLength(1)
     expect(e[0]).toContain('lib/q.ts:1')
+  })
+  it('B5: script que sobe foto crua para o cardápio; com otimizador e os testes de segurança passam', () => {
+    arq('scripts/import-x/importar.mjs', "await db.storage.from('cardapio').upload(caminho, buf, { upsert: true })\n")
+    arq('scripts/import-y/importar.mjs', "const o = await otimizarBuffer(buf, 'produto')\nawait db.storage.from('cardapio').upload(caminho, o.buffer)\n")
+    arq('scripts/seguranca/semear.mjs', "await admin.storage.from('cardapio').upload(c, b)\n")
+    const e = verificarB5(base) as string[]
+    expect(e).toHaveLength(1)
+    expect(e[0]).toContain('scripts/import-x/importar.mjs')
   })
   it('B3: política nova sem (select …); a com select e as antigas passam', () => {
     const e = verificarB3(base) as string[]

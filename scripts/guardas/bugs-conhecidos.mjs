@@ -5,6 +5,7 @@
 //  B3  política RLS nova chamando auth_restaurante_id()/auth_papel()/auth_e_gestor() sem (select …) — roda 1 vez
 //      POR LINHA (0218 corrigiu as antigas: pedidos 23,5 → 1,6 ms).
 //  B4  caractere de controle invisível no código (um \b virou backspace no filtro de "pedido teste", 22/10).
+//  B5  script que sobe foto para o bucket "cardapio" sem o otimizador (importações subiam PNG cru, 22/10).
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -82,8 +83,24 @@ export function verificarB4(base) {
   return erros
 }
 
+// B5 — script que sobe foto para o bucket "cardapio" sem o otimizador (WebP + limite do perfil, as regras do painel).
+// As importações de cardápio subiam a foto crua: 282 imagens / 106 MB viraram 11,7 MB em 22/10.
+// scripts/seguranca/ fica de fora (testes de impressão sobem logos pequenas de propósito).
+export function verificarB5(base) {
+  const erros = []
+  for (const f of arquivos('scripts', base)) {
+    const r = rel(base, f)
+    if (r.startsWith('scripts/seguranca/') || r.startsWith('scripts/guardas/') || r === 'scripts/imagens/otimizar.mjs') continue
+    const txt = readFileSync(f, 'utf8')
+    if (/from\(\s*['"]cardapio['"]\s*\)\s*\.upload\(/.test(txt) && !/otimizarBuffer\s*\(/.test(txt)) {
+      erros.push(`${r} B5 sobe foto para o bucket "cardapio" sem otimizarBuffer (scripts/imagens/otimizar.mjs)`)
+    }
+  }
+  return erros
+}
+
 export function verificarBugsConhecidos(base) {
-  return [...verificarB1(base), ...verificarB2(base), ...verificarB3(base), ...verificarB4(base)]
+  return [...verificarB1(base), ...verificarB2(base), ...verificarB3(base), ...verificarB4(base), ...verificarB5(base)]
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
@@ -92,5 +109,5 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     console.error(`\n✖ Bugs conhecidos voltaram (docs/BUGS-CONHECIDOS.md):\n  ${erros.join('\n  ')}\n`)
     process.exit(1)
   }
-  console.log('✓ bugs conhecidos: nenhum voltou (B1 regex, B2 cron duplicado, B3 RLS por linha, B4 caractere invisível)')
+  console.log('✓ bugs conhecidos: nenhum voltou (B1 regex, B2 cron duplicado, B3 RLS por linha, B4 caractere invisível, B5 foto sem otimizar)')
 }

@@ -34,6 +34,24 @@ checagem B-n** no script.
 - **Como evitar:** igual ao B1.
 - **Checagem:** B4 recusa qualquer caractere de controle (fora tab/quebra de linha) em código.
 
+## B5 — Foto pesada no cardápio (subida sem otimizar) · 22/10/2026 · checagem automática
+
+- **Onde aconteceu:** 301 imagens de todas as lojas fora do padrão — sabores de pizza (PNG de ~570 KB, até 1,1 MB),
+  fotos e "miniaturas" de itens, complementos, categorias (até 3 MB). 106,4 MB no total.
+- **Causa:** o painel SEMPRE otimizou (lib/imagem.ts: WebP, 1200 px produto / 400 px miniatura, qualidade 82%), mas
+  os **scripts de importação** (Expresso/Pizza do Rosa, demo) subiam a foto crua — o comentário dizia "não vale trazer
+  uma lib de imagem só pra este script", e a `sharp` já estava no projeto. Fotos antigas, de antes da otimização,
+  também ficaram.
+- **Correção (22/10):** `scripts/imagens/converter-existentes.mjs` converteu 282 imagens com as MESMAS regras do painel:
+  **106,4 MB → 11,7 MB (89% menor)**, sem diferença visível (comparação lado a lado; transparência mantida). Originais
+  NÃO apagados; lista antigo → novo em `~/menuzia-backups/imagens-2026-10-22-21-02.json`; desfazer com
+  `node scripts/imagens/converter-existentes.mjs --desfazer <arquivo>`. Logos ficaram de fora (impressão).
+- **Como evitar:** script que sobe foto usa `otimizarBuffer()` de `scripts/imagens/otimizar.mjs` (espelho de
+  `PERFIS` do painel; `lib/imagem-scripts.test.ts` confere que os limites batem). Importação nova de cardápio: rodar
+  depois `node scripts/imagens/converter-existentes.mjs` (ensaio) — tem que dar "0 imagens fora do padrão".
+- **Checagem:** B5 falha se um arquivo de `scripts/` subir para o bucket `cardapio` sem chamar `otimizarBuffer`
+  (`scripts/seguranca/` liberado: testes de impressão sobem logos pequenas de propósito).
+
 ## B2 — O mesmo trabalho em dois crons · 22/10/2026 · checagem automática
 
 - **Onde aconteceu:** o ciclo do push (`cicloPush`) rodava no cron de campanhas **e** no cron próprio
