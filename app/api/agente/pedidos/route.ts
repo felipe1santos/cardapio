@@ -7,7 +7,7 @@ import { destinoCozinha } from '@/lib/impressao/servico'
 import { aposCorteDaTransferencia } from '@/lib/impressao/transferencia'
 import { extrasDaCozinhaBeta, lojaDaCozinhaBeta, lojaImpressao, qrDaRotaImpressa, type QrCozinha, type LojaImpressao } from '@/lib/impressao/cozinha-beta'
 import { esperarComBusca } from '@/lib/impressao/despertador'
-import { aguardandoAceite } from '@/lib/impressao/alarme-assistente'
+import { aguardandoAceite, alarmeSabido } from '@/lib/impressao/alarme-assistente'
 import { anunciaEsperaLonga } from '@/lib/impressao/espera-longa'
 
 export const dynamic = 'force-dynamic'
@@ -70,9 +70,9 @@ export async function GET(request: Request) {
     // Alarme do Assistente (1.2.0+, 12/10): ele manda quantos pedidos sabe que esperam aceite (?alarme=N). Se isso mudar
     // durante a espera (aceitaram/recusaram/chegou outro), a resposta volta na hora para o som parar ou começar.
     const alarmeBruto = new URL(request.url).searchParams.get('alarme')
-    const alarmeSabido = souDono && alarmeBruto !== null && /^d{1,3}$/.test(alarmeBruto) ? Number(alarmeBruto) : null
-    const alarmeMudou = alarmeSabido === null ? undefined
-      : async () => (await aguardandoAceite(admin, restauranteId).catch(() => null))?.aguardando !== alarmeSabido
+    const alarmeSabidoN = souDono ? alarmeSabido(alarmeBruto) : null
+    const alarmeMudou = alarmeSabidoN === null ? undefined
+      : async () => (await aguardandoAceite(admin, restauranteId).catch(() => null))?.aguardando !== alarmeSabidoN
     const pedidos = souDono && config?.impressaoAutomatica
       ? await esperarComBusca(restauranteId, esperar, request.signal, async () =>
           aposCorteDaTransferencia(await listarPedidosParaImprimir(admin, restauranteId, instancia) as { criadoEm?: string | null }[], rota.transferidaEm), aindaDono, alarmeMudou)

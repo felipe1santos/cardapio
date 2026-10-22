@@ -37,6 +37,11 @@ export function dentroDaJanelaDeAtualizacao(agora: Date): boolean {
 }
 
 /** Pedidos esperando aceite (a MESMA regra do alarme do painel). */
+/** `?alarme=N` do Assistente (1.2.0+): quantos pedidos ele sabe que esperam aceite; 0–999, senão null. */
+export function alarmeSabido(bruto: string | null): number | null {
+  return bruto !== null && /^\d{1,3}$/.test(bruto) ? Number(bruto) : null
+}
+
 export async function aguardandoAceite(admin: SupabaseClient, restauranteId: string): Promise<{ aguardando: number; numeros: number[] }> {
   const lista = await listarRecebidosParaAlarme(admin, restauranteId)
   return { aguardando: lista.length, numeros: lista.slice(0, 10).map((p) => p.numero) }

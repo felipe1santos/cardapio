@@ -15,6 +15,17 @@
   Assistente; regra nº 1 de custo; dados de clientes fora do git; publicado vale para TODAS as lojas; conferir que os
   pedidos seguem entrando depois de cada deploy.
 
+## ⚠️ ANTES DE TODO DEPLOY: CHECAR BUGS (regra do dono, 22/10/2026)
+
+- Toda alteração de código, antes de ir para produção: `npm run checar` (bugs conhecidos + `tsc --noEmit` + lint +
+  vitest). Falhou → corrigir a causa e rodar de novo; **nunca publicar com falha**. Teste lento por máquina carregada:
+  rodar só ele de novo e registrar.
+- Bugs que já aconteceram, causa e prevenção: [docs/BUGS-CONHECIDOS.md](docs/BUGS-CONHECIDOS.md). A checagem automática
+  (`scripts/guardas/bugs-conhecidos.mjs`) também roda no prebuild do Coolify — se um bug conhecido voltar, o build falha
+  e a versão antiga fica no ar.
+- Bug novo corrigido que pode voltar: teste que falha primeiro + entrada no BUGS-CONHECIDOS + checagem B-n se der.
+- Código com `\` (regex, caminho) **só com Edit/Write**, nunca por `node -e`/`sed`/heredoc: a barra é comida (B1/B4).
+
 ## ⚠️ LEIA PRIMEIRO: TUDO É PARA TODAS AS LOJAS (16/10/2026)
 
 Tudo que existe no sistema (telas, menus, funcionalidades, visual, robô, Agente de IA, Financeiro, Disparos, KDS,

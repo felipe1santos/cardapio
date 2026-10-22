@@ -252,7 +252,7 @@ function pareceItens(palavras: string[]): boolean {
   if (palavras.length < 2 || !QTD.has(palavras[0])) return false
   const resto = palavras.slice(1)
   if (resto[0] === 'x' || /^x[a-z]/.test(resto[0])) return true
-  return resto.some((p) => p.length >= 3 && !/^d+$/.test(p) && !['hora', 'horas', 'min', 'minutos', 'reais', 'real', 'pessoas', 'dias', 'opcao'].includes(p))
+  return resto.some((p) => p.length >= 3 && !/^\d+$/.test(p) && !['hora', 'horas', 'min', 'minutos', 'reais', 'real', 'pessoas', 'dias', 'opcao'].includes(p))
     && !palavras.some((p) => ['troco', 'pedido', 'pedidos', 'numero', 'mesa'].includes(p))
 }
 

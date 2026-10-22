@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "prebuild": "node scripts/custo/regra-1.mjs && node scripts/seguranca/guarda-isolamento.mjs",
+    "prebuild": "node scripts/custo/regra-1.mjs && node scripts/seguranca/guarda-isolamento.mjs && node scripts/guardas/bugs-conhecidos.mjs",
+    "checar": "node scripts/guardas/bugs-conhecidos.mjs && tsc --noEmit -p . && next lint && vitest run",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

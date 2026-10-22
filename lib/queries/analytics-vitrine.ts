@@ -91,7 +91,7 @@ export async function carregarTemposEntrega(
   if (error) return null
   // Pedido de teste não é entrega de verdade (2026-10-03).
   return ((data ?? []) as { criado_em: string; em_rota_em: string; entregue_em: string; cliente_nome: string | null }[])
-    .filter((p) => !/^s*teste/i.test(p.cliente_nome ?? '')).map((p) => ({
+    .filter((p) => !/^\s*teste\b/i.test(p.cliente_nome ?? '')).map((p) => ({
     criadoEm: p.criado_em,
     emRotaEm: p.em_rota_em,
     entregueEm: p.entregue_em,
