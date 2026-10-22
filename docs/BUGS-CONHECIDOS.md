@@ -53,8 +53,10 @@ checagem B-n** no script.
 - **Como evitar:** em política, sempre `(select public.auth_restaurante_id())`, `(select public.auth_papel())`,
   `(select public.auth_e_gestor())`.
 - **Checagem:** B3 falha se uma migration nova (0219+) criar/alterar política com a chamada sem `select`.
-- ⚠️ A 0218 (que corrige as antigas) estava **pronta e não aplicada** em 22/10 — aplicar com
-  `.medidas/aplicar-0218.mjs`.
+- A 0218 (que corrige as antigas) foi **APLICADA em 22/10/2026** (69 políticas; 0 diferenças no que 16 usuários veem em
+  63 tabelas; pedidos como dono: 23,5 → 1,54 ms com RLS de verdade).
+- Conferência de migration de permissão: comparar antes/depois **na mesma transação em REPEATABLE READ** — foto tirada
+  fora acusa "diferença" por visita/mensagem que chegou no meio (1ª tentativa da 0218).
 
 ## Testar conexão exigia a integração ligada · 22/10/2026 · teste
 
