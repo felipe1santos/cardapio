@@ -110,7 +110,7 @@ export function CanalCard({ canal, avisar }: { canal: Canal; avisar: (m: string)
   const pronto = !!cfg?.temCredenciais && (od ? !!cfg.baseUrl : true)
   return (
     <div className="space-y-3 text-[13px] text-[#1F2937]" data-testid={`canal-card-${canal}`}>
-      {!cfg?.cofrePronto && <p className="rounded-[3px] border border-[#FCD34D] bg-[#FEF3C7] px-3 py-2 text-[12.5px] text-[#92400E]">O cofre de segredos do servidor não está configurado: as credenciais não podem ser salvas. Fale com a Menuzia.</p>}
+      {cfg && !cfg.cofrePronto && <p className="rounded-[3px] border border-[#FCD34D] bg-[#FEF3C7] px-3 py-2 text-[12.5px] text-[#92400E]">O cofre de segredos do servidor não está configurado: as credenciais não podem ser salvas. Fale com a Menuzia.</p>}
       <details className="rounded-[3px] border border-[#E5E7EB] bg-[#F9FAFB] px-3 py-2" data-testid={`canal-passos-${canal}`}>
         <summary className="cursor-pointer font-semibold">{passos.titulo}</summary>
         <ol className="mt-2 list-decimal space-y-1 pl-5 text-[12.5px] text-[#374151]">{passos.passos.map((p, i) => <li key={i}>{p}</li>)}</ol>
