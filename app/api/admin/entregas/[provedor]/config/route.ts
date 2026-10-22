@@ -98,7 +98,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
   const corpo = (await request.json().catch(() => null)) as { acao?: string } | null
   if (corpo?.acao !== 'testar') return NextResponse.json({ error: 'Ação inválida.' }, { status: 400 })
   try {
-    const pronta = await configProvedorPronta(ctx.admin, ctx.sessao.restauranteId, ctx.provedor)
+    const pronta = await configProvedorPronta(ctx.admin, ctx.sessao.restauranteId, ctx.provedor, { exigirLigado: false })
     if (ctx.provedor === 'uber' && pronta.contaUber) {
       await tokenUber(pronta.contaUber)
       await verificarContaUber(ctx.admin, ctx.sessao.restauranteId, pronta.contaUber)

@@ -68,11 +68,12 @@ async function lojaDe(admin: SupabaseClient, restauranteId: string): Promise<Loj
 }
 
 /** Config do provedor pronta para uso (ligada e com o que precisa). iFood usa as credenciais do canal iFood. */
-export async function configProvedorPronta(admin: SupabaseClient, restauranteId: string, provedor: ProvedorNovo): Promise<{ cfg: ConfigProvedor; canalIfood: ConfigCanal | null; contaFoody: ContaFoody | null; contaUber?: ContaUber | null }> {
+export async function configProvedorPronta(admin: SupabaseClient, restauranteId: string, provedor: ProvedorNovo, opcoes: { exigirLigado?: boolean } = {}): Promise<{ cfg: ConfigProvedor; canalIfood: ConfigCanal | null; contaFoody: ContaFoody | null; contaUber?: ContaUber | null }> {
   if (!PROVEDOR_DISPONIVEL[provedor]) throw new EntregaError(`${NOME_PROVEDOR[provedor]}: em breve. A Menuzia ainda está homologando esta integração.`, 409)
   const cfg = await buscarConfig(admin, restauranteId, provedor)
   if (!cfg) throw new EntregaError(`${NOME_PROVEDOR[provedor]} ainda não configurado. Veja Integrações.`, 400)
-  if (!cfg.ativo) throw new EntregaError(`${NOME_PROVEDOR[provedor]} está desligado nesta loja (Integrações).`, 400)
+  // Testar a conexão (o "Conectar" testa ANTES de ligar) não exige ligado; cotar/chamar exigem (22/10).
+  if (!cfg.ativo && opcoes.exigirLigado !== false) throw new EntregaError(`${NOME_PROVEDOR[provedor]} está desligado nesta loja (Integrações).`, 400)
   if (provedor === 'ifood') {
     const canal = await buscarConfigCanal(admin, restauranteId, 'ifood')
     if (!canal?.credenciais || !canal.merchantIdExterno) throw new EntregaError('Conecte a loja ao iFood em Integrações › iFood (credenciais e id da loja) antes de chamar o entregador.', 400)
