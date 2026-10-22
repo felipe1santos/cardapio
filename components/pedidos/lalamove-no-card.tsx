@@ -146,6 +146,7 @@ export function CorridaLalamoveNoCard({ corrida, onMudou, onErro, compacto = fal
       <div className="flex flex-wrap items-center gap-1.5">
         <span className={`inline-flex items-center gap-1 rounded-[4px] px-2 py-0.5 text-[11.5px] font-semibold ${ETIQUETA[tom]}`}>
           <Logo className="h-3.5 w-3.5" provedor={provedor} /> {marca.curto} · {textoStatusLalamove(corrida.status).replace('pela Lalamove', `por ${marca.nome}`)}
+          {corrida.status === 'ASSIGNING_DRIVER' && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-label="Procurando" data-testid="corrida-procurando" />}
         </span>
         {corrida.motoristaNome && <span className="truncate text-[12px] font-medium text-text-main">{corrida.motoristaNome}{corrida.motoristaPlaca ? ` · ${corrida.motoristaPlaca}` : ''}</span>}
         {corrida.shareLink && (
