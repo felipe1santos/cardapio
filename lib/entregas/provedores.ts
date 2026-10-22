@@ -119,8 +119,6 @@ const enderecoOd = (p: { rua: string; numero: string; complemento: string; bairr
 export async function cotarProvedor(admin: SupabaseClient, restauranteId: string, provedor: ProvedorNovo, pedidoId: string): Promise<CotacaoProvedor> {
   const { cfg, canalIfood, contaFoody, contaUber } = await configProvedorPronta(admin, restauranteId, provedor)
   const [loja, pedido] = await Promise.all([lojaDe(admin, restauranteId), pedidoDaLoja(admin, restauranteId, pedidoId)])
-  // Uber Direct não cobra o cliente na entrega: só pedido já pago (Pix/cartão online).
-  if (provedor === 'uber' && !pedido.pago) throw new EntregaError('A Uber Direct não cobra na entrega: use para pedido já pago. Para pagamento na entrega, use outro entregador.', 409)
   const c = await destinoDoPedido(admin, restauranteId, pedido, loja)
   const enderecoCliente = [pedido.enderecoRua, pedido.enderecoNumero, pedido.enderecoBairro, pedido.enderecoCidade || loja.cidade].filter(Boolean).join(', ')
   const base = { pedidoNumero: pedido.numero, pagamentoNaEntrega: !pedido.pago, trocoPara: pedido.formaPagamento === 'dinheiro' ? pedido.trocoPara : null, ambiente: cfg.ambiente, moeda: 'BRL', paradas: [loja.endereco || loja.nome, enderecoCliente], provedor }
@@ -147,6 +145,8 @@ export async function chamarProvedor(admin: SupabaseClient, restauranteId: strin
   const { cfg, canalIfood, contaFoody, contaUber } = await configProvedorPronta(admin, restauranteId, provedor)
   const [loja, pedido] = await Promise.all([lojaDe(admin, restauranteId), pedidoDaLoja(admin, restauranteId, pedidoId)])
   if (pedido.status !== 'pronto') throw new EntregaError(`O pedido #${pedido.numero} não está mais pronto para despacho.`, 409)
+  // Uber não cobra na entrega (21/10): pedido a receber passa antes pelo "Cobrar por Pix e chamar" (parceiro-pix).
+  if (provedor === 'uber' && !pedido.pago) throw new EntregaError('Este parceiro não recebe na entrega: cobre o cliente por Pix antes (botão no card).', 409)
   if (cotacao.paradas.length < 2) throw new EntregaError('Cotação incompleta. Cote de novo.', 400)
   // Coordenadas do cliente vêm do pedido (geocodificado uma vez), nunca do navegador.
   const destino = (await coordenadasDosPedidos(admin, restauranteId, [pedidoId]))[pedidoId]

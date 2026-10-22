@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { sincronizarCanais } from '@/lib/canais/sincronizar'
 import { sincronizarCorridasAtivas } from '@/lib/entregas/provedores'
+import { vencerPixParceiros } from '@/lib/entregas/parceiro-pix-servidor'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,8 +21,10 @@ export async function POST(request: Request) {
     if (r.erros.length) console.error('[cron canais]', r.erros.slice(0, 5).join(' | '))
     // 21/10: corridas em andamento dos parceiros de entrega consultadas no parceiro (webhook opcional).
     const uber = await sincronizarCorridasAtivas(admin).catch((e) => ({ consultadas: 0, mudaram: 0, erros: [(e as Error).message] }))
+    // 21/10: Pix antes do parceiro sem pagamento há 10 min → alarme no painel.
+    const pixVencidos = await vencerPixParceiros(admin).catch(() => 0)
     if (uber.erros.length) console.error('[cron canais] entregas', uber.erros.slice(0, 3).join(' | '))
-    return NextResponse.json({ ok: true, ...r, erros: r.erros.length, entregas: { consultadas: uber.consultadas, mudaram: uber.mudaram } })
+    return NextResponse.json({ ok: true, ...r, erros: r.erros.length, entregas: { consultadas: uber.consultadas, mudaram: uber.mudaram }, pixParceiroVencidos: pixVencidos })
   } catch (e) {
     console.error('[cron canais]', (e as Error).message?.slice(0, 160))
     return NextResponse.json({ error: 'Erro interno' }, { status: 500 })

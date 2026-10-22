@@ -37,7 +37,8 @@ import { atualizarConfigLoja, buscarFluxoLoja, buscarStatusELoja, definirStatusL
 import { lojaEstaAberta, type HorarioFuncionamento, type StatusLoja } from '@/lib/timezone'
 import { notificarPedido } from '@/lib/notificar'
 import { Capacete } from '@/components/icones/capacete'
-import { ChamarLalamove, CorridaLalamoveNoCard } from '@/components/pedidos/lalamove-no-card'
+import { ChamarLalamove, CorridaLalamoveNoCard, ParceiroPixNoCard } from '@/components/pedidos/lalamove-no-card'
+import { precisaPixAntes } from '@/lib/entregas/parceiro-pix'
 import { CORRIDA_ATIVA, ENTREGA_PROVEDOR_SELECT, mapEntregaProvedor, type EntregaProvedorLinha } from '@/lib/entregas/lalamove-status'
 import { CardPedido, CARD_BOTAO_PRINCIPAL, type AcoesCard } from '@/components/pedidos/card-pedido'
 import { classeBadge, classeBotao, DINHEIRO } from '@/components/ui/botoes'
@@ -305,10 +306,12 @@ export default function PedidosPage() {
   }
   // Entregadores (0199 Lalamove; 0208 iFood Sob Demanda e Foody): o servidor diz quais botões mostrar (módulo + ligado + credenciais).
   const [entregadoresAtivos, setEntregadoresAtivos] = useState<('lalamove' | 'ifood' | 'foody' | 'uber')[]>([])
+  // 21/10: sem Pix online, parceiro que não recebe na entrega some dos pedidos a receber (com a dica).
+  const [pixOnlineLoja, setPixOnlineLoja] = useState(false)
   useEffect(() => {
     if (!restauranteId) { setEntregadoresAtivos([]); return }
     let vivo = true
-    fetch('/api/admin/entregas/ativos', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((j) => { if (vivo) setEntregadoresAtivos(Array.isArray(j?.ativos) ? j.ativos : []) }).catch(() => {})
+    fetch('/api/admin/entregas/ativos', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((j) => { if (vivo) { setEntregadoresAtivos(Array.isArray(j?.ativos) ? j.ativos : []); setPixOnlineLoja(j?.pixOnline === true) } }).catch(() => {})
     return () => { vivo = false }
   }, [restauranteId])
   const aoChamarLalamove = useCallback((c: EntregaProvedorLinha) => { setCorridas((m) => ({ ...m, [c.pedidoId]: c })) }, [])
@@ -1204,7 +1207,12 @@ export default function PedidosPage() {
                       if (!usaDespachoDeRotas(fluxo)) avancarCard = { rotulo: 'Saiu p/ entrega', onClick: () => saiuSemEntregador(order) }
                       principal = (
                         <>
-                          {entregadoresAtivos.map((prov) => <ChamarLalamove key={prov} provedor={prov} pedido={order} onChamada={aoChamarLalamove} onErro={setError} className="!h-[26px] !min-h-0 !rounded-[2px] !py-0 !text-[11.5px] !normal-case !tracking-normal" />)}
+                          {order.parceiroPix ? <ParceiroPixNoCard pedidoId={order.id} pp={order.parceiroPix} onErro={setError} /> : (
+                            <>
+                              {entregadoresAtivos.filter((prov) => pixOnlineLoja || !precisaPixAntes(prov, order)).map((prov) => <ChamarLalamove key={prov} provedor={prov} pedido={order} onChamada={aoChamarLalamove} onErro={setError} className="!h-[26px] !min-h-0 !rounded-[2px] !py-0 !text-[11.5px] !normal-case !tracking-normal" />)}
+                              {!pixOnlineLoja && entregadoresAtivos.some((prov) => precisaPixAntes(prov, order)) && <span className="text-[11px] text-text-subtle" data-testid="parceiro-pix-dica">Conecte o Pix online para usar parceiros em pedidos em dinheiro</span>}
+                            </>
+                          )}
                           {usaDespachoDeRotas(fluxo) && restauranteId && (
                             <DespacharNoCard pedido={order} supabase={supabase} restauranteId={restauranteId} onDespachado={aoDespachar} onErro={setError}
                               seta={{ className: CARD_BOTAO_PRINCIPAL, children: <>Despachar <IcoSeguir className="h-[14px] w-[14px]" /></> }} />

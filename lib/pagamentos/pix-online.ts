@@ -11,6 +11,7 @@ import { enviarPurchaseCapi, type ContextoCompra } from '@/lib/meta-capi'
 import { avisarPainelPedidoNovo } from '@/lib/push/painel-pedidos'
 import { conferirAprovacao, type Aprovacao } from '@/lib/financeiro/caixa'
 import { avisarPixExpiradoIa } from '@/lib/agente-ia/avisos'
+import { textoPixParceiroPago } from '@/lib/entregas/parceiro-pix'
 
 /**
  * Pix online (Mercado Pago) — núcleo. Plano: docs/pix-online/plano.md (aprovado em 2026-10-04).
@@ -173,6 +174,81 @@ export async function criarCobrancaDiferenca(admin: SupabaseClient, p: { restaur
   return paraCliente(gravada, ped.status)
 }
 
+/**
+ * Pix do TOTAL para um parceiro de entrega que não recebe na entrega (21/10/2026, Uber/Lalamove). Pedido pronto e
+ * ainda "a receber": linha própria em pagamentos_online (finalidade 'entrega_parceiro'). Pago → o pedido vira Pix online
+ * e o servidor chama o parceiro (lib/entregas/parceiro-pix-servidor.ts). O prazo de 10 min é nosso (cron); no MP a
+ * cobrança vale o mínimo dele (31 min), para quem pagar um pouco depois ainda ser atendido.
+ */
+export async function criarCobrancaParceiro(admin: SupabaseClient, p: { restauranteId: string; pedidoId: string; provedor: string }): Promise<CobrancaParaCliente> {
+  const { data: ped } = await admin.from('pedidos').select('id, numero, status, pago, total, restaurante_id').eq('id', p.pedidoId).eq('restaurante_id', p.restauranteId).maybeSingle()
+  if (!ped) throw new Error('pedido_nao_encontrado')
+  if (ped.pago) throw new Error('pedido_ja_pago')
+  const valor = Math.round(Number(ped.total) * 100) / 100
+  if (!(valor > 0)) throw new Error('valor_invalido')
+  const { ativo } = await pixOnlineDaLoja(admin, p.restauranteId)
+  if (!ativo) throw new Error('pix_online_desligado')
+  const anterior = await cancelarCobrancaPendente(admin, p.restauranteId, p.pedidoId)
+  if (anterior === 'paga') throw new Error('pedido_ja_pago')
+  if (anterior === 'erro') throw new Error('cobranca_anterior_nao_cancelada')
+  const { data: loja } = await admin.from('restaurantes').select('nome').eq('id', p.restauranteId).maybeSingle()
+  const agora = new Date()
+  const expira = new Date(agora.getTime() + 10 * 60_000)
+  let cob: Awaited<ReturnType<ReturnType<typeof provedorMp>['criarPix']>>
+  try {
+    cob = await comTokenDaLoja(admin, p.restauranteId, (token) => provedorMp().criarPix(token, {
+      valor, descricao: `Pedido #${ped.numero} - ${(loja?.nome ?? 'Menuzia').slice(0, 50)}`, referencia: ped.id,
+      expiraEm: expiracaoMp(vencimentoNoMp(expira, agora)), email: `pedido-${ped.id.slice(0, 8)}@pagamentos.menuzia.com.br`,
+      notificacaoUrl: webhookUrlMp(), idempotencia: `parceiro:${ped.id}:${agora.getTime()}`,
+    }))
+  } catch (e) {
+    if (erroDeChavePix(e)) await marcarChavePix(admin, p.restauranteId, false)
+    throw e
+  }
+  const conta = await tokenDaLoja(admin, p.restauranteId)
+  const { data: gravada, error } = await admin.from('pagamentos_online').insert({
+    restaurante_id: p.restauranteId, pedido_id: ped.id, mp_payment_id: cob.id, mp_user_id: conta?.mpUserId ?? null, valor, finalidade: 'entrega_parceiro',
+    status: 'pendente', status_mp: cob.status, qr_code: cob.qrCode, qr_code_base64: cob.qrCodeBase64, expira_em: expira.toISOString(), contexto: { provedor: p.provedor },
+  }).select('*').single()
+  if (error) throw error
+  return paraCliente(gravada, ped.status)
+}
+
+/** Pix do parceiro pago (21/10): pedido vira "Pix online pago", livro-caixa recebe, cliente é avisado e o parceiro é chamado. */
+async function conferirParceiro(admin: SupabaseClient, reg: Reg, pg: PagamentoMp, ped: Reg, contaUserId: string | null, origem: string): Promise<ResultadoConferencia> {
+  const numero = Number(ped.numero)
+  if (pg.status === 'approved') {
+    const div = divergencias(pg, reg as { pedido_id: string; valor: number; mp_user_id: string | null; metodo?: string | null }, contaUserId, Number(reg.valor))
+    if (div.length) {
+      await admin.from('pagamentos_online').update({ status: 'erro', erro: `não confere: ${div.join(', ')}` }).eq('id', reg.id).in('status', ['pendente', 'verificacao_pendente', 'expirado'])
+      await criarAlerta(admin, { restauranteId: reg.restaurante_id, tipo: 'pix_online_divergente', gravidade: 'grave',
+        mensagem: `Pix do pedido #${numero} (entregador parceiro) NÃO confere (${div.join(', ')}). O parceiro não foi chamado.`, dados: { pagamento: reg.id, mp: pg.id, divergencias: div, chave: pg.id }, dedupeMin: 60, dedupeChave: pg.id })
+      return 'divergente'
+    }
+    if (reg.status === 'pago') return 'ja_confirmado'
+    await admin.from('pagamentos_online').update({ status: 'pago', pago_em: pg.aprovadoEm ?? new Date().toISOString(), taxa: pg.taxa, liquido: pg.liquido, erro: null }).eq('id', reg.id)
+    // O pagamento muda de "dinheiro/maquininha" para Pix online (Financeiro e comanda passam a mostrar Pix).
+    const { data: mudou } = await admin.from('pedidos').update({ pago: true, pagamento_online: true, forma_pagamento: 'pix', troco_para: null, cartao_tipo: null }).eq('id', ped.id).eq('pago', false).select('id, cliente_telefone').maybeSingle()
+    await lancarRecebimento(admin, reg, pg, `Pedido #${numero} (Pix antes do entregador parceiro)`)
+    await registrarAuditoria(admin, { restauranteId: reg.restaurante_id, usuarioNome: USUARIO_MP.nome, acao: 'pix_online.parceiro_pago', entidade: 'pedido', entidadeId: ped.id, dados: { mp_payment_id: pg.id, valor: pg.valor, origem } })
+    if (mudou) {
+      avisarClienteDiferenca(admin, reg.restaurante_id, mudou, textoPixParceiroPago({ numero })).catch(() => null)
+      const { aposPixParceiroPago } = await import('@/lib/entregas/parceiro-pix-servidor')
+      await aposPixParceiroPago(admin, reg.restaurante_id, ped.id).catch((e) => console.error('[pix parceiro] chamar parceiro:', (e as Error).message))
+    }
+    return 'confirmado'
+  }
+  if (pg.status === 'refunded' || pg.status === 'charged_back') {
+    if (reg.status !== 'devolvido') await admin.from('pagamentos_online').update({ status: 'devolvido', devolvido_em: reg.devolvido_em ?? new Date().toISOString() }).eq('id', reg.id)
+    return 'devolvido'
+  }
+  if (['cancelled', 'rejected', 'expired'].includes(pg.status)) {
+    if (reg.status !== 'cancelado') await admin.from('pagamentos_online').update({ status: 'expirado' }).eq('id', reg.id).in('status', ['pendente', 'verificacao_pendente'])
+    return 'expirado'
+  }
+  return 'pendente'
+}
+
 /** WhatsApp ao cliente com o Pix da diferença: texto + código sozinho (fácil de copiar). Falha não derruba a edição. */
 export async function enviarPixDiferencaAoCliente(admin: SupabaseClient, restauranteId: string, ped: { numero: number; cliente_telefone: string | null }, cob: CobrancaParaCliente): Promise<boolean> {
   if (!cob.qrCode) return false
@@ -288,6 +364,8 @@ export async function conferirPagamento(admin: SupabaseClient, mpPaymentId: stri
   await admin.from('pagamentos_online').update({ status_mp: pg.status, verificacoes: (reg.verificacoes ?? 0) + 1, ultima_verificacao_em: new Date().toISOString(), atualizado_em: new Date().toISOString() }).eq('id', reg.id)
   // Fase 3 (19/10): cobrança da DIFERENÇA de um pedido já pago — caminho próprio (nunca mexe no status do pedido).
   if (reg.finalidade === 'diferenca') return conferirDiferenca(admin, reg, pg, ped, contaUserId, origem)
+  // 21/10: Pix do total antes de chamar o parceiro de entrega que não recebe na entrega.
+  if (reg.finalidade === 'entrega_parceiro') return conferirParceiro(admin, reg, pg, ped, contaUserId, origem)
 
   if (pg.status === 'approved') {
     const div = divergencias(pg, reg, contaUserId, Number(ped.total))

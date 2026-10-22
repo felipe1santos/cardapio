@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { lerParceiroPix, type ParceiroPix } from '@/lib/entregas/parceiro-pix'
 import type { EdicaoRegistro } from '@/lib/pedido-edicao-regras'
 import { agendaDaLinha, promocaoVigente } from '@/lib/promocao-agenda'
 import { erroDoTroco } from '@/lib/troco'
@@ -133,6 +134,8 @@ export interface Pedido {
   diferencaAReceber?: number | null
   /** Fase 3 (19/10): como a diferença será recebida — 'entrega', 'pix' (pendente) ou 'pix_vencido'. */
   diferencaModo?: 'entrega' | 'pix' | 'pix_vencido' | null
+  /** Pix antes do parceiro que não recebe na entrega (0216). */
+  parceiroPix?: ParceiroPix | null
   saiuParaEntregaEm?: string | null
   itens: PedidoItem[]
 }
@@ -211,6 +214,7 @@ interface PedidoRow {
   edicoes?: unknown
   diferenca_a_receber?: number | null
   diferenca_modo?: string | null
+  parceiro_pix?: unknown
   saiu_para_entrega_em?: string | null
   entregador?: { nome: string | null } | null
   pedido_itens: {
@@ -237,7 +241,7 @@ export const PEDIDO_SELECT = `
   forma_pagamento, cartao_tipo, troco_para, pago, subtotal, taxa_entrega, desconto, total, observacao,
   entregador_id, preparando_por, preparado_por, preparando_notificado, telefone_verificado, origem, canal, mesa, comanda_id, criado_por_nome, lancado_via, origem_canal, origem_detalhe, pagamento_online, comanda:comandas ( numero, senha ),
   cancelado_motivo, cancelado_observacao, cancelado_por, criado_em, atualizado_em, agendado_para,
-  preparando_em, pronto_em, em_rota_em, entregue_em, entregue_automatico, editado_em, editado_por_nome, edicoes, diferenca_a_receber, diferenca_modo, saiu_para_entrega_em, entregador:entregadores!pedidos_entregador_id_fkey ( nome ),
+  preparando_em, pronto_em, em_rota_em, entregue_em, entregue_automatico, editado_em, editado_por_nome, edicoes, diferenca_a_receber, diferenca_modo, parceiro_pix, saiu_para_entrega_em, entregador:entregadores!pedidos_entregador_id_fkey ( nome ),
   pedido_itens ( id, item_id, nome, preco_unitario, quantidade, observacao, complementos, tamanho_nome, sabor_nome, borda_nome, massa_nome, cancelado_em, cancelado_motivo, item:itens_cardapio ( descricao ) )
 `
 
@@ -298,6 +302,7 @@ export function mapPedido(row: PedidoRow): Pedido {
     itensRemovidos: (row.pedido_itens ?? []).filter((i) => i.cancelado_em && i.cancelado_motivo === 'edicao').map((i) => ({ id: i.id, nome: i.nome, quantidade: i.quantidade, tamanhoNome: i.tamanho_nome ?? '' })),
     diferencaAReceber: row.diferenca_a_receber === null || row.diferenca_a_receber === undefined ? null : Number(row.diferenca_a_receber),
     diferencaModo: row.diferenca_modo === 'entrega' || row.diferenca_modo === 'pix' || row.diferenca_modo === 'pix_vencido' ? row.diferenca_modo : null,
+    parceiroPix: lerParceiroPix(row.parceiro_pix),
     saiuParaEntregaEm: row.saiu_para_entrega_em ?? null,
     entregadorNome: row.entregador?.nome ?? null,
     // Item removido numa edição (cancelado_em, 0200) não aparece: painel, KDS, comanda e totais já o ignoram.
