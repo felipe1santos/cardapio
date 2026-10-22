@@ -4,8 +4,8 @@ import { cicloPush } from '@/lib/push/ciclo'
 
 /**
  * Cron das notificações push (0127) — mesma proteção do cron de campanhas (`x-cron-secret`).
- * Também roda dentro do cron de campanhas (a cada 60 s no Coolify), então não precisa de agenda
- * própria: as automações de cada loja só são avaliadas a cada 10 min (trava em push_config).
+ * Cron próprio no Coolify ("Push do app", a cada 60 s) — o ÚNICO que roda o ciclo (até 22/10 rodava também no de
+ * campanhas, 2× por minuto). As automações de cada loja só são avaliadas a cada 10 min (trava em push_config).
  */
 export async function POST(request: Request) {
   const secret = process.env.CRON_SECRET

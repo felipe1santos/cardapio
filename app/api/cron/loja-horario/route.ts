@@ -7,6 +7,10 @@ import { registrarAuditoria } from '@/lib/auditoria'
 // Lojas no modo automático abrem e fecham pela grade de horário — isso não é uma gravação no banco,
 // então o trigger da 0156 não vê. Aqui a passagem aberta↔fechada vira 'loja.abriu_horario' /
 // 'loja.fechou_horario' na auditoria (compara com o último registro desse tipo da loja).
+// 22/10: último registro de cada loja guardado na memória do servidor — o banco só é consultado quando a loja muda
+// (ou depois de um deploy). Antes: 1 consulta por loja por minuto (~10/min) só para descobrir que nada mudou.
+const ultimoPorLoja = new Map<string, string>()
+
 export async function POST(request: Request) {
   const secret = process.env.CRON_SECRET
   if (!secret || request.headers.get('x-cron-secret') !== secret) {
@@ -20,10 +24,11 @@ export async function POST(request: Request) {
     try {
       const aberta = lojaEstaAberta({ statusLoja: 'automatico', horarioFuncionamento: l.horario_funcionamento ?? null })
       const acao = aberta ? 'loja.abriu_horario' : 'loja.fechou_horario'
+      if (ultimoPorLoja.get(l.id as string) === acao) continue
       const { data: ultimo } = await admin.from('eventos_auditoria').select('acao')
         .eq('restaurante_id', l.id).in('acao', ['loja.abriu_horario', 'loja.fechou_horario'])
         .order('criado_em', { ascending: false }).limit(1).maybeSingle()
-      if (ultimo?.acao === acao) continue
+      if (ultimo?.acao === acao) { ultimoPorLoja.set(l.id as string, acao); continue }
       await registrarAuditoria(admin, {
         restauranteId: l.id as string, usuarioNome: 'Sistema (horário)', acao, entidade: 'restaurante', entidadeId: l.id as string,
         dados: { origem: 'horario', ...(ultimo ? {} : { primeiro_registro: true }) },

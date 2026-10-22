@@ -84,13 +84,17 @@ export async function carregarLoja(admin: SupabaseClient, restauranteId: string)
 
 export async function carregarConfig(admin: SupabaseClient, restauranteId: string): Promise<ConfigPush> {
   const { data } = await admin.from('push_config').select('*').eq('restaurante_id', restauranteId).maybeSingle()
+  return configDaLinha(data)
+}
+
+function configDaLinha(data: Record<string, unknown> | null): ConfigPush {
   return {
-    limiteDia: data?.limite_dia ?? 1,
-    limiteSemana: data?.limite_semana ?? 3,
-    antecedenciaMin: data?.antecedencia_min ?? 30,
-    telefoneTeste: data?.telefone_teste ?? null,
+    limiteDia: (data?.limite_dia as number | null | undefined) ?? 1,
+    limiteSemana: (data?.limite_semana as number | null | undefined) ?? 3,
+    antecedenciaMin: (data?.antecedencia_min as number | null | undefined) ?? 30,
+    telefoneTeste: (data?.telefone_teste as string | null | undefined) ?? null,
     estado: (data?.estado as Record<string, unknown>) ?? {},
-    ultimaAvaliacao: data?.ultima_avaliacao ?? null,
+    ultimaAvaliacao: (data?.ultima_avaliacao as string | null | undefined) ?? null,
   }
 }
 
@@ -280,11 +284,11 @@ export interface ResumoAvaliacao { loja: string; avaliada: boolean; motivo?: str
  * Avalia as automações de UMA loja agora. `forcar` ignora o intervalo de 10 min (testes/painel),
  * nunca a janela de envio.
  */
-export async function avaliarLoja(admin: SupabaseClient, loja: LojaPush, opcoes: { agora?: number; forcar?: boolean } = {}): Promise<ResumoAvaliacao> {
+export async function avaliarLoja(admin: SupabaseClient, loja: LojaPush, opcoes: { agora?: number; forcar?: boolean; config?: ConfigPush } = {}): Promise<ResumoAvaliacao> {
   const agora = opcoes.agora ?? Date.now()
   const r: ResumoAvaliacao = { loja: loja.slug, avaliada: false, enfileirados: 0 }
   if (!loja.pushLiberado) return { ...r, motivo: 'push desligado' }
-  const config = await carregarConfig(admin, loja.id)
+  const config = opcoes.config ?? await carregarConfig(admin, loja.id)
   if (!opcoes.forcar && config.ultimaAvaliacao && agora - new Date(config.ultimaAvaliacao).getTime() < INTERVALO_AVALIACAO_MS - 30_000) return { ...r, motivo: 'avaliada há pouco' }
 
   const autos = (await carregarAutomacoes(admin, loja.id)).filter((a) => a.ativo && a.tipo !== 'status_pedido')
@@ -478,9 +482,13 @@ function mudancaDeFrete(antes: Record<string, unknown>, agoraFoto: Record<string
 /** Avalia todas as lojas com push liberado (cron). */
 export async function avaliarTodasAsLojas(admin: SupabaseClient, opcoes: { forcar?: boolean } = {}): Promise<ResumoAvaliacao[]> {
   const { data } = await admin.from('restaurantes').select(CAMPOS_LOJA).eq('push_liberado', true)
+  // 22/10: a config de todas as lojas numa consulta só (antes 1 por loja por minuto, só para ver a trava de 10 min).
+  const ids = (data ?? []).map((l) => l.id as string)
+  const { data: configs } = ids.length ? await admin.from('push_config').select('*').in('restaurante_id', ids) : { data: [] }
+  const configPorLoja = new Map((configs ?? []).map((c) => [c.restaurante_id as string, configDaLinha(c)]))
   const out: ResumoAvaliacao[] = []
   for (const l of data ?? []) {
-    try { out.push(await avaliarLoja(admin, lojaDe(l), opcoes)) } catch (e) { out.push({ loja: l.slug, avaliada: false, motivo: (e as Error).message.slice(0, 120), enfileirados: 0 }) }
+    try { out.push(await avaliarLoja(admin, lojaDe(l), { ...opcoes, config: configPorLoja.get(l.id as string) ?? configDaLinha(null) })) } catch (e) { out.push({ loja: l.slug, avaliada: false, motivo: (e as Error).message.slice(0, 120), enfileirados: 0 }) }
   }
   return out
 }
