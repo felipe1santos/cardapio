@@ -153,6 +153,9 @@ export const ROTULO_EVENTO: Record<string, string> = {
   'pix_online.divergente': 'Pix online não confere (pedido não liberado)',
   // Fase 3 (19/10): Pix da diferença de pedido pago online editado.
   'pix_online.diferenca_paga': 'Pix da diferença pago (confirmado pelo Mercado Pago)',
+  'pix_online.parceiro_pago': 'Pix pago antes do entregador parceiro (confirmado pelo Mercado Pago)',
+  'entregas.pix_parceiro_enviado': 'Pix enviado ao cliente para chamar o entregador parceiro',
+  'entregas.pix_parceiro_motoboy_proprio': 'Pix do entregador parceiro cancelado (motoboy próprio)',
   'pix_online.diferenca_vencida': 'Pix da diferença não pago em 30 min (loja avisada)',
   'pedido.diferenca_entrega': 'Diferença do pedido passou a ser recebida na entrega',
   'pedido.diferenca_pix': 'Gerou novo Pix da diferença e mandou ao cliente',

@@ -10,7 +10,8 @@ import { provedorAtual } from '@/lib/mensageria/provedor'
 import { pixOnlineDaLoja, criarCobrancaPix } from '@/lib/pagamentos/pix-online'
 import { notificarPedido } from '@/lib/whatsapp'
 import { avisarPainelPedidoNovo } from '@/lib/push/painel-pedidos'
-import { brl, type DadosLojaAuto } from '@/lib/robo-auto/respostas'
+import { brl, formasDasConversas, type DadosLojaAuto } from '@/lib/robo-auto/respostas'
+import { textoFormas } from '@/lib/formas-pagamento'
 import { carregarCardapioIa, resumoDoCardapio } from './cardapio'
 import { blocosDoSistema, mensagensDoHistorico, MAX_HISTORICO, type MensagemHistorico } from './prompt'
 import { conversarComIa } from './agente'
@@ -103,6 +104,7 @@ async function imagemDoCliente(instancia: string | null, waId: string): Promise<
 }
 
 function formasDePagamento(l: DadosLojaAuto): string {
+  if (l.formasPagamento) return textoFormas(formasDasConversas(l), l.formasPagamento.vale_bandeiras).join(', ')
   return ['Pix', 'Dinheiro (com troco)', 'Cartão na entrega'].filter((f) => f !== 'Pix' || l.pixChave || l.pixOnline).join(', ')
 }
 

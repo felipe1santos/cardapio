@@ -11,6 +11,7 @@ import { rotuloForma, statusAReceber, trocoLevar } from '@/lib/pdv-pagamento'
 export interface PagamentoDoPedido {
   formaPagamento: string
   cartaoTipo?: string | null
+  valeBandeira?: string | null
   trocoPara: number | null
   pago: boolean
   tipo: string
@@ -29,7 +30,7 @@ export function InfoPagamento({ p, compacto = false, mostrarStatus = true, card 
     // "Pix · A pagar na retirada"; troco (se houver) na linha de baixo.
     return (
       <div className="text-right text-[11.5px] leading-snug" data-testid="info-pagamento">
-        <span className="font-semibold text-text-main">{rotuloForma(p.formaPagamento, p.cartaoTipo)}</span>
+        <span className="font-semibold text-text-main">{rotuloForma(p.formaPagamento, p.cartaoTipo, undefined, p.valeBandeira)}</span>
         <span className="text-text-subtle"> · </span>
         {p.pago ? <span className="font-semibold text-price-text">Pago</span> : <span className="font-semibold text-[#92400E]">{statusAReceber(p.tipo)}</span>}
         {troco && <div className="font-semibold text-[#92400E]" data-testid="info-troco">Troco p/ {brl(troco)}</div>}
@@ -39,7 +40,7 @@ export function InfoPagamento({ p, compacto = false, mostrarStatus = true, card 
   return (
     <div className={`flex flex-wrap items-center gap-x-2 gap-y-0.5 ${compacto ? 'text-[11.5px]' : 'text-[13px]'}`} data-testid="info-pagamento">
       <span className="inline-flex items-center gap-1 font-semibold text-text-main">
-        <Icone className={compacto ? 'h-3.5 w-3.5' : 'h-4 w-4'} aria-hidden /> {rotuloForma(p.formaPagamento, p.cartaoTipo)}
+        <Icone className={compacto ? 'h-3.5 w-3.5' : 'h-4 w-4'} aria-hidden /> {rotuloForma(p.formaPagamento, p.cartaoTipo, undefined, p.valeBandeira)}
       </span>
       {troco && <span className="font-semibold text-[#92400E]" data-testid="info-troco">Troco p/ {brl(troco)}</span>}
       {mostrarStatus && (

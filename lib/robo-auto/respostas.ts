@@ -3,6 +3,7 @@
  * simulador carregam os dados e chamam isto). O robô só afirma o que o sistema sabe.
  */
 import { normalizarTexto, type Assunto } from './classificador'
+import { formasDoCanal, textoFormas, type ConfigFormas, type OpcaoPagamento } from '@/lib/formas-pagamento'
 import { fraseTempo } from '@/lib/tempo-entrega'
 import type { Decisao } from './decisao'
 import { renderizar, textoDe, type ChaveTexto, type Valores } from './textos'
@@ -45,6 +46,8 @@ export interface DadosLojaAuto {
   pixChave: string | null
   pixTipo: string | null
   pixOnline: boolean
+  /** Formas aceitas no Perfil (0217); nulo = como sempre. */
+  formasPagamento?: ConfigFormas | null
   /** Cidade da loja (taxa pelo raio quando o cliente só diz o bairro). */
   cidade?: string | null
   textos?: Partial<Record<ChaveTexto, string>> | null
@@ -181,6 +184,8 @@ function listaBairros(l: DadosLojaAuto): string {
 }
 
 function formasPagamento(l: DadosLojaAuto): string {
+  const cfg = l.formasPagamento
+  if (cfg) return textoFormas(formasDasConversas(l), cfg.vale_bandeiras).map((f) => `- ${f}`).join('\n')
   const f = ['- Cartão de crédito ou débito (na entrega)', '- Dinheiro (com troco, se precisar)']
   if (temPix(l) || l.pixOnline) f.unshift(l.pixOnline ? '- Pix (pelo cardápio, na hora do pedido)' : '- Pix')
   return f.join('\n')
@@ -320,4 +325,14 @@ Por isso não consigo anotar seu pedido agora 😕 Assim que abrirmos, é só me
       // Etapa 7: o motor já consultou cashback, prêmios, missões e cupons do telefone.
       return { mensagens: [ctx.progressoMensagem ?? 'Não consegui consultar seu progresso agora. Tente de novo em instantes 🙏'], autoEstado: null }
   }
+}
+
+/** Formas aceitas na entrega OU na retirada (0217), para o robô e a IA listarem. */
+export function formasDasConversas(l: DadosLojaAuto): OpcaoPagamento[] {
+  const cfg = l.formasPagamento
+  if (!cfg) return []
+  const c = { pixOnline: l.pixOnline, cartaoOnline: false }
+  const u = new Set([...formasDoCanal(cfg, 'entrega', c), ...formasDoCanal(cfg, 'retirada', c)])
+  if (!temPix(l)) u.delete('pix')
+  return [...u]
 }

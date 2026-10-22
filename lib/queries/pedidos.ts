@@ -39,7 +39,7 @@ function categoriaNoHorario(categoria: unknown, em?: Date): boolean {
 }
 
 export type TipoPedido = 'entrega' | 'retirada'
-export type FormaPagamento = 'pix' | 'cartao' | 'dinheiro'
+export type FormaPagamento = 'pix' | 'cartao' | 'dinheiro' | 'vale'
 export type StatusPedido = 'recebido' | 'preparando' | 'pronto' | 'em_rota' | 'entregue' | 'cancelado'
 export type StatusEntregador = 'online' | 'ocupado' | 'offline'
 
@@ -82,6 +82,8 @@ export interface Pedido {
   formaPagamento: FormaPagamento
   /** Cartão escolhido no PDV (0135): 'credito' | 'debito'. Vitrine: nulo. */
   cartaoTipo?: string | null
+  /** Vale-refeição/alimentação (0217): bandeira escolhida ("Alelo"). */
+  valeBandeira?: string | null
   trocoPara: number | null
   pago: boolean
   subtotal: number
@@ -176,6 +178,7 @@ interface PedidoRow {
   endereco_referencia: string | null
   forma_pagamento: FormaPagamento
   cartao_tipo?: string | null
+  vale_bandeira?: string | null
   troco_para: number | null
   pago: boolean
   subtotal: number
@@ -238,7 +241,7 @@ interface PedidoRow {
 export const PEDIDO_SELECT = `
   id, numero, tipo, status, cliente_nome, cliente_telefone,
   endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep, endereco_cidade, endereco_referencia,
-  forma_pagamento, cartao_tipo, troco_para, pago, subtotal, taxa_entrega, desconto, total, observacao,
+  forma_pagamento, cartao_tipo, vale_bandeira, troco_para, pago, subtotal, taxa_entrega, desconto, total, observacao,
   entregador_id, preparando_por, preparado_por, preparando_notificado, telefone_verificado, origem, canal, mesa, comanda_id, criado_por_nome, lancado_via, origem_canal, origem_detalhe, pagamento_online, comanda:comandas ( numero, senha ),
   cancelado_motivo, cancelado_observacao, cancelado_por, criado_em, atualizado_em, agendado_para,
   preparando_em, pronto_em, em_rota_em, entregue_em, entregue_automatico, editado_em, editado_por_nome, edicoes, diferenca_a_receber, diferenca_modo, parceiro_pix, saiu_para_entrega_em, entregador:entregadores!pedidos_entregador_id_fkey ( nome ),
@@ -262,6 +265,7 @@ export function mapPedido(row: PedidoRow): Pedido {
     enderecoReferencia: row.endereco_referencia ?? '',
     formaPagamento: row.forma_pagamento,
     cartaoTipo: row.cartao_tipo ?? null,
+    valeBandeira: row.vale_bandeira ?? null,
     trocoPara: row.troco_para === null ? null : Number(row.troco_para),
     pago: row.pago,
     subtotal: Number(row.subtotal),
@@ -1157,6 +1161,10 @@ export interface NovoPedidoInput {
   pixOnline?: boolean
   /** Cartão online (12/10, Mercado Pago): mesmo fluxo do Pix online — nasce aguardando pagamento. Só a rota da vitrine liga. */
   cartaoOnline?: boolean
+  /** Vitrine (0217): cartão na entrega quando a loja aceita só crédito ou só débito. */
+  cartaoTipo?: 'credito' | 'debito' | null
+  /** Vale (0217): bandeira escolhida, conferida contra o Perfil na rota. */
+  valeBandeira?: string | null
   trocoPara: number | null
   /** Apenas informativo — a taxa real é recalculada no servidor (resolverFrete). */
   taxaEntrega?: number
@@ -1852,6 +1860,8 @@ export async function criarPedido(
       endereco_referencia: input.endereco.referencia ?? '',
       forma_pagamento: input.pagamento,
       troco_para: input.pagamento === 'dinheiro' ? input.trocoPara : null,
+      ...(input.pagamento === 'cartao' && !cartaoOnline && (input.cartaoTipo === 'credito' || input.cartaoTipo === 'debito') ? { cartao_tipo: input.cartaoTipo } : {}),
+      ...(input.pagamento === 'vale' ? { vale_bandeira: input.valeBandeira ? input.valeBandeira.slice(0, 40) : null } : {}),
       // Pix manual (lojas sem Pix online) segue como sempre; Pix online só é pago pela API.
       pago: input.pagamento === 'pix' && !pixOnline,
       subtotal,

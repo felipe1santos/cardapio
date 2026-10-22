@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { rotuloVale } from '@/lib/formas-pagamento'
 import { observacaoParaImpressao, type EdicaoRegistro } from '@/lib/pedido-edicao-regras'
 
 export interface ConfigImpressao {
@@ -287,7 +288,7 @@ export async function listarPedidosParaImprimir(
   const { data, error } = await admin
     .from('pedidos')
     .select(
-      `id, numero, tipo, forma_pagamento, cartao_tipo, troco_para, cliente_nome, cliente_telefone, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep, endereco_cidade, endereco_referencia,
+      `id, numero, tipo, forma_pagamento, cartao_tipo, vale_bandeira, troco_para, cliente_nome, cliente_telefone, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep, endereco_cidade, endereco_referencia,
        observacao, edicoes, pago, pagamento_online, status, origem, mesa, canal, subtotal, taxa_entrega, total, criado_em,
        comandas ( senha ),
        pedido_itens ( nome, quantidade, preco_unitario, observacao, tamanho_nome, sabor_nome, borda_nome, massa_nome, complementos, cancelado_em )`
@@ -307,7 +308,8 @@ export async function listarPedidosParaImprimir(
     tipo: p.tipo,
     // Cartão escolhido no PDV com o detalhe (0135): vai "credito"/"debito" — a comanda Beta já tem o
     // rótulo ("Cartão de crédito"); o recibo antigo imprime em maiúsculas. Layout intocado.
-    formaPagamento: (p as { cartao_tipo?: string | null }).cartao_tipo ?? p.forma_pagamento,
+    // Vale (0217): o rótulo pronto ("VR · Alelo") — o Assistente imprime como veio o texto que não conhece.
+    formaPagamento: p.forma_pagamento === 'vale' ? rotuloVale((p as { vale_bandeira?: string | null }).vale_bandeira) : (p as { cartao_tipo?: string | null }).cartao_tipo ?? p.forma_pagamento,
     trocoPara: p.troco_para === null ? null : Number(p.troco_para),
     clienteNome: p.cliente_nome,
     clienteTelefone: p.cliente_telefone ?? '',

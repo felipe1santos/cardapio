@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { lerFormas, type ConfigFormas } from '@/lib/formas-pagamento'
 import { imagemTamanhoValido, fonteVitrineValida, type LayoutCardapio, type ImagemTamanho, type FonteVitrine } from './cardapio'
 import type { HorarioFuncionamento, StatusLoja } from '@/lib/timezone'
 import { composeEndereco } from '@/lib/endereco'
@@ -75,6 +76,8 @@ export interface ConfigLoja {
   aceitaRetirada: boolean
   /** Módulo Mesas e Comandas (salão presencial por QR). Default desligado. */
   moduloMesasAtivo: boolean
+  /** Formas de pagamento aceitas por canal (0217); nulo = como sempre. */
+  formasPagamento: ConfigFormas | null
   /** Tempo de entrega e de retirada que o robô/IA dizem ao cliente (0203, 19/10). Texto livre: "30–40 min". */
   tempoEntrega: string | null
   tempoRetirada: string | null
@@ -138,9 +141,10 @@ interface ConfigRow {
   pix_chave?: string | null
   pix_chave_tipo?: string | null
   modulo_mesas_ativo: boolean | null
+  formas_pagamento?: unknown
 }
 
-const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_promo_urls, banner_promo_texto, banner_promo_video, vitrine_cabecalho, aviso_cor_texto, aviso_cor_fundo, aviso_pulsar, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, endereco, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, cep, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, instagram_url, layout_cardapio, cor_tema, imagem_grande, vitrine_imagem_tamanho, vitrine_fonte, vitrine_nova, latitude, longitude, avaliacao_nota, avaliacao_qtd, horario_funcionamento, status_loja, usa_logistica, entrega_sem_entregador, aceita_entrega, aceita_retirada, modulo_mesas_ativo, tempo_entrega, tempo_retirada, pix_chave, pix_chave_tipo'
+const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_promo_urls, banner_promo_texto, banner_promo_video, vitrine_cabecalho, aviso_cor_texto, aviso_cor_fundo, aviso_pulsar, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, endereco, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, cep, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, instagram_url, layout_cardapio, cor_tema, imagem_grande, vitrine_imagem_tamanho, vitrine_fonte, vitrine_nova, latitude, longitude, avaliacao_nota, avaliacao_qtd, horario_funcionamento, status_loja, usa_logistica, entrega_sem_entregador, aceita_entrega, aceita_retirada, modulo_mesas_ativo, tempo_entrega, tempo_retirada, pix_chave, pix_chave_tipo, formas_pagamento'
 
 function mapConfig(row: ConfigRow): ConfigLoja {
   return {
@@ -196,6 +200,7 @@ function mapConfig(row: ConfigRow): ConfigLoja {
     tempoEntrega: row.tempo_entrega ?? null,
     tempoRetirada: row.tempo_retirada ?? null,
     pixChave: row.pix_chave ?? null,
+    formasPagamento: lerFormas(row.formas_pagamento),
     pixTipo: row.pix_chave_tipo ?? null,
     // Coluna ausente (migration ainda não aplicada) = módulo desligado. Nenhuma loja
     // ganha a seção nova por acidente.
@@ -256,6 +261,7 @@ export interface ConfigLojaPatch {
   tempoEntrega?: string | null
   tempoRetirada?: string | null
   pixChave?: string | null
+  formasPagamento?: ConfigFormas
   pixTipo?: string | null
 }
 
@@ -349,6 +355,7 @@ export async function atualizarConfigLoja(supabase: SupabaseClient, restauranteI
   if (patch.tempoEntrega !== undefined) row.tempo_entrega = patch.tempoEntrega
   if (patch.tempoRetirada !== undefined) row.tempo_retirada = patch.tempoRetirada
   if (patch.pixChave !== undefined) row.pix_chave = patch.pixChave
+  if (patch.formasPagamento !== undefined) row.formas_pagamento = patch.formasPagamento
   if (patch.pixTipo !== undefined) row.pix_chave_tipo = patch.pixTipo
 
   const { data, error } = await supabase.from('restaurantes').update(row).eq('id', restauranteId).select(CONFIG_SELECT).single()

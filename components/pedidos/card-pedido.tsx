@@ -121,7 +121,7 @@ export function CardPedido({ order, now, selecionado, destaqueNovo, atencao = fa
   const adicionados = itensAdicionados(order.edicoes)
   const removidos = order.itensRemovidos ?? []
   const local = order.tipo === 'entrega' ? order.enderecoBairro : null
-  const pag = rotuloForma(order.formaPagamento, order.cartaoTipo, order.pagamentoOnline)
+  const pag = rotuloForma(order.formaPagamento, order.cartaoTipo, order.pagamentoOnline, order.valeBandeira)
   // Fase 3 (19/10): diferença de pedido pago online (Pix pendente / vencido / na entrega).
   const dif = etiquetaDiferenca(order)
   const app = appIntegradoDoPedido(order)

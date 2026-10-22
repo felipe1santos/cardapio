@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { lerFormas, type ConfigFormas } from '@/lib/formas-pagamento'
 import { agendaDaLinha, promocaoVigente, type AgendaPromocao } from '@/lib/promocao-agenda'
 import type { ClienteLeitura } from '@/lib/supabase/vitrine'
 import { grupoEstaAtivoAgora, horarioFechamentoAtual, itemDisponivelHoje, lojaEstaAberta, proximaAbertura, textoProximaAbertura } from '@/lib/timezone'
@@ -1150,6 +1151,8 @@ export function fonteVitrineValida(v: unknown): FonteVitrine {
 }
 
 export interface RestauranteVitrine {
+  /** Formas de pagamento aceitas por canal (0217); nulo = como sempre. */
+  formasPagamento: ConfigFormas | null
   id: string
   nome: string
   slug: string
@@ -1225,7 +1228,7 @@ export async function buscarRestaurantePorSlug(supabase: ClienteLeitura, slug: s
   const { data, error } = await supabase
     .from('restaurantes')
     .select(
-      'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_promo_urls, banner_promo_texto, banner_promo_video, vitrine_cabecalho, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, instagram_url, endereco, endereco_bairro, endereco_cidade, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio, cor_tema, imagem_grande, vitrine_imagem_tamanho, vitrine_fonte, vitrine_nova, status_loja, horario_funcionamento, avaliacao_nota, avaliacao_qtd, aceita_entrega, aceita_retirada, pizza_calculo_preco, agendamento_ativo, agendamento_quando, agendamento_dias, agendamento_antecedencia_min, agendamento_intervalo_min, agendamento_limite, agendamento_entrega, agendamento_retirada, agendamento_libera_min, aviso_cor_texto, aviso_cor_fundo, aviso_pulsar'
+      'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_promo_urls, banner_promo_texto, banner_promo_video, vitrine_cabecalho, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, instagram_url, endereco, endereco_bairro, endereco_cidade, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio, cor_tema, imagem_grande, vitrine_imagem_tamanho, vitrine_fonte, vitrine_nova, status_loja, horario_funcionamento, avaliacao_nota, avaliacao_qtd, aceita_entrega, aceita_retirada, pizza_calculo_preco, agendamento_ativo, agendamento_quando, agendamento_dias, agendamento_antecedencia_min, agendamento_intervalo_min, agendamento_limite, agendamento_entrega, agendamento_retirada, agendamento_libera_min, aviso_cor_texto, aviso_cor_fundo, aviso_pulsar, formas_pagamento'
     )
     .eq('slug', slug)
     .maybeSingle()
@@ -1286,6 +1289,7 @@ export async function buscarRestaurantePorSlug(supabase: ClienteLeitura, slug: s
       corFundo: hexValido(data.aviso_cor_fundo) ? data.aviso_cor_fundo : null,
       pulsar: data.aviso_pulsar === true,
     },
+    formasPagamento: lerFormas(data.formas_pagamento),
   }
 }
 

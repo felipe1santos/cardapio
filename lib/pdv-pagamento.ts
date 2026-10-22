@@ -5,6 +5,7 @@
  * Regras puras: valem para a tela (que só ajuda) e para o servidor (que decide).
  */
 import type { FormaPagamento } from '@/lib/queries/pedidos'
+import { rotuloVale } from '@/lib/formas-pagamento'
 
 export type EscolhaPdv = 'dinheiro' | 'pix' | 'credito' | 'debito'
 export const ESCOLHAS_PDV: EscolhaPdv[] = ['dinheiro', 'pix', 'credito', 'debito']
@@ -41,7 +42,8 @@ export function daPedido(forma: string | null | undefined, cartaoTipo: string | 
 }
 
 /** Rótulo curto em qualquer tela: "Dinheiro", "Pix", "Cartão crédito", "Cartão" (vitrine, sem detalhe). */
-export function rotuloForma(forma: string | null | undefined, cartaoTipo?: string | null, online?: boolean): string {
+export function rotuloForma(forma: string | null | undefined, cartaoTipo?: string | null, online?: boolean, valeBandeira?: string | null): string {
+  if (forma === 'vale') return rotuloVale(valeBandeira) // 0217: "VR · Alelo"
   // Pago pela vitrine (Pix ou cartão online, Mercado Pago): não é maquininha nem Pix manual.
   if (online && forma === 'cartao') return 'Cartão online'
   if (online && forma === 'pix') return 'Pix online'

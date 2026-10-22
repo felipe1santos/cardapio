@@ -5,6 +5,7 @@
  * Nenhuma API paga: só banco próprio e a Evolution (servidor próprio).
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { lerFormas } from '@/lib/formas-pagamento'
 import { enfileirar } from '@/lib/mensageria/fila'
 import { palavraAmbiguaDeSair, pedidoDeDescadastro, textoDescadastro, variantesTelefone, linkDoRobo, type DadosLoja } from '@/lib/mensageria/robo'
 import { provedorAtual, type MensagemRecebida } from '@/lib/mensageria/provedor'
@@ -98,7 +99,7 @@ export async function carregarLojaAuto(admin: SupabaseClient, restauranteId: str
   const [{ data: loja }, { data: bairros }, { count: raios }] = await Promise.all([
     admin
       .from('restaurantes')
-      .select('nome, slug, status_loja, horario_funcionamento, taxa_entrega_padrao, frete_fora_da_lista, aceita_entrega, aceita_retirada, endereco, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, pix_online_ativo, tempo_entrega, tempo_retirada, pix_chave, pix_chave_tipo')
+      .select('nome, slug, status_loja, horario_funcionamento, taxa_entrega_padrao, frete_fora_da_lista, aceita_entrega, aceita_retirada, endereco, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, pix_online_ativo, tempo_entrega, tempo_retirada, pix_chave, pix_chave_tipo, formas_pagamento')
       .eq('id', restauranteId)
       .maybeSingle(),
     admin.from('taxas_entrega_bairro').select('bairro, taxa').eq('restaurante_id', restauranteId),
@@ -149,6 +150,7 @@ export async function carregarLojaAuto(admin: SupabaseClient, restauranteId: str
     pixChave: String(l.pix_chave ?? '').trim() || cfg.pix_chave?.trim() || null,
     pixTipo: String(l.pix_chave ?? '').trim() ? ((l.pix_chave_tipo as string | null) ?? null) : (cfg.pix_chave_tipo ?? null),
     pixOnline: l.pix_online_ativo === true,
+    formasPagamento: lerFormas(l.formas_pagamento),
     cidade: String(l.endereco_cidade ?? '') || null,
     textos: (cfg.auto_textos ?? null) as Partial<Record<ChaveTexto, string>> | null,
     assuntosDesligados: assuntosDesligados(cfg),

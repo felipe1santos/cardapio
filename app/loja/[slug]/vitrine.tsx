@@ -2,6 +2,7 @@
 
 import { FotosCarrossel } from './fotos-carrossel'
 import { fotosDaVitrine } from '@/lib/fotos-item'
+import { formasDoCanal } from '@/lib/formas-pagamento'
 import { comVideo, midiasDaFicha, type Midia, type VideoItem } from '@/lib/video-vitrine'
 import { VideoLoop } from '@/components/vitrine/video-loop'
 import { BarraNav } from '@/components/vitrine/barra-nav'
@@ -2295,6 +2296,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   const [cartaoOnline, setCartaoOnline] = useState(false)
   const [cartaoAguardando, setCartaoAguardando] = useState<(CartaoAguardando & { concluir: () => void }) | null>(null)
   const [changeFor, setChangeFor] = useState('')
+  const [valeBandeira, setValeBandeira] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
   // Agendamento (0121): "Agora" ou "Agendar" + dia e horário. Loja fechada que aceita
@@ -2617,11 +2619,26 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     return () => { vivo = false }
   }, [checkoutOpen, slug])
 
-  // A loja deixou de oferecer o cartão online com ele escolhido: volta para o Pix (o padrão).
-  useEffect(() => { if (!cartaoOnline && payMethod === 'Cartão online') setPayMethod('Pix') }, [cartaoOnline, payMethod])
+  // Formas aceitas no Perfil para este canal (0217); nulo = como sempre. O online só com o MP conectado agora.
+  const formasCanal = useMemo(() => formasDoCanal(restaurante?.formasPagamento ?? null, tipoPedido, { pixOnline, cartaoOnline }), [restaurante?.formasPagamento, tipoPedido, pixOnline, cartaoOnline])
+  const pixAgora = formasCanal.includes('pix_online')
+  const cartaoAgora = formasCanal.includes('cartao_online')
+  const pixChave = formasCanal.includes('pix')
+  const cartaoCredito = formasCanal.includes('credito')
+  const cartaoDebito = formasCanal.includes('debito')
+  const bandeirasVale = formasCanal.includes('vale') ? (restaurante?.formasPagamento?.vale_bandeiras ?? []) : []
+  // "Pix" = Pix online quando a loja oferece; com os dois, o Pix pela chave vira "Pix na entrega".
+  const idsPagamento = useMemo(() => [
+    ...(pixAgora || pixChave ? ['Pix'] : []), ...(cartaoAgora ? ['Cartão online'] : []), ...(pixAgora && pixChave ? ['Pix na entrega'] : []),
+    ...(cartaoCredito || cartaoDebito ? ['Cartão na entrega'] : []), ...(formasCanal.includes('dinheiro') ? ['Dinheiro'] : []), ...(bandeirasVale.length ? ['Vale'] : []),
+  ], [pixAgora, pixChave, cartaoAgora, cartaoCredito, cartaoDebito, formasCanal, bandeirasVale.length])
+  // A forma escolhida saiu (outro canal, cartão online desligado...): volta para a primeira aceita.
+  useEffect(() => { if (idsPagamento.length && !idsPagamento.includes(payMethod)) setPayMethod(idsPagamento[0]) }, [idsPagamento, payMethod])
 
-  const PAY_MAP: Record<string, 'pix' | 'cartao' | 'dinheiro'> = {
+  const PAY_MAP: Record<string, 'pix' | 'cartao' | 'dinheiro' | 'vale'> = {
     Pix: 'pix',
+    'Pix na entrega': 'pix',
+    Vale: 'vale',
     'Cartão online': 'cartao',
     'Cartão na entrega': 'cartao',
     Dinheiro: 'dinheiro',
@@ -2656,7 +2673,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     if (cashbackPreview > 0) linhas.push(`Cashback: -${brl(cashbackPreview)}`)
     if (beneficio?.tipo === 'item_gratis') linhas.push(`Item grátis: ${nomeLimpo(beneficio.itemNome) || 'prêmio'}`)
     linhas.push(`Total: ${brl(total)}`)
-    linhas.push(`Pagamento: ${rotuloPagamento(payMethod, tipoPedido)}`)
+    linhas.push(`Pagamento: ${payMethod === 'Vale' ? `Vale · ${valeBandeira ?? ''}` : rotuloPagamento(payMethod, tipoPedido)}`)
     linhas.push(tipoPedido === 'retirada' ? 'Retirada no local' : 'Entrega')
     if (cliente.nome.trim()) linhas.push(`Cliente: ${cliente.nome.trim()}`)
     return linhas.join('\n')
@@ -2678,9 +2695,12 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         endereco: tipoPedido === 'retirada' ? ENDERECO_VAZIO : endereco,
         pagamento: PAY_MAP[payMethod] ?? 'pix',
         // Pix online: o pedido espera o pagamento pelo QR; o servidor confere se a loja oferece.
-        pixOnline: pixOnline && payMethod === 'Pix' ? true : undefined,
+        pixOnline: pixAgora && payMethod === 'Pix' ? true : undefined,
         // Cartão online: o pedido espera o pagamento na tela do cartão (Mercado Pago).
-        cartaoOnline: cartaoOnline && payMethod === 'Cartão online' ? true : undefined,
+        cartaoOnline: cartaoAgora && payMethod === 'Cartão online' ? true : undefined,
+        // Loja que aceita só crédito ou só débito na maquininha (0217): o pedido já diz qual.
+        cartaoTipo: payMethod === 'Cartão na entrega' && cartaoCredito !== cartaoDebito ? (cartaoCredito ? 'credito' : 'debito') : undefined,
+        valeBandeira: payMethod === 'Vale' ? valeBandeira : undefined,
         trocoPara: payMethod === 'Dinheiro' ? parseMoney(changeFor) : null,
         taxaEntrega: fee,
         itens: cart.map((l) => ({
@@ -2822,6 +2842,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     // Troco pedido tem que cobrir a conta: senão o entregador sai sem o troco
     // combinado e o caixa dele fecha errado (lib/troco.ts). O servidor confere de
     // novo — aqui o cliente descobre antes de mandar o pedido.
+    if (checkoutStep === 1 && payMethod === 'Vale' && !(valeBandeira && bandeirasVale.includes(valeBandeira))) {
+      setCheckoutError('Escolha a bandeira do vale.')
+      return
+    }
     if (checkoutStep === 1 && payMethod === 'Dinheiro') {
       const erroTroco = erroDoTroco(total, parseMoney(changeFor))
       if (erroTroco) {
@@ -5330,10 +5354,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
           {checkoutOpen && (checkoutStep === 1 || checkoutStep === 3) && (
             <div className="px-[16px] pb-[20px]" data-testid="etapa-pagamento">
-              {(pixOnline || cartaoOnline) && (
+              {(pixAgora || cartaoAgora) && (
                 <section className="mb-[20px]" data-testid="pagar-agora">
                   <TituloSecao>Pagar agora</TituloSecao>
-                  {pixOnline && <OpcaoRadio
+                  {pixAgora && <OpcaoRadio
                     ativo={payMethod === 'Pix'}
                     onClick={() => setPayMethod('Pix')}
                     titulo={rotuloPagamento('Pix', tipoPedido)}
@@ -5341,7 +5365,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     icone={<PixIcon className="h-[20px] w-[20px]" />}
                     testid="pagamento-pix-online"
                   />}
-                  {cartaoOnline && (
+                  {cartaoAgora && (
                     <OpcaoRadio
                       ativo={payMethod === 'Cartão online'}
                       onClick={() => setPayMethod('Cartão online')}
@@ -5355,25 +5379,46 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
               )}
               <section className="mb-[20px]" data-testid="pagar-na-entrega">
                 <TituloSecao>{tipoPedido === 'retirada' ? 'Pagar na retirada' : 'Pagar na entrega'}</TituloSecao>
-                {!pixOnline && (
-                  <OpcaoRadio ativo={payMethod === 'Pix'} onClick={() => setPayMethod('Pix')} titulo={rotuloPagamento('Pix', tipoPedido)} subtitulo="Pagamento instantâneo e seguro" icone={<PixIcon className="h-[20px] w-[20px]" />} testid="pagamento-pix" />
+                {pixChave && (
+                  <OpcaoRadio ativo={payMethod === (pixAgora ? 'Pix na entrega' : 'Pix')} onClick={() => setPayMethod(pixAgora ? 'Pix na entrega' : 'Pix')} titulo={rotuloPagamento('Pix', tipoPedido)} subtitulo="Pagamento instantâneo e seguro" icone={<PixIcon className="h-[20px] w-[20px]" />} testid="pagamento-pix" />
                 )}
-                <OpcaoRadio
+                {(cartaoCredito || cartaoDebito) && <OpcaoRadio
                   ativo={payMethod === 'Cartão na entrega'}
                   onClick={() => setPayMethod('Cartão na entrega')}
                   titulo={rotuloPagamento('Cartão na entrega', tipoPedido)}
-                  subtitulo={tipoPedido === 'retirada' ? 'Crédito ou débito na maquininha, ao retirar' : 'Crédito ou débito na maquininha'}
+                  subtitulo={`${cartaoCredito && cartaoDebito ? 'Crédito ou débito' : cartaoCredito ? 'Só crédito' : 'Só débito'} na maquininha${tipoPedido === 'retirada' ? ', ao retirar' : ''}`}
                   icone={<CreditCard className="h-[20px] w-[20px] text-[#1D4ED8]" strokeWidth={1.8} />}
                   testid="pagamento-cartao"
-                />
-                <OpcaoRadio
+                />}
+                {idsPagamento.includes('Dinheiro') && <OpcaoRadio
                   ativo={payMethod === 'Dinheiro'}
                   onClick={() => setPayMethod('Dinheiro')}
                   titulo={rotuloPagamento('Dinheiro', tipoPedido)}
                   subtitulo={tipoPedido === 'retirada' ? 'Pague em espécie ao retirar' : 'Pague em espécie na entrega'}
                   icone={<Banknote className="h-[20px] w-[20px] text-[#0B7A3E]" strokeWidth={1.8} />}
                   testid="pagamento-dinheiro"
-                />
+                />}
+                {bandeirasVale.length > 0 && (
+                  <OpcaoRadio
+                    ativo={payMethod === 'Vale'}
+                    onClick={() => setPayMethod('Vale')}
+                    titulo="Vale-refeição / alimentação"
+                    subtitulo={bandeirasVale.join(', ')}
+                    icone={<CreditCard className="h-[20px] w-[20px] text-[#7E22CE]" strokeWidth={1.8} />}
+                    testid="pagamento-vale"
+                  />
+                )}
+              {payMethod === 'Vale' && bandeirasVale.length > 0 && (
+                <div className="mt-1 rounded-lg border border-border bg-white p-4" data-testid="vale-bandeiras">
+                  <p className="mb-2 text-[13px] font-semibold text-text-main">Qual bandeira?</p>
+                  <div className="flex flex-wrap gap-[8px]">
+                    {bandeirasVale.map((b) => (
+                      <button key={b} type="button" onClick={() => setValeBandeira(b)} aria-pressed={valeBandeira === b}
+                        className={`rounded-full border px-[12px] py-[6px] text-[13px] font-medium ${valeBandeira === b ? 'border-[var(--tema-primaria)] bg-[var(--tema-primaria)] text-white' : 'border-border bg-white text-text-main'}`}>{b}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
               {payMethod === 'Dinheiro' && (
                 <div className="mt-1 rounded-lg border border-border bg-white p-4">
                   <label className="mb-1.5 block text-[13px] font-semibold text-text-main">Troco para quanto?</label>
@@ -5499,13 +5544,15 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 </div>
                 <div className="flex items-start gap-[12px] py-[12px]" data-testid="revise-pagamento">
                   <span className="flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-[8px] bg-[#F5F5F5]">
-                    {payMethod === 'Pix' ? <PixIcon className="h-[18px] w-[18px]" /> : payMethod === 'Dinheiro' ? <Banknote className="h-[18px] w-[18px] text-[#0B7A3E]" strokeWidth={1.8} /> : <CreditCard className="h-[18px] w-[18px] text-[#1D4ED8]" strokeWidth={1.8} />}
+                    {payMethod.startsWith('Pix') ? <PixIcon className="h-[18px] w-[18px]" /> : payMethod === 'Dinheiro' ? <Banknote className="h-[18px] w-[18px] text-[#0B7A3E]" strokeWidth={1.8} /> : <CreditCard className="h-[18px] w-[18px] text-[#1D4ED8]" strokeWidth={1.8} />}
                   </span>
                   <div className="min-w-0 flex-1 text-[14px] leading-[18px]">
-                    <div className="font-semibold text-[#3D3D3D]">{payMethod === 'Pix' && pixOnline ? 'Pagar agora · Pix online' : payMethod === 'Cartão online' ? 'Pagar agora · Cartão online' : rotuloPagamento(payMethod, tipoPedido)}</div>
+                    <div className="font-semibold text-[#3D3D3D]">{payMethod === 'Pix' && pixAgora ? 'Pagar agora · Pix online' : payMethod === 'Cartão online' ? 'Pagar agora · Cartão online' : payMethod === 'Vale' ? `Vale · ${valeBandeira ?? ''}` : rotuloPagamento(payMethod === 'Pix na entrega' ? 'Pix' : payMethod, tipoPedido)}</div>
                     <div className="mt-[2px] text-[12px] leading-[16px] text-[#5C5C5C]">
                       {payMethod === 'Dinheiro' ? (changeFor ? `Troco para R$ ${changeFor}` : 'Sem troco')
-                        : payMethod === 'Pix' ? (pixOnline ? 'O QR Code aparece logo depois de fazer o pedido' : 'Pagamento instantâneo')
+                        : payMethod === 'Pix' ? (pixAgora ? 'O QR Code aparece logo depois de fazer o pedido' : 'Pagamento instantâneo')
+                        : payMethod === 'Pix na entrega' ? 'Pagamento instantâneo'
+                        : payMethod === 'Vale' ? (tipoPedido === 'retirada' ? 'Na maquininha, ao retirar' : 'Na maquininha, na entrega')
                         : payMethod === 'Cartão online' ? 'Você digita o cartão logo depois de fazer o pedido'
                         : tipoPedido === 'retirada' ? 'Na maquininha, ao retirar' : 'Na maquininha, na entrega'}
                     </div>

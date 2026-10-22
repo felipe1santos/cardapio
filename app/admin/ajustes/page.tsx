@@ -14,7 +14,9 @@ import { TabQrCode } from '@/components/admin/ajustes-qrcode'
 import { SubmenuVertical } from '@/components/admin/submenu-vertical'
 import { IlustracaoLanche } from '@/components/admin/ilustracao-lanche'
 import { getBrowserSupabase } from '@/lib/supabase/client'
-import { Building2, Clock, Eye, Image as ImageIcon, Link2, MapPin, Megaphone, PanelTop, Palette, Star } from 'lucide-react'
+import { Building2, Clock, CreditCard, Eye, Image as ImageIcon, Link2, MapPin, Megaphone, PanelTop, Palette, Star } from 'lucide-react'
+import { FormasPagamentoPerfil } from '@/components/admin/formas-pagamento-perfil'
+import { configParaTela, errosConfig, type ConfigFormas, type Conectados } from '@/lib/formas-pagamento'
 import { CartaoLinksDivulgar } from '@/components/admin/links-divulgar'
 import { SeletorCorLoja } from '@/components/admin/seletor-cor-loja'
 import { MensagensAutomaticas } from '@/components/admin/campanhas/mensagens-automaticas'
@@ -172,6 +174,24 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
   const supabase = useMemo(() => getBrowserSupabase(), [])
   const [loaded, setLoaded] = useState(false)
   const [config, setConfig] = useState<ConfigLoja | null>(null)
+  // Formas de pagamento (0217): só gravam se a pessoa mexeu (coluna nula segue "como sempre").
+  const [conectados, setConectados] = useState<Conectados>({ pixOnline: false, cartaoOnline: false })
+  const [formas, setFormas] = useState<ConfigFormas | null>(null)
+  const [formasMexeu, setFormasMexeu] = useState(false)
+  const [mesaFormas, setMesaFormas] = useState<{ lista: string[]; taxa: number } | null>(null)
+  const [mesaMexeu, setMesaMexeu] = useState(false)
+  useEffect(() => {
+    if (!config?.slug) return
+    let vivo = true
+    const ativo = (u: string) => fetch(u, { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((j: { ativo?: boolean } | null) => Boolean(j?.ativo)).catch(() => false)
+    void Promise.all([ativo(`/api/loja/${config.slug}/pix-online`), ativo(`/api/loja/${config.slug}/cartao-online`)]).then(([pixOnline, cartaoOnline]) => { if (vivo) setConectados({ pixOnline, cartaoOnline }) })
+    if (config.moduloMesasAtivo) {
+      fetch('/api/admin/mesas/configuracao', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null))
+        .then((j: { formasPagamento?: string[]; taxaServicoPadrao?: number } | null) => { if (vivo && j?.formasPagamento) setMesaFormas({ lista: j.formasPagamento, taxa: Number(j.taxaServicoPadrao ?? 0) }) }).catch(() => {})
+    }
+    return () => { vivo = false }
+  }, [config?.slug, config?.moduloMesasAtivo])
+  const formasTela = formas ?? (config ? configParaTela(config.formasPagamento, conectados) : null)
   const [form, setForm] = useState({
     nome: '',
     telefone: '',
@@ -445,6 +465,8 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
     if (!config) { setError('Os dados da loja não carregaram. Recarregue a página antes de salvar.'); return }
     if (form.pixChave.trim() && !tipoPixValido(form.pixTipo)) { setError('Escolha o tipo da chave Pix.'); return }
     if (!form.nome.trim()) { setError('O nome do estabelecimento é obrigatório.'); return }
+    const errosFormas = formasTela && (formasMexeu || mesaMexeu) ? errosConfig(formasTela, mesaMexeu && mesaFormas ? mesaFormas.lista : null) : []
+    if (errosFormas.length) { setError(`Formas de pagamento: ${errosFormas[0]}`); return }
     const instagram = normalizarInstagram(form.instagram)
     if (!instagram.ok) { setError(`Instagram: ${instagram.erro}`); return }
     if (diasComSobreposicao.length > 0) {
@@ -497,7 +519,15 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         bannerPromoFoco: form.bannerPromoFoco,
         horarioFuncionamento,
         corTema: corSelecionada === 'custom' ? corCustom : corSelecionada,
+        ...(formasMexeu && formasTela ? { formasPagamento: formasTela } : {}),
       })
+      // Mesa: a mesma lista de Ajustes › Mesas (formas_pagamento_mesa), pela rota de sempre.
+      if (mesaMexeu && mesaFormas) {
+        const r = await fetch('/api/admin/mesas/configuracao', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ taxaServicoPadrao: mesaFormas.taxa, formasPagamento: mesaFormas.lista }) }).catch(() => null)
+        if (!r?.ok) setError('Formas da mesa não salvaram: ' + (((await r?.json().catch(() => null)) as { error?: string } | null)?.error ?? 'tente de novo.'))
+        else setMesaMexeu(false)
+      }
+      setFormasMexeu(false); setFormas(null)
       setConfig(updated)
       setForm((f) => ({ ...f, latitude: updated.latitude, longitude: updated.longitude, instagram: updated.instagramUrl ?? '' }))
       setHorarioDias(horarioSemanaFromConfig(updated.horarioFuncionamento))
@@ -565,6 +595,14 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
             </Field>
           )}
         </Secao>
+
+        {formasTela && (
+          <Secao titulo="Formas de pagamento aceitas" descricao="O que o cliente pode escolher em cada canal. Vale para o cardápio, o robô e o Agente de IA." icone={<CreditCard />} testid="secao-formas-pagamento">
+            <FormasPagamentoPerfil valor={formasTela} onChange={(v) => { setFormas(v); setFormasMexeu(true); setSaved(false) }}
+              mesa={mesaFormas?.lista ?? null} onMesa={(l) => { setMesaFormas((m) => (m ? { ...m, lista: l } : m)); setMesaMexeu(true); setSaved(false) }}
+              conectados={conectados} temChavePix={!!form.pixChave.trim()} />
+          </Secao>
+        )}
 
         <Secao titulo="Banner promocional ou aviso" descricao="Uma faixa dentro do cardápio, logo abaixo das categorias: imagens das promoções ou um aviso em texto." icone={<Megaphone />} testid="secao-promo">
           <Field

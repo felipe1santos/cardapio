@@ -5,7 +5,8 @@
 import type { FerramentaClaude } from '@/lib/custo/anthropic'
 import { falhaDoPedido } from './falhas'
 import { resolverFrete } from '@/lib/frete'
-import { brl, type DadosLojaAuto } from '@/lib/robo-auto/respostas'
+import { brl, formasDasConversas, type DadosLojaAuto } from '@/lib/robo-auto/respostas'
+import { formasConversa, textoFormas } from '@/lib/formas-pagamento'
 import { pedidoPorNumero, pedidosAbertosDoTelefone } from '@/lib/robo-auto/motor'
 import { buscarNoCardapio, familiaDaBusca, sugerirParecidos, type CardapioIa } from './cardapio'
 import { extrasDaOferta } from './peca-tambem'
@@ -62,7 +63,8 @@ export const FERRAMENTAS: FerramentaClaude[] = [
         },
         tipo: { type: 'string', enum: ['entrega', 'retirada'] },
         endereco: ENDERECO,
-        pagamento: { type: 'string', enum: ['pix', 'dinheiro', 'cartao'] },
+        pagamento: { type: 'string', enum: ['pix', 'dinheiro', 'cartao', 'vale'], description: 'Só uma forma que a loja aceita (consultar_loja.pagamento)' },
+        vale_bandeira: { type: 'string', description: 'Só para vale: a bandeira, exatamente como em consultar_loja (ex.: Alelo)' },
         troco_para: { type: 'number', description: 'Só para dinheiro: troco para quanto' },
         sem_troco: { type: 'boolean', description: 'Dinheiro sem precisar de troco' },
         so_isso: { type: 'boolean', description: 'O cliente disse que não quer mais nenhum item ("é só isso")' },
@@ -170,7 +172,7 @@ export async function executarFerramenta(ctx: ContextoFerramentas, efeitos: Efei
             endereco: l.endereco, entrega: l.aceitaEntrega, retirada: l.aceitaRetirada,
             tempo_entrega: l.tempoEntrega ? `${l.tempoEntrega}${l.tempoEntregaOrigem === 'media' ? ' (média real dos últimos pedidos)' : ''}` : 'sem dado: NÃO diga "não sei" — chame chamar_atendente com o motivo "tempo de entrega"',
             tempo_retirada: l.tempoRetirada ?? 'sem dado: NÃO diga "não sei" — chame chamar_atendente com o motivo "tempo de retirada"',
-            pagamento: ['Pix', 'Dinheiro (com troco)', 'Cartão na entrega'].filter((f) => f !== 'Pix' || l.pixChave || l.pixOnline), link_cardapio: l.link,
+            pagamento: l.formasPagamento ? textoFormas(formasDasConversas(l), l.formasPagamento.vale_bandeiras) : ['Pix', 'Dinheiro (com troco)', 'Cartão na entrega'].filter((f) => f !== 'Pix' || l.pixChave || l.pixOnline), link_cardapio: l.link,
           }),
         }
       }
@@ -266,7 +268,11 @@ async function avisoDeFrete(ctx: ContextoFerramentas, r: Rascunho): Promise<stri
   return `Entrega no *${e.bairro}*: taxa \`${f.taxa > 0 ? brl(f.taxa) : 'grátis'}\`${tempo} 🛵`
 }
 
-export const opcoesDaLoja =(l: DadosLojaAuto): OpcoesLoja => ({ aceitaEntrega: l.aceitaEntrega, aceitaRetirada: l.aceitaRetirada, pix: !!(l.pixChave || l.pixOnline) })
+export const opcoesDaLoja =(l: DadosLojaAuto): OpcoesLoja => {
+  const pl = { pixOnline: l.pixOnline, pixChave: !!l.pixChave }
+  // 0217: o que o Perfil aceita em cada canal (nulo = como sempre).
+  return { aceitaEntrega: l.aceitaEntrega, aceitaRetirada: l.aceitaRetirada, pix: !!(l.pixChave || l.pixOnline), formas: { entrega: formasConversa(l.formasPagamento ?? null, 'entrega', pl), retirada: formasConversa(l.formasPagamento ?? null, 'retirada', pl) }, bandeirasVale: l.formasPagamento?.vale_bandeiras ?? [] }
+}
 
 type ConversaIa = { ia_rascunho?: Rascunho | null; ia_carrinho?: { hash?: string; carrinho?: unknown } | null; ia_resumo_em?: string | null; ia_bump_em?: string | null; ia_pedido_em?: string | null } | null
 

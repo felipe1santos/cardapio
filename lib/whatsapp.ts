@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { rotuloVale } from '@/lib/formas-pagamento'
 import { telefoneWhatsapp } from '@/lib/telefone-br'
 import { buscarPedidoParaNotificacao, type Pedido, type StatusPedido } from '@/lib/queries/pedidos'
 import { concluirSaida, registrarSaida } from '@/lib/mensageria/historico'
@@ -8,6 +9,7 @@ import { comTotalNoRecebido, decidirMensagem, etapaDoStatus, normalizarConfig, r
 
 const FORMA_PAGAMENTO_LABEL: Record<Pedido['formaPagamento'], string> = {
   pix: 'Pix',
+  vale: 'Vale-refeição',
   cartao: 'Cartão',
   dinheiro: 'Dinheiro',
 }
@@ -54,7 +56,7 @@ export function montarResumoPedido(pedido: Pedido, restauranteNome: string): str
   // Cartão escolhido no PDV traz o detalhe (0135); o pedido ainda não pago diz onde paga.
   const forma = pedido.formaPagamento === 'cartao' && pedido.cartaoTipo
     ? (pedido.cartaoTipo === 'debito' ? 'Cartão de débito' : 'Cartão de crédito')
-    : FORMA_PAGAMENTO_LABEL[pedido.formaPagamento]
+    : pedido.formaPagamento === 'vale' ? rotuloVale(pedido.valeBandeira) : FORMA_PAGAMENTO_LABEL[pedido.formaPagamento]
   const onde = pedido.pago ? '' : pedido.tipo === 'entrega' ? ' na entrega' : ' na retirada'
   let pagamento = `💳 *Pagamento${onde}:* ${forma}`
   if (pedido.formaPagamento === 'dinheiro' && pedido.trocoPara) pagamento += ` (troco para ${brl(pedido.trocoPara)})`

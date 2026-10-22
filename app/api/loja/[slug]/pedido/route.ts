@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { criarPedido } from '@/lib/queries/pedidos'
 import { montarPedidoPublico } from '@/lib/queries/pedido-publico'
+import { lerFormas, pedidoAceito } from '@/lib/formas-pagamento'
 import { notificarPedido } from '@/lib/whatsapp'
 import { registrarPedidoDoPush } from '@/lib/push/motor'
 import { avisarPainelPedidoNovo } from '@/lib/push/painel-pedidos'
@@ -40,7 +41,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
 
   const admin = getAdminSupabase()
 
-  const { data: loja, error: lojaError } = await admin.from('restaurantes').select('id').eq('slug', slug).maybeSingle()
+  const { data: loja, error: lojaError } = await admin.from('restaurantes').select('id, formas_pagamento').eq('slug', slug).maybeSingle()
   if (lojaError) return NextResponse.json({ error: 'Erro ao localizar a loja' }, { status: 500 })
   if (!loja) return NextResponse.json({ error: 'Loja não encontrada' }, { status: 404 })
 
@@ -63,6 +64,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
   // Cartão online (12/10): a mesma regra — a loja tem que oferecer agora (flag + conta + chave pública).
   if (input.cartaoOnline && input.pagamento === 'cartao' && !(await cartaoOnlineDaLoja(admin, loja.id).catch(() => ({ ativo: false }))).ativo) {
     return NextResponse.json({ error: 'O pagamento com cartão online não está disponível agora. Escolha outra forma de pagamento.' }, { status: 409 })
+  }
+
+  // Formas aceitas no Perfil (0217), por canal. Coluna nula = como sempre (nada filtrado).
+  if (!pedidoAceito(lerFormas(loja.formas_pagamento), input.tipo === 'retirada' ? 'retirada' : 'entrega', input)) {
+    return NextResponse.json({ error: 'A loja não aceita essa forma de pagamento. Escolha outra.' }, { status: 409 })
   }
 
   try {

@@ -48,7 +48,7 @@ export interface Rascunho {
 }
 /** Dados do banco para escolher o "peça também" (vendas dos últimos 60 dias e order bumps cadastrados, em ordem). */
 export interface ExtrasEtapas { vendas?: Map<string, number>; bumps?: string[] }
-export interface OpcoesLoja { aceitaEntrega: boolean; aceitaRetirada: boolean; pix: boolean }
+export interface OpcoesLoja { aceitaEntrega: boolean; aceitaRetirada: boolean; pix: boolean; formas?: { entrega: FormaPagamento[]; retirada: FormaPagamento[] }; bandeirasVale?: string[] }
 
 export type Pergunta =
   | { campo: 'grupo'; linha: number; grupo: string; texto: string; textoEmSeguida: string }
@@ -125,11 +125,12 @@ function tipoDoTexto(t: string): 'entrega' | 'retirada' | null {
   return ent === ret ? null : ent ? 'entrega' : 'retirada'
 }
 
-function pagamentoDoTexto(t: string, pix: boolean): FormaPagamento | null {
+function pagamentoDoTexto(t: string, pix: boolean, aceitas?: FormaPagamento[]): FormaPagamento | null {
   const n = norm(t)
   const achados = ([['pix', /\bpix\b/], ['dinheiro', /\b(dinheiro|especie|cash)\b/], ['cartao', /\b(cartao|credito|debito|maquininha|maquina)\b/]] as const)
     .filter(([, re]) => re.test(n)).map(([f]) => f)
   if (achados.length !== 1 || (achados[0] === 'pix' && !pix)) return null
+  if (aceitas && !aceitas.includes(achados[0])) return null // 0217: forma não aceita no canal → a IA explica
   return achados[0]
 }
 
@@ -262,8 +263,10 @@ const TEXTO_TIPO = 'Beleza!\nVai ser `Entrega` ou `Retirada no balcão`?'
 const TEXTO_TIPO_EM_SEGUIDA = 'Agora, vai ser `Entrega` ou `Retirada no balcão`?'
 const TEXTO_ENDERECO = 'Me passa o endereço de entrega: rua, número e bairro 📍'
 const TEXTO_TROCO = 'Precisa de troco para quanto? Se não precisar, é só dizer "sem troco".'
-const textoPagamento = (tipo: 'entrega' | 'retirada', pix: boolean) =>
-  ['Como prefere pagar?', ...(pix ? ['💠 Pix'] : []), '💵 Dinheiro', `💳 Cartão na ${tipo === 'retirada' ? 'retirada' : 'entrega'}`].join('\n')
+const textoPagamento = (tipo: 'entrega' | 'retirada', pix: boolean, loja?: OpcoesLoja) => {
+  const f = loja?.formas?.[tipo] ?? [...(pix ? ['pix' as const] : []), 'dinheiro' as const, 'cartao' as const]
+  return ['Como prefere pagar?', ...(f.includes('pix') ? ['💠 Pix'] : []), ...(f.includes('dinheiro') ? ['💵 Dinheiro'] : []), ...(f.includes('cartao') ? [`💳 Cartão na ${tipo === 'retirada' ? 'retirada' : 'entrega'}`] : []), ...(f.includes('vale') ? [`🎫 Vale (${(loja?.bandeirasVale ?? []).join(', ')})`] : [])].join('\n')
+}
 
 export function tipoEfetivo(r: Rascunho, loja: OpcoesLoja): 'entrega' | 'retirada' | undefined {
   if (r.tipo) return r.tipo
@@ -297,7 +300,7 @@ export function proximaPergunta(r: Rascunho, cardapio: CardapioIa, loja: OpcoesL
   const tipo = tipoEfetivo(r, loja)
   if (!tipo) return { campo: 'tipo', texto: TEXTO_TIPO, textoEmSeguida: TEXTO_TIPO_EM_SEGUIDA }
   if (tipo === 'entrega' && !enderecoOk(r.endereco)) return { campo: 'endereco', texto: TEXTO_ENDERECO, textoEmSeguida: TEXTO_ENDERECO }
-  if (!r.pagamento) { const t = textoPagamento(tipo, loja.pix); return { campo: 'pagamento', texto: t, textoEmSeguida: t } }
+  if (!r.pagamento) { const t = textoPagamento(tipo, loja.pix, loja); return { campo: 'pagamento', texto: t, textoEmSeguida: t } }
   if (r.pagamento === 'dinheiro' && (r.trocoPara === null || r.trocoPara === undefined) && !r.trocoRespondido) return { campo: 'troco', texto: TEXTO_TROCO, textoEmSeguida: TEXTO_TROCO }
   return null
 }
@@ -404,7 +407,7 @@ function aplicarDireto(r: Rascunho, p: Pergunta, texto: string, cardapio: Cardap
   }
   if (p.campo === 'tipo') { const t = tipoDoTexto(texto); if (!t) return null; r.tipo = t; return { rascunho: r } }
   if (p.campo === 'pagamento') {
-    const f = pagamentoDoTexto(texto, loja.pix)
+    const f = pagamentoDoTexto(texto, loja.pix, loja.formas?.[tipoEfetivo(r, loja) ?? 'entrega'])
     if (!f) return null
     r.pagamento = f
     if (f !== 'dinheiro') { r.trocoPara = null; r.trocoRespondido = false }
@@ -420,7 +423,7 @@ function aplicarDireto(r: Rascunho, p: Pergunta, texto: string, cardapio: Cardap
  */
 function adiantar(r: Rascunho, texto: string, loja: OpcoesLoja) {
   if (!r.tipo) { const t = tipoDoTexto(texto); if (t && (t === 'entrega' ? loja.aceitaEntrega : loja.aceitaRetirada)) r.tipo = t }
-  if (!r.pagamento) { const f = pagamentoDoTexto(texto, loja.pix); if (f) r.pagamento = f }
+  if (!r.pagamento) { const f = pagamentoDoTexto(texto, loja.pix, loja.formas?.[tipoEfetivo(r, loja) ?? 'entrega']); if (f) r.pagamento = f }
   if (r.pagamento === 'dinheiro' && !r.trocoRespondido && /\btroco\b/.test(norm(texto))) {
     const t = trocoDoTexto(texto)
     if (t) { r.trocoPara = t.trocoPara; r.trocoRespondido = true }
@@ -576,7 +579,7 @@ export function mesclarDoIa(r: Rascunho | null, bruto: unknown, cardapio: Cardap
   return { ok: true, rascunho: base }
 }
 
-const ROTULO_PAG: Record<FormaPagamento, string> = { pix: 'Pix', dinheiro: 'dinheiro', cartao: 'cartão' }
+const ROTULO_PAG: Record<FormaPagamento, string> = { pix: 'Pix', dinheiro: 'dinheiro', cartao: 'cartão', vale: 'vale' }
 
 /**
  * Tipo que a loja NÃO aceita (bárbarah 18/10: "vou retirar aí" com retirada desligada → erro técnico no fim): troca

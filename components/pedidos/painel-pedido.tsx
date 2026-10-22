@@ -321,7 +321,7 @@ export function PainelPedido({
                 <span className={ROTULO}>Forma</span>
                 <span className={`${VALOR} inline-flex items-center gap-1.5`}>
                   {p.formaPagamento === 'pix' ? <IconePix className="h-4 w-4" /> : p.formaPagamento === 'dinheiro' ? <IcoDinheiro className="h-[18px] w-[18px]" /> : <IcoCartao className="h-[18px] w-[18px]" />}
-                  {altPagamento ? <><Editado testid="painel-pagamento-editado">{rotuloForma(p.formaPagamento, p.cartaoTipo, p.pagamentoOnline)}</Editado><Antigo>{altPagamento.de}</Antigo></> : rotuloForma(p.formaPagamento, p.cartaoTipo, p.pagamentoOnline)}
+                  {altPagamento ? <><Editado testid="painel-pagamento-editado">{rotuloForma(p.formaPagamento, p.cartaoTipo, p.pagamentoOnline, p.valeBandeira)}</Editado><Antigo>{altPagamento.de}</Antigo></> : rotuloForma(p.formaPagamento, p.cartaoTipo, p.pagamentoOnline, p.valeBandeira)}
                 </span>
               </div>
               <div className={LINHA}><span className={ROTULO}>Situação</span>{p.pago ? <span className={`font-semibold ${DINHEIRO}`}>{p.pagamentoOnline ? 'Pago online' : 'Pago'}</span> : <span className="font-semibold text-[#92400E]">{statusAReceber(p.tipo)}</span>}</div>

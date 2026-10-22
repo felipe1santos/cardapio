@@ -9,6 +9,7 @@
  *    Kanban, impressão, avisos), origem "whatsapp_ia". Mesma conversa + mesmo conteúdo em 10 min = não cria de novo.
  */
 import { createHash } from 'node:crypto'
+import { lerFormas, pedidoAceito, rotuloVale } from '@/lib/formas-pagamento'
 import { saldoCashbackCliente } from '@/lib/queries/cashback'
 import { valorCashbackAplicavel } from '@/lib/cashback-regras'
 import { linhaComplemento, linhaItem } from '@/lib/mensageria/formato'
@@ -35,6 +36,8 @@ export interface Carrinho {
   tipo: 'entrega' | 'retirada'
   endereco?: EnderecoCarrinho | null
   pagamento: FormaPagamento
+  /** Vale (0217): bandeira aceita no Perfil. */
+  valeBandeira?: string | null
   trocoPara?: number | null
   nomeCliente: string
 }
@@ -62,8 +65,10 @@ export function limparCarrinho(bruto: unknown, nomeWhatsapp: string | null): { o
   if (!itens.length) return { ok: false, erro: 'O pedido está sem itens.' }
   const tipo = b.tipo === 'retirada' ? 'retirada' : b.tipo === 'entrega' ? 'entrega' : null
   if (!tipo) return { ok: false, erro: 'Falta saber se é entrega ou retirada.' }
-  const pagamento = b.pagamento === 'pix' || b.pagamento === 'dinheiro' || b.pagamento === 'cartao' ? b.pagamento : null
-  if (!pagamento) return { ok: false, erro: 'Falta a forma de pagamento (pix, dinheiro ou cartao).' }
+  const pagamento = b.pagamento === 'pix' || b.pagamento === 'dinheiro' || b.pagamento === 'cartao' || b.pagamento === 'vale' ? b.pagamento : null
+  if (!pagamento) return { ok: false, erro: 'Falta a forma de pagamento (pix, dinheiro, cartao ou vale).' }
+  const valeBandeira = pagamento === 'vale' ? txt(b.vale_bandeira ?? b.valeBandeira, 40) || null : null
+  if (pagamento === 'vale' && !valeBandeira) return { ok: false, erro: 'Para vale, falta a bandeira (Alelo, VR...).' }
   let endereco: EnderecoCarrinho | null = null
   if (tipo === 'entrega') {
     const e = (b.endereco && typeof b.endereco === 'object' ? b.endereco : {}) as Record<string, unknown>
@@ -74,7 +79,7 @@ export function limparCarrinho(bruto: unknown, nomeWhatsapp: string | null): { o
   const trocoPara = pagamento === 'dinheiro' && troco !== null && troco !== undefined && Number(troco) > 0 ? Math.round(Number(troco) * 100) / 100 : null
   const nomeCliente = txt(b.nome_cliente ?? b.nomeCliente, 80) || (nomeWhatsapp ?? '').trim().slice(0, 80)
   if (!nomeCliente) return { ok: false, erro: 'Falta o nome do cliente.' }
-  return { ok: true, carrinho: { itens, tipo, endereco, pagamento, trocoPara, nomeCliente } }
+  return { ok: true, carrinho: { itens, tipo, endereco, pagamento, ...(valeBandeira ? { valeBandeira } : {}), trocoPara, nomeCliente } }
 }
 
 /** Mesma conversa, mesmo conteúdo → mesmo hash (a ordem dos itens não importa). Puro. */
@@ -110,7 +115,7 @@ export function linhasDoCarrinho(c: Carrinho): NovoPedidoItemInput[] {
   }))
 }
 
-const ROTULO_PAGAMENTO: Record<FormaPagamento, string> = { pix: 'Pix', dinheiro: 'Dinheiro', cartao: 'Cartão na entrega' }
+const ROTULO_PAGAMENTO: Record<FormaPagamento, string> = { pix: 'Pix', dinheiro: 'Dinheiro', cartao: 'Cartão na entrega', vale: 'Vale' }
 
 /** Falha ao fechar o pedido com código (19/10): lib/agente-ia/falhas.ts transforma em texto humano para o cliente. */
 export type CodigoFalhaPedido = 'fechada' | 'sem_entrega' | 'sem_retirada' | 'fora_da_area'
@@ -127,7 +132,7 @@ export async function calcularPedido(ctx: ContextoPedido, c: Carrinho): Promise<
   const { admin, restauranteId } = ctx
   const { data: loja } = await admin
     .from('restaurantes')
-    .select('status_loja, horario_funcionamento, aceita_entrega, aceita_retirada, pizza_calculo_preco, frete_gratis_acima')
+    .select('status_loja, horario_funcionamento, aceita_entrega, aceita_retirada, pizza_calculo_preco, frete_gratis_acima, formas_pagamento')
     .eq('id', restauranteId)
     .maybeSingle()
   const l = (loja ?? {}) as Record<string, unknown>
@@ -136,6 +141,12 @@ export async function calcularPedido(ctx: ContextoPedido, c: Carrinho): Promise<
   }
   if (c.tipo === 'entrega' && l.aceita_entrega === false) throw new FalhaPedido('sem_entrega', 'A loja não está fazendo entregas agora.')
   if (c.tipo === 'retirada' && l.aceita_retirada !== true) throw new FalhaPedido('sem_retirada', 'A loja não está aceitando retirada agora.')
+  // 0217: só as formas marcadas no Perfil para este canal (Pix online só se a loja marcou o Pix online).
+  const formas = lerFormas(l.formas_pagamento)
+  const pixOnlineAceito = !formas || formas[c.tipo].includes('pix_online')
+  if (!pedidoAceito(formas, c.tipo, { pagamento: c.pagamento, pixOnline: c.pagamento === 'pix' && ctx.pixOnlineAtivo && pixOnlineAceito, valeBandeira: c.valeBandeira ?? null })) {
+    throw new Error(`A loja não aceita essa forma de pagamento na ${c.tipo}. Ofereça só as formas de consultar_loja.`)
+  }
   const itens = linhasDoCarrinho(c)
   const linhas = await precificarLinhas(admin, restauranteId, { itens, origem: 'cardapio' }, { canal: canalDoPedido({ origem: 'cardapio' }), pizzaCalculoPreco: l.pizza_calculo_preco as string | null })
   const cent = (v: number) => Math.round(v * 100) / 100
@@ -157,9 +168,9 @@ export async function calcularPedido(ctx: ContextoPedido, c: Carrinho): Promise<
     cashback = 0
   }
   const total = cent(Math.max(0, subtotal - cashback) + taxa)
-  const pixOnline = c.pagamento === 'pix' && ctx.pixOnlineAtivo
+  const pixOnline = c.pagamento === 'pix' && ctx.pixOnlineAtivo && pixOnlineAceito
   const linhasTexto = linhas.map(linhasDoItemResumo)
-  const pagamento = c.pagamento === 'dinheiro' && c.trocoPara ? `Dinheiro (troco para ${brl(c.trocoPara)})` : pixOnline ? 'Pix (envio o código depois de confirmar)' : ROTULO_PAGAMENTO[c.pagamento]
+  const pagamento = c.pagamento === 'dinheiro' && c.trocoPara ? `Dinheiro (troco para ${brl(c.trocoPara)})` : pixOnline ? 'Pix (envio o código depois de confirmar)' : c.pagamento === 'vale' ? rotuloVale(c.valeBandeira) : ROTULO_PAGAMENTO[c.pagamento]
   const onde = c.tipo === 'entrega' && c.endereco
     ? `📍 Entrega: ${c.endereco.rua}, ${c.endereco.numero}${c.endereco.complemento ? ` (${c.endereco.complemento})` : ''} — ${c.endereco.bairro}`
     : '🏪 Retirada no balcão'
@@ -254,6 +265,7 @@ export async function criarPedidoDaConversa(ctx: ContextoPedido, confirmacao: { 
         : { rua: '', numero: '', complemento: '', bairro: '', cep: '' },
       pagamento: carrinho.pagamento,
       pixOnline: resumo.pixOnline,
+      valeBandeira: carrinho.valeBandeira ?? null,
       trocoPara: carrinho.trocoPara ?? null,
       origem: 'cardapio',
       origemCanal: 'whatsapp_ia',
