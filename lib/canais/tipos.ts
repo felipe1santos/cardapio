@@ -10,7 +10,8 @@ export type Canal = 'keeta' | '99food' | 'ifood'
 export const CANAIS: readonly Canal[] = ['keeta', '99food', 'ifood']
 export const NOME_CANAL: Record<Canal, string> = { keeta: 'Keeta', '99food': '99Food', ifood: 'iFood' }
 /** 20/10: canal liberado para conectar (credenciais homologadas). false = "Em breve" em Integrações e a API recusa salvar/ligar. */
-export const CANAL_DISPONIVEL: Record<Canal, boolean> = { keeta: false, '99food': false, ifood: false }
+// 21/10 (ordem do dono): todos liberados para conectar; cada loja cola as próprias credenciais.
+export const CANAL_DISPONIVEL: Record<Canal, boolean> = { keeta: true, '99food': true, ifood: true }
 
 export interface ItemExterno {
   /** Id do item no app (para responder/rastrear). */

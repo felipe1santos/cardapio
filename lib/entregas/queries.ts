@@ -16,7 +16,7 @@ export type ProvedorEntrega = 'lalamove' | 'ifood' | 'foody' | 'machine' | 'uber
  * (não é autoatendimento) → "Em breve" até a primeira loja receber URL base + client id/secret e o teste passar.
  */
 // Uber Direct (21/10): liberada para todas as lojas pelo servidor (ENTREGAS_UBER_LIBERADO=1 no Coolify).
-export const PROVEDOR_DISPONIVEL: Record<ProvedorEntrega, boolean> = { lalamove: true, ifood: false, foody: true, machine: false, uber: process.env.ENTREGAS_UBER_LIBERADO === '1' }
+export const PROVEDOR_DISPONIVEL: Record<ProvedorEntrega, boolean> = { lalamove: true, ifood: true, foody: true, machine: true, uber: true } // 21/10: todos liberados (ordem do dono)
 
 export interface ConfigProvedor {
   restauranteId: string
