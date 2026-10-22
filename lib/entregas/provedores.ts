@@ -11,7 +11,7 @@ import { cancelarEntregaIfood, cotarIfoodEntrega, criarEntregaIfood } from '@/li
 import { cancelarEntregaFoody, cotarFoody, criarEntregaFoody, type ContaFoody } from '@/lib/custo/foody-logistica'
 import { buscarEntregaUber, cancelarEntregaUber, cotarUber, criarEntregaUber, statusDeUber, type ContaUber, type EnderecoUber } from '@/lib/custo/uber-direct'
 import { STATUS_FIM_SEM_ENTREGA, corridaAtiva, type RespostaCotacao } from './lalamove-regras'
-import { type EntregaProvedorLinha } from './lalamove-status'
+import { ENTREGA_PROVEDOR_SELECT, mapEntregaProvedor, type EntregaProvedorLinha } from './lalamove-status'
 import { EntregaError, pedidoDaLoja } from './lalamove-servidor'
 import { apagarCorrida, atualizarCorrida, buscarConfig, corridaAtivaDoPedido, criarCorrida, marcosDaCorrida, PROVEDOR_DISPONIVEL, registrarEventoCorrida, type ConfigProvedor, type ProvedorEntrega } from './queries'
 
@@ -220,6 +220,26 @@ export async function atualizarCorridaUber(admin: SupabaseClient, restauranteId:
   const novo = statusDeUber(r.status)
   if (!novo) return { status: corrida.status, mudou: false }
   return aplicarEventoCorrida(admin, corrida, novo, { motorista: r.motorista, shareLink: r.trackingUrl, preco: r.preco, evento: { tipo: 'consulta', status: r.status, liveMode: r.liveMode }, origem: 'consulta' })
+}
+
+/**
+ * Cron de 1 min (/api/cron/canais): corridas da Uber em andamento sem novidade há 50 s são consultadas na própria Uber.
+ * Rede de segurança do webhook (signing key errada, Uber fora do ar…): o pedido anda do mesmo jeito.
+ */
+export async function sincronizarCorridasUber(admin: SupabaseClient): Promise<{ consultadas: number; mudaram: number; erros: string[] }> {
+  const out = { consultadas: 0, mudaram: 0, erros: [] as string[] }
+  if (!PROVEDOR_DISPONIVEL.uber) return out
+  const { data, error } = await admin.from('entregas_provedor').select(ENTREGA_PROVEDOR_SELECT).eq('provedor', 'uber').in('status', ['ASSIGNING_DRIVER', 'ON_GOING', 'PICKED_UP']).lt('atualizado_em', new Date(Date.now() - 50_000).toISOString()).limit(40)
+  if (error) { out.erros.push(error.message); return out }
+  for (const linha of data ?? []) {
+    const corrida = mapEntregaProvedor(linha as Record<string, unknown>)
+    try {
+      const r = await atualizarCorridaUber(admin, corrida.restauranteId, corrida)
+      out.consultadas++
+      if (r.mudou) out.mudaram++
+    } catch (e) { out.erros.push(`uber ${corrida.externoId?.slice(0, 12)}: ${(e as Error).message?.slice(0, 80)}`) }
+  }
+  return out
 }
 
 async function moverPedido(admin: SupabaseClient, pedidoId: string, de: StatusPedido[], para: StatusPedido): Promise<boolean> {

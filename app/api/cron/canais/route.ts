@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { sincronizarCanais } from '@/lib/canais/sincronizar'
+import { sincronizarCorridasUber } from '@/lib/entregas/provedores'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,9 +15,13 @@ export async function POST(request: Request) {
   const segredo = process.env.CRON_SECRET
   if (!segredo || request.headers.get('x-cron-secret') !== segredo) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   try {
-    const r = await sincronizarCanais(getAdminSupabase())
+    const admin = getAdminSupabase()
+    const r = await sincronizarCanais(admin)
     if (r.erros.length) console.error('[cron canais]', r.erros.slice(0, 5).join(' | '))
-    return NextResponse.json({ ok: true, ...r, erros: r.erros.length })
+    // Uber Direct (21/10): consulta as corridas em andamento (rede de segurança do webhook).
+    const uber = await sincronizarCorridasUber(admin).catch((e) => ({ consultadas: 0, mudaram: 0, erros: [(e as Error).message] }))
+    if (uber.erros.length) console.error('[cron canais] uber', uber.erros.slice(0, 3).join(' | '))
+    return NextResponse.json({ ok: true, ...r, erros: r.erros.length, uber: { consultadas: uber.consultadas, mudaram: uber.mudaram } })
   } catch (e) {
     console.error('[cron canais]', (e as Error).message?.slice(0, 160))
     return NextResponse.json({ error: 'Erro interno' }, { status: 500 })
