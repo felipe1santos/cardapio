@@ -1207,7 +1207,7 @@ export default function PedidosPage() {
                       if (!usaDespachoDeRotas(fluxo)) avancarCard = { rotulo: 'Saiu p/ entrega', onClick: () => saiuSemEntregador(order) }
                       principal = (
                         <>
-                          {order.parceiroPix ? <ParceiroPixNoCard pedidoId={order.id} pp={order.parceiroPix} onErro={setError} /> : (
+                          {order.parceiroPix ? null : (
                             <>
                               {entregadoresAtivos.filter((prov) => pixOnlineLoja || !precisaPixAntes(prov, order)).map((prov) => <ChamarLalamove key={prov} provedor={prov} pedido={order} onChamada={aoChamarLalamove} onErro={setError} className="!h-[26px] !min-h-0 !rounded-[2px] !py-0 !text-[11.5px] !normal-case !tracking-normal" />)}
                               {!pixOnlineLoja && entregadoresAtivos.some((prov) => precisaPixAntes(prov, order)) && <span className="text-[11px] text-text-subtle" data-testid="parceiro-pix-dica">Conecte o Pix online para usar parceiros em pedidos em dinheiro</span>}
@@ -1240,7 +1240,7 @@ export default function PedidosPage() {
                         }}
                         rodape={solicitacoes[order.id] ? (
                           <SolicitacaoNoCard s={solicitacoes[order.id]} onAplicar={() => decidirSolicitacao(solicitacoes[order.id], 'aplicar')} onRecusar={(motivo) => decidirSolicitacao(solicitacoes[order.id], 'recusar', motivo).then(() => {})} onEditarAMao={() => setEditando(order.id)} />
-                        ) : corridaAtiva ? <CorridaLalamoveNoCard corrida={corridaAtiva} onMudou={() => { if (restauranteId) refetch(restauranteId) }} onErro={setError} /> : (order.agendadoPara ? <Badge tone="alert">Agendado {textoAgendado(order.agendadoPara)}</Badge> : undefined)}
+                        ) : corridaAtiva ? <CorridaLalamoveNoCard corrida={corridaAtiva} onMudou={() => { if (restauranteId) refetch(restauranteId) }} onErro={setError} /> : order.parceiroPix && order.status === 'pronto' ? <ParceiroPixNoCard pedidoId={order.id} pp={order.parceiroPix} onErro={setError} /> : (order.agendadoPara ? <Badge tone="alert">Agendado {textoAgendado(order.agendadoPara)}</Badge> : undefined)}
                       />
                     )
                   })}
