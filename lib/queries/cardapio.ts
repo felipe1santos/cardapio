@@ -1154,6 +1154,11 @@ export type DesignVitrine = 'padrao' | 'simples'
 export function designVitrineValido(v: unknown): DesignVitrine {
   return v === 'simples' ? 'simples' : 'padrao'
 }
+/** Menu inferior da vitrine (0221): 'bolha' = o de sempre; 'botoes' = barra branca com 4 botões. */
+export type MenuVitrine = 'bolha' | 'botoes'
+export function menuVitrineValido(v: unknown): MenuVitrine {
+  return v === 'botoes' ? 'botoes' : 'bolha'
+}
 
 export interface RestauranteVitrine {
   /** Formas de pagamento aceitas por canal (0217); nulo = como sempre. */
@@ -1203,6 +1208,7 @@ export interface RestauranteVitrine {
   imagemTamanho: ImagemTamanho | null
   fonteVitrine: FonteVitrine
   designVitrine: DesignVitrine
+  menuVitrine: MenuVitrine
   /** Chave por loja (0152): vitrine e checkout no padrão iFood. Desligada = a vitrine de sempre. */
   vitrineNova: boolean
   /** true se a loja está aceitando pedidos agora (manual ou pela grade de horário — ver lib/timezone.ts). */
@@ -1234,7 +1240,7 @@ export async function buscarRestaurantePorSlug(supabase: ClienteLeitura, slug: s
   const { data, error } = await supabase
     .from('restaurantes')
     .select(
-      'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_promo_urls, banner_promo_texto, banner_promo_video, vitrine_cabecalho, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, instagram_url, endereco, endereco_bairro, endereco_cidade, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio, cor_tema, imagem_grande, vitrine_imagem_tamanho, vitrine_fonte, vitrine_design, vitrine_nova, status_loja, horario_funcionamento, avaliacao_nota, avaliacao_qtd, aceita_entrega, aceita_retirada, pizza_calculo_preco, agendamento_ativo, agendamento_quando, agendamento_dias, agendamento_antecedencia_min, agendamento_intervalo_min, agendamento_limite, agendamento_entrega, agendamento_retirada, agendamento_libera_min, aviso_cor_texto, aviso_cor_fundo, aviso_pulsar, formas_pagamento'
+      'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_promo_urls, banner_promo_texto, banner_promo_video, vitrine_cabecalho, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, instagram_url, endereco, endereco_bairro, endereco_cidade, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio, cor_tema, imagem_grande, vitrine_imagem_tamanho, vitrine_fonte, vitrine_design, vitrine_menu, vitrine_nova, status_loja, horario_funcionamento, avaliacao_nota, avaliacao_qtd, aceita_entrega, aceita_retirada, pizza_calculo_preco, agendamento_ativo, agendamento_quando, agendamento_dias, agendamento_antecedencia_min, agendamento_intervalo_min, agendamento_limite, agendamento_entrega, agendamento_retirada, agendamento_libera_min, aviso_cor_texto, aviso_cor_fundo, aviso_pulsar, formas_pagamento'
     )
     .eq('slug', slug)
     .maybeSingle()
@@ -1277,6 +1283,7 @@ export async function buscarRestaurantePorSlug(supabase: ClienteLeitura, slug: s
     imagemTamanho: imagemTamanhoValido(data.vitrine_imagem_tamanho),
     fonteVitrine: fonteVitrineValida(data.vitrine_fonte),
     designVitrine: designVitrineValido(data.vitrine_design),
+    menuVitrine: menuVitrineValido(data.vitrine_menu),
     vitrineNova: data.vitrine_nova === true,
     lojaAberta: lojaEstaAberta(estadoLoja),
     proximaAberturaTexto: textoProximaAbertura(estadoLoja),

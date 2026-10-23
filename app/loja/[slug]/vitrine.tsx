@@ -6,6 +6,7 @@ import { formasDoCanal } from '@/lib/formas-pagamento'
 import { comVideo, midiasDaFicha, type Midia, type VideoItem } from '@/lib/video-vitrine'
 import { VideoLoop } from '@/components/vitrine/video-loop'
 import { BarraNav } from '@/components/vitrine/barra-nav'
+import { BarraNavBotoes } from '@/components/vitrine/barra-nav-botoes'
 import { CABECALHO_PADRAO } from '@/lib/vitrine-cabecalho'
 import { House as PhHouse, Receipt as PhReceipt, Ticket as PhTicket, User as PhUser } from '@phosphor-icons/react'
 import { TelaPixOnline, type PixAguardando } from '@/components/vitrine/tela-pix-online'
@@ -3663,6 +3664,17 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   que a tela faz ao cliente — identificar-se agora é o que traz
                   endereço salvo, histórico e cupom, e evita o login no meio do
                   checkout, onde ele desiste. Some quando já está identificado. */}
+              {/* Menu de 4 botões não tem Perfil: quem já entrou acha a conta aqui. */}
+              {perfilCliente && restaurante.menuVitrine === 'botoes' && (
+                <button
+                  onClick={() => setContaOpen(true)}
+                  className="-ml-1 mt-[12px] inline-flex items-center gap-[6px] rounded px-1 py-1 text-[12px] font-semibold leading-[16px] text-[var(--v-acao)] transition-opacity hover:opacity-80 lg:hidden"
+                  data-testid="minha-conta"
+                >
+                  Minha conta
+                  <ChevronRight className="h-3.5 w-3.5" strokeWidth={2.5} />
+                </button>
+              )}
               {!perfilCliente && (
                 <div className="mt-[12px] flex items-center justify-between gap-[12px]">
                   <button
@@ -4569,11 +4581,21 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
           </div>
         )}
         <nav
-          className="nav-rodape pointer-events-auto w-full border-t border-border bg-white pt-1 shadow-[0_-4px_20px_rgba(0,0,0,0.07)]"
+          className={`nav-rodape pointer-events-auto w-full bg-white ${restaurante.menuVitrine === 'botoes' ? '' : 'border-t border-border pt-1 shadow-[0_-4px_20px_rgba(0,0,0,0.07)]'}`}
           data-testid="nav-rodape"
           data-oculta="nao"
         >
-          {/* Barra com a bolha da referência (21/10/2026): ícones de linha finos; o ativo sobe numa bolha na cor da loja. */}
+          {/* Menu "Barra com 4 botões" (0221): Promoções abre a vista de promoções do cardápio; Perfil fica no
+              link do topo ("Fazer login" / "Minha conta"). */}
+          {restaurante.menuVitrine === 'botoes' ? (
+          <BarraNavBotoes itens={[
+            { id: 'inicio', label: 'Início', onClick: () => { setTab('home'); if (activeCategory === '__promos__') setActiveCategory(null) }, active: !contaOpen && tab === 'home' && activeCategory !== '__promos__' },
+            { id: 'promocoes', label: 'Promoções', onClick: () => { if (promoItems.length === 0) { showToast('Nenhuma promoção no momento.'); return } setTab('home'); setActiveCategory('__promos__'); window.scrollTo({ top: 0 }) }, active: !contaOpen && tab === 'home' && activeCategory === '__promos__' },
+            { id: 'desconto', label: 'Desconto', onClick: () => setTab('cupons'), active: !contaOpen && tab === 'cupons' },
+            { id: 'pedidos', label: 'Pedidos', onClick: () => setTab('pedidos'), active: !contaOpen && tab === 'pedidos' },
+          ]} />
+          ) : (
+          /* Barra com a bolha da referência (21/10/2026): ícones de linha finos; o ativo sobe numa bolha na cor da loja. */
           <BarraNav itens={[
             { id: 'home', label: 'Home', onClick: () => setTab('home'), active: !contaOpen && tab === 'home', icon: <PhHouse weight="light" /> },
             { id: 'pedidos', label: 'Pedidos', onClick: () => setTab('pedidos'), active: !contaOpen && tab === 'pedidos', icon: <PhReceipt weight="light" /> },
@@ -4581,6 +4603,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             // Perfil: sempre o bonequinho (nunca a inicial do nome).
             { id: 'perfil', label: perfilCliente ? 'Perfil' : 'Entrar', onClick: () => setContaOpen(true), active: contaOpen, icon: <PhUser weight="light" /> },
           ]} />
+          )}
         </nav>
         </div>
       </div>

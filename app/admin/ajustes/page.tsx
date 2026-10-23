@@ -31,7 +31,7 @@ import { PilhaToasts, useToasts } from '@/components/admin/toasts'
 import { normalizarInstagram } from '@/lib/instagram'
 import { PIX_CHAVE_MAX, TIPOS_PIX, tipoPixValido } from '@/lib/pix-chave'
 import { fonteVitrine } from '@/lib/fonte-vitrine'
-import { buscarRestauranteIdDoUsuario, IMAGEM_TAMANHOS, type LayoutCardapio, type ImagemTamanho, type FonteVitrine, type DesignVitrine } from '@/lib/queries/cardapio'
+import { buscarRestauranteIdDoUsuario, IMAGEM_TAMANHOS, type LayoutCardapio, type ImagemTamanho, type FonteVitrine, type DesignVitrine, type MenuVitrine } from '@/lib/queries/cardapio'
 import { AjustarFoco } from '@/components/ajustar-foco'
 import { FOCO_PADRAO, objectPosition, type Foco } from '@/lib/foco-imagem'
 import { BANNER_PROMO_MAX_IMAGENS, BANNER_PROMO_MAX_TEXTO, bannerPromocional } from '@/lib/banner-promocional'
@@ -227,6 +227,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
     imagemTamanho: null as ImagemTamanho | null,
     fonteVitrine: 'atual' as FonteVitrine,
     designVitrine: 'padrao' as DesignVitrine,
+    menuVitrine: 'bolha' as MenuVitrine,
     bannerFoco: FOCO_PADRAO as Foco,
     bannerPromoFoco: FOCO_PADRAO as Foco,
   })
@@ -284,6 +285,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         imagemTamanho: c.imagemTamanho,
         fonteVitrine: c.fonteVitrine,
         designVitrine: c.designVitrine,
+        menuVitrine: c.menuVitrine,
         bannerFoco: c.bannerFoco,
         bannerPromoFoco: c.bannerPromoFoco,
       })
@@ -515,7 +517,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         layoutCardapio: form.layoutCardapio,
         // Vitrine nova: tamanho (null fica como está) e fonte. As outras lojas: o "imagem grande" de sempre.
         ...(config?.vitrineNova
-          ? { ...(form.imagemTamanho !== null ? { imagemTamanho: form.imagemTamanho } : {}), fonteVitrine: form.fonteVitrine, designVitrine: form.designVitrine }
+          ? { ...(form.imagemTamanho !== null ? { imagemTamanho: form.imagemTamanho } : {}), fonteVitrine: form.fonteVitrine, designVitrine: form.designVitrine, menuVitrine: form.menuVitrine }
           : { imagemGrande: form.imagemGrande }),
         bannerFoco: form.bannerFoco,
         bannerPromoFoco: form.bannerPromoFoco,
@@ -1083,6 +1085,31 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
                       className={[
                         'rounded-menuzia border px-3.5 py-3 text-left transition-colors',
                         form.designVitrine === valor ? 'border-primary bg-primary/10' : 'border-border bg-white hover:border-primary/50',
+                      ].join(' ')}
+                    >
+                      <div className="text-[13px] font-semibold text-text-main">{titulo}</div>
+                      <div className="mt-0.5 text-[11px] text-text-subtle">{legenda}</div>
+                    </button>
+                  ))}
+                </div>
+              </Field>
+              )}
+              {config?.vitrineNova && (
+              <Field label="Menu inferior" hint="A barra de botões no pé da vitrine, no celular.">
+                <div className="grid grid-cols-2 gap-2.5" data-testid="menu-vitrine">
+                  {([
+                    ['bolha', 'Bolha', 'Barra na cor da loja: Home, Pedidos, Cupons e Perfil.'],
+                    ['botoes', 'Barra com 4 botões', 'Branca: Início, Promoções, Desconto e Pedidos.'],
+                  ] as const).map(([valor, titulo, legenda]) => (
+                    <button
+                      key={valor}
+                      type="button"
+                      aria-pressed={form.menuVitrine === valor}
+                      data-testid={`menu-${valor}`}
+                      onClick={() => { setForm((f) => ({ ...f, menuVitrine: valor })); setSaved(false) }}
+                      className={[
+                        'rounded-menuzia border px-3.5 py-3 text-left transition-colors',
+                        form.menuVitrine === valor ? 'border-primary bg-primary/10' : 'border-border bg-white hover:border-primary/50',
                       ].join(' ')}
                     >
                       <div className="text-[13px] font-semibold text-text-main">{titulo}</div>
