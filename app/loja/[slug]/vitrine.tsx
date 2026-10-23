@@ -4581,7 +4581,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
           </div>
         )}
         <nav
-          className={`nav-rodape pointer-events-auto w-full bg-white ${restaurante.menuVitrine === 'botoes' ? '' : 'border-t border-border pt-1 shadow-[0_-4px_20px_rgba(0,0,0,0.07)]'}`}
+          className={`nav-rodape pointer-events-auto w-full bg-white ${restaurante.menuVitrine === 'botoes' ? '[--nav-respiro:0px]' : 'border-t border-border pt-1 shadow-[0_-4px_20px_rgba(0,0,0,0.07)]'}`}
           data-testid="nav-rodape"
           data-oculta="nao"
         >

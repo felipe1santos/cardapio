@@ -38,7 +38,7 @@ export function BarraNavBotoes({ itens }: { itens: ItemBarraBotoes[] }) {
             <svg viewBox="0 0 24 24" width={24} height={24} fill="currentColor" aria-hidden>
               {ICONES[item.id].map((d) => <path key={d.slice(0, 12)} d={d} />)}
             </svg>
-            <span className="text-[12px] font-medium leading-[18px] [font-family:Poppins,sans-serif]">{item.label}</span>
+            <span className="text-[12px] font-medium leading-[18px] ![font-family:Poppins,sans-serif]">{item.label}</span>
           </button>
         </li>
       ))}

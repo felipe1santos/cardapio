@@ -340,7 +340,7 @@ html:has(.vitrine-sem-zoom) {
    barra branca estica e sobra uma faixa branca embaixo dos ícones. Dentro de um
    app instalado (standalone) esse respiro é necessário; no navegador, não. */
 .nav-rodape {
-  padding-bottom: 6px;
+  padding-bottom: var(--nav-respiro, 6px);
 }
 
 /* ── Barra fixa que não pode piscar durante a rolagem ──────────────────────
@@ -365,7 +365,7 @@ html:has(.vitrine-sem-zoom) {
     --nav-safe: env(safe-area-inset-bottom, 0px);
   }
   .nav-rodape {
-    padding-bottom: max(env(safe-area-inset-bottom), 6px);
+    padding-bottom: max(env(safe-area-inset-bottom), var(--nav-respiro, 6px));
   }
 }
 
@@ -378,7 +378,7 @@ html:has(.vitrine-sem-zoom) {
     --nav-safe: env(safe-area-inset-bottom, 0px);
   }
   .nav-rodape {
-    padding-bottom: max(env(safe-area-inset-bottom), 6px);
+    padding-bottom: max(env(safe-area-inset-bottom), var(--nav-respiro, 6px));
   }
 }
 
