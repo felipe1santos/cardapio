@@ -1144,10 +1144,10 @@ export function imagemTamanhoValido(v: unknown): ImagemTamanho | null {
   const n = Number(v)
   return v !== null && v !== undefined && (IMAGEM_TAMANHOS as readonly number[]).includes(n) ? (n as ImagemTamanho) : null
 }
-/** Fonte da vitrine (0152): 'atual' = Montserrat; 'ifood' = Figtree, peso até 600. */
-export type FonteVitrine = 'atual' | 'ifood'
+/** Fonte da vitrine (0152): 'atual' = Montserrat; 'ifood' = Figtree, peso até 600; 'takeat' = Poppins (0223). */
+export type FonteVitrine = 'atual' | 'ifood' | 'takeat'
 export function fonteVitrineValida(v: unknown): FonteVitrine {
-  return v === 'ifood' ? 'ifood' : 'atual'
+  return v === 'ifood' || v === 'takeat' ? v : 'atual'
 }
 /** Design da vitrine (0219): 'padrao' = o de sempre; 'simples' = cantos retos, sem sombra/degradê/animação. */
 export type DesignVitrine = 'padrao' | 'simples'
@@ -1158,6 +1158,13 @@ export function designVitrineValido(v: unknown): DesignVitrine {
 export type MenuVitrine = 'bolha' | 'botoes'
 export function menuVitrineValido(v: unknown): MenuVitrine {
   return v === 'bolha' ? 'bolha' : 'botoes'
+}
+/** Cor do menu inferior (0223): 'loja' = a cor da loja, como sempre; 'takeat' = o vermelho de pedido.takeat.app
+ *  no ícone ativo e no botão "Ver sacola". */
+export type CorRodape = 'loja' | 'takeat'
+export const VERMELHO_TAKEAT = '#C8131B'
+export function corRodapeValida(v: unknown): CorRodape {
+  return v === 'takeat' ? 'takeat' : 'loja'
 }
 
 export interface RestauranteVitrine {
@@ -1209,6 +1216,7 @@ export interface RestauranteVitrine {
   fonteVitrine: FonteVitrine
   designVitrine: DesignVitrine
   menuVitrine: MenuVitrine
+  corRodape: CorRodape
   /** Chave por loja (0152): vitrine e checkout no padrão iFood. Desligada = a vitrine de sempre. */
   vitrineNova: boolean
   /** true se a loja está aceitando pedidos agora (manual ou pela grade de horário — ver lib/timezone.ts). */
@@ -1240,7 +1248,7 @@ export async function buscarRestaurantePorSlug(supabase: ClienteLeitura, slug: s
   const { data, error } = await supabase
     .from('restaurantes')
     .select(
-      'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_promo_urls, banner_promo_texto, banner_promo_video, vitrine_cabecalho, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, instagram_url, endereco, endereco_bairro, endereco_cidade, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio, cor_tema, imagem_grande, vitrine_imagem_tamanho, vitrine_fonte, vitrine_design, vitrine_menu, vitrine_nova, status_loja, horario_funcionamento, avaliacao_nota, avaliacao_qtd, aceita_entrega, aceita_retirada, pizza_calculo_preco, agendamento_ativo, agendamento_quando, agendamento_dias, agendamento_antecedencia_min, agendamento_intervalo_min, agendamento_limite, agendamento_entrega, agendamento_retirada, agendamento_libera_min, aviso_cor_texto, aviso_cor_fundo, aviso_pulsar, formas_pagamento'
+      'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_promo_urls, banner_promo_texto, banner_promo_video, vitrine_cabecalho, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, instagram_url, endereco, endereco_bairro, endereco_cidade, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio, cor_tema, imagem_grande, vitrine_imagem_tamanho, vitrine_fonte, vitrine_design, vitrine_menu, vitrine_cor_rodape, vitrine_nova, status_loja, horario_funcionamento, avaliacao_nota, avaliacao_qtd, aceita_entrega, aceita_retirada, pizza_calculo_preco, agendamento_ativo, agendamento_quando, agendamento_dias, agendamento_antecedencia_min, agendamento_intervalo_min, agendamento_limite, agendamento_entrega, agendamento_retirada, agendamento_libera_min, aviso_cor_texto, aviso_cor_fundo, aviso_pulsar, formas_pagamento'
     )
     .eq('slug', slug)
     .maybeSingle()
@@ -1284,6 +1292,7 @@ export async function buscarRestaurantePorSlug(supabase: ClienteLeitura, slug: s
     fonteVitrine: fonteVitrineValida(data.vitrine_fonte),
     designVitrine: designVitrineValido(data.vitrine_design),
     menuVitrine: menuVitrineValido(data.vitrine_menu),
+    corRodape: corRodapeValida(data.vitrine_cor_rodape),
     vitrineNova: data.vitrine_nova === true,
     lojaAberta: lojaEstaAberta(estadoLoja),
     proximaAberturaTexto: textoProximaAbertura(estadoLoja),

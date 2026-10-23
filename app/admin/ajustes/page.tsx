@@ -31,7 +31,7 @@ import { PilhaToasts, useToasts } from '@/components/admin/toasts'
 import { normalizarInstagram } from '@/lib/instagram'
 import { PIX_CHAVE_MAX, TIPOS_PIX, tipoPixValido } from '@/lib/pix-chave'
 import { fonteVitrine } from '@/lib/fonte-vitrine'
-import { buscarRestauranteIdDoUsuario, IMAGEM_TAMANHOS, type LayoutCardapio, type ImagemTamanho, type FonteVitrine, type DesignVitrine, type MenuVitrine } from '@/lib/queries/cardapio'
+import { buscarRestauranteIdDoUsuario, IMAGEM_TAMANHOS, type LayoutCardapio, type ImagemTamanho, type FonteVitrine, type DesignVitrine, type MenuVitrine, type CorRodape, VERMELHO_TAKEAT } from '@/lib/queries/cardapio'
 import { AjustarFoco } from '@/components/ajustar-foco'
 import { FOCO_PADRAO, objectPosition, type Foco } from '@/lib/foco-imagem'
 import { BANNER_PROMO_MAX_IMAGENS, BANNER_PROMO_MAX_TEXTO, bannerPromocional } from '@/lib/banner-promocional'
@@ -228,6 +228,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
     fonteVitrine: 'atual' as FonteVitrine,
     designVitrine: 'padrao' as DesignVitrine,
     menuVitrine: 'botoes' as MenuVitrine,
+    corRodape: 'loja' as CorRodape,
     bannerFoco: FOCO_PADRAO as Foco,
     bannerPromoFoco: FOCO_PADRAO as Foco,
   })
@@ -286,6 +287,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         fonteVitrine: c.fonteVitrine,
         designVitrine: c.designVitrine,
         menuVitrine: c.menuVitrine,
+        corRodape: c.corRodape,
         bannerFoco: c.bannerFoco,
         bannerPromoFoco: c.bannerPromoFoco,
       })
@@ -517,7 +519,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         layoutCardapio: form.layoutCardapio,
         // Vitrine nova: tamanho (null fica como está) e fonte. As outras lojas: o "imagem grande" de sempre.
         ...(config?.vitrineNova
-          ? { ...(form.imagemTamanho !== null ? { imagemTamanho: form.imagemTamanho } : {}), fonteVitrine: form.fonteVitrine, designVitrine: form.designVitrine, menuVitrine: form.menuVitrine }
+          ? { ...(form.imagemTamanho !== null ? { imagemTamanho: form.imagemTamanho } : {}), fonteVitrine: form.fonteVitrine, designVitrine: form.designVitrine, menuVitrine: form.menuVitrine, corRodape: form.corRodape }
           : { imagemGrande: form.imagemGrande }),
         bannerFoco: form.bannerFoco,
         bannerPromoFoco: form.bannerPromoFoco,
@@ -1049,6 +1051,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
                   {([
                     ['atual', 'Atual', 'var(--font-vitrine)'],
                     ['ifood', 'Estilo iFood', 'var(--font-meta)'],
+                    ['takeat', 'Estilo Takeat', 'Poppins, sans-serif'],
                   ] as const).map(([valor, titulo, familia]) => (
                     <button
                       key={valor}
@@ -1113,6 +1116,34 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
                       ].join(' ')}
                     >
                       <div className="text-[13px] font-semibold text-text-main">{titulo}</div>
+                      <div className="mt-0.5 text-[11px] text-text-subtle">{legenda}</div>
+                    </button>
+                  ))}
+                </div>
+              </Field>
+              )}
+              {config?.vitrineNova && (
+              <Field label="Cor do menu inferior" hint="Acende o ícone do botão escolhido e pinta o botão Ver sacola.">
+                <div className="grid grid-cols-2 gap-2.5" data-testid="cor-rodape">
+                  {([
+                    ['loja', 'Cor da loja', 'A mesma cor do tema da loja.'],
+                    ['takeat', 'Vermelho Takeat', 'O vermelho da Takeat (#C8131B).'],
+                  ] as const).map(([valor, titulo, legenda]) => (
+                    <button
+                      key={valor}
+                      type="button"
+                      aria-pressed={form.corRodape === valor}
+                      data-testid={`cor-rodape-${valor}`}
+                      onClick={() => { setForm((f) => ({ ...f, corRodape: valor })); setSaved(false) }}
+                      className={[
+                        'rounded-menuzia border px-3.5 py-3 text-left transition-colors',
+                        form.corRodape === valor ? 'border-primary bg-primary/10' : 'border-border bg-white hover:border-primary/50',
+                      ].join(' ')}
+                    >
+                      <div className="flex items-center gap-2 text-[13px] font-semibold text-text-main">
+                        {valor === 'takeat' && <span className="h-3 w-3 rounded-full" style={{ background: VERMELHO_TAKEAT }} aria-hidden />}
+                        {titulo}
+                      </div>
                       <div className="mt-0.5 text-[11px] text-text-subtle">{legenda}</div>
                     </button>
                   ))}
@@ -2201,7 +2232,7 @@ export default function AjustesPage() {
  * está na raiz como --font-meta.
  */
 function PreviaLinhaItem({ tamanho, fonte }: { tamanho: number; fonte: FonteVitrine }) {
-  const familia = fonte === 'ifood' ? 'var(--font-meta), Figtree, sans-serif' : 'var(--font-vitrine), Montserrat, sans-serif'
+  const familia = fonte === 'ifood' ? 'var(--font-meta), Figtree, sans-serif' : fonte === 'takeat' ? 'Poppins, sans-serif' : 'var(--font-vitrine), Montserrat, sans-serif'
   return (
     <div className={`${fonteVitrine.variable} mt-3`} data-testid="previa-linha-item">
       <div className="mb-1.5 text-[12.5px] font-medium text-text-subtle">Prévia na vitrine</div>

@@ -56,6 +56,7 @@ import {
   type PizzaSabor,
   type LayoutCardapio,
   type RestauranteVitrine,
+  VERMELHO_TAKEAT,
 } from '@/lib/queries/cardapio'
 import type { ClientePerfil, EnderecoCliente } from '@/lib/queries/clientes'
 import type { PedidoCliente } from '@/lib/queries/pedidos'
@@ -3436,7 +3437,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     <LojaEtiquetasContext.Provider value={etiquetasLoja}>
     <VitrineNovaContext.Provider value={true}>
     <div
-      className={`font-loja min-h-dvh bg-[var(--v-fundo)] text-[var(--v-texto)]${restaurante.fonteVitrine === 'ifood' ? ' vitrine-fonte-ifood' : ''}${restaurante.designVitrine === 'simples' ? ' vitrine-simples' : ''}`}
+      className={`font-loja min-h-dvh bg-[var(--v-fundo)] text-[var(--v-texto)]${restaurante.fonteVitrine !== 'atual' ? ` vitrine-fonte-${restaurante.fonteVitrine}` : ''}${restaurante.designVitrine === 'simples' ? ' vitrine-simples' : ''}`}
       data-fonte-vitrine={restaurante.fonteVitrine}
       style={{ '--tema-primaria': paleta.primaria, '--tema-dark': paleta.dark, '--tema-light': paleta.light, '--tema-from': paleta.from } as React.CSSProperties}
     >
@@ -4196,7 +4197,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
           onFechar={() => { if (pedidoSaiu) marcarSaiuVisto(pedidoSaiu.id) }}
           onVerResumo={() => { if (pedidoSaiu) { marcarSaiuVisto(pedidoSaiu.id); setPedidoDetalhe(pedidoSaiu) } }}
           tema={{
-            className: `${fonteVitrineCss.variable} font-loja${restaurante.fonteVitrine === 'ifood' ? ' vitrine-fonte-ifood' : ''}${restaurante.designVitrine === 'simples' ? ' vitrine-simples' : ''}`,
+            className: `${fonteVitrineCss.variable} font-loja${restaurante.fonteVitrine !== 'atual' ? ` vitrine-fonte-${restaurante.fonteVitrine}` : ''}${restaurante.designVitrine === 'simples' ? ' vitrine-simples' : ''}`,
             style: { '--tema-primaria': paleta.primaria, '--tema-dark': paleta.dark, '--tema-light': paleta.light } as React.CSSProperties,
           }}
         />
@@ -4561,11 +4562,11 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             Um bloco só, SEMPRE visível (P8, 2026-10-04): nada se esconde ao rolar e nada se
             sobrepõe — a sacola fica acima do WhatsApp, que fica acima dos botões do menu. A
             altura do bloco (com a área segura) é medida e vira o espaço abaixo do cardápio. */}
-        <div ref={rodapeRef} data-testid="rodape-fixo" className="camada-propria pointer-events-none fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-[600px] lg:hidden">
+        <div ref={rodapeRef} data-testid="rodape-fixo" className="camada-propria pointer-events-none fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-[600px] lg:hidden" style={restaurante.corRodape === 'takeat' ? { '--tema-primaria': VERMELHO_TAKEAT } as React.CSSProperties : undefined}>
         {cartCount > 0 && tab !== 'cart' && (
           <button
             onClick={() => setTab('cart')}
-            className="pointer-events-auto mx-auto mb-[8px] flex w-[calc(100%-2rem)] max-w-[568px] items-center justify-between rounded-md bg-[#111827] px-4 py-3.5 text-white shadow-lg"
+            className={`pointer-events-auto mx-auto mb-[8px] flex w-[calc(100%-2rem)] max-w-[568px] items-center justify-between rounded-md px-4 py-3.5 text-white shadow-lg ${restaurante.corRodape === 'takeat' ? 'bg-[var(--tema-primaria)]' : 'bg-[#111827]'}`}
             data-testid="barra-sacola"
           >
             <span className="flex items-center gap-2.5 text-sm font-semibold">

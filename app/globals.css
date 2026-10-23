@@ -127,6 +127,16 @@ html:has(.vitrine-sem-zoom) {
   font-weight: 600 !important;
 }
 
+/* Fonte "Estilo Takeat" (Ajustes › Fonte da vitrine, 0223): Poppins, a mesma de pedido.takeat.app (400/500/600,
+   arquivos em public/fontes via app/fontes.css). Como na Takeat, o peso máximo é 600. */
+.font-loja.vitrine-fonte-takeat,
+.font-loja.vitrine-fonte-takeat * {
+  font-family: Poppins, sans-serif;
+}
+.font-loja.vitrine-fonte-takeat :is(b, strong, h1, h2, h3, h4, .font-bold, .font-extrabold, .font-black, [style*="font-weight: 700"]) {
+  font-weight: 600 !important;
+}
+
 /* Design "Simples" da vitrine (Ajustes › Design da vitrine, 0219): o mesmo cardápio, mais reto e sem
    efeito. Cantos de 3px (círculos de verdade — rádio, ponto, botão de ícone — continuam redondos; pílula
    com texto fica reta; foto e cartão de item [data-canto] ficam com o canto da referência Brendi — 8px na

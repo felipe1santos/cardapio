@@ -120,3 +120,6 @@
 /* Poppins 500 — só os textos do menu inferior "Barra com 4 botões" da vitrine (23/10, 0221). Arquivo do Google Fonts
    (SIL OFL) guardado em public/fontes uma vez; só latin (os rótulos são fixos). */
 @font-face{font-family:Poppins;font-style:normal;font-weight:500;font-display:swap;src:url(/fontes/poppins-500-latin.woff2) format("woff2");unicode-range:u+0000-00ff,u+0131,u+0152-0153,u+02bb-02bc,u+02c6,u+02da,u+02dc,u+0304,u+0308,u+0329,u+2000-206f,u+20ac,u+2122,u+2191,u+2193,u+2212,u+2215,u+feff,u+fffd}
+/* Poppins 400 e 600 — fonte "Estilo Takeat" da vitrine (23/10, 0223). Mesma origem e corte da 500 acima. */
+@font-face{font-family:Poppins;font-style:normal;font-weight:400;font-display:swap;src:url(/fontes/poppins-400-latin.woff2) format("woff2");unicode-range:u+0000-00ff,u+0131,u+0152-0153,u+02bb-02bc,u+02c6,u+02da,u+02dc,u+0304,u+0308,u+0329,u+2000-206f,u+20ac,u+2122,u+2191,u+2193,u+2212,u+2215,u+feff,u+fffd}
+@font-face{font-family:Poppins;font-style:normal;font-weight:600;font-display:swap;src:url(/fontes/poppins-600-latin.woff2) format("woff2");unicode-range:u+0000-00ff,u+0131,u+0152-0153,u+02bb-02bc,u+02c6,u+02da,u+02dc,u+0304,u+0308,u+0329,u+2000-206f,u+20ac,u+2122,u+2191,u+2193,u+2212,u+2215,u+feff,u+fffd}
