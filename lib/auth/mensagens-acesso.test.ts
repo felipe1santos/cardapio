@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { MSG_LOGIN_INVALIDO, resultadoRecuperacao } from './mensagens-acesso'
+import { MSG_LOGIN_INVALIDO, falhaDeCredencial, resultadoRecuperacao } from './mensagens-acesso'
 
 describe('login e recuperação não revelam se a conta existe', () => {
   it('recuperação: qualquer erro (inclusive "usuário não encontrado") vira "enviamos"; só o limite de tentativas avisa', () => {
@@ -17,5 +17,16 @@ describe('login e recuperação não revelam se a conta existe', () => {
     expect(MSG_LOGIN_INVALIDO).toBe('Login ou senha inválidos.')
     const rec = readFileSync('app/(auth)/recuperar-senha/actions.ts', 'utf8')
     expect(rec).not.toMatch(/error\.message/)
+  })
+})
+
+describe('limite de tentativas só conta senha errada (queda do Supabase em 23/10)', () => {
+  it('credencial recusada (400) conta; servidor fora, tempo esgotado ou erro de rede não contam', () => {
+    expect(falhaDeCredencial({ status: 400 })).toBe(true)
+    expect(falhaDeCredencial({ status: 0 })).toBe(false)
+    expect(falhaDeCredencial({ status: 500 })).toBe(false)
+    expect(falhaDeCredencial({ status: 504 })).toBe(false)
+    expect(falhaDeCredencial({ status: 429 })).toBe(false)
+    expect(falhaDeCredencial({})).toBe(false)
   })
 })

@@ -1,7 +1,7 @@
 'use server'
 
 import { redirect } from 'next/navigation'
-import { MSG_LOGIN_INVALIDO } from '@/lib/auth/mensagens-acesso'
+import { MSG_INSTABILIDADE, MSG_LOGIN_INVALIDO, falhaDeCredencial } from '@/lib/auth/mensagens-acesso'
 import { getServerSupabase } from '@/lib/supabase/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { buscarEmailPorUsuario } from '@/lib/queries/lojistas'
@@ -37,7 +37,8 @@ export async function signIn(formData: FormData) {
   // definido no cadastro — usuário não tem '@', então dá pra distinguir.
   let email = login
   if (login && !login.includes('@')) {
-    const resolvido = await buscarEmailPorUsuario(getAdminSupabase(), login)
+    const resolvido = await buscarEmailPorUsuario(getAdminSupabase(), login).catch(() => undefined)
+    if (resolvido === undefined) redirect(`/login?${nx}error=${encodeURIComponent(MSG_INSTABILIDADE)}`)
     if (!resolvido) {
       falhou()
       redirect(`/login?${nx}error=${encodeURIComponent(MSG_LOGIN_INVALIDO)}`)
@@ -48,6 +49,10 @@ export async function signIn(formData: FormData) {
   const supabase = await getServerSupabase()
   const { data, error } = await supabase.auth.signInWithPassword({ email, password })
 
+  if (error && !falhaDeCredencial(error)) {
+    console.error('[login] Supabase Auth indisponível:', error.status, error.message)
+    redirect(`/login?${nx}error=${encodeURIComponent(MSG_INSTABILIDADE)}`)
+  }
   if (error || !data.user) {
     falhou()
     // Falha de login vai para a auditoria da loja do usuário (quando o login existe).
