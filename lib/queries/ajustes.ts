@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { lerFormas, type ConfigFormas } from '@/lib/formas-pagamento'
-import { imagemTamanhoValido, fonteVitrineValida, type LayoutCardapio, type ImagemTamanho, type FonteVitrine } from './cardapio'
+import { imagemTamanhoValido, fonteVitrineValida, designVitrineValido, type LayoutCardapio, type ImagemTamanho, type FonteVitrine, type DesignVitrine } from './cardapio'
 import type { HorarioFuncionamento, StatusLoja } from '@/lib/timezone'
 import { composeEndereco } from '@/lib/endereco'
 import { otimizarImagem, otimizarParImagem, CACHE_CONTROL_SEGUNDOS, type PerfilImagem } from '@/lib/imagem'
@@ -55,6 +55,7 @@ export interface ConfigLoja {
   imagemGrande: boolean
   imagemTamanho: ImagemTamanho | null
   fonteVitrine: FonteVitrine
+  designVitrine: DesignVitrine
   /** Chave vitrine_nova (0152): só nela o tamanho 90/100/110 e a fonte valem (e aparecem em Ajustes). */
   vitrineNova: boolean
   latitude: number | null
@@ -125,6 +126,7 @@ interface ConfigRow {
   imagem_grande: boolean
   vitrine_imagem_tamanho?: number | null
   vitrine_fonte?: string | null
+  vitrine_design?: string | null
   vitrine_nova?: boolean | null
   latitude: number | null
   longitude: number | null
@@ -144,7 +146,7 @@ interface ConfigRow {
   formas_pagamento?: unknown
 }
 
-const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_promo_urls, banner_promo_texto, banner_promo_video, vitrine_cabecalho, aviso_cor_texto, aviso_cor_fundo, aviso_pulsar, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, endereco, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, cep, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, instagram_url, layout_cardapio, cor_tema, imagem_grande, vitrine_imagem_tamanho, vitrine_fonte, vitrine_nova, latitude, longitude, avaliacao_nota, avaliacao_qtd, horario_funcionamento, status_loja, usa_logistica, entrega_sem_entregador, aceita_entrega, aceita_retirada, modulo_mesas_ativo, tempo_entrega, tempo_retirada, pix_chave, pix_chave_tipo, formas_pagamento'
+const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_promo_urls, banner_promo_texto, banner_promo_video, vitrine_cabecalho, aviso_cor_texto, aviso_cor_fundo, aviso_pulsar, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, endereco, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, cep, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, instagram_url, layout_cardapio, cor_tema, imagem_grande, vitrine_imagem_tamanho, vitrine_fonte, vitrine_design, vitrine_nova, latitude, longitude, avaliacao_nota, avaliacao_qtd, horario_funcionamento, status_loja, usa_logistica, entrega_sem_entregador, aceita_entrega, aceita_retirada, modulo_mesas_ativo, tempo_entrega, tempo_retirada, pix_chave, pix_chave_tipo, formas_pagamento'
 
 function mapConfig(row: ConfigRow): ConfigLoja {
   return {
@@ -184,6 +186,7 @@ function mapConfig(row: ConfigRow): ConfigLoja {
     imagemGrande: row.imagem_grande ?? false,
     imagemTamanho: imagemTamanhoValido(row.vitrine_imagem_tamanho),
     fonteVitrine: fonteVitrineValida(row.vitrine_fonte),
+    designVitrine: designVitrineValido(row.vitrine_design),
     vitrineNova: row.vitrine_nova === true,
     latitude: row.latitude ?? null,
     longitude: row.longitude ?? null,
@@ -253,6 +256,7 @@ export interface ConfigLojaPatch {
   imagemGrande?: boolean
   imagemTamanho?: ImagemTamanho | null
   fonteVitrine?: FonteVitrine
+  designVitrine?: DesignVitrine
   horarioFuncionamento?: HorarioFuncionamento
   usaLogistica?: boolean
   entregaSemEntregador?: boolean
@@ -347,6 +351,7 @@ export async function atualizarConfigLoja(supabase: SupabaseClient, restauranteI
   if (patch.imagemGrande !== undefined) row.imagem_grande = patch.imagemGrande
   if (patch.imagemTamanho !== undefined) row.vitrine_imagem_tamanho = patch.imagemTamanho
   if (patch.fonteVitrine !== undefined) row.vitrine_fonte = patch.fonteVitrine
+  if (patch.designVitrine !== undefined) row.vitrine_design = patch.designVitrine
   if (patch.horarioFuncionamento !== undefined) row.horario_funcionamento = patch.horarioFuncionamento
   if (patch.usaLogistica !== undefined) row.usa_logistica = patch.usaLogistica
   if (patch.entregaSemEntregador !== undefined) row.entrega_sem_entregador = patch.entregaSemEntregador

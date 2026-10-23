@@ -3432,7 +3432,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     <LojaEtiquetasContext.Provider value={etiquetasLoja}>
     <VitrineNovaContext.Provider value={true}>
     <div
-      className={`font-loja min-h-dvh bg-[var(--v-fundo)] text-[var(--v-texto)]${restaurante.fonteVitrine === 'ifood' ? ' vitrine-fonte-ifood' : ''}`}
+      className={`font-loja min-h-dvh bg-[var(--v-fundo)] text-[var(--v-texto)]${restaurante.fonteVitrine === 'ifood' ? ' vitrine-fonte-ifood' : ''}${restaurante.designVitrine === 'simples' ? ' vitrine-simples' : ''}`}
       data-fonte-vitrine={restaurante.fonteVitrine}
       style={{ '--tema-primaria': paleta.primaria, '--tema-dark': paleta.dark, '--tema-light': paleta.light, '--tema-from': paleta.from } as React.CSSProperties}
     >
@@ -4181,7 +4181,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
           onFechar={() => { if (pedidoSaiu) marcarSaiuVisto(pedidoSaiu.id) }}
           onVerResumo={() => { if (pedidoSaiu) { marcarSaiuVisto(pedidoSaiu.id); setPedidoDetalhe(pedidoSaiu) } }}
           tema={{
-            className: `${fonteVitrineCss.variable} font-loja${restaurante.fonteVitrine === 'ifood' ? ' vitrine-fonte-ifood' : ''}`,
+            className: `${fonteVitrineCss.variable} font-loja${restaurante.fonteVitrine === 'ifood' ? ' vitrine-fonte-ifood' : ''}${restaurante.designVitrine === 'simples' ? ' vitrine-simples' : ''}`,
             style: { '--tema-primaria': paleta.primaria, '--tema-dark': paleta.dark, '--tema-light': paleta.light } as React.CSSProperties,
           }}
         />

@@ -31,7 +31,7 @@ import { PilhaToasts, useToasts } from '@/components/admin/toasts'
 import { normalizarInstagram } from '@/lib/instagram'
 import { PIX_CHAVE_MAX, TIPOS_PIX, tipoPixValido } from '@/lib/pix-chave'
 import { fonteVitrine } from '@/lib/fonte-vitrine'
-import { buscarRestauranteIdDoUsuario, IMAGEM_TAMANHOS, type LayoutCardapio, type ImagemTamanho, type FonteVitrine } from '@/lib/queries/cardapio'
+import { buscarRestauranteIdDoUsuario, IMAGEM_TAMANHOS, type LayoutCardapio, type ImagemTamanho, type FonteVitrine, type DesignVitrine } from '@/lib/queries/cardapio'
 import { AjustarFoco } from '@/components/ajustar-foco'
 import { FOCO_PADRAO, objectPosition, type Foco } from '@/lib/foco-imagem'
 import { BANNER_PROMO_MAX_IMAGENS, BANNER_PROMO_MAX_TEXTO, bannerPromocional } from '@/lib/banner-promocional'
@@ -226,6 +226,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
     imagemGrande: false,
     imagemTamanho: null as ImagemTamanho | null,
     fonteVitrine: 'atual' as FonteVitrine,
+    designVitrine: 'padrao' as DesignVitrine,
     bannerFoco: FOCO_PADRAO as Foco,
     bannerPromoFoco: FOCO_PADRAO as Foco,
   })
@@ -282,6 +283,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         imagemGrande: c.imagemGrande,
         imagemTamanho: c.imagemTamanho,
         fonteVitrine: c.fonteVitrine,
+        designVitrine: c.designVitrine,
         bannerFoco: c.bannerFoco,
         bannerPromoFoco: c.bannerPromoFoco,
       })
@@ -513,7 +515,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         layoutCardapio: form.layoutCardapio,
         // Vitrine nova: tamanho (null fica como está) e fonte. As outras lojas: o "imagem grande" de sempre.
         ...(config?.vitrineNova
-          ? { ...(form.imagemTamanho !== null ? { imagemTamanho: form.imagemTamanho } : {}), fonteVitrine: form.fonteVitrine }
+          ? { ...(form.imagemTamanho !== null ? { imagemTamanho: form.imagemTamanho } : {}), fonteVitrine: form.fonteVitrine, designVitrine: form.designVitrine }
           : { imagemGrande: form.imagemGrande }),
         bannerFoco: form.bannerFoco,
         bannerPromoFoco: form.bannerPromoFoco,
@@ -1060,6 +1062,31 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
                       <div className="text-[13px] font-semibold text-text-main">{titulo}</div>
                       <div className="mt-1 text-[15px] font-semibold text-text-main" style={{ fontFamily: familia }}>X-Burguer Duplo</div>
                       <div className="text-[12px] text-text-subtle" style={{ fontFamily: familia }}>Pão, 2 carnes, queijo · R$ 32,90</div>
+                    </button>
+                  ))}
+                </div>
+              </Field>
+              )}
+              {config?.vitrineNova && (
+              <Field label="Design da vitrine" hint="Simples: cantos retos, sem sombras, sem degradê e sem animações.">
+                <div className="grid grid-cols-2 gap-2.5" data-testid="design-vitrine">
+                  {([
+                    ['padrao', 'Padrão', 'O visual de hoje, com efeitos.'],
+                    ['simples', 'Simples', 'Mais limpo, reto e sem efeitos.'],
+                  ] as const).map(([valor, titulo, legenda]) => (
+                    <button
+                      key={valor}
+                      type="button"
+                      aria-pressed={form.designVitrine === valor}
+                      data-testid={`design-${valor}`}
+                      onClick={() => { setForm((f) => ({ ...f, designVitrine: valor })); setSaved(false) }}
+                      className={[
+                        'rounded-menuzia border px-3.5 py-3 text-left transition-colors',
+                        form.designVitrine === valor ? 'border-primary bg-primary/10' : 'border-border bg-white hover:border-primary/50',
+                      ].join(' ')}
+                    >
+                      <div className="text-[13px] font-semibold text-text-main">{titulo}</div>
+                      <div className="mt-0.5 text-[11px] text-text-subtle">{legenda}</div>
                     </button>
                   ))}
                 </div>
