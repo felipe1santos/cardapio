@@ -227,7 +227,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
     imagemTamanho: null as ImagemTamanho | null,
     fonteVitrine: 'atual' as FonteVitrine,
     designVitrine: 'padrao' as DesignVitrine,
-    menuVitrine: 'bolha' as MenuVitrine,
+    menuVitrine: 'botoes' as MenuVitrine,
     bannerFoco: FOCO_PADRAO as Foco,
     bannerPromoFoco: FOCO_PADRAO as Foco,
   })
@@ -1098,8 +1098,8 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
               <Field label="Menu inferior" hint="A barra de botões no pé da vitrine, no celular.">
                 <div className="grid grid-cols-2 gap-2.5" data-testid="menu-vitrine">
                   {([
+                    ['botoes', 'Barra com 4 botões (padrão)', 'Branca: Início, Promoções, Desconto e Pedidos.'],
                     ['bolha', 'Bolha', 'Barra na cor da loja: Home, Pedidos, Cupons e Perfil.'],
-                    ['botoes', 'Barra com 4 botões', 'Branca: Início, Promoções, Desconto e Pedidos.'],
                   ] as const).map(([valor, titulo, legenda]) => (
                     <button
                       key={valor}

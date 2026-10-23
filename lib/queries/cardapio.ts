@@ -1154,10 +1154,10 @@ export type DesignVitrine = 'padrao' | 'simples'
 export function designVitrineValido(v: unknown): DesignVitrine {
   return v === 'simples' ? 'simples' : 'padrao'
 }
-/** Menu inferior da vitrine (0221): 'bolha' = o de sempre; 'botoes' = barra branca com 4 botões. */
+/** Menu inferior da vitrine (0221): 'botoes' = barra branca com 4 botões, o padrão desde a 0222; 'bolha' = a barra na cor da loja. */
 export type MenuVitrine = 'bolha' | 'botoes'
 export function menuVitrineValido(v: unknown): MenuVitrine {
-  return v === 'botoes' ? 'botoes' : 'bolha'
+  return v === 'bolha' ? 'bolha' : 'botoes'
 }
 
 export interface RestauranteVitrine {
