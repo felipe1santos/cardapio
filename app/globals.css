@@ -129,12 +129,16 @@ html:has(.vitrine-sem-zoom) {
 
 /* Design "Simples" da vitrine (Ajustes › Design da vitrine, 0219): o mesmo cardápio, mais reto e sem
    efeito. Cantos de 3px (círculos de verdade — rádio, ponto, botão de ícone — continuam redondos; pílula
-   com texto fica reta), sem sombra, sem degradê (vira a cor do tema chapada), sem animação (só o
+   com texto fica reta; foto e cartão de item [data-canto] ficam com o canto da referência Brendi — 8px na
+   lista, 12px no destaque — e o banner de promoção com 18px), sem sombra, sem degradê (vira a cor do tema chapada), sem animação (só o
    carregando gira), sem zoom ao tocar e sem desfoque. As transições de abrir/fechar continuam. */
-.vitrine-simples [class*="rounded-"]:not(.rounded-full),
+.vitrine-simples [class*="rounded-"]:not(.rounded-full):not([data-canto]),
 .vitrine-simples .rounded,
 .vitrine-simples .rounded-full[class*="px-"] {
   border-radius: 3px !important;
+}
+.vitrine-simples [data-testid="banner-promo"] {
+  border-radius: 18px !important;
 }
 .vitrine-simples [class*="shadow"] {
   box-shadow: none !important;

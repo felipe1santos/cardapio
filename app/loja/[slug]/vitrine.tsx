@@ -507,7 +507,7 @@ function CarrosselPromo({ slides, foco }: { slides: Midia[]; foco: string }) {
   }, [atual, slides.length])
 
   return (
-    <div data-testid="banner-promo" className="relative mx-auto aspect-[3/2] w-full max-w-[500px] overflow-hidden rounded-[10px] border border-border">
+    <div data-testid="banner-promo" data-canto className="relative mx-auto aspect-[3/2] w-full max-w-[500px] overflow-hidden rounded-[10px] border border-border">
       {slides.map((m, i) => m.tipo === 'video' ? (
         // Só o slide da vez toca; os outros mostram a capa (nada é baixado à toa).
         i === atual
@@ -565,7 +565,7 @@ function ProductThumb({ item, size = 96, fallbackIcon: FallbackIcon = HandPlatte
   const src = urlDeListagem(item)
   // Vídeo marcado para o card da home (0213): toca no lugar da foto, com a capa enquanto carrega.
   if (item.video?.home) {
-    return <VideoLoop url={item.video.url} capa={item.video.capa} alt={item.nome} className="flex-shrink-0 rounded-[8px] object-cover" style={{ width: size, height: size }} />
+    return <VideoLoop url={item.video.url} capa={item.video.capa} alt={item.nome} data-canto className="flex-shrink-0 rounded-[8px] object-cover" style={{ width: size, height: size }} />
   }
   if (src) {
     return (
@@ -582,6 +582,7 @@ function ProductThumb({ item, size = 96, fallbackIcon: FallbackIcon = HandPlatte
         height={size}
         // Canto de 8px: a referência arredonda a foto do item o suficiente para
         // ela não brigar com o texto, sem virar cartão.
+        data-canto
         className="flex-shrink-0 rounded-[8px] object-cover"
         style={{ width: size, height: size }}
       />
@@ -589,6 +590,7 @@ function ProductThumb({ item, size = 96, fallbackIcon: FallbackIcon = HandPlatte
   }
   return (
     <div
+      data-canto
       className="flex flex-shrink-0 items-center justify-center overflow-hidden rounded-[8px] bg-[var(--v-placeholder)]"
       style={{ width: size, height: size }}
     >
@@ -643,11 +645,12 @@ function ProductCard({ item, onClick, className = '', compact = false }: { item:
       data-item-id={item.id}
       // Sem overflow-hidden no cartão (P8): quem corta é só a foto. Antes o cartão cortava a pílula do
       // desconto que passava da largura do destaque de 120px.
+      data-canto
       className={`group flex flex-col rounded-[12px] bg-white text-left transition-all duration-150 active:scale-[0.98] ${className}`}
     >
       {/* 140px de foto com canto de 12px: a medida da referência para o cartão
           de destaque. Sem borda nem sombra — o cartão é a própria foto. */}
-      <div className={`relative ${compact ? 'aspect-square' : 'h-[140px]'} w-full overflow-hidden rounded-[12px]`}>
+      <div data-canto className={`relative ${compact ? 'aspect-square' : 'h-[140px]'} w-full overflow-hidden rounded-[12px]`}>
         <ProductImage item={item} className="h-full w-full transition-transform duration-300 group-hover:scale-105" />
         {/* Seção "Mais Pedidos" (compact): sem selo — o título da seção já diz. Na grade, o selo vai na foto. */}
         {!compact && ehMaisPedidos(item) && <SeloMaisPedidos raio={12} />}
@@ -3147,7 +3150,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
           const nome = nomeLimpo(item.nomeFormatado ?? item.nome)
           return (
             <div key={item.id} className="w-[120px] flex-shrink-0" data-bump>
-              <button onClick={() => quickAddOrderBump(item)} aria-label={`Adicionar ${nome}`} className="relative block h-[120px] w-[120px] overflow-hidden rounded-[8px] border border-[#EFEFEF]">
+              <button onClick={() => quickAddOrderBump(item)} aria-label={`Adicionar ${nome}`} data-canto className="relative block h-[120px] w-[120px] overflow-hidden rounded-[8px] border border-[#EFEFEF]">
                 <ProductThumb item={item} size={120} />
                 <span className="absolute bottom-[6px] right-[6px] flex h-[30px] w-[30px] items-center justify-center rounded-full bg-white text-[20px] font-semibold leading-none text-[var(--tema-dark)] shadow-md">+</span>
               </button>
