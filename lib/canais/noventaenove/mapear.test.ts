@@ -50,6 +50,12 @@ describe('mapearPedido99', () => {
     expect(p.total).toBe(22)
   })
 
+  it('dinheiro com entregador da 99: valor que o entregador adianta à loja vai na observação', () => {
+    const p = mapearPedido99({ ...base, pay_type: 2, delivery_type: 1, price: { ...base.price, shop_paid_money: 2150 } })
+    expect(p.observacao).toContain('entregador 99Food paga à loja R$ 21,50')
+    expect(mapearPedido99(base).observacao).not.toContain('entregador 99Food paga')
+  })
+
   it('maquininha na entrega', () => {
     expect(mapearPedido99({ ...base, pay_type: 3 }).pagamento).toMatchObject({ prepago: false, forma: 'cartao' })
   })

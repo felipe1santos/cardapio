@@ -83,7 +83,8 @@ export function mapearPedido99(info: unknown): PedidoExterno {
     },
     entregaPor: Number(p.delivery_type) === 1 ? 'app' : 'loja',
     // A 99Food exige o número do dia e o ID do pedido no sistema e no recibo: a observação já sai no recibo.
-    observacao: [txt(p.remark), `ID 99Food: ${txt(p.order_id)}`, Number(outros.coupon_discount) > 0 ? `cupom 99Food R$ ${reais(outros.coupon_discount).toFixed(2).replace('.', ',')}` : ''].filter(Boolean).join(' · '),
+    // shop_paid_money: em dinheiro com entregador da 99, ele adianta esse valor à loja na retirada.
+    observacao: [txt(p.remark), `ID 99Food: ${txt(p.order_id)}`, Number(preco.shop_paid_money) > 0 ? `entregador 99Food paga à loja R$ ${reais(preco.shop_paid_money).toFixed(2).replace('.', ',')}` : '', Number(outros.coupon_discount) > 0 ? `cupom 99Food R$ ${reais(outros.coupon_discount).toFixed(2).replace('.', ',')}` : ''].filter(Boolean).join(' · '),
     agendadoPara: null,
     bruto: info,
   }
