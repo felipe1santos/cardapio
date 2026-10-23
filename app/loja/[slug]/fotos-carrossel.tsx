@@ -41,7 +41,7 @@ export function FotosCarrossel({ midias, nome }: { midias: Midia[]; nome: string
       <div
         ref={trilho}
         onScroll={aoRolar}
-        className="flex h-[42vh] w-full snap-x snap-mandatory overflow-x-auto overscroll-x-contain [scrollbar-width:none] lg:h-[260px] [&::-webkit-scrollbar]:hidden"
+        className="flex h-[min(85vw,510px)] w-full snap-x snap-mandatory overflow-x-auto overscroll-x-contain [scrollbar-width:none] lg:h-[260px] [&::-webkit-scrollbar]:hidden"
       >
         {midias.map((m, i) => m.tipo === 'video' ? (
           <VideoLoop key={m.url} url={m.url} capa={m.capa} alt={`${nome} — vídeo`} className="h-full w-full flex-shrink-0 snap-center object-cover" />

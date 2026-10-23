@@ -650,7 +650,7 @@ function ProductCard({ item, onClick, className = '', compact = false }: { item:
     >
       {/* 140px de foto com canto de 12px: a medida da referência para o cartão
           de destaque. Sem borda nem sombra — o cartão é a própria foto. */}
-      <div data-canto className={`relative ${compact ? 'aspect-square' : 'h-[140px]'} w-full overflow-hidden rounded-[12px]`}>
+      <div data-canto className="relative h-[140px] w-full overflow-hidden rounded-[12px]">
         <ProductImage item={item} className="h-full w-full transition-transform duration-300 group-hover:scale-105" />
         {/* Seção "Mais Pedidos" (compact): sem selo — o título da seção já diz. Na grade, o selo vai na foto. */}
         {!compact && ehMaisPedidos(item) && <SeloMaisPedidos raio={12} />}
@@ -3565,7 +3565,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 'lg:rounded-[12px] lg:border lg:border-[var(--v-borda)] lg:bg-white lg:p-3.5 lg:shadow-sm',
                 gavetaAtiva ? 'mt-3 rounded-[12px] border border-[var(--v-borda)] bg-white p-[12px] shadow-sm' : semCapa ? '' : 'lg:-mt-10',
               ].join(' ')}>
-                <div className="h-[72px] w-[72px] flex-shrink-0 overflow-hidden rounded-[12px] bg-[var(--v-placeholder)] sm:h-[88px] sm:w-[88px] lg:h-[96px] lg:w-[96px]">
+                <div className="h-[60px] w-[60px] flex-shrink-0 overflow-hidden rounded-[16px] bg-[var(--v-placeholder)] sm:h-[88px] sm:w-[88px] sm:rounded-[12px] lg:h-[96px] lg:w-[96px]">
                   {restaurante.logoUrl ? (
                     // Logo da loja fica acima da dobra em todos os breakpoints: sem lazy.
                     // eslint-disable-next-line @next/next/no-img-element
@@ -3826,7 +3826,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 <h2 className="my-[16px] px-[16px] text-center text-[16px] font-semibold leading-[24px] text-[var(--v-titulo)]">{ROTULO_MAIS_PEDIDOS}</h2>
                 <div className={`flex snap-x snap-mandatory scroll-px-[16px] items-start gap-[10px] overflow-x-auto scroll-smooth px-[16px] pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:grid lg:snap-none lg:gap-4 lg:overflow-visible lg:px-0 ${restaurante.imagemGrande ? 'lg:grid-cols-[repeat(auto-fill,140px)]' : 'lg:grid-cols-[repeat(auto-fill,120px)]'}`}>
                   {destaques.map((item) => (
-                    <ProductCard key={item.id} item={item} onClick={() => openProduct(item)} className={`${restaurante.imagemGrande ? 'w-[140px]' : 'w-[120px]'} flex-shrink-0 snap-start`} compact />
+                    <ProductCard key={item.id} item={item} onClick={() => openProduct(item)} className="w-[150px] flex-shrink-0 snap-start" compact />
                   ))}
                 </div>
               </div>
@@ -4777,10 +4777,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     loading="eager"
                     decoding="async"
                     fetchPriority="high"
-                    className="h-[42vh] w-full object-cover lg:h-[260px]"
+                    className="h-[min(85vw,510px)] w-full object-cover lg:h-[260px]"
                     style={sheetGaveta?.capaUrl ? { objectPosition: objectPosition(sheetGaveta.capaFoco) } : undefined}
                   />
-                : <div className="flex h-[42vh] items-center justify-center bg-[#F3F4F6] lg:h-[260px]"><HandPlatter className="h-20 w-20 text-[#9CA3AF]" strokeWidth={1.5} /></div>
+                : <div className="flex h-[min(85vw,510px)] items-center justify-center bg-[#F3F4F6] lg:h-[260px]"><HandPlatter className="h-20 w-20 text-[#9CA3AF]" strokeWidth={1.5} /></div>
               }
               <div className="p-4.5">
                 <NomeComEtiquetas item={productSheet}>

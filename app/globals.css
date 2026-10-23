@@ -132,7 +132,7 @@ html:has(.vitrine-sem-zoom) {
    com texto fica reta; foto e cartão de item [data-canto] ficam com o canto da referência Brendi — 8px na
    lista, 12px no destaque — e o banner de promoção com 18px), sem sombra, sem degradê (vira a cor do tema chapada), sem animação (só o
    carregando gira), sem zoom ao tocar e sem desfoque. As transições de abrir/fechar continuam. */
-.vitrine-simples [class*="rounded-"]:not(.rounded-full):not([data-canto]),
+.vitrine-simples [class*="rounded-"]:not(.rounded-full):not([data-canto]):not(img):not(video):not(:has(> img, > video, > picture)),
 .vitrine-simples .rounded,
 .vitrine-simples .rounded-full[class*="px-"] {
   border-radius: 3px !important;
