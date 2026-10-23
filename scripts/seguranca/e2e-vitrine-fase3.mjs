@@ -47,7 +47,7 @@ try {
 
     const banner = await p.getByTestId('banner-promo').boundingBox()
     const ratio = banner ? banner.width / banner.height : 0
-    ok(`banner na proporção 1,41:1 com as margens do conteúdo`, Math.abs(ratio - 1.41) < 0.03 && Math.abs(banner.x - 16) <= 1 && Math.abs(largura - (banner.x + banner.width) - 16) <= 1, `${ratio.toFixed(2)} · ${banner?.width}×${banner?.height}`)
+    ok(`banner na proporção 3:2 com as margens do conteúdo`, Math.abs(ratio - 1.5) < 0.03 && Math.abs(banner.x - 16) <= 1 && Math.abs(largura - (banner.x + banner.width) - 16) <= 1, `${ratio.toFixed(2)} · ${banner?.width}×${banner?.height}`)
 
     const mp = p.getByTestId('mais-pedidos')
     const titulo = mp.getByRole('heading', { name: 'Mais Pedidos' })

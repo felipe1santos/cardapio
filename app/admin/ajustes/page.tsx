@@ -609,7 +609,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         <Secao titulo="Banner promocional ou aviso" descricao="Uma faixa dentro do cardápio, logo abaixo das categorias: imagens das promoções ou um aviso em texto." icone={<Megaphone />} testid="secao-promo">
           <Field
             label="Banner promocional"
-            hint="Aparece dentro do cardápio, logo abaixo das categorias. Tamanho ideal: 1200 × 850 px (proporção 1,41:1). Suba uma ou mais imagens (com mais de uma, elas passam sozinhas) OU escreva um aviso. Deixe tudo em branco pra não mostrar nada."
+            hint="Aparece dentro do cardápio, logo abaixo das categorias. Tamanho ideal: 1200 × 800 px (proporção 3:2). Suba uma ou mais imagens (com mais de uma, elas passam sozinhas) OU escreva um aviso. Deixe tudo em branco pra não mostrar nada."
           >
             <div className="space-y-3">
               {imagensPromo.length > 0 && (
@@ -622,8 +622,8 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
                       <img
                         src={url}
                         alt={`Banner promocional ${i + 1}`}
-                        // Prévia do corte: a mesma proporção da vitrine (1,41:1, medida na referência).
-                        className="aspect-[141/100] w-full min-w-0 max-w-[280px] flex-1 rounded-[10px] border border-border object-cover"
+                        // Prévia do corte: a mesma proporção da vitrine (3:2, medida na referência Brendi em 23/10).
+                        className="aspect-[3/2] w-full min-w-0 max-w-[280px] flex-1 rounded-[10px] border border-border object-cover"
                         style={{ objectPosition: objectPosition(form.bannerPromoFoco) }}
                       />
                       <div className="flex flex-shrink-0 flex-col gap-1">
@@ -678,10 +678,10 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
                     // mais que antes). Daí 358/139 = 2,58 no celular e
                     // 1224/169 = 7,24 no desktop — continua um talho largo, e é
                     // por isso que ela precisa de foco.
-                    // 2026-09-30: o banner segue a referência (1,41:1) no celular e no computador.
-                    proporcoes={[{ rotulo: 'Celular e computador', ratio: 1.41 }]}
+                    // 2026-10-23: o banner segue a referência Brendi (3:2) no celular e no computador.
+                    proporcoes={[{ rotulo: 'Celular e computador', ratio: 1.5 }]}
                     titulo="Posição do banner promocional"
-                    descricao="O banner tem a proporção 1,41:1 (ideal 1200 × 850 px). Se a sua arte for de outro formato, marque o que não pode sumir. Vale para todas as imagens."
+                    descricao="O banner tem a proporção 3:2 (ideal 1200 × 800 px). Se a sua arte for de outro formato, marque o que não pode sumir. Vale para todas as imagens."
                     disabled={uploadingBannerPromo}
                   />
                 )}
@@ -1108,11 +1108,11 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
                         data-testid={`imagem-tamanho-${t}`}
                         onClick={() => { setForm((f) => ({ ...f, imagemTamanho: t })); setSaved(false) }}
                         className={[
-                          'h-[34px] min-w-[96px] rounded-[6px] px-3 text-[12.5px] font-semibold transition-colors',
+                          'h-[34px] min-w-[84px] rounded-[6px] px-2.5 text-[12.5px] font-semibold transition-colors',
                           ativo ? 'bg-white text-primary shadow-[0_1px_3px_rgba(16,24,40,0.12)]' : 'text-text-subtle hover:text-text-main',
                         ].join(' ')}
                       >
-                        {['Pequena', 'Média', 'Grande'][i]} <span className="font-normal tabular-nums opacity-75">{t}px</span>
+                        {['Mini', 'Pequena', 'Média', 'Grande'][i]} <span className="font-normal tabular-nums opacity-75">{t}px</span>
                       </button>
                     )
                   })}

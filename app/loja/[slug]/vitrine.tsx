@@ -507,7 +507,7 @@ function CarrosselPromo({ slides, foco }: { slides: Midia[]; foco: string }) {
   }, [atual, slides.length])
 
   return (
-    <div data-testid="banner-promo" className="relative aspect-[141/100] w-full overflow-hidden rounded-[10px] border border-border lg:mx-auto lg:max-w-[640px]">
+    <div data-testid="banner-promo" className="relative mx-auto aspect-[3/2] w-full max-w-[500px] overflow-hidden rounded-[10px] border border-border">
       {slides.map((m, i) => m.tipo === 'video' ? (
         // Só o slide da vez toca; os outros mostram a capa (nada é baixado à toa).
         i === atual

@@ -1138,8 +1138,8 @@ export async function removerComplemento(supabase: SupabaseClient, complementoId
 export type LayoutCardapio = 'categoria' | 'lista' | 'gaveta'
 
 /** Lado da foto do item na lista (0152). null = como antes da 0152 (120 px, 140 com imagem grande). */
-export type ImagemTamanho = 90 | 100 | 110
-export const IMAGEM_TAMANHOS: readonly ImagemTamanho[] = [90, 100, 110]
+export type ImagemTamanho = 90 | 100 | 110 | 120
+export const IMAGEM_TAMANHOS: readonly ImagemTamanho[] = [90, 100, 110, 120]
 export function imagemTamanhoValido(v: unknown): ImagemTamanho | null {
   const n = Number(v)
   return v !== null && v !== undefined && (IMAGEM_TAMANHOS as readonly number[]).includes(n) ? (n as ImagemTamanho) : null

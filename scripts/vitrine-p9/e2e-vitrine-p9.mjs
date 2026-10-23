@@ -145,7 +145,7 @@ try {
     ok('Formato: só Categorias e Lista (Gaveta saiu)', (await p.getByTestId('formato-cardapio').locator('button').count()) === 2 && (await p.getByText('Gaveta', { exact: true }).count()) === 0)
     ok('loja em gaveta aparece em Lista', (await p.getByTestId('formato-cardapio').locator('[aria-pressed="true"]').textContent()).includes('Lista'))
     ok('sem o aviso de fotos por categoria', (await p.getByText(/precisa de uma foto em cada categoria/).count()) === 0)
-    ok('tamanho: 90, 100 e 110; sem escolha mostra o tamanho de antes', (await p.getByTestId('imagem-tamanho').locator('button').count()) === 3 && await p.getByTestId('imagem-tamanho-antigo').isVisible())
+    ok('tamanho: 90, 100, 110 e 120; sem escolha mostra o tamanho de antes', (await p.getByTestId('imagem-tamanho').locator('button').count()) === 4 && await p.getByTestId('imagem-tamanho-antigo').isVisible())
     await fecharAviso()
     await p.getByTestId('imagem-tamanho-100').click()
     const prev = await p.getByTestId('previa-foto').boundingBox()
