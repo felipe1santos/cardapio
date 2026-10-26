@@ -162,7 +162,8 @@ export function BarraTotal({
         type="button"
         onClick={onClick}
         disabled={desabilitado}
-        className="min-w-[150px] flex-shrink-0 rounded-[8px] bg-[#0B7A3E] px-[20px] py-[14px] text-[15px] font-semibold text-white shadow-sm transition-colors hover:bg-[#096634] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+        // 26/10/2026: na cor de ação da loja (a mesma do "Ver sacola" do rodapé), não mais o verde fixo.
+        className="min-w-[150px] flex-shrink-0 rounded-[10px] bg-[var(--tema-primaria)] px-[20px] py-[14px] text-[15px] font-semibold text-white shadow-sm transition-[filter] hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
       >
         {botao}
       </button>

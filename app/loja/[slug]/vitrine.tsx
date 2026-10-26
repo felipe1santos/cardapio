@@ -10,7 +10,7 @@ import { BarraFluida, CanhotoCupom, MASCARA_TICKET, SeloPremio } from '@/compone
 import { BarraNav } from '@/components/vitrine/barra-nav'
 import { BarraNavBotoes } from '@/components/vitrine/barra-nav-botoes'
 import { CABECALHO_PADRAO } from '@/lib/vitrine-cabecalho'
-import { House as PhHouse, Receipt as PhReceipt, Ticket as PhTicket, User as PhUser } from '@phosphor-icons/react'
+import { House as PhHouse, Moped as PhMoped, Receipt as PhReceipt, SealCheck as PhSealCheck, Ticket as PhTicket, User as PhUser } from '@phosphor-icons/react'
 import { TelaPixOnline, type PixAguardando } from '@/components/vitrine/tela-pix-online'
 import { TelaCartaoOnline, type CartaoAguardando } from '@/components/vitrine/tela-cartao-online'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -213,6 +213,11 @@ const formatarNota = (nota: number) => nota.toLocaleString('pt-BR', { minimumFra
 const MOTIVO_LOGIN_CUPOM = 'Entre com seu telefone para usar este cupom.'
 
 /** Rótulo curto do benefício de um cupom da vitrine ("10% de desconto", "Item grátis"…). */
+/** Texto para comparar na busca: minúsculo e sem acento. */
+function normalizarBusca(s: string): string {
+  return s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase()
+}
+
 function labelCupom(c: Pick<CupomVitrine, 'tipo' | 'valor' | 'itemNome'>): string {
   switch (c.tipo) {
     case 'item_gratis': return `${nomeLimpo(c.itemNome) || 'Item'} grátis`
@@ -2244,7 +2249,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       key: editingLineKey ?? `${productSheet.id}-${Date.now()}`,
       itemId: productSheet.id,
       name: productSheet.nome,
-      imagemUrl: productSheet.imagemUrl,
+      imagemUrl: productSheet.imagemUrl ?? productSheet.video?.capa ?? null,
       qty,
       unit: unitPrice,
       addons: addonsList,
@@ -2284,7 +2289,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
           key: `bump-${item.id}-${Date.now()}`,
           itemId: item.id,
           name: item.nome,
-          imagemUrl: item.imagemUrl,
+          imagemUrl: item.imagemUrl ?? item.video?.capa ?? null,
           qty: 1,
           unit: item.promocaoPreco ?? item.preco,
           addons: [],
@@ -3057,27 +3062,29 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   // moto de entrega cheia no estilo do ícone do WhatsApp do rodapé. O texto usa um verde mais fechado do
   // mesmo tom (#137547, 5,5:1) — o #24A96A dá 2,9:1 e não passa no contraste mínimo de 4,5:1.
   const freteGratisBanner = freteGratisAtivo && cart.length > 0 && tipoPedido === 'entrega' ? (
-    <div data-testid="frete-gratis" data-atingido={ganhouFreteGratis ? 'sim' : 'nao'} className="mb-3 rounded-[8px] border border-[#24A96A]/25 bg-[#EAFFF5] px-[12px] py-[10px]">
-      <div className="flex items-center gap-[10px]">
-        <IconeMotoEntrega className="h-[22px] w-[22px] flex-shrink-0 fill-[#24A96A]" />
+    // 26/10/2026: cartão branco (o bloco verde-menta destoava da sacola), moto em selo redondo, o que falta em
+    // negrito e a barra "líquida" da aba Cupons (BarraFluida). Garantida: selo de check, sem barra.
+    <div data-testid="frete-gratis" data-atingido={ganhouFreteGratis ? 'sim' : 'nao'} className="mb-3 flex items-center gap-[12px] rounded-[12px] border border-[#E5E8EC] bg-white px-[14px] py-[12px]">
+      <span className="flex h-[40px] w-[40px] flex-shrink-0 items-center justify-center rounded-full bg-[#E9F7EF] text-[#0B7A3E]" aria-hidden="true">
+        {ganhouFreteGratis ? <PhSealCheck weight="fill" size={24} /> : <PhMoped weight="duotone" size={24} />}
+      </span>
+      <div className="min-w-0 flex-1">
         {ganhouFreteGratis ? (
           <>
-            <span className="min-w-0 flex-1 text-[14px] font-semibold leading-[18px] text-[#137547]">Entrega grátis garantida!</span>
-            <svg viewBox="0 0 24 24" className="h-[20px] w-[20px] flex-shrink-0 fill-[#24A96A]" aria-label="Garantida">
-              <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm-1.3 14.2-4-4 1.4-1.4 2.6 2.6 5.6-5.6 1.4 1.4-7 7Z" />
-            </svg>
+            <p className="text-[14px] font-semibold leading-[18px] text-[#1F1F1F]">Entrega grátis garantida</p>
+            <p className="mt-[2px] text-[12px] leading-[16px] text-[#5C5C5C]">Seu pedido passou de {brl(freteGratisMinimo ?? 0)}.</p>
           </>
         ) : (
           <>
-            <span className="min-w-0 flex-1 text-[14px] font-semibold leading-[18px] text-[#137547]">
-              Faltam {brl(Math.max(0, (freteGratisMinimo ?? 0) - subtotal))} para a entrega grátis
-            </span>
-            <span className="flex-shrink-0 text-[12px] font-medium tabular-nums text-[#137547]" title="Valor da meta">{brl(freteGratisMinimo ?? 0)}</span>
+            <p className="text-[14px] leading-[18px] text-[#3D3D3D]">
+              Faltam <span className="font-semibold text-[#0B7A3E]">{brl(Math.max(0, (freteGratisMinimo ?? 0) - subtotal))}</span> para a entrega grátis
+            </p>
+            <div className="mt-[8px]">
+              <BarraFluida percentual={(subtotal / (freteGratisMinimo || 1)) * 100} rotulo="Progresso até a entrega grátis" />
+            </div>
+            <p className="mt-[4px] text-right text-[11px] tabular-nums leading-[14px] text-[#5C5C5C]">{brl(subtotal)} de {brl(freteGratisMinimo ?? 0)}</p>
           </>
         )}
-      </div>
-      <div className="ml-[32px] mt-[8px] h-[4px] overflow-hidden rounded-full bg-[#24A96A]/20">
-        <div className="h-full rounded-full bg-[#24A96A] transition-all duration-300" style={{ width: `${ganhouFreteGratis ? 100 : Math.min(100, (subtotal / (freteGratisMinimo || 1)) * 100)}%` }} />
       </div>
     </div>
   ) : null
@@ -3401,6 +3408,14 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   // A busca desliga a gaveta de propósito — é a saída de quem não quer navegar
   // e precisa varrer o cardápio inteiro.
   const gavetaAtiva = restaurante.layoutCardapio === 'gaveta' && !search.trim()
+  // Busca (26/10/2026): sem acento e sem caixa, no nome e na descrição ("hamburguer" acha "Hambúrguer").
+  const termoBusca = normalizarBusca(search.trim())
+  const gruposDaBusca = termoBusca
+    ? groups
+        .map((g) => ({ ...g, itens: g.itens.filter((i) => normalizarBusca(`${i.nome} ${i.descricao ?? ''}`).includes(termoBusca)) }))
+        .filter((g) => g.itens.length > 0)
+    : groups
+  const itensDaBusca = termoBusca ? gruposDaBusca.flatMap((g) => g.itens) : []
   // Lado da foto na lista: Ajustes (0152) ou, sem escolha, o tamanho de antes.
   const tamanhoImagem = restaurante.imagemTamanho ?? (restaurante.imagemGrande ? 140 : 120)
 
@@ -3719,22 +3734,52 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             </div>
             )}
 
-            {/* Search (colapsável) — só ocupa espaço quando aberta */}
+            {/* Busca (26/10/2026): pílula fixa no topo enquanto aberta, texto em 16px (sem zoom no iPhone),
+                limpar dentro do campo e "Cancelar" ao lado. Vazia, sugere os pratos mais pedidos. */}
             {searchOpen && (
-              <div className="mx-4 mt-3 lg:mx-8">
-                <div className="flex items-center gap-2.5 rounded-md bg-white px-4 py-3 shadow-sm">
-                  <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] flex-shrink-0 fill-text-subtle/60">
-                    <path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19zm-6 0A4.5 4.5 0 119.5 5a4.5 4.5 0 010 9z" />
-                  </svg>
-                  <input
-                    autoFocus
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Buscar no cardápio…"
-                    className="w-full border-none bg-transparent text-sm text-text-main outline-none placeholder:text-text-subtle"
-                  />
-                  <button onClick={() => { setSearch(''); setSearchOpen(false) }} className="text-text-subtle hover:text-text-main">×</button>
+              <div className="sticky top-0 z-20 bg-white px-[16px] pb-[10px] pt-[10px] lg:top-16 lg:bg-transparent lg:px-8" data-testid="busca-vitrine">
+                <div className="flex items-center gap-[10px]">
+                  <label className="flex h-[44px] min-w-0 flex-1 items-center gap-[8px] rounded-full bg-[#F2F3F5] px-[14px] ring-[var(--tema-primaria)] focus-within:bg-white focus-within:ring-2">
+                    <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] flex-shrink-0 fill-[#6B7280]" aria-hidden="true">
+                      <path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19zm-6 0A4.5 4.5 0 119.5 5a4.5 4.5 0 010 9z" />
+                    </svg>
+                    <input
+                      autoFocus
+                      type="search"
+                      enterKeyHint="search"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Buscar pratos e bebidas"
+                      aria-label="Buscar no cardápio"
+                      className="h-full min-w-0 flex-1 border-none bg-transparent text-[16px] text-[var(--v-texto)] outline-none placeholder:text-[#8A8F98] [&::-webkit-search-cancel-button]:hidden"
+                    />
+                    {search && (
+                      <button type="button" onClick={() => setSearch('')} aria-label="Limpar busca" className="flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-full bg-[#9CA3AF] text-white">
+                        <svg viewBox="0 0 16 16" className="h-[10px] w-[10px]" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+                      </button>
+                    )}
+                  </label>
+                  <button type="button" onClick={() => { setSearch(''); setSearchOpen(false) }} className="flex-shrink-0 text-[14px] font-semibold text-[var(--v-texto)]">
+                    Cancelar
+                  </button>
                 </div>
+                {!search.trim() && destaques.length > 0 && (
+                  <div className="mt-[12px]">
+                    <div className="mb-[8px] text-[12px] font-semibold text-[#6B7280]">Mais pedidos</div>
+                    <div className="flex flex-wrap gap-[8px]">
+                      {destaques.slice(0, 6).map((i) => (
+                        <button key={i.id} type="button" onClick={() => setSearch(nomeLimpo(i.nome))} className="rounded-full border border-[var(--v-borda)] bg-white px-[12px] py-[6px] text-[13px] text-[var(--v-texto)] transition-colors hover:bg-[#F3F4F6]">
+                          {nomeLimpo(i.nome)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {search.trim() && (
+                  <div className="mt-[10px] text-[12px] text-[#6B7280]" aria-live="polite" data-testid="busca-contagem">
+                    {itensDaBusca.length === 0 ? 'Nenhum resultado' : `${itensDaBusca.length} ${itensDaBusca.length === 1 ? 'resultado' : 'resultados'} para “${search.trim()}”`}
+                  </div>
+                )}
               </div>
             )}
 
@@ -3753,7 +3798,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 fica — sem ela os itens em promoção não teriam nenhuma porta de
                 entrada nesse modo — e a barra inteira some quando a loja não
                 tem promoção. */}
-            {(!gavetaAtiva || (promoItems.length > 0 && !gavetaEmTela)) && (
+            {!searchOpen && (!gavetaAtiva || (promoItems.length > 0 && !gavetaEmTela)) && (
             <div className="sticky top-0 z-10 flex gap-[20px] overflow-x-auto border-b border-[var(--v-borda)] bg-white px-[16px] pt-[8px] [scrollbar-width:none] lg:top-16 lg:mt-3 lg:px-0">
               {promoItems.length > 0 && (
                 <button
@@ -3786,7 +3831,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 da dobra: o cliente abria o cardápio e via um anúncio no lugar da
                 comida. Aqui ela é a primeira coisa dentro do cardápio, que é
                 onde um anúncio é lido sem atrapalhar quem já sabe o que quer. */}
-            {(bannerPromo.tipo !== 'nenhum' || slidesPromo.length > 0) && !gavetaEmTela && (
+            {(bannerPromo.tipo !== 'nenhum' || slidesPromo.length > 0) && !gavetaEmTela && !searchOpen && (
               <div className="mx-[16px] mt-[16px] lg:mx-8">
                 {slidesPromo.length === 0 && bannerPromo.tipo === 'texto' ? (
                   // Aviso escrito pela loja, para quem não tem arte pronta. Usa a
@@ -3902,10 +3947,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
             {/* Regular categories (or search results) */}
             {!loading && activeCategory !== '__promos__' && !gavetaAtiva &&
-              (search.trim()
-                ? groups.map((g) => ({ ...g, itens: g.itens.filter((i) => i.nome.toLowerCase().includes(search.toLowerCase())) })).filter((g) => g.itens.length > 0)
-                : groups
-              ).map((cat) => (
+              gruposDaBusca.map((cat) => (
                 <div key={cat.id} id={`sec-${cat.id}`} className="pb-1 pt-2 lg:px-0">
                   {/* Título centralizado, 16/600: na referência ele funciona como
                       divisória entre blocos de produtos, não como manchete. */}
@@ -3913,8 +3955,17 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   <ItemsGrid items={cat.itens} layout={restaurante.layoutCardapio} onSelect={openProduct} tamanhoImagem={tamanhoImagem} />
                 </div>
               ))}
-            {search.trim() && groups.every((g) => !g.itens.some((i) => i.nome.toLowerCase().includes(search.toLowerCase()))) && (
-              <div className="px-4 py-16 text-center text-sm text-text-subtle lg:px-0">Nenhum item encontrado para &ldquo;{search}&rdquo;.</div>
+            {termoBusca && itensDaBusca.length === 0 && (
+              <div className="flex flex-col items-center px-[24px] py-[48px] text-center" data-testid="busca-vazia">
+                <span className="flex h-[56px] w-[56px] items-center justify-center rounded-full bg-[#F2F3F5]" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" className="h-[26px] w-[26px] fill-[#9CA3AF]"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19zm-6 0A4.5 4.5 0 119.5 5a4.5 4.5 0 010 9z" /></svg>
+                </span>
+                <p className="mt-[14px] text-[15px] font-semibold text-[var(--v-texto)]">Nada encontrado para “{search.trim()}”</p>
+                <p className="mt-[4px] max-w-[280px] text-[13px] leading-[19px] text-[var(--v-secundario)]">Confira a grafia ou tente uma palavra mais curta, como “burger” ou “batata”.</p>
+                <button type="button" onClick={() => setSearch('')} className="mt-[16px] rounded-full border border-[var(--v-borda)] px-[16px] py-[8px] text-[13px] font-semibold text-[var(--v-texto)] hover:bg-[#F3F4F6]">
+                  Limpar busca
+                </button>
+              </div>
             )}
 
             {/* Sem bloco de "fim do cardápio" (P8, 2026-10-04): a lista termina no último
@@ -6035,15 +6086,5 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     </div>
     </VitrineNovaContext.Provider>
     </LojaEtiquetasContext.Provider>
-  )
-}
-
-/** Moto de entrega (motoboy), cheia e arredondada — Material Icons "delivery_dining" (Apache 2.0). */
-function IconeMotoEntrega({ className = '' }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" className={className} aria-hidden>
-      <path d="M19 7c0-1.1-.9-2-2-2h-3v2h3v2.65L13.52 14H10V9H6c-2.21 0-4 1.79-4 4v3h2c0 1.66 1.34 3 3 3s3-1.34 3-3h4.48L19 10.35V7zM7 17c-.55 0-1-.45-1-1h2c0 .55-.45 1-1 1z" />
-      <path d="M5 6h5v2H5zM19 13c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3zm0 4c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z" />
-    </svg>
   )
 }
