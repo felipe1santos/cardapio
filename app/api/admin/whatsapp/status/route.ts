@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server'
 import { getServerSupabase } from '@/lib/supabase/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
-import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
+import { restauranteDaSessao } from '@/lib/auth/session'
 import { estadoConexao, evolutionConfigurado, formatarNumeroWhatsapp, numeroConectado } from '@/lib/evolution'
 import { garantirWebhookDeTempoEmTempo } from '@/lib/mensageria/webhook-loja'
 
 /** Status da conexão WhatsApp (Evolution) do restaurante logado. */
 export async function GET() {
   const supabase = await getServerSupabase()
-  const restauranteId = await buscarRestauranteIdDoUsuario(supabase)
+  const restauranteId = await restauranteDaSessao(supabase)
   if (!restauranteId) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
 
   const admin = getAdminSupabase()

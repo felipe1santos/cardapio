@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
-import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
+import { restauranteDaSessao } from '@/lib/auth/session'
 import { excluirRegraCashback, listarRegrasCashback, salvarRegraCashback, type RegraCashbackInput } from '@/lib/queries/cashback'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
@@ -14,7 +14,7 @@ async function lojaDaSessao(): Promise<string | null> {
   const supabase = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
     cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} },
   })
-  return buscarRestauranteIdDoUsuario(supabase)
+  return restauranteDaSessao(supabase)
 }
 
 function erro(prefixo: string, err: unknown) {

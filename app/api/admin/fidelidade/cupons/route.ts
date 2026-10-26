@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
-import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
+import { restauranteDaSessao } from '@/lib/auth/session'
 import {
   listarCupons,
   criarCupom,
@@ -21,7 +21,7 @@ async function getAuthSupabase() {
 export async function GET() {
   try {
     const supabase = await getAuthSupabase()
-    const restauranteId = await buscarRestauranteIdDoUsuario(supabase)
+    const restauranteId = await restauranteDaSessao(supabase)
     if (!restauranteId) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
     const admin = getAdminSupabase()
@@ -37,7 +37,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const supabase = await getAuthSupabase()
-    const restauranteId = await buscarRestauranteIdDoUsuario(supabase)
+    const restauranteId = await restauranteDaSessao(supabase)
     if (!restauranteId) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
     const body: CupomInput = await request.json()

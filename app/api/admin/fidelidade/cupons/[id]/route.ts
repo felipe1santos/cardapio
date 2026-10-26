@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
-import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
+import { restauranteDaSessao } from '@/lib/auth/session'
 import {
   atualizarCupom,
   excluirCupom,
@@ -24,7 +24,7 @@ export async function PATCH(request: Request, { params }: Ctx) {
   try {
     const { id } = await params
     const supabase = await getAuthSupabase()
-    const restauranteId = await buscarRestauranteIdDoUsuario(supabase)
+    const restauranteId = await restauranteDaSessao(supabase)
     if (!restauranteId) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
     const body: CupomInput = await request.json()
@@ -43,7 +43,7 @@ export async function DELETE(_: Request, { params }: Ctx) {
   try {
     const { id } = await params
     const supabase = await getAuthSupabase()
-    const restauranteId = await buscarRestauranteIdDoUsuario(supabase)
+    const restauranteId = await restauranteDaSessao(supabase)
     if (!restauranteId) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
     const admin = getAdminSupabase()

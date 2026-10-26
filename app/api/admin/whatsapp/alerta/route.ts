@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServerSupabase } from '@/lib/supabase/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
-import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
+import { restauranteDaSessao } from '@/lib/auth/session'
 import { estadoParaPainel } from '@/lib/whatsapp-monitor'
 
 export const dynamic = 'force-dynamic'
@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic'
  * loja (gratuito); desconexão feita pelo painel não conta. A faixa chama a cada minuto.
  */
 export async function GET() {
-  const restauranteId = await buscarRestauranteIdDoUsuario(await getServerSupabase())
+  const restauranteId = await restauranteDaSessao(await getServerSupabase())
   if (!restauranteId) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
   try {
     return NextResponse.json(await estadoParaPainel(getAdminSupabase(), restauranteId), { headers: { 'Cache-Control': 'no-store' } })

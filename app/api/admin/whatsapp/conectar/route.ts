@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServerSupabase } from '@/lib/supabase/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
-import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
+import { restauranteDaSessao } from '@/lib/auth/session'
 import { evolutionConfigurado, nomeInstancia, obterQrCode } from '@/lib/evolution'
 import { garantirWebhookDaLoja } from '@/lib/mensageria/webhook-loja'
 
@@ -12,7 +12,7 @@ export async function POST() {
   }
 
   const supabase = await getServerSupabase()
-  const restauranteId = await buscarRestauranteIdDoUsuario(supabase)
+  const restauranteId = await restauranteDaSessao(supabase)
   if (!restauranteId) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
 
   const admin = getAdminSupabase()

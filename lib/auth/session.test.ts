@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { getCurrentSession } from './session'
+import { getCurrentSession, restauranteDaSessao } from './session'
 import { assinarSessao, CABECALHO_SESSAO } from './sessao-assinada'
 
 const cabecalhos = new Map<string, string>()
@@ -69,6 +69,13 @@ describe('getCurrentSession com a sessão já conferida pelo middleware (egress,
     const s = await getCurrentSession(supabase as unknown as SupabaseClient)
     expect(supabase.auth.getUser).toHaveBeenCalled()
     expect(s?.papel).toBe('garcom')
+  })
+
+  it('restauranteDaSessao: loja da sessão assinada, sem consultar nada (rotas que usavam buscarRestauranteIdDoUsuario)', async () => {
+    cabecalhos.set(CABECALHO_SESSAO, await assinarSessao(sessao, 'segredo-teste'))
+    const supabase = buildSupabaseStub({ authUser: null, usuarioRow: null })
+    expect(await restauranteDaSessao(supabase as unknown as SupabaseClient)).toBe('tenant-1')
+    expect(supabase.auth.getUser).not.toHaveBeenCalled()
   })
 
   it('sem cabeçalho: confere como sempre', async () => {

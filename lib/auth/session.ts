@@ -23,6 +23,14 @@ async function sessaoDoMiddleware(): Promise<AppSession | null> {
   }
 }
 
+/**
+ * Loja da sessão, para rotas que só precisam dela (revisão 26/10): usa a sessão que o middleware já conferiu; antes,
+ * `buscarRestauranteIdDoUsuario` repetia getUser + `usuarios` em cada chamada dessas rotas.
+ */
+export async function restauranteDaSessao(supabase: SupabaseClient): Promise<string | null> {
+  return (await getCurrentSession(supabase))?.restauranteId ?? null
+}
+
 export async function getCurrentSession(
   supabase: SupabaseClient
 ): Promise<AppSession | null> {
