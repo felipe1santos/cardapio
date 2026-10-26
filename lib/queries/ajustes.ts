@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { lerFormas, type ConfigFormas } from '@/lib/formas-pagamento'
-import { imagemTamanhoValido, fonteVitrineValida, designVitrineValido, menuVitrineValido, corRodapeValida, type CorRodape, type LayoutCardapio, type ImagemTamanho, type FonteVitrine, type DesignVitrine, type MenuVitrine } from './cardapio'
+import { imagemTamanhoValido, fonteVitrineValida, designVitrineValido, menuVitrineValido, corRodapeValida, formatoBannerValido, type FormatoBanner, type CorRodape, type LayoutCardapio, type ImagemTamanho, type FonteVitrine, type DesignVitrine, type MenuVitrine } from './cardapio'
 import type { HorarioFuncionamento, StatusLoja } from '@/lib/timezone'
 import { composeEndereco } from '@/lib/endereco'
 import { otimizarImagem, otimizarParImagem, CACHE_CONTROL_SEGUNDOS, type PerfilImagem } from '@/lib/imagem'
@@ -32,6 +32,7 @@ export interface ConfigLoja {
   bannerFoco: Foco
   /** Ponto de foco do banner promocional — mesma ancoragem, outra imagem. */
   bannerPromoFoco: Foco
+  bannerPromoFormato: FormatoBanner
   telefone: string
   endereco: string
   enderecoRua: string
@@ -107,6 +108,7 @@ interface ConfigRow {
   banner_foco_x: number | string | null
   banner_foco_y: number | string | null
   banner_promo_foco_x: number | string | null
+  banner_promo_formato?: string | null
   banner_promo_foco_y: number | string | null
   telefone: string
   endereco: string
@@ -150,7 +152,7 @@ interface ConfigRow {
   formas_pagamento?: unknown
 }
 
-const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_promo_urls, banner_promo_texto, banner_promo_video, vitrine_cabecalho, aviso_cor_texto, aviso_cor_fundo, aviso_pulsar, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, endereco, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, cep, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, instagram_url, layout_cardapio, cor_tema, imagem_grande, vitrine_imagem_tamanho, vitrine_fonte, vitrine_design, vitrine_menu, vitrine_cor_rodape, vitrine_nova, latitude, longitude, avaliacao_nota, avaliacao_qtd, horario_funcionamento, status_loja, usa_logistica, entrega_sem_entregador, aceita_entrega, aceita_retirada, modulo_mesas_ativo, tempo_entrega, tempo_retirada, pix_chave, pix_chave_tipo, formas_pagamento'
+const CONFIG_SELECT = 'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_promo_urls, banner_promo_texto, banner_promo_video, vitrine_cabecalho, aviso_cor_texto, aviso_cor_fundo, aviso_pulsar, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, banner_promo_formato, telefone, endereco, endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cidade, endereco_estado, cep, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, instagram_url, layout_cardapio, cor_tema, imagem_grande, vitrine_imagem_tamanho, vitrine_fonte, vitrine_design, vitrine_menu, vitrine_cor_rodape, vitrine_nova, latitude, longitude, avaliacao_nota, avaliacao_qtd, horario_funcionamento, status_loja, usa_logistica, entrega_sem_entregador, aceita_entrega, aceita_retirada, modulo_mesas_ativo, tempo_entrega, tempo_retirada, pix_chave, pix_chave_tipo, formas_pagamento'
 
 function mapConfig(row: ConfigRow): ConfigLoja {
   return {
@@ -170,6 +172,7 @@ function mapConfig(row: ConfigRow): ConfigLoja {
     avisoPulsar: row.aviso_pulsar === true,
     bannerFoco: focoValido(row.banner_foco_x, row.banner_foco_y),
     bannerPromoFoco: focoValido(row.banner_promo_foco_x, row.banner_promo_foco_y),
+    bannerPromoFormato: formatoBannerValido(row.banner_promo_formato),
     telefone: row.telefone,
     endereco: row.endereco,
     enderecoRua: row.endereco_rua ?? '',
@@ -238,6 +241,7 @@ export interface ConfigLojaPatch {
   avisoPulsar?: boolean
   bannerFoco?: Foco
   bannerPromoFoco?: Foco
+  bannerPromoFormato?: FormatoBanner
   telefone?: string
   endereco?: string
   enderecoRua?: string
@@ -295,6 +299,7 @@ export async function atualizarConfigLoja(supabase: SupabaseClient, restauranteI
     row.banner_foco_x = patch.bannerFoco.x
     row.banner_foco_y = patch.bannerFoco.y
   }
+  if (patch.bannerPromoFormato !== undefined) row.banner_promo_formato = formatoBannerValido(patch.bannerPromoFormato)
   if (patch.bannerPromoFoco !== undefined) {
     row.banner_promo_foco_x = patch.bannerPromoFoco.x
     row.banner_promo_foco_y = patch.bannerPromoFoco.y

@@ -31,7 +31,7 @@ import { PilhaToasts, useToasts } from '@/components/admin/toasts'
 import { normalizarInstagram } from '@/lib/instagram'
 import { PIX_CHAVE_MAX, TIPOS_PIX, tipoPixValido } from '@/lib/pix-chave'
 import { fonteVitrine } from '@/lib/fonte-vitrine'
-import { buscarRestauranteIdDoUsuario, IMAGEM_TAMANHOS, type LayoutCardapio, type ImagemTamanho, type FonteVitrine, FONTES_VITRINE, type DesignVitrine, type MenuVitrine, type CorRodape, VERMELHO_TAKEAT } from '@/lib/queries/cardapio'
+import { buscarRestauranteIdDoUsuario, IMAGEM_TAMANHOS, type LayoutCardapio, type ImagemTamanho, type FonteVitrine, FONTES_VITRINE, FORMATOS_BANNER, formatoMaisProximo, type FormatoBanner, type DesignVitrine, type MenuVitrine, type CorRodape, VERMELHO_TAKEAT } from '@/lib/queries/cardapio'
 import { AjustarFoco } from '@/components/ajustar-foco'
 import { FOCO_PADRAO, objectPosition, type Foco } from '@/lib/foco-imagem'
 import { BANNER_PROMO_MAX_IMAGENS, BANNER_PROMO_MAX_TEXTO, bannerPromocional } from '@/lib/banner-promocional'
@@ -231,6 +231,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
     corRodape: 'loja' as CorRodape,
     bannerFoco: FOCO_PADRAO as Foco,
     bannerPromoFoco: FOCO_PADRAO as Foco,
+    bannerPromoFormato: '3:2' as FormatoBanner,
   })
   const [horarioDias, setHorarioDias] = useState<HorarioSemanaForm>(horarioSemanaPadrao())
   const [corSelecionada, setCorSelecionada] = useState<string>('azul')
@@ -290,6 +291,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         corRodape: c.corRodape,
         bannerFoco: c.bannerFoco,
         bannerPromoFoco: c.bannerPromoFoco,
+        bannerPromoFormato: c.bannerPromoFormato,
       })
       setHorarioDias(horarioSemanaFromConfig(c.horarioFuncionamento))
       const cor = c.corTema ?? 'azul'
@@ -379,10 +381,13 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
       for (const file of files.slice(0, espaco)) {
         novas.push(await enviarBannerPromocionalLoja(supabase, restauranteId, file))
       }
+      // Banner ainda vazio: sugere o formato da primeira arte (a loja pode trocar logo abaixo).
+      const sugestao = form.bannerPromoUrls.length === 0 && !form.bannerPromoVideo ? await formatoDoArquivo(files[0]!) : null
       setForm((prev) => ({
         ...prev,
         bannerPromoUrls: [...prev.bannerPromoUrls, ...novas],
         bannerPromoFoco: prev.bannerPromoUrls.length === 0 ? FOCO_PADRAO : prev.bannerPromoFoco,
+        ...(sugestao ? { bannerPromoFormato: sugestao } : {}),
       }))
       setSaved(false)
     } catch {
@@ -397,6 +402,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
    * resolvidas pela mesma regra da vitrine — assim a prévia do painel e o
    * cardápio nunca discordam sobre o que está no ar.
    */
+  const formatoBanner = FORMATOS_BANNER.find((f) => f.valor === form.bannerPromoFormato) ?? FORMATOS_BANNER[0]!
   const imagensPromo = (() => {
     const b = bannerPromocional({ urls: form.bannerPromoUrls, urlLegado: form.bannerPromocionalUrl })
     return b.tipo === 'imagens' ? b.urls : []
@@ -523,6 +529,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
           : { imagemGrande: form.imagemGrande }),
         bannerFoco: form.bannerFoco,
         bannerPromoFoco: form.bannerPromoFoco,
+        bannerPromoFormato: form.bannerPromoFormato,
         horarioFuncionamento,
         corTema: corSelecionada === 'custom' ? corCustom : corSelecionada,
         ...(formasMexeu && formasTela ? { formasPagamento: formasTela } : {}),
@@ -613,9 +620,34 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         <Secao titulo="Banner promocional ou aviso" descricao="Uma faixa dentro do cardápio, logo abaixo das categorias: imagens das promoções ou um aviso em texto." icone={<Megaphone />} testid="secao-promo">
           <Field
             label="Banner promocional"
-            hint="Aparece dentro do cardápio, logo abaixo das categorias. Tamanho ideal: 1200 × 800 px (proporção 3:2). Suba uma ou mais imagens (com mais de uma, elas passam sozinhas) OU escreva um aviso. Deixe tudo em branco pra não mostrar nada."
+            hint="Aparece dentro do cardápio, logo abaixo das categorias. Escolha o formato do quadro abaixo (vídeo em pé: Stories 9:16). Suba uma ou mais imagens (com mais de uma, elas passam sozinhas) OU escreva um aviso. Deixe tudo em branco pra não mostrar nada."
           >
             <div className="space-y-3">
+              <div data-testid="formato-banner">
+                <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Formato do banner</div>
+                <div className="grid grid-cols-4 gap-2">
+                  {FORMATOS_BANNER.map((f) => (
+                    <button
+                      key={f.valor}
+                      type="button"
+                      aria-pressed={form.bannerPromoFormato === f.valor}
+                      data-testid={`formato-${f.legenda.replace(':', 'x')}`}
+                      onClick={() => { setForm((prev) => ({ ...prev, bannerPromoFormato: f.valor })); setSaved(false) }}
+                      className={[
+                        'flex flex-col items-center gap-1.5 rounded-menuzia border px-2 py-2.5 transition-colors',
+                        form.bannerPromoFormato === f.valor ? 'border-primary bg-primary/10' : 'border-border bg-white hover:border-primary/50',
+                      ].join(' ')}
+                    >
+                      <span className="flex h-9 items-center" aria-hidden="true">
+                        <span className="block rounded-[3px] border-2 border-current text-text-subtle" style={{ height: f.ratio >= 1 ? 36 / f.ratio : 36, width: f.ratio >= 1 ? 36 : 36 * f.ratio }} />
+                      </span>
+                      <span className="text-[12px] font-semibold text-text-main">{f.titulo}</span>
+                      <span className="text-[11px] text-text-subtle">{f.legenda}</span>
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1.5 text-[11px] text-text-subtle">Tamanho ideal: {formatoBanner.ideal}. Arte ou vídeo de outro formato aparece inteiro, com o fundo desfocado.</p>
+              </div>
               {imagensPromo.length > 0 && (
                 <div className="space-y-2">
                   {imagensPromo.map((url, i) => (
@@ -626,9 +658,9 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
                       <img
                         src={url}
                         alt={`Banner promocional ${i + 1}`}
-                        // Prévia do corte: a mesma proporção da vitrine (3:2, medida na referência Brendi em 23/10).
-                        className="aspect-[3/2] w-full min-w-0 max-w-[280px] flex-1 rounded-[10px] border border-border object-cover"
-                        style={{ objectPosition: objectPosition(form.bannerPromoFoco) }}
+                        // Prévia na proporção escolhida em "Formato do banner" (0228); a vitrine mostra a arte inteira.
+                        className="w-full min-w-0 max-w-[200px] flex-1 rounded-[10px] border border-border bg-[#111] object-contain"
+                        style={{ aspectRatio: String(formatoBanner.ratio) }}
                       />
                       <div className="flex flex-shrink-0 flex-col gap-1">
                         <button
@@ -683,9 +715,9 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
                     // 1224/169 = 7,24 no desktop — continua um talho largo, e é
                     // por isso que ela precisa de foco.
                     // 2026-10-23: o banner segue a referência Brendi (3:2) no celular e no computador.
-                    proporcoes={[{ rotulo: 'Celular e computador', ratio: 1.5 }]}
+                    proporcoes={[{ rotulo: 'Celular e computador', ratio: formatoBanner.ratio }]}
                     titulo="Posição do banner promocional"
-                    descricao="O banner tem a proporção 3:2 (ideal 1200 × 800 px). Se a sua arte for de outro formato, marque o que não pode sumir. Vale para todas as imagens."
+                    descricao={`O banner está no formato ${formatoBanner.legenda} (ideal ${formatoBanner.ideal}). Se a sua arte for de outro formato, marque o que não pode sumir. Vale para todas as imagens.`}
                     disabled={uploadingBannerPromo}
                   />
                 )}
@@ -698,7 +730,12 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
               <div className="border-t border-border pt-3">
                 <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Vídeo no banner</div>
                 <VideoDaVitrine destino="banner" valor={form.bannerPromoVideo} totalImagens={imagensPromo.length} rotuloPosicao="Posição no banner:"
-                  onChange={(v) => { setForm((prev) => ({ ...prev, bannerPromoVideo: v })); setSaved(false) }} />
+                  onChange={(v) => {
+                    setForm((prev) => ({ ...prev, bannerPromoVideo: v }))
+                    setSaved(false)
+                    // Primeira mídia do banner é o vídeo: sugere o formato dele (vídeo em pé → Stories).
+                    if (v && imagensPromo.length === 0) void formatoDoVideo(v.url).then((f) => f && setForm((prev) => ({ ...prev, bannerPromoFormato: f })))
+                  }} />
               </div>
 
               {/* Alternativa para quem não tem arte pronta. Só aparece no
@@ -2227,6 +2264,30 @@ export default function AjustesPage() {
  * A Montserrat vem de `fonteVitrine.variable` (só esta tela do painel a baixa); a Figtree já
  * está na raiz como --font-meta.
  */
+/** Formato do banner mais próximo de uma imagem escolhida no computador (null se não der para ler). */
+async function formatoDoArquivo(arquivo: File): Promise<FormatoBanner | null> {
+  try {
+    const bmp = await createImageBitmap(arquivo)
+    const f = formatoMaisProximo(bmp.width, bmp.height)
+    bmp.close()
+    return f
+  } catch {
+    return null
+  }
+}
+
+/** Idem para o vídeo já enviado: lê só os metadados (largura e altura). */
+function formatoDoVideo(url: string): Promise<FormatoBanner | null> {
+  return new Promise((ok) => {
+    const v = document.createElement('video')
+    v.preload = 'metadata'
+    v.muted = true
+    v.onloadedmetadata = () => { ok(formatoMaisProximo(v.videoWidth, v.videoHeight)); v.removeAttribute('src'); v.load() }
+    v.onerror = () => ok(null)
+    v.src = url
+  })
+}
+
 function PreviaLinhaItem({ tamanho, fonte }: { tamanho: number; fonte: FonteVitrine }) {
   const familia = (FONTES_VITRINE.find((f) => f.valor === fonte) ?? FONTES_VITRINE[0]).familia
   return (

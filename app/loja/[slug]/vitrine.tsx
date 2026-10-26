@@ -59,6 +59,7 @@ import {
   type LayoutCardapio,
   type RestauranteVitrine,
   VERMELHO_TAKEAT,
+  FORMATOS_BANNER,
 } from '@/lib/queries/cardapio'
 import type { ClientePerfil, EnderecoCliente } from '@/lib/queries/clientes'
 import type { PedidoCliente } from '@/lib/queries/pedidos'
@@ -489,7 +490,7 @@ function DescricaoItem({ texto, className = '' }: { texto: string; className?: s
  * trilho de categorias, e um slide lateral ali competiria com o gesto de rolar
  * as categorias no toque.
  */
-function CarrosselPromo({ slides, foco }: { slides: Midia[]; foco: string }) {
+function CarrosselPromo({ slides, foco, ratio = 3 / 2 }: { slides: Midia[]; foco: string; ratio?: number }) {
   const [atual, setAtual] = useState(0)
   const urls = slides.map((m) => m.url)
 
@@ -507,7 +508,8 @@ function CarrosselPromo({ slides, foco }: { slides: Midia[]; foco: string }) {
   }, [atual, slides.length])
 
   return (
-    <div data-testid="banner-promo" data-canto className="relative mx-auto aspect-[3/2] w-full max-w-[500px] overflow-hidden rounded-[10px] border border-border">
+    // Formato escolhido em Ajustes (0228): 3:2, 1:1, 4:5 ou 9:16. Em pé, o quadro não passa de 70% da altura da tela.
+    <div data-testid="banner-promo" data-canto className="relative mx-auto w-full overflow-hidden rounded-[10px] border border-border" style={{ aspectRatio: String(ratio), maxWidth: `min(500px, calc(70vh * ${ratio}))` }}>
       {/* 26/10/2026: a mídia vai inteira (object-contain) — arte quadrada e vídeo em pé eram cortados
           pelo quadro 3:2. O que sobra do quadro é a própria imagem desfocada (mesma URL, nada a mais
           baixado). Desfoque e escala inline: o design Simples zera classes de escala. */}
@@ -3803,6 +3805,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   <CarrosselPromo
                     slides={slidesPromo}
                     foco={objectPosition(restaurante.bannerPromoFoco)}
+                    ratio={(FORMATOS_BANNER.find((f) => f.valor === restaurante.bannerPromoFormato) ?? FORMATOS_BANNER[0]!).ratio}
                   />
                 )}
               </div>

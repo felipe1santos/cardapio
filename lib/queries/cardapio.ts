@@ -1156,6 +1156,23 @@ export const FONTES_VITRINE: ReadonlyArray<{ valor: FonteVitrine; titulo: string
   { valor: 'nunito', titulo: 'Nunito (arredondada)', familia: 'Nunito, sans-serif' },
   { valor: 'inter', titulo: 'Inter (neutra)', familia: 'var(--font-inter), Inter, sans-serif' },
 ]
+/** Formato do banner promocional (0228): proporção largura:altura do quadro na vitrine. */
+export type FormatoBanner = '3:2' | '1:1' | '4:5' | '9:16'
+export const FORMATOS_BANNER: ReadonlyArray<{ valor: FormatoBanner; titulo: string; legenda: string; ratio: number; ideal: string }> = [
+  { valor: '3:2', titulo: 'Horizontal', legenda: '3:2', ratio: 3 / 2, ideal: '1200 × 800 px' },
+  { valor: '1:1', titulo: 'Quadrado', legenda: '1:1', ratio: 1, ideal: '1080 × 1080 px' },
+  { valor: '4:5', titulo: 'Post', legenda: '4:5', ratio: 4 / 5, ideal: '1080 × 1350 px' },
+  { valor: '9:16', titulo: 'Stories', legenda: '9:16', ratio: 9 / 16, ideal: '1080 × 1920 px' },
+]
+export function formatoBannerValido(v: unknown): FormatoBanner {
+  return FORMATOS_BANNER.some((f) => f.valor === v) ? (v as FormatoBanner) : '3:2'
+}
+/** Formato mais próximo de uma mídia (largura × altura) — sugestão ao subir a arte ou o vídeo. */
+export function formatoMaisProximo(largura: number, altura: number): FormatoBanner {
+  if (!largura || !altura) return '3:2'
+  const r = Math.log(largura / altura)
+  return FORMATOS_BANNER.reduce((a, b) => (Math.abs(Math.log(b.ratio) - r) < Math.abs(Math.log(a.ratio) - r) ? b : a)).valor
+}
 export function fonteVitrineValida(v: unknown): FonteVitrine {
   return FONTES_VITRINE.some((f) => f.valor === v) ? (v as FonteVitrine) : 'atual'
 }
@@ -1200,6 +1217,8 @@ export interface RestauranteVitrine {
   bannerFoco: Foco
   /** Ponto de foco do banner promocional. */
   bannerPromoFoco: Foco
+  /** Formato do quadro do banner promocional (0228). */
+  bannerPromoFormato: FormatoBanner
   telefone: string
   /** Instagram da loja (0106; leitura pública na 0154), https://instagram.com/<usuario>. */
   instagramUrl: string | null
@@ -1258,7 +1277,7 @@ export async function buscarRestaurantePorSlug(supabase: ClienteLeitura, slug: s
   const { data, error } = await supabase
     .from('restaurantes')
     .select(
-      'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_promo_urls, banner_promo_texto, banner_promo_video, vitrine_cabecalho, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, telefone, instagram_url, endereco, endereco_bairro, endereco_cidade, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio, cor_tema, imagem_grande, vitrine_imagem_tamanho, vitrine_fonte, vitrine_design, vitrine_menu, vitrine_cor_rodape, vitrine_nova, status_loja, horario_funcionamento, avaliacao_nota, avaliacao_qtd, aceita_entrega, aceita_retirada, pizza_calculo_preco, agendamento_ativo, agendamento_quando, agendamento_dias, agendamento_antecedencia_min, agendamento_intervalo_min, agendamento_limite, agendamento_entrega, agendamento_retirada, agendamento_libera_min, aviso_cor_texto, aviso_cor_fundo, aviso_pulsar, formas_pagamento'
+      'id, nome, slug, logo_url, banner_url, banner_mobile_url, banner_promocional_url, banner_promo_urls, banner_promo_texto, banner_promo_video, vitrine_cabecalho, banner_foco_x, banner_foco_y, banner_promo_foco_x, banner_promo_foco_y, banner_promo_formato, telefone, instagram_url, endereco, endereco_bairro, endereco_cidade, taxa_entrega_padrao, frete_gratis_acima, frete_fora_da_lista, facebook_pixel_id, google_tag_id, order_bump_max, layout_cardapio, cor_tema, imagem_grande, vitrine_imagem_tamanho, vitrine_fonte, vitrine_design, vitrine_menu, vitrine_cor_rodape, vitrine_nova, status_loja, horario_funcionamento, avaliacao_nota, avaliacao_qtd, aceita_entrega, aceita_retirada, pizza_calculo_preco, agendamento_ativo, agendamento_quando, agendamento_dias, agendamento_antecedencia_min, agendamento_intervalo_min, agendamento_limite, agendamento_entrega, agendamento_retirada, agendamento_libera_min, aviso_cor_texto, aviso_cor_fundo, aviso_pulsar, formas_pagamento'
     )
     .eq('slug', slug)
     .maybeSingle()
@@ -1284,6 +1303,7 @@ export async function buscarRestaurantePorSlug(supabase: ClienteLeitura, slug: s
     bannerPromoTexto: (data.banner_promo_texto as string | null) ?? null,
     bannerFoco: focoValido(data.banner_foco_x, data.banner_foco_y),
     bannerPromoFoco: focoValido(data.banner_promo_foco_x, data.banner_promo_foco_y),
+    bannerPromoFormato: formatoBannerValido(data.banner_promo_formato),
     telefone: data.telefone,
     instagramUrl: (data.instagram_url as string | null) ?? null,
     endereco: data.endereco,
