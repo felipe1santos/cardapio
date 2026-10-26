@@ -199,7 +199,10 @@ export interface RecorteDeClientes {
  * Pedido sem cliente identificado (balcão, mesa sem cadastro) não vira cliente:
  * seria contado como um cliente novo diferente a cada pedido.
  */
-export function recorteDeClientes(pedidos: PedidoDashboard[], historico: PedidoDashboard[], intervalo: Intervalo): RecorteDeClientes {
+/** O histórico só precisa de cliente e data (a carga do Dashboard traz uma versão leve dele, achado #8). */
+type HistoricoDeCliente = Pick<PedidoDashboard, 'clienteChave' | 'criadoEm'>
+
+export function recorteDeClientes(pedidos: PedidoDashboard[], historico: HistoricoDeCliente[], intervalo: Intervalo): RecorteDeClientes {
   const primeiroPedido = new Map<string, number>()
   for (const p of historico) {
     if (!p.clienteChave) continue
@@ -247,7 +250,7 @@ export interface PontoSerie {
  */
 export function serieDePedidos(
   pedidos: PedidoDashboard[],
-  historico: PedidoDashboard[],
+  historico: HistoricoDeCliente[],
   intervalo: Intervalo,
   agora: number,
 ): PontoSerie[] {

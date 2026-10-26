@@ -5,6 +5,7 @@ import { TopBar } from '@/components/layout/topbar'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { carregarDashboard, type DadosDashboard, type PedidoDashboard } from '@/lib/queries/pedidos'
+import { desdeNecessario, precisaRecarregar } from '@/lib/dashboard-janela'
 import { buscarConfigLoja } from '@/lib/queries/ajustes'
 import { FiltroPeriodo } from '@/components/dashboard/filtro-periodo'
 import { DicaInfo } from '@/components/dashboard/dica-info'
@@ -144,7 +145,9 @@ export default function DashboardPage() {
   const [preset, setPreset] = useState<PresetPeriodo | null>('30d')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [dados, setDados] = useState<DadosDashboard>({ pedidos: [], grupoPorItem: {} })
+  const [dados, setDados] = useState<DadosDashboard>({ pedidos: [], grupoPorItem: {}, clientes: [] })
+  // Desde quando os pedidos completos já carregados vão (achado #8): null = tudo; undefined = nada ainda.
+  const [carregadoDesde, setCarregadoDesde] = useState<number | null | undefined>(undefined)
   const [lojaLocal, setLojaLocal] = useState('')
   // Onde a loja fica (Ajustes): o mapa abre nela. Sem coordenadas, não geocodifica (docs/REGRAS-DE-CUSTO.md).
   const [lojaCoord, setLojaCoord] = useState<{ lat: number; lng: number } | null>(null)
@@ -164,29 +167,34 @@ export default function DashboardPage() {
         setLoading(false)
         return
       }
-      try {
-        const [dash, loja] = await Promise.all([
-          carregarDashboard(supabase, id),
-          buscarConfigLoja(supabase, id).catch(() => null),
-        ])
-        if (!active) return
-        setDados(dash)
-        setRestauranteId(id)
-        carregarTemposEntrega(supabase, id).then((t) => active && setTemposEntrega(t))
-        if (loja) {
-          setLojaLocal([loja.cep, loja.endereco].map((s) => s.trim()).filter(Boolean).join(', ')); setLojaSlug(loja.slug)
-          setLojaCoord(loja.latitude != null && loja.longitude != null ? { lat: Number(loja.latitude), lng: Number(loja.longitude) } : null)
-        }
-      } catch {
-        setError('Não foi possível carregar o dashboard.')
-      } finally {
-        setLoading(false)
-      }
+      // Os pedidos vêm no efeito abaixo, só da janela do período (achado #8).
+      setRestauranteId(id)
+      carregarTemposEntrega(supabase, id).then((t) => active && setTemposEntrega(t))
+      const loja = await buscarConfigLoja(supabase, id).catch(() => null)
+      if (!active || !loja) return
+      setLojaLocal([loja.cep, loja.endereco].map((s) => s.trim()).filter(Boolean).join(', ')); setLojaSlug(loja.slug)
+      setLojaCoord(loja.latitude != null && loja.longitude != null ? { lat: Number(loja.latitude), lng: Number(loja.longitude) } : null)
     })()
     return () => {
       active = false
     }
   }, [supabase])
+
+  // Pedidos do período + o anterior (achado #8, 26/10): antes vinha o histórico inteiro com itens a cada abertura.
+  // Período mais antigo do que o carregado (ou "Tudo") busca de novo; o mais recente reaproveita o que já veio.
+  useEffect(() => {
+    if (!restauranteId) return
+    const precisa = desdeNecessario(intervalo)
+    if (!precisaRecarregar(carregadoDesde, precisa)) return
+    let ativo = true
+    carregarDashboard(supabase, restauranteId, precisa === null ? null : new Date(precisa).toISOString())
+      .then((d) => { if (!ativo) return; setDados(d); setCarregadoDesde(precisa) })
+      .catch(() => { if (ativo) setError('Não foi possível carregar o dashboard.') })
+      .finally(() => { if (ativo) setLoading(false) })
+    return () => {
+      ativo = false
+    }
+  }, [supabase, restauranteId, intervalo, carregadoDesde])
 
   // O funil da vitrine é agregado no banco (a tabela de eventos cresce a cada
   // clique), então é buscado de novo a cada troca de período.
@@ -212,8 +220,10 @@ export default function DashboardPage() {
     const ticket = pedidos.length ? receita / pedidos.length : 0
     const ticketAnterior = anteriores.length ? receitaAnterior / anteriores.length : 0
 
-    const clientes = recorteDeClientes(pedidos, historico, intervalo)
-    const serie = serieDePedidos(pedidos, historico, intervalo, agora)
+    // "Novos x recorrentes" olha o primeiro pedido de cada cliente em TODO o histórico (versão leve, achado #8).
+    const historicoClientes = LOJAS_DE_TESTE.has(lojaSlug) ? dados.clientes : dados.clientes.filter((c) => !c.teste)
+    const clientes = recorteDeClientes(pedidos, historicoClientes, intervalo)
+    const serie = serieDePedidos(pedidos, historicoClientes, intervalo, agora)
     const rotulos = serie.map((p) => dataCurta(p.ms))
 
     // Entregues sobre o total — a régua de operação que o painel já mostrava.
@@ -576,7 +586,7 @@ export default function DashboardPage() {
             bairros: m.bairros,
             rankingBairros: m.rankingBairros,
             pontos: m.heatPoints,
-          }}
+          }}
           filtro={filtroPeriodo}
           mapsKey={MAPS_KEY}
           centro={lojaLocal}

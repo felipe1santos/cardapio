@@ -1069,23 +1069,48 @@ export function origemDaVenda(canal: string | null | undefined, origem: string |
   return 'vitrine'
 }
 
+/** Histórico leve de um pedido: só o que "novos x recorrentes" precisa (achado #8). */
+export interface ClienteHistorico {
+  clienteChave: string | null
+  criadoEm: string
+  teste: boolean
+}
+
 export interface DadosDashboard {
   pedidos: PedidoDashboard[]
   grupoPorItem: Record<string, string>
+  /** Todos os pedidos da loja, leves (cliente + data), para saber o primeiro pedido de cada cliente. */
+  clientes: ClienteHistorico[]
 }
 
-export async function carregarDashboard(supabase: SupabaseClient, restauranteId: string): Promise<DadosDashboard> {
+/**
+ * Pedidos do Dashboard. `desdeISO` (achado #8, 26/10): só os pedidos completos dessa data em diante (o período e o
+ * anterior); o histórico inteiro vem leve, sem itens nem endereço. `null` = tudo completo ("Tudo").
+ */
+export async function carregarDashboard(supabase: SupabaseClient, restauranteId: string, desdeISO: string | null = null): Promise<DadosDashboard> {
   // Paginado: sem isso o PostgREST devolve só 1000 pedidos e o painel da loja maior
   // perde os de hoje sem aviso.
-  const pedidos = await lerTodas<Record<string, unknown>>((de, ate) => supabase
-    .from('pedidos')
-    .select('id, total, tipo, status, forma_pagamento, criado_em, cliente_nome, cliente_telefone, observacao, endereco_rua, endereco_numero, endereco_bairro, endereco_cep, canal, origem, origem_canal, origem_primeira:origem_detalhe->primeira->>canal, pedido_itens ( item_id, nome, quantidade, preco_unitario )')
-    .eq('restaurante_id', restauranteId)
-    // Pix online ainda não pago (0148) não é venda: entra quando a API confirmar.
-    .not('status', 'in', '(cancelado,aguardando_pagamento)')
-    .order('criado_em', { ascending: true })
-    .order('id', { ascending: true })
-    .range(de, ate))
+  const lerPedidos = lerTodas<Record<string, unknown>>((de, ate) => {
+    let q = supabase
+      .from('pedidos')
+      .select('id, total, tipo, status, forma_pagamento, criado_em, cliente_nome, cliente_telefone, observacao, endereco_rua, endereco_numero, endereco_bairro, endereco_cep, canal, origem, origem_canal, origem_primeira:origem_detalhe->primeira->>canal, pedido_itens ( item_id, nome, quantidade, preco_unitario )')
+      .eq('restaurante_id', restauranteId)
+      // Pix online ainda não pago (0148) não é venda: entra quando a API confirmar.
+      .not('status', 'in', '(cancelado,aguardando_pagamento)')
+    if (desdeISO) q = q.gte('criado_em', desdeISO)
+    return q.order('criado_em', { ascending: true }).order('id', { ascending: true }).range(de, ate)
+  })
+  const lerClientes = desdeISO
+    ? lerTodas<Record<string, unknown>>((de, ate) => supabase
+      .from('pedidos')
+      .select('criado_em, cliente_telefone, cliente_nome, observacao, endereco_bairro')
+      .eq('restaurante_id', restauranteId)
+      .not('status', 'in', '(cancelado,aguardando_pagamento)')
+      .order('criado_em', { ascending: true })
+      .order('id', { ascending: true })
+      .range(de, ate))
+    : null
+  const [pedidos, leves] = await Promise.all([lerPedidos, lerClientes])
 
   const { data: itens } = await supabase
     .from('itens_cardapio')
@@ -1140,7 +1165,15 @@ export async function carregarDashboard(supabase: SupabaseClient, restauranteId:
     })),
   }))
 
-  return { pedidos: mapped, grupoPorItem }
+  const clientes: ClienteHistorico[] = leves
+    ? (leves as { criado_em: string; cliente_telefone: string | null; cliente_nome: string | null; observacao: string | null; endereco_bairro: string | null }[]).map((p) => ({
+      clienteChave: (p.cliente_telefone ?? '').replace(/\D/g, '') || null,
+      criadoEm: p.criado_em,
+      teste: ehPedidoDeTeste({ clienteNome: p.cliente_nome, observacao: p.observacao, bairro: p.endereco_bairro, telefone: p.cliente_telefone }),
+    }))
+    : mapped.map((p) => ({ clienteChave: p.clienteChave, criadoEm: p.criadoEm, teste: p.teste }))
+
+  return { pedidos: mapped, grupoPorItem, clientes }
 }
 
 // --- Fechamento de caixa: por turno (0114) em lib/caixa-turno.ts e lib/queries/caixa.ts ---
