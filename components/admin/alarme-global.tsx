@@ -28,7 +28,11 @@ export function useAlarme(): ValorAlarme | null {
   return useContext(AlarmeContexto)
 }
 
-const LEITURA_MS = 20_000
+/**
+ * Rede de segurança do alarme (o pedido novo chega pelo tempo real, na hora). Era 20 s: 3 consultas por vez em toda
+ * aba do painel, ~44 mil/dia medidas em 26/10 (13 % do egress). Ao voltar à aba, à internet ou ao canal, lê na hora.
+ */
+const LEITURA_MS = 60_000
 /** De quanto em quanto tempo o painel pergunta se o Assistente da loja está tocando o alarme (12/10). */
 const ASSISTENTE_MS = 15_000
 

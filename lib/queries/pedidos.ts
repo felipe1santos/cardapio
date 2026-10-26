@@ -391,10 +391,21 @@ export async function buscarPedidosPorIds(supabase: SupabaseClient, restauranteI
  * cozinha nem conta no badge. Coluna ausente = 30 (o padrão da migration).
  */
 export async function corteLiberacaoAgendados(supabase: SupabaseClient, restauranteId: string): Promise<string> {
-  const { data } = await supabase.from('restaurantes').select('agendamento_libera_min').eq('id', restauranteId).maybeSingle()
-  const min = typeof data?.agendamento_libera_min === 'number' ? data.agendamento_libera_min : 30
+  // Egress (26/10): a antecedência quase nunca muda e era relida a cada leitura do alarme e dos contadores.
+  const guardado = antecedenciaAgendados.get(restauranteId)
+  let min: number
+  if (guardado && Date.now() - guardado.em < ANTECEDENCIA_VALIDADE_MS) min = guardado.min
+  else {
+    const { data } = await supabase.from('restaurantes').select('agendamento_libera_min').eq('id', restauranteId).maybeSingle()
+    min = typeof data?.agendamento_libera_min === 'number' ? data.agendamento_libera_min : 30
+    antecedenciaAgendados.set(restauranteId, { min, em: Date.now() })
+  }
   return new Date(Date.now() + min * 60_000).toISOString()
 }
+
+/** Antecedência dos agendados por loja, guardada por 5 min (corteLiberacaoAgendados). */
+const antecedenciaAgendados = new Map<string, { min: number; em: number }>()
+const ANTECEDENCIA_VALIDADE_MS = 5 * 60_000
 
 /**
  * Pedidos que o alarme do painel toca (2026-10-04): "recebido", ainda não devolvido pela cozinha, e
