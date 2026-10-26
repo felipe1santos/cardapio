@@ -1,6 +1,21 @@
 import { describe, expect, it } from 'vitest'
 import type { Entregador } from './queries/pedidos'
-import { aplicarEventoEntregador } from './entregadores-evento'
+import { aplicarEventoEntregador, atualizarOnline } from './entregadores-evento'
+
+describe('atualizarOnline (relógio local, sem requisição — revisão 26/10)', () => {
+  it('quem não manda sinal há mais de 2 min deixa de aparecer online', () => {
+    const agora = Date.parse('2026-10-25T20:00:00.000Z')
+    const lista = [
+      { id: 'a', online: true, ultimoAcessoEm: '2026-10-25T19:59:30.000Z' },
+      { id: 'b', online: true, ultimoAcessoEm: '2026-10-25T19:55:00.000Z' },
+    ] as Entregador[]
+    expect(atualizarOnline(lista, agora).map((e) => [e.id, e.online])).toEqual([['a', true], ['b', false]])
+  })
+  it('nada mudou: devolve a mesma lista (sem re-render)', () => {
+    const lista = [{ id: 'a', online: true, ultimoAcessoEm: new Date().toISOString() }] as Entregador[]
+    expect(atualizarOnline(lista, Date.now())).toBe(lista)
+  })
+})
 
 /**
  * Achado #7 da auditoria (25/10): o heartbeat do motoboy (UPDATE em `entregadores` a cada 30 s) fazia a Logística e o

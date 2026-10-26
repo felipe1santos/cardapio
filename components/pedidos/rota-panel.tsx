@@ -24,7 +24,7 @@ import { precisaPixAntes } from '@/lib/entregas/parceiro-pix'
 import { pedidoDeApp } from '@/lib/pedido-editavel'
 import { CORRIDA_ATIVA, ENTREGA_PROVEDOR_SELECT, mapEntregaProvedor, type EntregaProvedorLinha } from '@/lib/entregas/lalamove-status'
 import { useEventosPedidos } from '@/lib/realtime-pedidos'
-import { aplicarEventoEntregador } from '@/lib/entregadores-evento'
+import { aplicarEventoEntregador, atualizarOnline } from '@/lib/entregadores-evento'
 
 // Milhar com ponto ("R$ 4.088,00"): função única do painel, ver lib/moeda.ts.
 const brl = formatarReal
@@ -127,6 +127,11 @@ function RotaPanelBase({ supabase, restauranteId, apiKey, onClose }: RotaPanelPr
   const [drivers, setDrivers] = useState<Entregador[]>([])
   const driversRef = useRef<Entregador[]>([])
   driversRef.current = drivers
+  // O "online" depende do relógio: sem recarregar a lista a cada heartbeat, ele apaga sozinho aqui (revisão 26/10).
+  useEffect(() => {
+    const t = setInterval(() => setDrivers((d) => atualizarOnline(d)), 60_000)
+    return () => clearInterval(t)
+  }, [])
   const [ordem, setOrdem] = useState<string[]>([])
   const [marcados, setMarcados] = useState<Set<string>>(new Set())
   const [motoboyId, setMotoboyId] = useState<string | null>(null)

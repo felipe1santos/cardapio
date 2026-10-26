@@ -5,6 +5,22 @@ import { mapEntregador, type Entregador } from './queries/pedidos'
  * cada 30 s e cada gravação fazia a Logística e o Despacho relerem pedidos, motoboys e concluídos. O registro novo vem
  * inteiro no evento: basta trocar a linha. Só motoboy novo, apagado ou desconhecido pede recarga.
  */
+/**
+ * Recalcula o "online" pelo último sinal (2 min), sem consultar o banco. Antes o heartbeat de qualquer motoboy recarregava
+ * a lista toda e o ponto verde apagava sozinho; com o evento aplicado na linha, isso precisa de um relógio (revisão 26/10).
+ * Nada mudou → devolve a mesma lista (sem re-render).
+ */
+export function atualizarOnline(lista: Entregador[], agora: number = Date.now()): Entregador[] {
+  let mudou = false
+  const nova = lista.map((e) => {
+    const online = !!e.ultimoAcessoEm && agora - new Date(e.ultimoAcessoEm).getTime() < 2 * 60_000
+    if (online === e.online) return e
+    mudou = true
+    return { ...e, online }
+  })
+  return mudou ? nova : lista
+}
+
 export function aplicarEventoEntregador(
   lista: Entregador[],
   payload: { eventType?: string; new?: unknown; old?: unknown },
