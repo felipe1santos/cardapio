@@ -1,10 +1,10 @@
 import { ReactNode } from 'react'
-import { IlustracaoChef } from './ilustracao-chef'
 
 /**
  * Telas de acesso (login, cadastro, trocar e redefinir senha), 26/10/2026, desenhadas a partir da
- * imagem-modelo do dono (ARQUIVOS IMPORTANTES/1ea5c1e7…png): painel amarelo com o chef e a frase,
- * formulário branco com rótulos e botão amarelo. No celular o amarelo vira o topo, com borda curva.
+ * imagem-modelo do dono (ARQUIVOS IMPORTANTES/1ea5c1e7…png): painel azul com o chef (ilustração do
+ * dono, public/auth-chef.webp, fundo #0166AD igual ao do painel) e a frase, formulário branco com
+ * rótulos e botão amarelo. No celular o azul vira o topo, com borda curva.
  * Fonte Inter (do app). Medidas em px porque a raiz do painel é 87,5%.
  */
 
@@ -34,7 +34,7 @@ export const authAviso = {
 }
 
 function Marca({ className = '' }: { className?: string }) {
-  return <span className={`text-[34px] font-extrabold leading-none tracking-[-0.03em] text-[#0F0F14] ${className}`}>menuzia</span>
+  return <span className={`text-[34px] font-extrabold leading-none tracking-[-0.03em] text-white ${className}`}>menuzia</span>
 }
 
 export function AuthShell({
@@ -51,19 +51,26 @@ export function AuthShell({
 }) {
   return (
     <main className="flex min-h-screen flex-col bg-white lg:h-screen lg:min-h-[640px] lg:flex-row lg:overflow-hidden" style={{ fontFamily: AUTH_FONTE }}>
-      {/* Painel amarelo */}
-      <section className="relative flex shrink-0 flex-col items-center overflow-hidden rounded-b-[50%_44px] bg-[#FEDA2C] px-[20px] pb-[8px] pt-[28px] lg:h-screen lg:min-h-[640px] lg:w-[52.5%] lg:items-stretch lg:rounded-none lg:px-[48px] lg:pb-[64px] lg:pt-[44px]">
+      {/* Painel azul */}
+      <section className="relative flex shrink-0 flex-col items-center overflow-hidden rounded-b-[50%_44px] bg-[#0166AD] px-[20px] pb-[8px] pt-[28px] lg:h-screen lg:min-h-[640px] lg:w-[52.5%] lg:items-stretch lg:rounded-none lg:px-[48px] lg:pb-[64px] lg:pt-[44px]">
         <Marca className="text-[28px] lg:text-[38px]" />
         <div className="flex min-h-0 w-full flex-1 items-center justify-center lg:py-[16px]">
-          <IlustracaoChef className="h-auto max-h-full w-full max-w-[300px] lg:w-auto lg:max-w-[600px]" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/auth-chef.webp"
+            alt="Chef com a concha erguida e a frigideira no fogo"
+            width={1000}
+            height={800}
+            className="h-auto max-h-full w-full max-w-[300px] object-contain lg:w-auto lg:max-w-[600px]"
+          />
         </div>
         <div className="hidden lg:block">
-          <p className="text-[clamp(44px,4.6vw,68px)] font-extrabold leading-[1.02] tracking-[-0.035em] text-[#0F0F14]">
+          <p className="text-[clamp(44px,4.6vw,68px)] font-extrabold leading-[1.02] tracking-[-0.035em] text-white">
             Seu restaurante,
             <br />
             no próximo nível.
           </p>
-          <p className="mt-[14px] text-[clamp(18px,1.7vw,25px)] leading-[1.3] text-[#0F0F14]">
+          <p className="mt-[14px] text-[clamp(18px,1.7vw,25px)] leading-[1.3] text-white">
             Mais organização. Mais pedidos. Mais sabor.
           </p>
         </div>
