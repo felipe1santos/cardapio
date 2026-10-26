@@ -5,7 +5,8 @@ import { lerAgenteToken } from '@/lib/agente-token'
 import { identificarAgente } from '@/lib/impressao/credenciais'
 import { destinoCozinha } from '@/lib/impressao/servico'
 import { aposCorteDaTransferencia } from '@/lib/impressao/transferencia'
-import { extrasDaCozinhaBeta, lojaDaCozinhaBeta, lojaImpressao, qrDaRotaImpressa, type QrCozinha, type LojaImpressao } from '@/lib/impressao/cozinha-beta'
+import { extrasDaCozinhaBeta, lojaImpressao, qrDaRotaImpressa, type QrCozinha, type LojaImpressao } from '@/lib/impressao/cozinha-beta'
+import { comCacheDaLoja } from '@/lib/impressao/cache-agente'
 import { esperarComBusca } from '@/lib/impressao/despertador'
 import { aguardandoAceite, alarmeSabido } from '@/lib/impressao/alarme-assistente'
 import { anunciaEsperaLonga } from '@/lib/impressao/espera-longa'
@@ -47,7 +48,8 @@ export async function GET(request: Request) {
   const [config, impressoras, loja, rota] = await Promise.all([
     buscarConfigImpressao(admin, restauranteId),
     listarImpressoras(admin, restauranteId),
-    buscarLojaImpressao(admin, restauranteId),
+    // Nome e logo do recibo: 60 s de cache por loja (egress, 26/10). Quem imprime e como continua lido na hora.
+    comCacheDaLoja('loja-recibo', restauranteId, () => buscarLojaImpressao(admin, restauranteId)),
     destinoCozinha(admin, restauranteId),
   ])
 
@@ -85,14 +87,14 @@ export async function GET(request: Request) {
     if (souDono) {
       const ids = (pedidos as { id?: string }[]).map((p) => p.id).filter((id): id is string => typeof id === 'string')
       // A contagem do alarme vem em paralelo com o resto da comanda: não atrasa a impressão.
-      const [extras, lojaBeta, dadosLoja, aceite] = await Promise.all([
+      // (Egress, 26/10: saiu a leitura de slug/Instagram da loja, que era feita e descartada a cada volta.)
+      const [extras, dadosLoja, aceite] = await Promise.all([
         extrasDaCozinhaBeta(admin, restauranteId, ids).catch(() => ({})),
-        lojaDaCozinhaBeta(admin, restauranteId).catch(() => null),
-        lojaImpressao(admin, restauranteId).catch(() => null),
+        // Nome, telefone e endereço do rodapé: 60 s de cache por loja.
+        comCacheDaLoja('loja-rodape', restauranteId, () => lojaImpressao(admin, restauranteId)).catch(() => null),
         aguardandoAceite(admin, restauranteId).catch(() => null),
       ])
       alarme = aceite
-      void lojaBeta
       // Item 61: a comanda (modelo Cozinha) só leva QR na ENTREGA — o da rota ("ROTA DE ENTREGA").
       // Retirada, balcão e mesa saem sem QR; o QR do cardápio não vai mais para o papel. O campo
       // `qr` antigo (Assistente até o beta.9) vai vazio: essas versões saem sem QR.

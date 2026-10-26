@@ -29,6 +29,19 @@ function estado(): Estado {
   return e
 }
 
+/**
+ * Esta mudança de pedido pode gerar ficha ou mexer no alarme? (egress, 26/10). Em rota e entregue nunca entram na fila
+ * de impressão (novo, preparo/pronto não impresso, reimpressão) nem na contagem do alarme ("recebido"); acordar a
+ * espera por eles custava ~15 consultas por mudança. Na dúvida (sem dados), acorda. Um aviso a menos atrasa no máximo
+ * a volta da espera (20 s): o Assistente pergunta de novo.
+ */
+export function acordaAEspera(p: { eventType?: string; new?: unknown }): boolean {
+  const linha = p.new as { status?: unknown; reimprimir?: unknown } | null | undefined
+  if (p.eventType !== 'UPDATE' || !linha || typeof linha.status !== 'string') return true
+  if (linha.reimprimir === true) return true
+  return linha.status !== 'em_rota' && linha.status !== 'entregue'
+}
+
 function avisar(restauranteId: unknown) {
   if (typeof restauranteId !== 'string') return
   const lista = estado().ouvintes.get(restauranteId)
@@ -47,7 +60,7 @@ function garantirCanal() {
   const canal: RealtimeChannel = cliente
     .channel('menuzia-impressao-despertador')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'impressao_trabalhos' }, (p) => avisar((p.new as { restaurante_id?: unknown }).restaurante_id))
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, (p) => avisar(((p.new ?? p.old) as { restaurante_id?: unknown }).restaurante_id))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, (p) => { if (acordaAEspera(p)) avisar(((p.new ?? p.old) as { restaurante_id?: unknown }).restaurante_id) })
   e.canal = canal
   canal.subscribe((status) => {
     // Aviso de um canal que já foi trocado (ex.: o CLOSED que a própria saída dele dispara): não mexe no atual.
