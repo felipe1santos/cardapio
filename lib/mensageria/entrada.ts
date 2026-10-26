@@ -17,6 +17,7 @@ import { classificarIntencao, numeroPermitido, palavraAmbiguaDeSair, pedidoDeDes
 import { statusDoProvedor } from './campanhas'
 import { ehSaidaNossa } from './historico'
 import { COLUNAS_CONFIG_AUTO, processarMensagemAuto, type ConfigAuto } from '@/lib/robo-auto/motor'
+import { aplicarEventoConexao } from '@/lib/whatsapp-monitor'
 
 export const SEGREDO_VALIDO = /^[0-9a-f]{48}$/
 
@@ -116,6 +117,12 @@ async function processarEntradaInterna(admin: SupabaseClient, segredo: string, c
   const evento = provedorAtual().interpretarWebhook(corpo)
   if (evento.instancia && lojaRow.evolution_instance && evento.instancia !== lojaRow.evolution_instance) {
     contar(r, 'instancia_de_outra_loja')
+    return r
+  }
+  // Conexão (achado #10, 26/10): a queda chega na hora, com o motivo — o monitor confere e aplica as regras de alerta.
+  if (evento.conexao) {
+    await aplicarEventoConexao(admin, lojaRow.id as string, evento.conexao).catch((e) => console.error('[whatsapp] conexão:', (e as Error).message?.slice(0, 120)))
+    contar(r, `conexao_${evento.conexao.estado}`)
     return r
   }
   // Entrega/leitura das campanhas: independe do robô (é métrica, não resposta).

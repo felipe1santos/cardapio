@@ -33,7 +33,19 @@ export function decidirMonitor(p: { anterior: string | null; novo: EstadoConexao
   const manual = !!p.manualEm && p.agora - Date.parse(p.manualEm) < 30 * 60_000
   const caiuEm = p.caiuEm ?? agoraIso
   const jaAlertou = !!p.alertadoEm && p.agora - Date.parse(p.alertadoEm) < DEDUPE_ALERTA_MS
-  return { estado, caiuEm, alertar: !manual && !jaAlertou, voltou: false, manual }
+  // Achado #14 (26/10): "conectando" curto é a Evolution retomando a sessão, não queda.
+  const conectandoRecente = estado === 'connecting' && p.agora - Date.parse(caiuEm) < TOLERANCIA_CONECTANDO_MS
+  return { estado, caiuEm, alertar: !manual && !jaAlertou && !conectandoRecente, voltou: false, manual }
+}
+
+/** Quanto tempo "conectando" é tolerado antes de virar queda (alerta e faixa vermelha). */
+export const TOLERANCIA_CONECTANDO_MS = 3 * 60_000
+
+/** A faixa vermelha do painel aparece? Fora do ar, ou "conectando" há mais de 3 min. Pura (testada). */
+export function caiuParaPainel(estado: string | null, caiuEm: string | null, agora: number): boolean {
+  if (!estado || estado === 'open' || estado === 'sem_instancia') return false
+  if (estado === 'connecting' && caiuEm && agora - Date.parse(caiuEm) < TOLERANCIA_CONECTANDO_MS) return false
+  return true
 }
 
 /** Tenta retomar a sessão sem QR. Devolve o estado depois da tentativa (ou null se a Evolution não respondeu). */
@@ -116,6 +128,20 @@ export async function monitorarLoja(admin: SupabaseClient, loja: Loja, opcoes: {
   return 'caiu'
 }
 
+/**
+ * Evento de conexão do webhook (achado #10, 26/10): registra o motivo (401 = deslogado no celular, 440 = sessão aberta em
+ * outro lugar, 515 = reiniciar…) e confere a loja na hora, sem esperar o cron. A conferência é a mesma de sempre
+ * (estado lido na Evolution, mesmas regras de alerta e de tolerância a "conectando").
+ */
+export async function aplicarEventoConexao(admin: SupabaseClient, restauranteId: string, conexao: { estado: string; motivo: number | string | null }): Promise<ResultadoMonitor | 'sem_loja'> {
+  const { data } = await admin.from('restaurantes').select(SELECT).eq('id', restauranteId).maybeSingle()
+  if (!data) return 'sem_loja'
+  if (conexao.estado !== 'open') {
+    await registrarAuditoria(admin, { restauranteId, usuarioNome: 'Sistema', acao: 'whatsapp.conexao', entidade: 'restaurante', entidadeId: restauranteId, dados: { estado: conexao.estado, motivo: conexao.motivo } }).catch(() => null)
+  }
+  return monitorarLoja(admin, data as Loja, { forcar: true })
+}
+
 /** Cron: todas as lojas com instância. */
 export async function monitorarTodas(admin: SupabaseClient): Promise<Record<ResultadoMonitor, number>> {
   const resumo: Record<ResultadoMonitor, number> = { open: 0, caiu: 0, caiu_manual: 0, reconectou: 0, sem_instancia: 0, pulou: 0, indisponivel: 0 }
@@ -136,7 +162,7 @@ export async function estadoParaPainel(admin: SupabaseClient, restauranteId: str
   const { data: atual } = await admin.from('restaurantes').select('whatsapp_estado, whatsapp_caiu_em, whatsapp_desconexao_manual_em').eq('id', restauranteId).maybeSingle()
   const estado = (atual?.whatsapp_estado as string | null) ?? null
   const manual = !!atual?.whatsapp_desconexao_manual_em && Date.now() - Date.parse(atual.whatsapp_desconexao_manual_em as string) < 30 * 60_000
-  const caiu = !!loja.evolution_instance && estado !== null && estado !== 'open' && estado !== 'sem_instancia' && !manual
+  const caiu = !!loja.evolution_instance && caiuParaPainel(estado, (atual?.whatsapp_caiu_em as string | null) ?? null, Date.now()) && !manual
   return { caiu, desde: (atual?.whatsapp_caiu_em as string | null) ?? null, estado }
 }
 

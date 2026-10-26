@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { decidirMonitor, THROTTLE_MS } from './whatsapp-monitor'
+import { caiuParaPainel, decidirMonitor, THROTTLE_MS } from './whatsapp-monitor'
 
 /** Etapa 3 (20/10): alerta só quando a conexão cai sozinha; desconexão pelo painel fica em silêncio; não repete em 6 h. */
 const agora = Date.parse('2026-10-20T01:00:00Z')
@@ -34,4 +34,28 @@ describe('monitor do WhatsApp: decisão', () => {
     expect(decidirMonitor({ anterior: null, novo: null, caiuEm: null, manualEm: null, alertadoEm: null, agora }).estado).toBe('close')
   })
   it('throttle de 2 min por loja', () => { expect(THROTTLE_MS).toBe(120_000) })
+})
+
+/**
+ * Achado #14 da auditoria (25/10): "connecting" era tratado como queda — uma reconexão curta da Evolution acendia faixa
+ * vermelha, push e alerta grave. Agora "conectando" tem 3 min de tolerância; depois disso, é queda como as outras.
+ */
+describe('monitor do WhatsApp: "conectando"', () => {
+  it('acabou de entrar em conectando → marca a hora, mas não alerta', () => {
+    const d = decidirMonitor({ anterior: 'open', novo: 'connecting', caiuEm: null, manualEm: null, alertadoEm: null, agora })
+    expect(d).toMatchObject({ estado: 'connecting', alertar: false })
+    expect(d.caiuEm).toBe(new Date(agora).toISOString())
+  })
+  it('conectando há 2 min → ainda não alerta', () => {
+    expect(decidirMonitor({ anterior: 'connecting', novo: 'connecting', caiuEm: iso(2), manualEm: null, alertadoEm: null, agora }).alertar).toBe(false)
+  })
+  it('conectando há 4 min → é queda: alerta', () => {
+    expect(decidirMonitor({ anterior: 'connecting', novo: 'connecting', caiuEm: iso(4), manualEm: null, alertadoEm: null, agora }).alertar).toBe(true)
+  })
+  it('faixa vermelha: some em conectando recente, aparece em conectando longo e em close', () => {
+    expect(caiuParaPainel('connecting', iso(1), agora)).toBe(false)
+    expect(caiuParaPainel('connecting', iso(5), agora)).toBe(true)
+    expect(caiuParaPainel('close', iso(0), agora)).toBe(true)
+    expect(caiuParaPainel('open', null, agora)).toBe(false)
+  })
 })

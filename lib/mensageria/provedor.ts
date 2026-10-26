@@ -37,6 +37,8 @@ export interface EventoWebhook {
   mensagens: MensagemRecebida[]
   /** Entrega/leitura de mensagens que a loja mandou (evento messages.update). */
   atualizacoes: AtualizacaoStatus[]
+  /** Mudança da conexão (connection.update, achado #10): estado e motivo da Evolution (401 = deslogado, 440, 515…). */
+  conexao?: { estado: 'open' | 'close' | 'connecting'; motivo: number | string | null }
 }
 
 export interface AtualizacaoStatus {
@@ -117,6 +119,15 @@ export function interpretarWebhookEvolution(corpo: unknown): EventoWebhook {
   const c = (corpo ?? {}) as Record<string, unknown>
   const evento = String(c.event ?? '').toLowerCase().replace('_', '.')
   const vazio: EventoWebhook = { instancia: typeof c.instance === 'string' ? c.instance : null, numeroDaLoja: jidParaTelefone(c.sender), mensagens: [], atualizacoes: [] }
+  if (evento === 'connection.update') {
+    const d = (c.data ?? {}) as Record<string, unknown>
+    const estado = String(d.state ?? '').toLowerCase()
+    if (estado === 'open' || estado === 'close' || estado === 'connecting') {
+      const motivo = d.statusReason ?? (d.lastDisconnect as { error?: { output?: { statusCode?: unknown } } } | undefined)?.error?.output?.statusCode
+      vazio.conexao = { estado, motivo: typeof motivo === 'number' || typeof motivo === 'string' ? motivo : null }
+    }
+    return vazio
+  }
   if (evento === 'messages.update') {
     // Evolution 2.x: { keyId, status: 'DELIVERY_ACK' }; formato Baileys: { key: { id }, update: { status: 3 } }.
     for (const d of Array.isArray(c.data) ? c.data : [c.data]) {

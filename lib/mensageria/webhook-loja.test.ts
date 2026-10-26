@@ -9,8 +9,11 @@ describe('decidirWebhook', () => {
     expect(decidirWebhook(null, NOSSA)).toBe('registrar')
     expect(decidirWebhook({ url: '' }, NOSSA)).toBe('registrar')
   })
-  it('já é o nosso, com os dois eventos: não mexe', () => {
-    expect(decidirWebhook({ url: NOSSA, enabled: true, events: ['MESSAGES_UPSERT', 'MESSAGES_UPDATE'] }, NOSSA)).toBe('ja_estava')
+  it('já é o nosso, com os três eventos: não mexe', () => {
+    expect(decidirWebhook({ url: NOSSA, enabled: true, events: ['MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'CONNECTION_UPDATE'] }, NOSSA)).toBe('ja_estava')
+  })
+  it('webhook de antes de 26/10 (sem CONNECTION_UPDATE): registra de novo — o cron atualiza as lojas sozinho', () => {
+    expect(decidirWebhook({ url: NOSSA, enabled: true, events: ['MESSAGES_UPSERT', 'MESSAGES_UPDATE'] }, NOSSA)).toBe('registrar')
   })
   it('nosso host mas faltando evento, segredo antigo ou desligado: registra de novo', () => {
     expect(decidirWebhook({ url: NOSSA, enabled: true, events: ['MESSAGES_UPSERT'] }, NOSSA)).toBe('registrar')
@@ -20,8 +23,8 @@ describe('decidirWebhook', () => {
   it('webhook ativo de outro uso (outro host): nunca sobrescreve', () => {
     expect(decidirWebhook({ url: 'https://n8n.exemplo.com/webhook/x', enabled: true, events: ['MESSAGES_UPSERT'] }, NOSSA)).toBe('outro_uso')
   })
-  it('corpo: nossa URL, sem base64, só os dois eventos', () => {
-    expect(corpoWebhook(NOSSA)).toEqual({ webhook: { enabled: true, url: NOSSA, byEvents: false, base64: false, events: ['MESSAGES_UPSERT', 'MESSAGES_UPDATE'] } })
+  it('corpo: nossa URL, sem base64, mensagens + conexão (achado #10: saber na hora quando e por que caiu)', () => {
+    expect(corpoWebhook(NOSSA)).toEqual({ webhook: { enabled: true, url: NOSSA, byEvents: false, base64: false, events: ['MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'CONNECTION_UPDATE'] } })
   })
 })
 

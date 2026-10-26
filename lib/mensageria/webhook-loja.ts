@@ -13,7 +13,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { BASE_PUBLICA } from './robo'
 
-export const EVENTOS_WEBHOOK = ['MESSAGES_UPSERT', 'MESSAGES_UPDATE'] as const
+// CONNECTION_UPDATE (achado #10, 26/10): a queda chega na hora, com o motivo. Webhook antigo sem ele é registrado de
+// novo pelo cron (decidirWebhook).
+export const EVENTOS_WEBHOOK = ['MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'CONNECTION_UPDATE'] as const
 
 export type ResultadoWebhook = 'registrado' | 'ja_estava' | 'outro_uso' | 'sem_instancia' | 'simulado' | 'sem_evolution' | 'erro'
 
