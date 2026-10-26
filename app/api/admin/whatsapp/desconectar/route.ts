@@ -16,8 +16,9 @@ export async function POST() {
   if (error) return NextResponse.json({ error: 'Erro ao buscar loja' }, { status: 500 })
   if (!loja.evolution_instance) return NextResponse.json({ ok: true })
 
-  await desconectarInstancia(loja.evolution_instance)
-  // Etapa 3 (20/10): desconexão feita no painel não dispara o alerta de "caiu sozinho".
+  // Etapa 3 (20/10): desconexão feita no painel não dispara o alerta de "caiu sozinho". A marca vem ANTES do logout
+  // (revisão 26/10): o "close" do logout chega pelo webhook e precisa já encontrá-la.
   await marcarDesconexaoManual(admin, restauranteId).catch(() => null)
+  await desconectarInstancia(loja.evolution_instance)
   return NextResponse.json({ ok: true })
 }

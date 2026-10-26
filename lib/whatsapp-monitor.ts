@@ -108,7 +108,13 @@ export async function monitorarLoja(admin: SupabaseClient, loja: Loja, opcoes: {
   const patch: Record<string, unknown> = { whatsapp_estado: d.estado, whatsapp_estado_em: new Date(agora).toISOString(), whatsapp_caiu_em: d.caiuEm }
   if (d.alertar) patch.whatsapp_alertado_em = new Date(agora).toISOString()
   if (d.estado === 'open') patch.whatsapp_alertado_em = null
-  await admin.from('restaurantes').update(patch).eq('id', loja.id)
+  if (d.estado === 'open' && d.voltou && loja.whatsapp_caiu_em) {
+    // Só quem "pega" a volta reenvia os avisos (revisão 26/10): evento + cron + painel ao mesmo tempo mandavam em dobro.
+    const { data: pegou } = await admin.from('restaurantes').update(patch).eq('id', loja.id).eq('whatsapp_caiu_em', loja.whatsapp_caiu_em).select('id').maybeSingle()
+    if (!pegou) return 'open'
+  } else {
+    await admin.from('restaurantes').update(patch).eq('id', loja.id)
+  }
 
   if (d.estado === 'open') {
     if (d.voltou && loja.whatsapp_caiu_em) {
@@ -136,10 +142,15 @@ export async function monitorarLoja(admin: SupabaseClient, loja: Loja, opcoes: {
 export async function aplicarEventoConexao(admin: SupabaseClient, restauranteId: string, conexao: { estado: string; motivo: number | string | null }): Promise<ResultadoMonitor | 'sem_loja'> {
   const { data } = await admin.from('restaurantes').select(SELECT).eq('id', restauranteId).maybeSingle()
   if (!data) return 'sem_loja'
+  const loja = data as Loja
   if (conexao.estado !== 'open') {
     await registrarAuditoria(admin, { restauranteId, usuarioNome: 'Sistema', acao: 'whatsapp.conexao', entidade: 'restaurante', entidadeId: restauranteId, dados: { estado: conexao.estado, motivo: conexao.motivo } }).catch(() => null)
   }
-  return monitorarLoja(admin, data as Loja, { forcar: true })
+  // Desconectado pelo painel há pouco: o "close" é o próprio logout — nada de alerta nem reconexão (revisão 26/10).
+  if (loja.whatsapp_desconexao_manual_em && Date.now() - Date.parse(loja.whatsapp_desconexao_manual_em) < 30 * 60_000) return 'caiu_manual'
+  // Mesmo estado já gravado: instância oscilando não vira uma conferência na Evolution por evento.
+  if (conexao.estado === loja.whatsapp_estado) return 'pulou'
+  return monitorarLoja(admin, loja, { forcar: true })
 }
 
 /** Cron: todas as lojas com instância. */
