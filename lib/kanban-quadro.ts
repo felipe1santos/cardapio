@@ -84,6 +84,31 @@ export function idsDoEvento(payload: { eventType?: string; new?: unknown; old?: 
   return typeof novo?.id === 'string' ? { alterado: novo.id } : {}
 }
 
+/**
+ * Fila do Kanban: um trabalho de cada vez, para uma resposta antiga nunca sobrescrever uma nova. Recarga COMPLETA
+ * pedida enquanto outra ainda espera a vez é a mesma recarga (medido em produção, 26/10: abrir a tela fazia 4 recargas
+ * completas no mesmo segundo — carga inicial + sincronização de cada canal). Pedida depois que a anterior começou, roda
+ * de novo: algo pode ter mudado no meio.
+ */
+export function criarFila() {
+  let cauda: Promise<void> = Promise.resolve()
+  let completoEsperando: Promise<void> | null = null
+  const rodar = (trabalho: () => Promise<void>) => {
+    const p = cauda.then(trabalho, trabalho)
+    cauda = p.catch(() => {})
+    return p
+  }
+  return {
+    rodar,
+    rodarCompleto(trabalho: () => Promise<void>) {
+      if (completoEsperando) return completoEsperando
+      const p = rodar(async () => { completoEsperando = null; await trabalho() })
+      completoEsperando = p
+      return p
+    },
+  }
+}
+
 export interface LoteEventos {
   alterados: Set<string>
   removidos: Set<string>

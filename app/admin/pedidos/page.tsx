@@ -3,7 +3,7 @@
 import { Children, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRealtimeComFallback } from '@/lib/realtime-fallback'
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
-import { aplicarNoQuadro, criarColetorEventos, idsDoEvento, mesclarConcluidos, QUADRO_VAZIO, type LoteEventos, type Quadro } from '@/lib/kanban-quadro'
+import { aplicarNoQuadro, criarColetorEventos, criarFila, idsDoEvento, mesclarConcluidos, QUADRO_VAZIO, type LoteEventos, type Quadro } from '@/lib/kanban-quadro'
 import {
   type LucideIcon,
   Bell,
@@ -503,7 +503,10 @@ export default function PedidosPage() {
   // mudou ser encaixado sobre o estado mais recente; recargas e encaixes rodam em fila, um de cada vez, para uma resposta
   // antiga nunca sobrescrever uma nova.
   const quadroRef = useRef<Quadro>(QUADRO_VAZIO)
-  const filaRef = useRef<Promise<void>>(Promise.resolve())
+  const filaRef = useRef<ReturnType<typeof criarFila> | null>(null)
+  if (!filaRef.current) filaRef.current = criarFila()
+  // Recargas colapsadas na fila (criarFila): se alguma delas pediu os concluídos inteiros, a que roda pede inteiros.
+  const concluidosInteirosRef = useRef(false)
   // Maior `atualizado_em` dos concluídos da última leitura (lista ou delta): o relógio só baixa o que mudou depois.
   const ultimoConcluidoRef = useRef<string | null>(null)
   const aplicarQuadro = useCallback((q: Quadro) => {
@@ -513,11 +516,7 @@ export default function PedidosPage() {
     setTransit(q.transit)
     setConcluded(q.concluded)
   }, [])
-  const naFila = useCallback((trabalho: () => Promise<void>) => {
-    const p = filaRef.current.then(trabalho, trabalho)
-    filaRef.current = p.catch(() => {})
-    return p
-  }, [])
+  const naFila = useCallback((trabalho: () => Promise<void>) => filaRef.current!.rodar(trabalho), [])
 
   const buscarCorridas = useCallback(async (id: string) => {
     // Corridas da Lalamove: as ativas (de qualquer dia) e as de hoje (para o card concluído). Falha aqui não derruba o Kanban.
@@ -538,13 +537,17 @@ export default function PedidosPage() {
 
   /** Recarga das listas. `concluidosDelta` (relógio): dos concluídos, só os que mudaram desde a última leitura. */
   const refetch = useCallback(
-    (id: string, opcoes?: { concluidosDelta?: boolean }) => naFila(async () => {
+    (id: string, opcoes?: { concluidosDelta?: boolean }) => {
+      if (!opcoes?.concluidosDelta) concluidosInteirosRef.current = true
+      return filaRef.current!.rodarCompleto(async () => {
       const seq = ++refetchSeq.current
+      const soDelta = !concluidosInteirosRef.current
+      concluidosInteirosRef.current = false
       try {
         const inicio = inicioDoDiaISO()
         const ultimo = ultimoConcluidoRef.current
         // Margem de 2 min: transação gravada um pouco depois do próprio `atualizado_em` não escapa do delta.
-        const desdeDelta = opcoes?.concluidosDelta && ultimo ? new Date(Date.parse(ultimo) - 120_000).toISOString() : null
+        const desdeDelta = soDelta && ultimo ? new Date(Date.parse(ultimo) - 120_000).toISOString() : null
         const desdeConcluidos = desdeDelta && desdeDelta > inicio ? desdeDelta : inicio
         const [kanban, logistica, finalizados] = await Promise.all([
           listarPedidosKanban(supabase, id),
@@ -577,8 +580,9 @@ export default function PedidosPage() {
       } catch {
         if (seq === refetchSeq.current) setError('Não foi possível carregar os pedidos.')
       }
-    }),
-    [supabase, agendarAutoAceite, naFila, aplicarQuadro, buscarCorridas, buscarSolicitacoes]
+      })
+    },
+    [supabase, agendarAutoAceite, aplicarQuadro, buscarCorridas, buscarSolicitacoes]
   )
 
   /** Eventos juntados pelo coletor: busca só os pedidos que mudaram e encaixa cada um na coluna certa. */

@@ -166,6 +166,27 @@ describe('layout ainda abrindo o canal (contexto null)', () => {
   })
 })
 
+describe('canal do layout ficando pronto depois da tela (medido em produção, 26/10)', () => {
+  it('o canal próprio (corridas/solicitações) não é derrubado e recriado — sem sincronização extra', async () => {
+    const { supabase, canais, status } = supabaseFalso()
+    const aoSincronizar = vi.fn()
+    let valor: CanalPedidos | null = null
+    const Wrapper = ({ children }: { children: ReactNode }) => <CanalPedidosContexto.Provider value={valor}>{children}</CanalPedidosContexto.Provider>
+    const tabelas = [{ tabela: 'pedidos', filtro: 'restaurante_id=eq.loja1' }, { tabela: 'entregas_provedor', filtro: 'restaurante_id=eq.loja1' }]
+    const { rerender } = renderHook(
+      () => useRealtimeComFallback({ supabase, canal: 'kanban-loja1', tabelas, aoEvento: vi.fn(), aoSincronizar }),
+      { wrapper: Wrapper },
+    )
+    status('SUBSCRIBED')
+    // Layout termina de abrir o canal de pedidos.
+    valor = abrirCanalPedidos(supabase, 'loja1')
+    rerender()
+    const proprios = canais.filter((c) => c.nome === 'kanban-loja1')
+    expect(proprios).toHaveLength(1)
+    expect(supabase.removeChannel).not.toHaveBeenCalled()
+  })
+})
+
 describe('useEventosPedidos', () => {
   it('dentro do layout usa o canal compartilhado', () => {
     const { supabase, emitir } = supabaseFalso()

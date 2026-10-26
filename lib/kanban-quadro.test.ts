@@ -1,6 +1,37 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Pedido } from './queries/pedidos'
-import { aplicarNoQuadro, criarColetorEventos, idsDoEvento, mesclarConcluidos, QUADRO_VAZIO, type Quadro } from './kanban-quadro'
+import { aplicarNoQuadro, criarColetorEventos, criarFila, idsDoEvento, mesclarConcluidos, QUADRO_VAZIO, type Quadro } from './kanban-quadro'
+
+describe('criarFila (recargas em fila, uma de cada vez)', () => {
+  it('recargas completas pedidas enquanto outra ESPERA na fila viram uma só', async () => {
+    const fila = criarFila()
+    let soltar: () => void = () => {}
+    const rodando = new Promise<void>((r) => { soltar = r })
+    const feitas: string[] = []
+    const a = fila.rodar(async () => { feitas.push('a'); await rodando })
+    const b = fila.rodarCompleto(async () => { feitas.push('b') })
+    const c = fila.rodarCompleto(async () => { feitas.push('c') })
+    const d = fila.rodarCompleto(async () => { feitas.push('d') })
+    soltar()
+    await Promise.all([a, b, c, d])
+    expect(feitas).toEqual(['a', 'b']) // carga inicial + UMA sincronização
+  })
+
+  it('pedida depois que a anterior começou, roda de novo (pode ter mudado no meio)', async () => {
+    const fila = criarFila()
+    const feitas: number[] = []
+    await fila.rodarCompleto(async () => { feitas.push(1) })
+    await fila.rodarCompleto(async () => { feitas.push(2) })
+    expect(feitas).toEqual([1, 2])
+  })
+
+  it('trabalhos curtos (encaixe de evento) nunca são descartados', async () => {
+    const fila = criarFila()
+    const feitas: string[] = []
+    await Promise.all([fila.rodar(async () => { feitas.push('x') }), fila.rodar(async () => { feitas.push('y') })])
+    expect(feitas).toEqual(['x', 'y'])
+  })
+})
 
 /**
  * Achado #5 da auditoria (25/10): todo evento em `pedidos` relia o Kanban inteiro (ativos + logística + TODOS os

@@ -66,10 +66,13 @@ export function useRealtimeComFallback({ supabase, canal, tabelas, aoEvento, aoS
   const usaCompartilhado = !!canal && lista.some((t) => usaCanalCompartilhado(compartilhado, t.tabela, t.filtro))
   const aguarda = !!canal && lista.some((t) => aguardaCanalCompartilhado(compartilhado, t.tabela, t.filtro))
   const temProprio = !!canal && lista.some(ehPropria)
+  // Depende só das tabelas que ficam no canal próprio: o canal do layout ficar pronto depois não derruba e recria este
+  // (medido em produção, 26/10: cada recriação disparava uma sincronização completa a mais ao abrir a tela).
+  const chaveProprias = JSON.stringify(lista.filter(ehPropria))
 
   useEffect(() => {
     if (!canal) return
-    const proprias = (JSON.parse(chaveTabelas) as AssinaturaTabela[]).filter((t) => !usaCanalCompartilhado(compartilhado, t.tabela, t.filtro) && !aguardaCanalCompartilhado(compartilhado, t.tabela, t.filtro))
+    const proprias = JSON.parse(chaveProprias) as AssinaturaTabela[]
     if (!proprias.length) return
 
     let ch: RealtimeChannel = supabase.channel(canal)
@@ -92,7 +95,7 @@ export function useRealtimeComFallback({ supabase, canal, tabelas, aoEvento, aoS
       setProprioOk(false)
       void supabase.removeChannel(ch)
     }
-  }, [supabase, canal, chaveTabelas, compartilhado])
+  }, [supabase, canal, chaveProprias])
 
   useEffect(() => {
     if (!usaCompartilhado || !compartilhado) return
