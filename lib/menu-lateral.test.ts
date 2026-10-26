@@ -123,7 +123,8 @@ describe('todo item do menu tem ícone', () => {
     const src = fs.readFileSync('components/layout/sidebar.tsx', 'utf8')
     for (const papel of ['dono', 'gerente']) {
       const l = itensDoMenu({ papel, moduloMesas: true, usaLogistica: true, financeiro: true, modulos: { financeiro: true, agente_ia: true, disparos: true } })
-      for (const i of l) expect(src.includes(`'${i.href}': ICONES.`), `${i.href} sem ícone`).toBe(true)
+      // Ícones Lucide desde 25/10: `'/admin/x': NomeDoIcone,`
+      for (const i of l) expect(new RegExp(`'${i.href}': [A-Z]\\w+,`).test(src), `${i.href} sem ícone`).toBe(true)
     }
   })
 })

@@ -6,6 +6,7 @@ import { urlCardapio } from '@/lib/qr-cardapio'
 import { SinoNotificacoes } from '@/components/admin/notificacoes-pedidos'
 import type { EstadoNotificacao } from '@/lib/notificacoes-pedido'
 import { ICONES } from '@/lib/icones-painel'
+import { Armchair, Bot, ChefHat, ClipboardList, Gift, LayoutDashboard, Lock, Megaphone, Plug, Printer, ReceiptText, Settings, Store, UserRound, UsersRound, UtensilsCrossed, Wallet, type LucideIcon } from 'lucide-react'
 
 export interface SidebarItem {
   href: string
@@ -58,31 +59,33 @@ export interface SidebarProps {
 }
 
 /**
- * Ícone de cada seção, no conjunto Material (ver lib/icones-painel.ts). É o
- * mesmo desenho que a referência de painel usa — o traço cheio de 24px, não o
- * contorno fino.
+ * Ícone de cada seção (25/10, pedido do dono): traço Lucide, mais limpo que o Material
+ * preenchido de antes — tomada nas Integrações, pessoa na Equipe.
  */
-const NAV_ICONS: Record<string, string[]> = {
-  '/admin/dashboard': ICONES.dashboard,
-  '/admin/pedidos': ICONES.pedidos,
-  '/admin/pdv': ICONES.pdv,
-  '/admin/mesas': ICONES.mesas,
-  '/admin/kds': ICONES.cozinha,
-  '/admin/lista-pedidos': ICONES.lista,
-  '/admin/financeiro': ICONES.dinheiro,
-  '/admin/cardapio': ICONES.cardapio,
-  '/admin/clientes': ICONES.clientes,
-  '/admin/campanhas': ICONES.campanhas,
+const NAV_ICONS: Record<string, LucideIcon> = {
+  '/admin/dashboard': LayoutDashboard,
+  '/admin/pedidos': ReceiptText,
+  '/admin/pdv': Store,
+  '/admin/mesas': Armchair,
+  '/admin/kds': ChefHat,
+  '/admin/lista-pedidos': ClipboardList,
+  '/admin/financeiro': Wallet,
+  '/admin/cardapio': UtensilsCrossed,
+  '/admin/clientes': UsersRound,
+  '/admin/campanhas': Megaphone,
   // Sem "Novidades em teste" (0178) estes dois seguem no menu principal, como sempre.
-  '/admin/agente-ia': ICONES.robo,
-  '/admin/fidelidade': ICONES.fidelidade,
-  '/admin/integracoes': ICONES.integracoes,
-  '/admin/equipe': ICONES.equipe,
-  '/admin/impressao': ICONES.impressora,
-  '/admin/ajustes': ICONES.ajustes,
+  '/admin/agente-ia': Bot,
+  '/admin/fidelidade': Gift,
+  '/admin/integracoes': Plug,
+  '/admin/equipe': UserRound,
+  '/admin/impressao': Printer,
+  '/admin/ajustes': Settings,
   // Gerente: "Ajustes" abre direto na Impressão (lib/menu-lateral.ts).
-  '/admin/ajustes/impressao': ICONES.ajustes,
+  '/admin/ajustes/impressao': Settings,
 }
+
+/** Ícone do menu: 18px, traço 1,75 — o mesmo peso em todos os itens. */
+const ICONE_MENU = 'h-[18px] w-[18px] flex-shrink-0'
 
 /** Fonte, cores e forma dos submenus (submenu-vertical.tsx) no menu principal; letra 14px e respiro
  *  de 10px (e não 14,5/12) para "Painel de Pedidos" e "Ver meu cardápio" caberem inteiros em 232px. */
@@ -251,7 +254,7 @@ export function Sidebar({
           // Prefixo, não igualdade: seções com subpáginas (ex.: /admin/ajustes/impressao)
           // precisam manter o item do menu destacado.
           const isActive = activeHref === item.href || activeHref.startsWith(`${item.href}/`)
-          const iconPath = NAV_ICONS[item.href]
+          const Icone = NAV_ICONS[item.href]
           if (item.bloqueado) {
             const modulo = item.bloqueado
             return (
@@ -264,15 +267,9 @@ export function Sidebar({
                 data-testid="menu-item-bloqueado"
                 data-modulo={modulo}
               >
-                {iconPath && (
-                  <svg viewBox="0 0 24 24" className={`h-[20px] w-[20px] flex-shrink-0 fill-current ${v.icone}`} aria-hidden="true">
-                    {iconPath.map((d) => (<path key={d} d={d} />))}
-                  </svg>
-                )}
+                {Icone && <Icone className={`${ICONE_MENU} ${v.icone}`} strokeWidth={1.75} aria-hidden="true" />}
                 <span className="rotulo-menu truncate">{item.label}</span>
-                <svg viewBox="0 0 24 24" className={`extra-menu ml-auto h-[15px] w-[15px] flex-shrink-0 fill-current ${v.cadeado}`} aria-hidden="true" data-testid="menu-cadeado">
-                  {ICONES.cadeado.map((d) => (<path key={d} d={d} />))}
-                </svg>
+                <Lock className={`extra-menu ml-auto h-[14px] w-[14px] flex-shrink-0 ${v.cadeado}`} strokeWidth={2} aria-hidden="true" data-testid="menu-cadeado" />
               </button>
             )
           }
@@ -284,13 +281,7 @@ export function Sidebar({
               className={[ITEM_MENU, isActive ? ITEM_ATIVO : ITEM_INATIVO, recolhido ? 'relative' : ''].join(' ')}
               title={recolhido ? item.label : undefined}
             >
-              {iconPath && (
-                <svg viewBox="0 0 24 24" className={['h-[20px] w-[20px] flex-shrink-0 fill-current', isActive ? v.iconeAtivo : v.icone].join(' ')} aria-hidden="true">
-                  {iconPath.map((d) => (
-                    <path key={d} d={d} />
-                  ))}
-                </svg>
-              )}
+              {Icone && <Icone className={[ICONE_MENU, isActive ? v.iconeAtivo : v.icone].join(' ')} strokeWidth={isActive ? 2 : 1.75} aria-hidden="true" />}
               <span className="rotulo-menu truncate">{item.label}</span>
               {item.novidade && (
                 <span className="extra-menu flex-shrink-0 rounded-[4px] bg-[#e6f6ec] px-1.5 py-[2px] text-[10.5px] font-semibold leading-[14px] text-[var(--adm-alta)]">
