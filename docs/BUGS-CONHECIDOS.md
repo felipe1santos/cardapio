@@ -119,3 +119,12 @@ checagem B-n** no script.
   `acaoDaPendencia` (`lib/pagamentos/pendencias.ts`).
 - **Teste:** `lib/pagamentos/pendencias.test.ts` e `lib/pagamentos/verificar-pendentes.test.ts` (cron inteiro com
   banco em memória; falha sem a correção).
+
+## Pix pago com o pedido cancelado no meio virava "já confirmado" · 26/10/2026 · teste
+
+- **Onde:** `confirmarPago` (`lib/pagamentos/pix-online.ts`).
+- **Causa:** a cobrança era marcada `pago` ANTES de conferir o UPDATE condicional do pedido. Cancelado entre a leitura
+  e a gravação → `ja_confirmado`: dinheiro recebido sem livro-caixa, sem "a devolver" e sem alerta.
+- **Como evitar:** em toda passagem condicional, grave o efeito só depois de saber que a passagem aconteceu; se não
+  aconteceu, releia o estado e decida.
+- **Teste:** `lib/pagamentos/confirmar-corrida.test.ts` (simula a corrida; falha sem a correção).

@@ -427,8 +427,15 @@ async function lancarRecebimento(admin: SupabaseClient, reg: Reg, pg: PagamentoM
 async function confirmarPago(admin: SupabaseClient, reg: Reg, pg: PagamentoMp, ped: Reg, origem: string): Promise<ResultadoConferencia> {
   // A passagem acontece UMA vez: só quem acha o pedido ainda em "aguardando" muda.
   const { data: mudou } = await admin.from('pedidos').update({ status: 'recebido', pago: true, pagamento_online: true }).eq('id', ped.id).eq('status', 'aguardando_pagamento').select('id').maybeSingle()
+  if (!mudou) {
+    // Achado #4 (26/10): o pedido saiu de "aguardando" entre a leitura e esta gravação. Cancelado no meio = dinheiro a
+    // devolver (antes: a cobrança virava 'pago' e voltava 'ja_confirmado', sem caixa, sem alerta). Senão, outro caminho
+    // (webhook × cron × cliente) já confirmou e é ele quem grava a cobrança.
+    const { data: atual } = await admin.from('pedidos').select('id, numero, status, total, restaurante_id, tipo, agendado_para').eq('id', ped.id).single()
+    if (atual?.status === 'cancelado') return pagoDepoisDeCancelado(admin, reg, pg, atual, origem)
+    return 'ja_confirmado'
+  }
   await admin.from('pagamentos_online').update({ status: 'pago', pago_em: pg.aprovadoEm ?? new Date().toISOString(), taxa: pg.taxa, liquido: pg.liquido, erro: null }).eq('id', reg.id)
-  if (!mudou) return 'ja_confirmado'
   await lancarRecebimento(admin, reg, pg)
   await registrarAuditoria(admin, { restauranteId: reg.restaurante_id, usuarioNome: USUARIO_MP.nome, acao: ehCartao(reg) ? 'cartao_online.pago' : 'pix_online.pago', entidade: 'pedido', entidadeId: ped.id, dados: { mp_payment_id: pg.id, valor: pg.valor, taxa: pg.taxa, origem, ...(ehCartao(reg) ? { parcelas: pg.parcelas ?? null } : {}) } })
   // Agora sim: o que antes saía na criação do pedido.
