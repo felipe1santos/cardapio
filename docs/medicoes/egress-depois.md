@@ -31,10 +31,24 @@ de requisições por caminho do código e tamanhos medidos na Ponto 400 (≈ 2,2
 Bytes descomprimidos; o egress cobrado é o comprimido, então o valor absoluto cobrado é menor nos dois lados. A proporção
 (~93 % a menos nessas origens) é o que importa.
 
+## Teste de ponta a ponta (25–26/10, autorizado pelo dono, loja Menuzia, servidor local na branch)
+Duas abas: a **A** só observa (fetch instrumentado), a **B** age. A A só fica sabendo pelo Realtime.
+
+| Passo (na aba B) | O que a aba A fez | Resultado na A |
+|---|---|---|
+| Aceitar #586 (recebido → preparando) | contadores 3 + alarme 3 + **1** `pedidos?id=in.(…)` 1,5 KB = **7 req, 1,6 KB** | #586 em Preparando, #587 em Recebido |
+| #586 Pronto | idem, 1 busca de 1,5 KB | #586 em Pronto p/ Despacho; botão Despachar = 1 |
+| Despachar #586 (motoboy de teste) | idem, 1 busca de 1,6 KB | #586 em Em trânsito |
+| Entregue #586 | 2 eventos (status + processamento da entrega) → 2 buscas curtas, **3,6 KB no total** | Em trânsito 0, Concluídos 1, selo Entregue |
+| Aceitar #587 (delivery) com a A no **PDV** | **nenhuma** chamada a `/api/admin/pdv/comanda` (só contadores e alarme) | #24 ok |
+| Disponibilidade do motoboy de teste → Ocupado → Disponível, com a A na **Logística** | **nenhuma** requisição ao banco | A mostrou "ocupado" e depois "online" — #7 ok |
+| #587 até entregue; A abre o Kanban do zero | relógio aos 56 s pediu concluídos `atualizado_em ≥ 03:11:48Z` (última leitura − 2 min), não `≥ 03:00Z` (início do dia) | #5 delta ok |
+| Canais na aba do Kanban (reconexão forçada) | 1 canal de `pedidos` | #6 ok |
+
+Efeitos reais do teste: os pedidos de teste #586 e #587 da Menuzia foram para **entregue** (motoboy "Teste Conferencia").
+O WhatsApp da Menuzia estava desconectado, então nenhum aviso saiu; a impressão segue a configuração da loja.
+
 ## O que não deu para medir ou testar
-- **Evento real de pedido no navegador.** Mudar o status de um pedido de teste da Menuzia dispara aviso no WhatsApp e
-  impressão; não fiz sem sua autorização. O caminho do evento está coberto por testes de unidade (encaixe por coluna,
-  debounce, busca por ids, canal compartilhado), mas não foi exercitado de ponta a ponta com o Realtime real.
-- **2 motoboys online de verdade**: o custo do heartbeat foi contado pelo código, não medido com o app aberto.
-- **Delta dos concluídos com dados reais**: a Menuzia não tem concluídos hoje; o delta foi testado em unidade.
+- **App do motoboy aberto de verdade**: o heartbeat real não foi disparado (o link do app tem token, que não manipulei);
+  testei o mesmo caminho — UPDATE em `entregadores` vindo de outra aba —, que é o que o heartbeat gera.
 - **Tamanho comprimido** (o que o Supabase cobra): o navegador não expõe o tamanho transferido das respostas do Supabase.
