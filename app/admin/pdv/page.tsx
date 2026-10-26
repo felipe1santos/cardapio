@@ -28,6 +28,10 @@ import { massasParaEscolha } from '@/lib/massa-padrao'
 import { Button } from '@/components/ui/button'
 import { CentralBalcao } from '@/components/pdv/central-balcao'
 import { useEventosPedidos } from '@/lib/realtime-pedidos'
+import { criarAgrupadorPdv, reacaoDoPdv } from '@/lib/pdv-eventos'
+
+/** Janela que junta os eventos de um pedido numa recarga só do PDV (achado #24). */
+const ESPERA_EVENTOS_PDV_MS = 400
 import { ContaPresencialModal } from '@/components/pdv/conta-presencial'
 import { AbrirMesaModal, IdentificarModal, LimpezaModal } from '@/components/pdv/atendimento'
 import { chamar, novaChave } from '@/components/pdv/util'
@@ -518,15 +522,23 @@ export default function PdvPage() {
   }, [mesaSelecionada, recarregarComanda])
 
   // ── Realtime: atualizar estado ao mudar pedidos ────────────────────────────
-  // `pedidos` pelo canal do layout (achado #6), sem canal próprio.
+  // `pedidos` pelo canal do layout (achado #6), sem canal próprio. Achado #24: só eventos de pedido com comanda (mesa,
+  // balcão, PDV) recarregam, e a rajada de um mesmo pedido vira uma recarga só.
+  const recarregarPdvRef = useRef({ recarregarMesas, recarregarComanda })
+  recarregarPdvRef.current = { recarregarMesas, recarregarComanda }
+  const agrupadorPdvRef = useRef<ReturnType<typeof criarAgrupadorPdv> | null>(null)
+  if (!agrupadorPdvRef.current) {
+    agrupadorPdvRef.current = criarAgrupadorPdv(ESPERA_EVENTOS_PDV_MS, ({ mesas, comanda }) => {
+      if (mesas) void recarregarPdvRef.current.recarregarMesas()
+      const comandaId = mesaSelecionadaRef.current?.comandaAberta?.id
+      if (comanda && comandaId) void recarregarPdvRef.current.recarregarComanda(comandaId)
+    })
+  }
+  useEffect(() => () => agrupadorPdvRef.current?.cancelar(), [])
   useEventosPedidos({
     supabase,
     restauranteId,
-    aoEvento: () => {
-      void recarregarMesas()
-      const comandaId = mesaSelecionadaRef.current?.comandaAberta?.id
-      if (comandaId) void recarregarComanda(comandaId)
-    },
+    aoEvento: (payload) => agrupadorPdvRef.current?.pedir(reacaoDoPdv(payload, mesaSelecionadaRef.current?.comandaAberta?.id ?? null)),
   })
 
   // ── Filtered items ─────────────────────────────────────────────────────────
