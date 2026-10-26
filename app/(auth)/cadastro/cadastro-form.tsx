@@ -25,7 +25,7 @@ function Spinner() {
   )
 }
 
-export function CadastroForm({ error }: { error?: string }) {
+export function CadastroForm({ error, convite }: { error?: string; convite: string }) {
   const [email, setEmail] = useState('')
   const [statusEmail, setStatusEmail] = useState<StatusEmail>('vazio')
   const [usuario, setUsuario] = useState('')
@@ -82,13 +82,21 @@ export function CadastroForm({ error }: { error?: string }) {
 
   const liberado = statusEmail === 'autorizado'
   const senhasOk = senha.length >= 6 && senha === confirmarSenha
-  const podeEnviar = liberado && statusUsuario === 'disponivel' && senhasOk
+  // Sem o token do link de convite (achado #3, 26/10), o servidor recusa: nem deixa enviar.
+  const podeEnviar = liberado && statusUsuario === 'disponivel' && senhasOk && !!convite
 
   return (
     <form action={cadastrar}>
+      <input type="hidden" name="convite" value={convite} />
       <p className="mb-5 rounded-menuzia bg-[#E0F2FE] px-3 py-2 text-center text-xs font-medium leading-relaxed text-[#1e3a8a]">
         Cadastro só por convite: digite o e-mail que a Menuzia cadastrou pra você. Quando ele for confirmado, o restante do cadastro é liberado.
       </p>
+
+      {!convite && (
+        <p className="mb-4 rounded-menuzia bg-danger-bg px-3 py-2 text-xs text-danger" data-testid="cadastro-sem-convite">
+          Abra o link de convite que a Menuzia mandou para você. Sem ele não dá para concluir o cadastro.
+        </p>
+      )}
 
       {error && (
         <p className="mb-4 rounded-menuzia bg-danger-bg px-3 py-2 text-xs text-danger">

@@ -16,7 +16,7 @@ import type { ModulosDaLoja } from '@/lib/modulos'
 import { ModulosLoja } from './modulos-loja'
 import {
   alterarValidadeAction, alternarBetaImpressaoAction, bloquearAction, desbloquearAction, excluirDadosAction,
-  preCadastrarAction, removerPreCadastroAction, resetarSenhaAction, sairAction, type ResultadoAcao,
+  preCadastrarAction, removerPreCadastroAction, resetarSenhaAction, sairAction, novoLinkConviteAction, type ResultadoAcao,
 } from '@/app/superadmin/actions'
 import { SENHA_PADRAO, textoDoReset } from '@/lib/auth/senha-padrao'
 
@@ -137,6 +137,7 @@ type ModalAberto =
   | { tipo: 'confirmar'; loja: LojaPlataforma; acao: 'bloquear' | 'remover' | 'beta_liberar' | 'beta_retirar' }
   | { tipo: 'excluir'; loja: LojaPlataforma }
   | { tipo: 'resetar'; usuarioId: string; nome: string; login: string; loja: string; voltar?: LojaPlataforma }
+  | { tipo: 'convite'; link: string }
 
 export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis, usoIa, modulos }: { lojas: LojaPlataforma[]; resumo: ResumoPlataforma; emailSuperadmin: string; usoApis?: UsoApis | null; usoIa?: UsoIa | null; modulos?: Record<string, ModulosDaLoja> }) {
   const router = useRouter()
@@ -174,7 +175,8 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis, usoI
     startTransition(async () => {
       try {
         const r = await acao()
-        if (r.ok) { toasts.mostrar('ok', r.mensagem); setModal(null); aoConcluir?.(); router.refresh() }
+        // Convite (achado #3): o link fica num modal com "Copiar" — o aviso some sozinho e não dá para copiar dele.
+        if (r.ok) { toasts.mostrar('ok', r.mensagem); setModal(r.link ? { tipo: 'convite', link: r.link } : null); aoConcluir?.(); router.refresh() }
         else toasts.mostrar('erro', r.erro)
       } catch {
         toasts.mostrar('erro', 'Não foi possível concluir. Tente de novo.')
@@ -386,6 +388,7 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis, usoI
                   {l.betaLiberado ? 'Retirar do piloto de Impressão Alfa 1' : 'Liberar Impressão Alfa 1'}
                 </button>
               )}
+              {l.situacao === 'pendente' && <button role="menuitem" type="button" className={`${ITEM} border-t border-border`} onClick={() => { setMenu(null); executar(() => novoLinkConviteAction(l.contaId)) }} data-testid="acao-novo-link-convite">Novo link do convite</button>}
               {l.situacao === 'pendente' && <button role="menuitem" type="button" className={`${ITEM} border-t border-border text-[#B91C1C]`} onClick={() => abrir({ tipo: 'confirmar', loja: l, acao: 'remover' })} data-testid="acao-remover">Remover pré-cadastro</button>}
               {semAcesso && <button role="menuitem" type="button" className={`${ITEM} text-[#B91C1C]`} onClick={() => abrir({ tipo: 'excluir', loja: l })} data-testid="acao-excluir">Excluir dados…</button>}
             </div>
@@ -407,6 +410,7 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis, usoI
             : alternarBetaImpressaoAction(l.restauranteId!, modal.acao === 'beta_liberar'))
       }} />}
       {modal?.tipo === 'excluir' && <ModalExcluir loja={modal.loja} ocupado={pendente} onFechar={fecharModal} onConfirmar={(t) => executar(() => excluirDadosAction(modal.loja.contaId, t))} />}
+      {modal?.tipo === 'convite' && <ModalLinkConvite link={modal.link} onFechar={fecharModal} />}
       <PilhaToasts itens={toasts.itens} />
     </div>
   )
@@ -563,6 +567,25 @@ function ModalExcluir({ loja, ocupado, onFechar, onConfirmar }: { loja: LojaPlat
       <label><span className={ROTULO}>Digite o nome da loja para confirmar</span>
         <input value={texto} onChange={(e) => setTexto(e.target.value)} className={CAMPO} data-testid="excluir-nome" />
       </label>
+    </Modal>
+  )
+}
+
+/** Link do convite (achado #3, 26/10): só quem tem o link conclui o cadastro. Vale uma vez. */
+function ModalLinkConvite({ link, onFechar }: { link: string; onFechar: () => void }) {
+  const [copiado, setCopiado] = useState(false)
+  async function copiar() {
+    try { await navigator.clipboard.writeText(link); setCopiado(true) } catch { setCopiado(false) }
+  }
+  return (
+    <Modal titulo="Link do convite" testid="modal-link-convite" onFechar={onFechar}
+      rodape={<>
+        <button type="button" className={BTN_NEUTRO} onClick={onFechar}>Fechar</button>
+        <button type="button" className={BTN_PRIMARIO} onClick={() => void copiar()} data-testid="convite-copiar">{copiado ? 'Copiado ✓' : 'Copiar'}</button>
+      </>}>
+      <p className="mb-2 text-[14px] text-text-main">Mande este link para o cliente. Só com ele dá para concluir o cadastro, e ele vale uma vez.</p>
+      <p className="select-all break-all rounded-[4px] bg-page px-3 py-2.5 font-mono text-[13px] text-text-main" data-testid="convite-link">{link}</p>
+      <p className="mt-2 text-[12px] text-text-subtle">Perdeu o link? No menu da loja, use &quot;Novo link do convite&quot; — o anterior deixa de valer.</p>
     </Modal>
   )
 }

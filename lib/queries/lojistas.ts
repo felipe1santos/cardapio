@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto'
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { isSuperAdminEmail } from '@/lib/auth/superadmin'
 
@@ -51,7 +51,34 @@ export interface PreCadastroInput {
  * restante (senha, nome da loja etc.) em `/cadastro` usando este mesmo e-mail. Desde
  * 2026-10-04 é o ÚNICO jeito de criar conta de loja (o cadastro automático saiu).
  */
-export async function convidarLojista(admin: SupabaseClient, entrada: PreCadastroInput): Promise<Resultado & { usuarioId?: string }> {
+/**
+ * Token do link de convite (achado #3, 26/10). Antes, o /cadastro concluía só pelo e-mail: quem soubesse o e-mail de
+ * um convite pendente virava dono. O token vai no link que o suporte manda ao cliente; só o hash fica guardado, no
+ * app_metadata da conta (o usuário não altera). Vale uma vez.
+ */
+const hashDoConvite = (token: string) => createHash('sha256').update(token).digest('hex')
+const novoTokenDeConvite = () => randomBytes(32).toString('base64url')
+
+function conviteConfere(token: string, hash: unknown): boolean {
+  if (!token || typeof hash !== 'string' || !hash) return false
+  const a = Buffer.from(hashDoConvite(token), 'hex')
+  const b = Buffer.from(hash, 'hex')
+  return a.length === b.length && timingSafeEqual(a, b)
+}
+
+/** Link novo para um convite ainda pendente (o anterior deixa de valer). */
+export async function novoLinkDoConvite(admin: SupabaseClient, usuarioId: string): Promise<Resultado & { token?: string }> {
+  const { data: conta, error } = await admin.from('usuarios').select('id, restaurante_id').eq('id', usuarioId).maybeSingle()
+  if (error) throw error
+  if (!conta) return { ok: false, error: 'Conta não encontrada.' }
+  if (conta.restaurante_id) return { ok: false, error: 'Este cadastro já foi concluído.' }
+  const token = novoTokenDeConvite()
+  const { error: erroMeta } = await admin.auth.admin.updateUserById(usuarioId, { app_metadata: { convite_hash: hashDoConvite(token) } })
+  if (erroMeta) return { ok: false, error: 'Não foi possível gerar o link. Tente novamente.' }
+  return { ok: true, token }
+}
+
+export async function convidarLojista(admin: SupabaseClient, entrada: PreCadastroInput): Promise<Resultado & { usuarioId?: string; token?: string }> {
   const emailNormalizado = entrada.email.trim().toLowerCase()
   if (!EMAIL_REGEX.test(emailNormalizado) || emailNormalizado.length > 254) return { ok: false, error: 'E-mail inválido.' }
   const { data: existente, error: erroBusca } = await admin.from('usuarios').select('id').eq('email', emailNormalizado).limit(1)
@@ -60,10 +87,12 @@ export async function convidarLojista(admin: SupabaseClient, entrada: PreCadastr
   const expira = entrada.acessoExpiraEm ? new Date(entrada.acessoExpiraEm) : null
   if (expira && (Number.isNaN(expira.getTime()) || expira.getTime() <= Date.now())) return { ok: false, error: 'A validade precisa ser uma data futura.' }
 
+  const token = novoTokenDeConvite()
   const { data, error } = await admin.auth.admin.createUser({
     email: emailNormalizado,
     password: randomUUID(),
     email_confirm: true,
+    app_metadata: { convite_hash: hashDoConvite(token) },
   })
   if (error || !data.user) {
     if (error?.message?.toLowerCase().includes('already')) return { ok: false, error: 'Este e-mail já está cadastrado.' }
@@ -86,7 +115,7 @@ export async function convidarLojista(admin: SupabaseClient, entrada: PreCadastr
     return { ok: false, error: 'Não foi possível salvar o pré-cadastro. Tente novamente.' }
   }
 
-  return { ok: true, usuarioId: data.user.id }
+  return { ok: true, usuarioId: data.user.id, token }
 }
 
 /** Remove um pré-cadastro que ainda não completou o primeiro acesso (corrige e-mail digitado errado). */
@@ -174,7 +203,11 @@ export interface PrimeiroAcessoInput {
   telefone: string
   nomeLoja: string
   usuario: string
+  /** Token do link de convite (achado #3). Sem ele, nada é concluído. */
+  convite: string
 }
+
+export const MSG_CONVITE_INVALIDO = 'Link de convite inválido ou já usado. Peça um link novo ao suporte.'
 
 /**
  * Conclui o primeiro acesso de um cliente pré-cadastrado pelo /superadmin: confere que o
@@ -206,6 +239,9 @@ export async function completarPrimeiroAcesso(admin: SupabaseClient, input: Prim
 
   const usuarioId: string = conta.id
   const acessoExpiraEm: string | null = conta.acesso_expira_em ?? null
+  // Prova de que quem está aqui recebeu o convite (achado #3): o token do link tem que bater com o hash da conta.
+  const { data: authConta } = await admin.auth.admin.getUserById(usuarioId)
+  if (!conviteConfere(input.convite ?? '', authConta?.user?.app_metadata?.convite_hash)) return { ok: false, error: MSG_CONVITE_INVALIDO }
   const { error: passwordError } = await admin.auth.admin.updateUserById(usuarioId, { password: input.senha })
   if (passwordError) {
     return { ok: false, error: 'Não foi possível definir a senha. Tente novamente.' }
@@ -240,6 +276,8 @@ export async function completarPrimeiroAcesso(admin: SupabaseClient, input: Prim
     return { ok: false, error: 'Não foi possível concluir o cadastro. Tente novamente.' }
   }
 
+  // O link vale uma vez. Falhar aqui não desfaz o cadastro (a conta já não está pendente, e o /cadastro recusa).
+  await admin.auth.admin.updateUserById(usuarioId, { app_metadata: { convite_hash: null } })
   return { ok: true }
 }
 

@@ -6,7 +6,7 @@ import { getServerSupabase } from '@/lib/supabase/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { isSuperAdminEmail } from '@/lib/auth/superadmin'
 import { registrarAuditoria } from '@/lib/auditoria'
-import { alterarValidadeLojista, concederAcessoLojista, convidarLojista, excluirLojistaCompleto, removerConvitePendente, revogarAcessoLojista } from '@/lib/queries/lojistas'
+import { alterarValidadeLojista, concederAcessoLojista, convidarLojista, excluirLojistaCompleto, novoLinkDoConvite, removerConvitePendente, revogarAcessoLojista } from '@/lib/queries/lojistas'
 import { auditarPlataforma } from '@/lib/queries/plataforma'
 import { INFO_MODULO, MODULOS, type Modulo } from '@/lib/modulos'
 import { SENHA_PADRAO, loginParaMostrar } from '@/lib/auth/senha-padrao'
@@ -16,7 +16,7 @@ import { SENHA_PADRAO, loginParaMostrar } from '@/lib/auth/senha-padrao'
  * a tela), devolvem o resultado para o modal/toast e ficam na auditoria da plataforma (0139);
  * as que mexem numa loja também entram na auditoria da própria loja.
  */
-export type ResultadoAcao = { ok: true; mensagem: string } | { ok: false; erro: string }
+export type ResultadoAcao = { ok: true; mensagem: string; /** Link do convite para copiar (achado #3). */ link?: string } | { ok: false; erro: string }
 
 async function ensureSuperAdmin() {
   const supabase = await getServerSupabase()
@@ -59,8 +59,22 @@ export async function preCadastrarAction(entrada: { email: string; nomeLoja?: st
   const r = await convidarLojista(admin, { email: entrada.email ?? '', nomeLoja: entrada.nomeLoja, nome: entrada.nome, telefone: entrada.telefone, acessoExpiraEm: validade })
   if (!r.ok) return { ok: false, erro: r.error }
   await auditarPlataforma(admin, { ator: quem.email, acao: 'plataforma.pre_cadastrou', usuarioId: r.usuarioId, alvo: entrada.email.trim().toLowerCase(), dados: { comValidade: !!validade, nomeLoja: entrada.nomeLoja ?? '' } })
-  return terminar({ ok: true, mensagem: 'Cliente pré-cadastrado. Ele já pode concluir o cadastro em /cadastro.' })
+  return terminar({ ok: true, mensagem: 'Cliente pré-cadastrado. Mande o link do convite para ele concluir o cadastro.', link: linkDoConvite(r.token!) })
 }
+
+/** Link novo para um convite pendente (o anterior deixa de valer) — achado #3, 26/10. */
+export async function novoLinkConviteAction(usuarioId: string): Promise<ResultadoAcao> {
+  const quem = await ensureSuperAdmin()
+  if (!UUID.test(usuarioId)) return { ok: false, erro: 'Conta inválida.' }
+  const { admin, email } = await dadosDaConta(usuarioId)
+  const r = await novoLinkDoConvite(admin, usuarioId)
+  if (!r.ok) return { ok: false, erro: r.error }
+  await auditarPlataforma(admin, { ator: quem.email, acao: 'plataforma.novo_link_convite', usuarioId, alvo: email })
+  return { ok: true, mensagem: 'Link novo gerado. O anterior deixou de valer.', link: linkDoConvite(r.token!) }
+}
+
+const linkDoConvite = (token: string) =>
+  `${(process.env.MENUZIA_URL_PUBLICA ?? process.env.APP_URL ?? 'https://app.menuzia.com.br').replace(/\/$/, '')}/cadastro?convite=${encodeURIComponent(token)}`
 
 export async function removerPreCadastroAction(usuarioId: string): Promise<ResultadoAcao> {
   const quem = await ensureSuperAdmin()

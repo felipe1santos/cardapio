@@ -12,21 +12,24 @@ export async function cadastrar(formData: FormData) {
   const telefone = String(formData.get('telefone') ?? '').trim()
   const nomeLoja = String(formData.get('nomeLoja') ?? '').trim()
   const usuario = String(formData.get('usuario') ?? '').trim()
+  // Token do link de convite (achado #3): segue na URL de volta para o cliente poder corrigir e tentar de novo.
+  const convite = String(formData.get('convite') ?? '').trim()
+  const voltar = (msg: string) => redirect(`/cadastro?convite=${encodeURIComponent(convite)}&error=${encodeURIComponent(msg)}`)
 
   if (!email || !nome || !telefone || !nomeLoja || !usuario) {
-    redirect(`/cadastro?error=${encodeURIComponent('Preencha todos os campos.')}`)
+    voltar('Preencha todos os campos.')
   }
   if (senha.length < 6) {
-    redirect(`/cadastro?error=${encodeURIComponent('A senha deve ter no mínimo 6 caracteres.')}`)
+    voltar('A senha deve ter no mínimo 6 caracteres.')
   }
   if (senha !== confirmarSenha) {
-    redirect(`/cadastro?error=${encodeURIComponent('As senhas não coincidem.')}`)
+    voltar('As senhas não coincidem.')
   }
 
   const admin = getAdminSupabase()
-  const result = await completarPrimeiroAcesso(admin, { email, senha, nome, telefone, nomeLoja, usuario })
+  const result = await completarPrimeiroAcesso(admin, { email, senha, nome, telefone, nomeLoja, usuario, convite })
   if (!result.ok) {
-    redirect(`/cadastro?error=${encodeURIComponent(result.error)}`)
+    voltar(result.error)
   }
 
   redirect('/login?notice=cadastro-concluido')
