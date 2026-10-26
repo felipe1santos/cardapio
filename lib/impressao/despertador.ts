@@ -8,12 +8,14 @@
  * O pedido entra no banco antes dos itens: a espera confere de novo logo depois do aviso.
  * Sem Realtime (caiu, reconectando), a espera vira uma checagem no banco a cada 2 s.
  */
-import { createClient, type RealtimeChannel } from '@supabase/supabase-js'
+import { createClient, type RealtimeChannel, type SupabaseClient } from '@supabase/supabase-js'
 
 type Ouvinte = () => void
 interface Estado {
   ouvintes: Map<string, Set<Ouvinte>>
   canal: RealtimeChannel | null
+  /** Um cliente por processo, reaproveitado nas reconexões (antes: um createClient novo por queda). */
+  cliente: SupabaseClient | null
   conectado: boolean
   tentandoDesde: number
 }
@@ -22,7 +24,7 @@ const G = globalThis as unknown as { __menuziaDespertador?: Estado }
 
 function estado(): Estado {
   if (G.__menuziaDespertador) return G.__menuziaDespertador
-  const e: Estado = { ouvintes: new Map(), canal: null, conectado: false, tentandoDesde: 0 }
+  const e: Estado = { ouvintes: new Map(), canal: null, cliente: null, conectado: false, tentandoDesde: 0 }
   G.__menuziaDespertador = e
   return e
 }
@@ -41,21 +43,24 @@ function garantirCanal() {
   const chave = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !chave) return
   e.tentandoDesde = Date.now()
-  const cliente = createClient(url, chave, { auth: { persistSession: false, autoRefreshToken: false } })
-  e.canal = cliente
+  const cliente = (e.cliente ??= createClient(url, chave, { auth: { persistSession: false, autoRefreshToken: false } }))
+  const canal: RealtimeChannel = cliente
     .channel('menuzia-impressao-despertador')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'impressao_trabalhos' }, (p) => avisar((p.new as { restaurante_id?: unknown }).restaurante_id))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, (p) => avisar(((p.new ?? p.old) as { restaurante_id?: unknown }).restaurante_id))
-    .subscribe((status) => {
-      e.conectado = status === 'SUBSCRIBED'
-      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-        // Recomeça do zero daqui a pouco (o supabase-js também tenta sozinho).
-        const velho = e.canal
-        e.canal = null
-        e.conectado = false
-        setTimeout(() => { void velho?.unsubscribe(); garantirCanal() }, 3000)
-      }
-    })
+  e.canal = canal
+  canal.subscribe((status) => {
+    // Aviso de um canal que já foi trocado (ex.: o CLOSED que a própria saída dele dispara): não mexe no atual.
+    // Antes (26/10), esse CLOSED derrubava o canal NOVO e a reconexão virava um ciclo a cada 3 s até o deploy.
+    if (e.canal !== canal) return
+    e.conectado = status === 'SUBSCRIBED'
+    if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+      // Recomeça daqui a pouco, no mesmo cliente (o supabase-js também tenta sozinho).
+      e.canal = null
+      e.conectado = false
+      setTimeout(() => { void cliente.removeChannel(canal); garantirCanal() }, 3000)
+    }
+  })
 }
 
 export function despertadorConectado(): boolean {
