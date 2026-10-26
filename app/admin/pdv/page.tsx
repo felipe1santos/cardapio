@@ -27,6 +27,7 @@ import { type RegraPrecoPizza } from '@/lib/pizza-preco'
 import { massasParaEscolha } from '@/lib/massa-padrao'
 import { Button } from '@/components/ui/button'
 import { CentralBalcao } from '@/components/pdv/central-balcao'
+import { useEventosPedidos } from '@/lib/realtime-pedidos'
 import { ContaPresencialModal } from '@/components/pdv/conta-presencial'
 import { AbrirMesaModal, IdentificarModal, LimpezaModal } from '@/components/pdv/atendimento'
 import { chamar, novaChave } from '@/components/pdv/util'
@@ -517,24 +518,16 @@ export default function PdvPage() {
   }, [mesaSelecionada, recarregarComanda])
 
   // ── Realtime: atualizar estado ao mudar pedidos ────────────────────────────
-  useEffect(() => {
-    if (!restauranteId) return
-    const channel = supabase
-      .channel(`pdv-comandas-${restauranteId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'pedidos', filter: `restaurante_id=eq.${restauranteId}` },
-        () => {
-          void recarregarMesas()
-          const comandaId = mesaSelecionadaRef.current?.comandaAberta?.id
-          if (comandaId) void recarregarComanda(comandaId)
-        }
-      )
-      .subscribe()
-    return () => {
-      void supabase.removeChannel(channel)
-    }
-  }, [supabase, recarregarMesas, recarregarComanda, restauranteId])
+  // `pedidos` pelo canal do layout (achado #6), sem canal próprio.
+  useEventosPedidos({
+    supabase,
+    restauranteId,
+    aoEvento: () => {
+      void recarregarMesas()
+      const comandaId = mesaSelecionadaRef.current?.comandaAberta?.id
+      if (comandaId) void recarregarComanda(comandaId)
+    },
+  })
 
   // ── Filtered items ─────────────────────────────────────────────────────────
   // Busca larga (≥ 1024 px) fica sempre à vista; em tela estreita é uma lupa que expande.

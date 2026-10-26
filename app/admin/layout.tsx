@@ -35,6 +35,7 @@ import { AberturaRapidaCaixa } from '@/components/financeiro/abertura-rapida'
 import { mostrarAvisoNovaImpressao } from '@/lib/avisos-painel'
 import { LancadorAtendimento } from '@/components/atendimento/lancador'
 import { AlarmeProvider, AvisoSomBloqueado } from '@/components/admin/alarme-global'
+import { abrirCanalPedidos, CanalPedidosContexto, type CanalPedidos } from '@/lib/realtime-pedidos'
 import { assinarPushPainel } from '@/lib/push/painel-cliente'
 import { useStatusLoja } from '@/lib/status-loja-cliente'
 
@@ -269,8 +270,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // Canal Realtime num effect próprio: o cleanup retornado por uma função
   // async nunca é chamado pelo React, então o canal ficava aberto pra sempre
   // a cada remontagem do layout, vazando conexões Realtime ao longo do turno.
+  // Um canal de `pedidos` por aba (achado #6, 25/10): aberto aqui e repassado por contexto para alarme e telas.
+  const [canalPedidos, setCanalPedidos] = useState<CanalPedidos | null>(null)
   useEffect(() => {
     if (!restauranteId) return
+    const canal = abrirCanalPedidos(supabase, restauranteId)
+    setCanalPedidos(canal)
+    return () => {
+      setCanalPedidos(null)
+      canal.fechar()
+    }
+  }, [supabase, restauranteId])
+
+  useEffect(() => {
+    if (!restauranteId || !canalPedidos) return
     const carregar = async () => {
       try {
         const b = await contarBadgesNav(supabase, restauranteId)
@@ -279,34 +292,27 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         /* silencioso: badge é informativo */
       }
     }
-    const channel = supabase
-      .channel(`nav-badges-${restauranteId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'pedidos', filter: `restaurante_id=eq.${restauranteId}` },
-        (payload) => {
-          carregar()
-          // Aviso do navegador: só para pedido NOVO que ainda espera aceite. Mudança
-          // de status do que já está na cozinha não vira notificação.
-          const linha = payload.new as Record<string, unknown> | null
-          // Pix online (0148): o pedido nasce "aguardando pagamento" e chega como pedido novo quando a
-          // API confirma (UPDATE para recebido). A memória de "já avisado" evita repetir.
-          const novo = payload.eventType === 'INSERT' ? linha : payload.eventType === 'UPDATE' && linha?.pagamento_online === true ? linha : null
-          // Agendado (0121) não é pedido novo agora: entra no Kanban perto do horário.
-          if (!novo || novo.status !== 'recebido' || novo.agendado_para) return
-          avisarPedido({
-            id: String(novo.id),
-            numero: typeof novo.numero === 'number' ? novo.numero : null,
-            canal: typeof novo.canal === 'string' ? novo.canal : null,
-          })
-        },
-      )
-      .subscribe()
+    const sair = canalPedidos.ouvir((payload) => {
+      carregar()
+      // Aviso do navegador: só para pedido NOVO que ainda espera aceite. Mudança
+      // de status do que já está na cozinha não vira notificação.
+      const linha = payload.new as Record<string, unknown> | null
+      // Pix online (0148): o pedido nasce "aguardando pagamento" e chega como pedido novo quando a
+      // API confirma (UPDATE para recebido). A memória de "já avisado" evita repetir.
+      const novo = payload.eventType === 'INSERT' ? linha : payload.eventType === 'UPDATE' && linha?.pagamento_online === true ? linha : null
+      // Agendado (0121) não é pedido novo agora: entra no Kanban perto do horário.
+      if (!novo || novo.status !== 'recebido' || novo.agendado_para) return
+      avisarPedido({
+        id: String(novo.id),
+        numero: typeof novo.numero === 'number' ? novo.numero : null,
+        canal: typeof novo.canal === 'string' ? novo.canal : null,
+      })
+    })
 
     return () => {
-      supabase.removeChannel(channel)
+      sair()
     }
-  }, [supabase, restauranteId, avisarPedido])
+  }, [supabase, restauranteId, avisarPedido, canalPedidos])
 
   // Regra do menu (papel × flag de mesas × logística) em lib/menu-lateral.ts, testada.
   // Pendências de configuração ficam só no alerta do card da loja (2026-09-30): os
@@ -354,6 +360,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <MenuLateralContext.Provider value={valorDoMenu}>
+    <CanalPedidosContexto.Provider value={canalPedidos}>
     <AlarmeProvider restauranteId={restauranteId} ativo={alarmeAtivo}>
     {/* `data-painel`: gancho da camada de celular em globals.css (alvo de toque de
         40px abaixo de lg). Nada muda no desktop — a regra vive dentro de media query. */}
@@ -450,6 +457,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       )}
     </div>
     </AlarmeProvider>
+    </CanalPedidosContexto.Provider>
     </MenuLateralContext.Provider>
   )
 }

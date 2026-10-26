@@ -5,6 +5,7 @@ import { getBrowserSupabase } from '@/lib/supabase/client'
 import { listarRecebidosParaAlarme } from '@/lib/queries/pedidos'
 import { useAlarmePedidos } from '@/components/pedidos/use-alarme'
 import { textoDoTituloPiscando } from '@/lib/alarme-pedidos'
+import { abrirCanalPedidos, useCanalPedidos } from '@/lib/realtime-pedidos'
 
 /**
  * Alarme de pedido novo em QUALQUER tela do painel (2026-10-04). Antes ele só existia no Painel de
@@ -54,6 +55,7 @@ export function AlarmeProvider({ restauranteId, ativo, children }: { restaurante
   }, [restauranteId, ativo])
   const alarme = useAlarmePedidos({ ativo, mudo: assistenteToca })
   const supabase = useMemo(() => getBrowserSupabase(), [])
+  const canalPedidos = useCanalPedidos()
   const [pendentes, setPendentes] = useState<{ id: string; numero: number }[]>([])
   const aoAtualizar = useRef(alarme.aoAtualizarPedidos)
   aoAtualizar.current = alarme.aoAtualizarPedidos
@@ -79,10 +81,10 @@ export function AlarmeProvider({ restauranteId, ativo, children }: { restaurante
       }
     }
     void ler()
-    const canal = supabase
-      .channel(`alarme-${restauranteId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos', filter: `restaurante_id=eq.${restauranteId}` }, () => void ler())
-      .subscribe((status) => { if (status === 'SUBSCRIBED') void ler() })
+    // Canal de `pedidos` do layout (achado #6); `null` = o layout ainda está abrindo (o relógio cobre esse instante);
+    // fora do layout (não deveria acontecer), abre o próprio.
+    const canal = canalPedidos === undefined || (canalPedidos && canalPedidos.restauranteId !== restauranteId) ? abrirCanalPedidos(supabase, restauranteId) : null
+    const sair = (canal ?? canalPedidos)?.ouvir(() => void ler(), () => void ler()) ?? (() => {})
     const relogio = setInterval(() => void ler(), LEITURA_MS)
     const aoVoltar = () => { if (document.visibilityState === 'visible') void ler() }
     document.addEventListener('visibilitychange', aoVoltar)
@@ -92,9 +94,10 @@ export function AlarmeProvider({ restauranteId, ativo, children }: { restaurante
       clearInterval(relogio)
       document.removeEventListener('visibilitychange', aoVoltar)
       window.removeEventListener('online', aoVoltar)
-      void supabase.removeChannel(canal)
+      sair()
+      canal?.fechar()
     }
-  }, [supabase, restauranteId, ativo])
+  }, [supabase, restauranteId, ativo, canalPedidos])
 
   useTituloPiscando(ativo && alarme.somAtivo ? pendentes : [], alarme.bloqueado)
 

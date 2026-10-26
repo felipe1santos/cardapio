@@ -23,6 +23,7 @@ import { ChamarLalamove, CorridaLalamoveNoCard, ParceiroPixNoCard, type Provedor
 import { precisaPixAntes } from '@/lib/entregas/parceiro-pix'
 import { pedidoDeApp } from '@/lib/pedido-editavel'
 import { CORRIDA_ATIVA, ENTREGA_PROVEDOR_SELECT, mapEntregaProvedor, type EntregaProvedorLinha } from '@/lib/entregas/lalamove-status'
+import { useEventosPedidos } from '@/lib/realtime-pedidos'
 
 // Milhar com ponto ("R$ 4.088,00"): função única do painel, ver lib/moeda.ts.
 const brl = formatarReal
@@ -206,12 +207,13 @@ function RotaPanelBase({ supabase, restauranteId, apiKey, onClose }: RotaPanelPr
     }
   }, [supabase, restauranteId])
 
+  // `pedidos` pelo canal do layout (achado #6); este canal fica só com motoboys e corridas.
+  useEventosPedidos({ supabase: supabase!, restauranteId: supabase ? restauranteId ?? null : null, aoEvento: () => refetch() })
   useEffect(() => {
     refetch()
     if (supabase && restauranteId) {
       const channel = supabase
         .channel(`rota-panel-${restauranteId}`)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos', filter: `restaurante_id=eq.${restauranteId}` }, () => refetch())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'entregadores', filter: `restaurante_id=eq.${restauranteId}` }, () => refetch())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'entregas_provedor', filter: `restaurante_id=eq.${restauranteId}` }, () => refetch())
         .subscribe()

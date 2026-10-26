@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { RealtimeChannel, RealtimePostgresChangesPayload, SupabaseClient } from '@supabase/supabase-js'
+import { aguardaCanalCompartilhado, useCanalPedidos, usaCanalCompartilhado } from './realtime-pedidos'
 
 /**
  * Conciliação entre Realtime e polling nas telas operacionais.
@@ -48,7 +49,10 @@ export function useRealtimeComFallback({ supabase, canal, tabelas, aoEvento, aoS
   saudavel: boolean
   intervaloMs: number
 } {
-  const [saudavel, setSaudavel] = useState(false)
+  const [proprioOk, setProprioOk] = useState(false)
+  const [compartilhadoOk, setCompartilhadoOk] = useState(false)
+  // Canal de `pedidos` do layout (lib/realtime-pedidos.tsx, achado #6): a tabela `pedidos` da loja vai por ele.
+  const compartilhado = useCanalPedidos()
 
   // Guardados em ref para que trocar de callback não derrube e recrie o canal.
   const aoEventoRef = useRef(aoEvento)
@@ -57,13 +61,19 @@ export function useRealtimeComFallback({ supabase, canal, tabelas, aoEvento, aoS
   aoSincronizarRef.current = aoSincronizar
 
   const chaveTabelas = JSON.stringify(tabelas)
+  const lista: AssinaturaTabela[] = JSON.parse(chaveTabelas)
+  const ehPropria = (t: AssinaturaTabela) => !usaCanalCompartilhado(compartilhado, t.tabela, t.filtro) && !aguardaCanalCompartilhado(compartilhado, t.tabela, t.filtro)
+  const usaCompartilhado = !!canal && lista.some((t) => usaCanalCompartilhado(compartilhado, t.tabela, t.filtro))
+  const aguarda = !!canal && lista.some((t) => aguardaCanalCompartilhado(compartilhado, t.tabela, t.filtro))
+  const temProprio = !!canal && lista.some(ehPropria)
 
   useEffect(() => {
     if (!canal) return
-    const lista: AssinaturaTabela[] = JSON.parse(chaveTabelas)
+    const proprias = (JSON.parse(chaveTabelas) as AssinaturaTabela[]).filter((t) => !usaCanalCompartilhado(compartilhado, t.tabela, t.filtro) && !aguardaCanalCompartilhado(compartilhado, t.tabela, t.filtro))
+    if (!proprias.length) return
 
     let ch: RealtimeChannel = supabase.channel(canal)
-    for (const { tabela, filtro } of lista) {
+    for (const { tabela, filtro } of proprias) {
       ch = ch.on(
         'postgres_changes',
         { event: '*', schema: 'public', table: tabela, ...(filtro ? { filter: filtro } : {}) },
@@ -73,16 +83,25 @@ export function useRealtimeComFallback({ supabase, canal, tabelas, aoEvento, aoS
 
     ch.subscribe((status) => {
       const ok = status === 'SUBSCRIBED'
-      setSaudavel(ok)
+      setProprioOk(ok)
       // Reconectou: pode ter havido mudança enquanto o canal estava fora.
       if (ok) aoSincronizarRef.current()
     })
 
     return () => {
-      setSaudavel(false)
+      setProprioOk(false)
       void supabase.removeChannel(ch)
     }
-  }, [supabase, canal, chaveTabelas])
+  }, [supabase, canal, chaveTabelas, compartilhado])
 
+  useEffect(() => {
+    if (!usaCompartilhado || !compartilhado) return
+    setCompartilhadoOk(compartilhado.saudavel())
+    const sairSaude = compartilhado.ouvirSaude(setCompartilhadoOk)
+    const sair = compartilhado.ouvir((p) => aoEventoRef.current(p), () => aoSincronizarRef.current())
+    return () => { sair(); sairSaude(); setCompartilhadoOk(false) }
+  }, [usaCompartilhado, compartilhado])
+
+  const saudavel = !aguarda && (usaCompartilhado || temProprio) && (!usaCompartilhado || compartilhadoOk) && (!temProprio || proprioOk)
   return { saudavel, intervaloMs: saudavel ? INTERVALO_REALTIME_OK : INTERVALO_FALLBACK }
 }
