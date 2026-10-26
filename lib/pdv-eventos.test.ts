@@ -13,9 +13,13 @@ describe('reacaoDoPdv', () => {
     expect(reacaoDoPdv(upd({ canal: 'delivery', comanda_id: null }), 'c1')).toEqual({ mesas: false, comanda: false })
   })
 
-  it('pedido de mesa recarrega o mapa; a comanda só se for a aberta', () => {
-    expect(reacaoDoPdv(upd({ canal: 'mesa', comanda_id: 'c2' }), 'c1')).toEqual({ mesas: true, comanda: false })
+  it('pedido de mesa recarrega o mapa e a comanda aberta', () => {
     expect(reacaoDoPdv(upd({ canal: 'mesa', comanda_id: 'c1' }), 'c1')).toEqual({ mesas: true, comanda: true })
+  })
+
+  it('pedido passou para OUTRA comanda (transferência): a aberta recarrega — ele pode ter saído dela', () => {
+    // O evento só traz o comanda_id novo; o antigo não vem (replica identity padrão). Revisão 26/10.
+    expect(reacaoDoPdv(upd({ canal: 'mesa', comanda_id: 'c2' }), 'c1')).toEqual({ mesas: true, comanda: true })
   })
 
   it('balcão também é do PDV', () => {

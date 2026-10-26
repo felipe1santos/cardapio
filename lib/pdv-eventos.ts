@@ -36,5 +36,7 @@ export function reacaoDoPdv(
   if (semDados) return { mesas: true, comanda: !!comandaAbertaId }
   const comandaId = typeof linha.comanda_id === 'string' ? linha.comanda_id : null
   const doPdv = !!comandaId || (typeof linha.canal === 'string' && linha.canal !== 'delivery')
-  return { mesas: doPdv, comanda: !!comandaAbertaId && comandaId === comandaAbertaId }
+  // Pedido com comanda (de qualquer uma) recarrega a aberta: numa transferência o evento só traz a comanda NOVA, e o
+  // pedido pode ter acabado de sair da aberta (revisão 26/10).
+  return { mesas: doPdv, comanda: !!comandaAbertaId && doPdv }
 }
