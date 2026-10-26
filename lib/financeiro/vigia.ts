@@ -5,6 +5,7 @@ import { turnoAberto } from './caixa'
 import { formatarCentavos } from './centavos'
 import { descontoAlto, horasDesde, minutosDesdeAbertura } from './vigia-regras'
 import { nivelDe } from './nivel'
+import { lerTodas } from '@/lib/queries/ler-todas'
 
 /**
  * Vigia do financeiro (Fase 6): alertas que dependem de TEMPO ou de olhar o conjunto, feitos por varredura
@@ -65,7 +66,10 @@ export async function varrerLoja(admin: SupabaseClient, loja: string, agora = Da
   }
 
   // Motoboy com dinheiro pendente há mais de N h: idade = linha mais antiga depois do último acerto.
-  const { data: motos } = await admin.from('fin_lancamentos').select('entregador_id, valor_centavos, tipo, criado_em, id').eq('restaurante_id', loja).eq('carteira', 'motoboy').order('id').limit(5000)
+  // Paginado (revisão 26/10): com o teto de 1.000 linhas do PostgREST, `.limit(5000)` lia só os mais ANTIGOS.
+  const motos = await lerTodas<{ entregador_id: string; valor_centavos: number; tipo: string; criado_em: string; id: number }>((de, ate) =>
+    admin.from('fin_lancamentos').select('entregador_id, valor_centavos, tipo, criado_em, id').eq('restaurante_id', loja).eq('carteira', 'motoboy').order('id').range(de, ate))
+    .catch(() => [] as { entregador_id: string; valor_centavos: number; tipo: string; criado_em: string; id: number }[])
   const porMoto = new Map<string, { saldo: number; desde: string | null }>()
   for (const l of motos ?? []) {
     const k = l.entregador_id as string

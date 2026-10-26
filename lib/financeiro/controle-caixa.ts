@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { formatarCentavos } from './centavos'
+import { lerTodas } from '@/lib/queries/ler-todas'
 
 /**
  * "Ativar controle de caixa" (nível 2, 0167) — o passo a passo do guia (/admin/financeiro/guia#ativacao).
@@ -50,10 +51,11 @@ export async function carregarDadosAtivacao(admin: SupabaseClient, loja: string)
   const [{ data: equipe }, { data: contas }, { data: motos }, { count: emRota }, { data: cfg }, { data: vendidos }, { data: fichas }, { data: gestao }] = await Promise.all([
     admin.from('usuarios').select('nome, papel, pin_hash').eq('restaurante_id', loja).is('desativado_em', null),
     admin.from('comandas').select('id, numero, aberta_em').eq('restaurante_id', loja).eq('status', 'aberta').lt('aberta_em', limite).order('aberta_em'),
-    admin.from('fin_lancamentos').select('entregador_id, valor_centavos, entregadores ( nome )').eq('restaurante_id', loja).eq('carteira', 'motoboy').limit(5000),
+    // Paginado (revisão 26/10): o PostgREST devolve no máximo 1.000 linhas; `.limit(5000)` somava só as primeiras mil.
+    lerTodas<{ entregador_id: string; valor_centavos: number; entregadores: unknown }>((de, ate) => admin.from('fin_lancamentos').select('entregador_id, valor_centavos, entregadores ( nome )').eq('restaurante_id', loja).eq('carteira', 'motoboy').order('id').range(de, ate)).then((data) => ({ data }), () => ({ data: null })),
     admin.from('pedidos').select('id', { count: 'exact', head: true }).eq('restaurante_id', loja).eq('status', 'em_rota'),
     admin.from('fin_config').select('fundo_padrao_centavos, tolerancia_fechamento_centavos').eq('restaurante_id', loja).maybeSingle(),
-    admin.from('pedido_itens').select('item_id, quantidade, pedidos!inner ( restaurante_id, status, criado_em )').eq('pedidos.restaurante_id', loja).eq('pedidos.status', 'entregue').gte('pedidos.criado_em', desde30).is('cancelado_em', null).not('item_id', 'is', null).limit(20000),
+    lerTodas<{ item_id: string; quantidade: number }>((de, ate) => admin.from('pedido_itens').select('item_id, quantidade, pedidos!inner ( restaurante_id, status, criado_em )').eq('pedidos.restaurante_id', loja).eq('pedidos.status', 'entregue').gte('pedidos.criado_em', desde30).is('cancelado_em', null).not('item_id', 'is', null).order('id').range(de, ate)).then((data) => ({ data }), () => ({ data: null })),
     admin.from('cmv_fichas').select('item_id, cmv_ficha_componentes!inner ( id )').eq('restaurante_id', loja).not('item_id', 'is', null),
     admin.from('itens_cardapio_gestao').select('item_id').eq('restaurante_id', loja).gt('preco_custo', 0),
   ])
