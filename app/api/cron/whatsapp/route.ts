@@ -8,6 +8,9 @@ import { sugerirComIaUmaLoja } from '@/lib/robo-auto/sugestao-ia'
 import { monitorarTodas } from '@/lib/whatsapp-monitor'
 import { devolverConversasAbandonadas } from '@/lib/mensageria/abandono'
 import { expirarCashbackVencidos } from '@/lib/queries/cashback'
+import { criarPortaoHorario } from '@/lib/manutencao-horaria'
+
+const manutencao = criarPortaoHorario(60 * 60_000)
 
 /**
  * Cron da fila do WhatsApp: novas tentativas (espera crescente) e retenção de 90 dias.
@@ -26,12 +29,17 @@ export async function POST(request: Request) {
   // Loja assumiu e sumiu (Etapa 4, 20/10): humano parou de responder há X min → robô/IA volta com pedido de desculpas (antes da fila: sai nesta rodada).
   await devolverConversasAbandonadas(admin).catch((e) => console.error('[whatsapp] retorno automático:', (e as Error).message))
   const fila = await processarFila(admin, { limite: 20 })
-  const { data: limpeza, error } = await admin.rpc('whatsapp_limpar_antigos')
-  if (error) console.error('[whatsapp] limpeza falhou:', error.message)
-  // Cashback (Etapa 7, 0211): o que venceu vira "expirado" (o saldo já ignora vencidos; isto é só arrumação).
-  await expirarCashbackVencidos(admin).catch(() => null)
-  // "Perguntas que o robô não entendeu" ficam 30 dias (0177).
-  await admin.from('whatsapp_auto_nao_entendidas').delete().lt('ultima_em', new Date(Date.now() - 30 * 24 * 3600_000).toISOString())
+  // Manutenção sem pressa: 1 vez por hora (revisão de escala 26/10). A limpeza lê as tabelas do WhatsApp inteiras.
+  let limpeza: unknown = null
+  if (manutencao.liberar()) {
+    const { data, error } = await admin.rpc('whatsapp_limpar_antigos')
+    if (error) console.error('[whatsapp] limpeza falhou:', error.message)
+    limpeza = data
+    // Cashback (Etapa 7, 0211): o que venceu vira "expirado" (o saldo já ignora vencidos; isto é só arrumação).
+    await expirarCashbackVencidos(admin).catch(() => null)
+    // "Perguntas que o robô não entendeu" ficam 30 dias (0177).
+    await admin.from('whatsapp_auto_nao_entendidas').delete().lt('ultima_em', new Date(Date.now() - 30 * 24 * 3600_000).toISOString())
+  }
   // Sugestão pela IA das mensagens não entendidas (16/10): 1 loja por rodada, 1 lote por dia por loja, com o módulo e dentro do teto.
   await sugerirComIaUmaLoja(admin).catch((e) => console.error('[whatsapp] sugestão IA:', (e as Error).message))
   // Webhook de toda loja com WhatsApp (a cada 30 min por loja): reconectar pelo celular,
