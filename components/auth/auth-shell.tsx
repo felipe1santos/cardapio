@@ -1,52 +1,80 @@
 import { ReactNode } from 'react'
 
-/** Classe padrão dos inputs das telas de auth (navy/laranja). */
-export const authInput =
-  'w-full rounded-menuzia border border-transparent bg-[#EFF0F2] px-4 py-3 text-sm text-text-main placeholder:text-text-subtle focus:border-[#1D3E73] focus:bg-white focus:outline-none'
-
-/** Classe padrão do botão primário das telas de auth. */
-export const authButton =
-  'w-full rounded-menuzia bg-[#21478C] py-3 text-sm font-semibold uppercase tracking-wide text-white transition-colors hover:bg-[#1D3E73]'
-
 /**
- * Moldura comum das telas de autenticação: topo navy com a marca Menuzia
- * e um "sheet" branco com o conteúdo. Tela cheia no mobile, cartão
- * centralizado no desktop.
+ * Telas de acesso (login, cadastro, trocar e redefinir senha) no molde do portal de lojistas da 99Food
+ * (pedido do dono, 26/10/2026): foto cheia, faixa escura no topo e no rodapé, cartão de 540px à direita.
+ * Fonte PingFang SC (fora da Apple cai na Inter do app). Medidas em px porque a raiz do painel é 87,5%.
  */
+
+export const AUTH_FONTE = '"PingFang SC","PingFangSC-Regular",var(--font-inter),-apple-system,"Segoe UI",sans-serif'
+const FONTE_MEDIA = '"PingFang SC","PingFangSC-Medium",var(--font-inter),-apple-system,"Segoe UI",sans-serif'
+
+/** Caixa cinza do campo; use com `authEntrada` dentro quando houver ícone ao lado. */
+export const authCampo =
+  'flex h-[44px] w-full items-center rounded-[6px] bg-[#F2F4F6] px-[15px] transition-shadow focus-within:bg-white focus-within:shadow-[0_0_0_1px_#2457D6]'
+export const authEntrada =
+  'h-full min-w-0 flex-1 bg-transparent text-[16px] text-[#2B3847] placeholder:text-[#A3A8AF] focus:outline-none'
+
+/** Campo simples (sem ícone). */
+export const authInput =
+  'h-[44px] w-full rounded-[6px] bg-[#F2F4F6] px-[15px] text-[16px] text-[#2B3847] placeholder:text-[#A3A8AF] transition-shadow focus:bg-white focus:shadow-[0_0_0_1px_#2457D6] focus:outline-none'
+
+export const authButton =
+  'h-[44px] w-full rounded-[6px] bg-[linear-gradient(90deg,#1B45C2_0%,#2F6FEB_100%)] text-[16px] text-white transition-[filter] hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2457D6] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:brightness-100'
+
+export const authLabel = 'mb-[6px] block text-[13px] text-[#43474B]'
+export const authLink = 'text-[#1D4ED8] hover:underline'
+
+/** Faixas de aviso dentro do cartão. */
+export const authAviso = {
+  info: 'mb-[16px] rounded-[6px] bg-[#EEF3FF] px-[12px] py-[10px] text-[13px] leading-[19px] text-[#1E3A8A]',
+  ok: 'mb-[16px] rounded-[6px] bg-price-bg px-[12px] py-[10px] text-[13px] leading-[19px] text-price-text',
+  erro: 'mb-[16px] rounded-[6px] bg-danger-bg px-[12px] py-[10px] text-[13px] leading-[19px] text-[#B91C1C]',
+}
+
 export function AuthShell({
   heading,
   children,
-  backgroundImage,
+  rodape,
 }: {
   heading: string
   children: ReactNode
-  backgroundImage?: string
+  /** Faixa cinza no pé do cartão (links de navegação). */
+  rodape?: ReactNode
 }) {
   return (
     <main
-      className="flex min-h-screen flex-col bg-[#1D3E73] bg-cover bg-center sm:items-center sm:justify-center sm:py-8"
-      style={backgroundImage ? { backgroundImage: `linear-gradient(rgba(29,62,115,0.55), rgba(29,62,115,0.55)), url(${backgroundImage})` } : undefined}
+      className="relative flex min-h-screen flex-col bg-[#14213D] bg-cover bg-[position:30%_center]"
+      style={{ backgroundImage: 'url(/auth-bg.webp)', fontFamily: AUTH_FONTE }}
     >
-      <div className="flex min-h-screen w-full flex-col sm:min-h-0 sm:max-w-[440px] sm:overflow-hidden sm:rounded-[28px] sm:shadow-2xl">
-        {/* Marca */}
-        <div className="flex flex-col items-center justify-center bg-[#21478C] px-6 pb-12 pt-16 text-center sm:py-12">
-          <div className="flex items-center gap-2.5">
-            <span className="text-4xl font-semibold tracking-tight text-white">Menuzia</span>
-            <span className="flex h-9 w-9 items-center justify-center rounded-menuzia bg-[#E85D2A] text-2xl font-semibold leading-none text-white">
-              +
-            </span>
-          </div>
-          <p className="mt-2 text-sm font-medium text-white/80">Peça com facilidade</p>
-        </div>
+      <header className="flex h-[56px] shrink-0 items-center bg-black/50 px-[16px] sm:h-[70px] sm:px-[40px]">
+        <span className="flex items-center gap-[8px] text-[24px] font-semibold tracking-[-0.01em] text-white">
+          <span className="flex h-[28px] w-[28px] items-center justify-center rounded-[6px] bg-[linear-gradient(135deg,#1B45C2,#2F6FEB)] text-[20px] leading-none">
+            +
+          </span>
+          Menuzia
+        </span>
+      </header>
 
-        {/* Sheet */}
-        <div className="flex-1 rounded-t-[28px] bg-white px-6 pb-12 pt-9 shadow-[0_-8px_28px_rgba(0,0,0,0.12)] sm:flex-none sm:rounded-none sm:shadow-none">
-          <div className="mx-auto w-full max-w-sm">
-            <h1 className="mb-6 text-center text-xl font-semibold text-text-main">{heading}</h1>
+      <div className="flex flex-1 items-center justify-center px-[16px] py-[32px] sm:justify-end sm:px-[40px] lg:pr-[12%]">
+        <div className="w-full overflow-hidden rounded-[8px] bg-white shadow-[0_2px_8px_rgba(72,79,87,0.3)] sm:w-[540px]">
+          <div className="px-[20px] pb-[40px] pt-[36px] sm:px-[30px]">
+            <h1 className="text-[26px] font-normal leading-[26px] text-[#43474B]" style={{ fontFamily: FONTE_MEDIA }}>
+              {heading}
+            </h1>
             {children}
           </div>
+          {rodape && (
+            <div className="flex min-h-[60px] flex-wrap items-center justify-center gap-x-[12px] gap-y-[4px] bg-[#F8F9FA] px-[20px] py-[12px] text-[12px] text-[#5B5F65]">
+              {rodape}
+            </div>
+          )}
         </div>
       </div>
+
+      <footer className="bg-black/50 py-[6px] text-center text-[12px] text-white/80">
+        © {new Date().getFullYear()} Menuzia
+      </footer>
     </main>
   )
 }

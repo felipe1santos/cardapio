@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { MSG_RECUPERACAO_ENVIADA } from '@/lib/auth/mensagens-acesso'
-import { AuthShell, authInput, authButton } from '@/components/auth/auth-shell'
+import { AuthShell, authAviso, authButton, authInput, authLink } from '@/components/auth/auth-shell'
 import { solicitarTroca } from './actions'
 
 const ERROS_CONHECIDOS: Record<string, string> = {
@@ -17,49 +17,43 @@ export default async function RecuperarSenhaPage({
   const { error, sent } = await searchParams
 
   return (
-    <AuthShell heading="Trocar Senha">
-      {sent ? (
-        <div className="text-center">
-          <p className="mb-4 rounded-menuzia bg-price-bg px-3 py-2 text-xs text-price-text">
+    <AuthShell
+      heading="Trocar senha"
+      rodape={
+        <span>
+          Lembrou a senha? <Link href="/login" className={authLink}>Entrar</Link>
+        </span>
+      }
+    >
+      <div className="pt-[24px]">
+        {sent ? (
+          <p className={authAviso.ok}>
             {MSG_RECUPERACAO_ENVIADA} Verifique sua caixa de entrada (e o spam).
           </p>
-          <Link href="/login" className="text-xs font-semibold text-[#21478C]">
-            Voltar para o login
-          </Link>
-        </div>
-      ) : (
-        <form action={solicitarTroca}>
-          <p className="mb-5 text-center text-xs text-text-subtle">
-            Informe seu e-mail e enviaremos um link para você cadastrar uma nova senha.
-          </p>
-
-          {error && (
-            <p className="mb-4 rounded-menuzia bg-danger-bg px-3 py-2 text-xs text-danger">
-              {ERROS_CONHECIDOS[error] ?? error}
+        ) : (
+          <form action={solicitarTroca}>
+            <p className="mb-[24px] text-[14px] leading-[22px] text-[#5B5F65]">
+              Informe seu e-mail e enviaremos um link para você cadastrar uma nova senha.
             </p>
-          )}
 
-          <input
-            name="email"
-            type="email"
-            required
-            placeholder="E-mail"
-            aria-label="E-mail"
-            className={`mb-5 ${authInput}`}
-          />
+            {error && <p role="alert" className={authAviso.erro}>{ERROS_CONHECIDOS[error] ?? error}</p>}
 
-          <button type="submit" className={authButton}>
-            Enviar link
-          </button>
+            <input
+              name="email"
+              type="email"
+              required
+              autoComplete="email"
+              placeholder="E-mail"
+              aria-label="E-mail"
+              className={authInput}
+            />
 
-          <p className="mt-4 text-center text-xs text-text-subtle">
-            Lembrou a senha?{' '}
-            <Link href="/login" className="font-semibold text-[#21478C]">
-              Entrar
-            </Link>
-          </p>
-        </form>
-      )}
+            <button type="submit" className={`mt-[40px] ${authButton}`}>
+              Enviar link
+            </button>
+          </form>
+        )}
+      </div>
     </AuthShell>
   )
 }

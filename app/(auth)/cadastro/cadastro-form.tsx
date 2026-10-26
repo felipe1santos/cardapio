@@ -2,10 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { authInput, authButton } from '@/components/auth/auth-shell'
+import { authAviso, authButton, authInput, authLabel } from '@/components/auth/auth-shell'
 import { cadastrar } from './actions'
 
-const labelClass = 'mb-1 block text-xs font-semibold uppercase tracking-wide text-text-subtle'
+const labelClass = authLabel
 
 type StatusEmail = 'vazio' | 'checando' | 'autorizado' | 'nao_encontrado' | 'ja_cadastrado'
 type StatusUsuario = 'vazio' | 'checando' | 'disponivel' | 'em_uso' | 'invalido'
@@ -21,7 +21,7 @@ function CheckVerde() {
 
 function Spinner() {
   return (
-    <span className="block h-4 w-4 animate-spin rounded-full border-2 border-[#1e3a8a]/25 border-t-[#1e3a8a]" />
+    <span className="block h-4 w-4 animate-spin rounded-full border-2 border-[#2457D6]/25 border-t-[#2457D6]" />
   )
 }
 
@@ -86,27 +86,27 @@ export function CadastroForm({ error, convite }: { error?: string; convite: stri
   const podeEnviar = liberado && statusUsuario === 'disponivel' && senhasOk && !!convite
 
   return (
-    <form action={cadastrar}>
+    <form action={cadastrar} className="pt-[24px]">
       <input type="hidden" name="convite" value={convite} />
-      <p className="mb-5 rounded-menuzia bg-[#E0F2FE] px-3 py-2 text-center text-xs font-medium leading-relaxed text-[#1e3a8a]">
+      <p className={authAviso.info}>
         Cadastro só por convite: digite o e-mail que a Menuzia cadastrou pra você. Quando ele for confirmado, o restante do cadastro é liberado.
       </p>
 
       {!convite && (
-        <p className="mb-4 rounded-menuzia bg-danger-bg px-3 py-2 text-xs text-danger" data-testid="cadastro-sem-convite">
+        <p className={authAviso.erro} data-testid="cadastro-sem-convite">
           Abra o link de convite que a Menuzia mandou para você. Sem ele não dá para concluir o cadastro.
         </p>
       )}
 
       {error && (
-        <p className="mb-4 rounded-menuzia bg-danger-bg px-3 py-2 text-xs text-danger">
+        <p role="alert" className={authAviso.erro}>
           {error}
         </p>
       )}
 
-      {/* E-mail autorizado — campo em destaque com borda azul escura */}
-      <label className="mb-1 block">
-        <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#1e3a8a]">E-mail autorizado</span>
+      {/* E-mail autorizado — contorno verde quando confirmado */}
+      <label className="mb-[6px] block">
+        <span className={labelClass}>E-mail autorizado</span>
         <span className="relative block">
           <input
             name="email"
@@ -116,18 +116,15 @@ export function CadastroForm({ error, convite }: { error?: string; convite: stri
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="email@autorizado.com"
-            className={[
-              'w-full rounded-menuzia border-2 bg-white px-4 py-3 pr-12 text-sm text-text-main placeholder:text-text-subtle focus:outline-none transition-colors',
-              statusEmail === 'autorizado' ? 'border-[#16A34A]' : 'border-[#1e3a8a]',
-            ].join(' ')}
+            className={`${authInput} pr-[48px] ${statusEmail === 'autorizado' ? 'bg-white shadow-[0_0_0_1px_#16A34A] focus:shadow-[0_0_0_1px_#16A34A]' : ''}`}
           />
-          <span className="absolute right-3 top-1/2 -translate-y-1/2">
+          <span className="absolute right-[12px] top-1/2 -translate-y-1/2">
             {statusEmail === 'checando' && <Spinner />}
             {statusEmail === 'autorizado' && <CheckVerde />}
           </span>
         </span>
       </label>
-      <p className="mb-4 min-h-[16px] text-[11px] font-medium">
+      <p className="mb-[16px] min-h-[18px] text-[12px]">
         {statusEmail === 'autorizado' && <span className="text-[#16A34A]">E-mail confirmado! Preencha os dados abaixo.</span>}
         {statusEmail === 'nao_encontrado' && <span className="text-danger" data-testid="cadastro-so-convite">Cadastro disponível só por convite. Fale com o suporte.</span>}
         {statusEmail === 'ja_cadastrado' && (
@@ -141,22 +138,22 @@ export function CadastroForm({ error, convite }: { error?: string; convite: stri
       {/* Restante do cadastro — liberado só com e-mail confirmado */}
       {/* key: quando o pré-cadastro chega, os campos nascem já preenchidos (e continuam editáveis). */}
       <fieldset key={preenchido ? `p-${preenchido.nomeLoja}-${preenchido.nome}` : 'vazio'} disabled={!liberado} className={liberado ? '' : 'pointer-events-none select-none opacity-40'}>
-        <label className="mb-3 block">
+        <label className="mb-[16px] block">
           <span className={labelClass}>Nome completo</span>
           <input name="nome" type="text" required defaultValue={preenchido?.nome ?? ''} className={authInput} />
         </label>
 
-        <label className="mb-3 block">
+        <label className="mb-[16px] block">
           <span className={labelClass}>Nome do delivery</span>
           <input name="nomeLoja" type="text" required defaultValue={preenchido?.nomeLoja ?? ''} placeholder="Ex: Burger do João" className={authInput} />
         </label>
 
-        <label className="mb-3 block">
+        <label className="mb-[16px] block">
           <span className={labelClass}>Telefone / WhatsApp</span>
           <input name="telefone" type="tel" required defaultValue={preenchido?.telefone ?? ''} placeholder="(00) 00000-0000" className={authInput} />
         </label>
 
-        <label className="mb-1 block">
+        <label className="mb-[6px] block">
           <span className={labelClass}>Nome de usuário (seu login)</span>
           <span className="relative block">
             <input
@@ -167,48 +164,41 @@ export function CadastroForm({ error, convite }: { error?: string; convite: stri
               value={usuario}
               onChange={(e) => setUsuario(e.target.value)}
               placeholder="Ex: burgerdojoao"
-              className={`${authInput} pr-12`}
+              className={`${authInput} pr-[48px]`}
             />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2">
+            <span className="absolute right-[12px] top-1/2 -translate-y-1/2">
               {statusUsuario === 'checando' && <Spinner />}
               {statusUsuario === 'disponivel' && <CheckVerde />}
             </span>
           </span>
         </label>
-        <p className="mb-3 min-h-[16px] text-[11px] font-medium">
+        <p className="mb-[16px] min-h-[18px] text-[12px]">
           {statusUsuario === 'disponivel' && <span className="text-[#16A34A]">Usuário disponível.</span>}
           {statusUsuario === 'em_uso' && <span className="text-danger">Este usuário já está em uso.</span>}
           {statusUsuario === 'invalido' && <span className="text-danger">De 3 a 30 caracteres: letras, números, ponto, hífen ou underline.</span>}
           {(statusUsuario === 'vazio' || statusUsuario === 'checando') && (
-            <span className="text-text-subtle">Não precisa ser o e-mail — é o nome que você vai usar pra entrar.</span>
+            <span className="text-[#6B7075]">Não precisa ser o e-mail — é o nome que você vai usar pra entrar.</span>
           )}
         </p>
 
-        <label className="mb-3 block">
+        <label className="mb-[16px] block">
           <span className={labelClass}>Senha</span>
           <input name="senha" type="password" autoComplete="new-password" required minLength={6} value={senha} onChange={(e) => setSenha(e.target.value)} className={authInput} />
         </label>
 
-        <label className="mb-1 block">
+        <label className="mb-[6px] block">
           <span className={labelClass}>Confirmar senha</span>
           <input name="confirmarSenha" type="password" autoComplete="new-password" required minLength={6} value={confirmarSenha} onChange={(e) => setConfirmarSenha(e.target.value)} className={authInput} />
         </label>
-        <p className="mb-5 min-h-[16px] text-[11px] font-medium">
+        <p className="mb-[24px] min-h-[18px] text-[12px]">
           {confirmarSenha.length > 0 && !senhasOk && <span className="text-danger">{senha.length < 6 ? 'A senha deve ter no mínimo 6 caracteres.' : 'As senhas não coincidem.'}</span>}
           {senhasOk && <span className="text-[#16A34A]">Senhas conferem.</span>}
         </p>
 
-        <button type="submit" disabled={!podeEnviar} className={`${authButton} disabled:cursor-not-allowed disabled:opacity-50`}>
+        <button type="submit" disabled={!podeEnviar} className={authButton}>
           Concluir cadastro
         </button>
       </fieldset>
-
-      <p className="mt-4 text-center text-xs text-text-subtle">
-        Já tem conta?{' '}
-        <Link href="/login" className="font-semibold text-[#21478C]">
-          Entrar
-        </Link>
-      </p>
     </form>
   )
 }

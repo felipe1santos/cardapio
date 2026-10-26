@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { AuthShell, authInput, authButton } from '@/components/auth/auth-shell'
+import { AuthShell, authAviso, authButton, authInput } from '@/components/auth/auth-shell'
 import { getServerSupabase } from '@/lib/supabase/server'
 import { redefinirSenha } from './actions'
 
@@ -21,16 +21,12 @@ export default async function RedefinirSenhaPage({
 
   return (
     <AuthShell heading="Nova senha">
-      <form action={redefinirSenha}>
-        <p className="mb-5 text-center text-xs text-text-subtle">
-          Defina sua nova senha de acesso.
+      <form action={redefinirSenha} className="pt-[24px]">
+        <p className="mb-[24px] text-[14px] leading-[22px] text-[#5B5F65]">
+          Defina sua nova senha de acesso. Mínimo de 6 caracteres.
         </p>
 
-        {error && (
-          <p className="mb-4 rounded-menuzia bg-danger-bg px-3 py-2 text-xs text-danger">
-            {error}
-          </p>
-        )}
+        {error && <p role="alert" className={authAviso.erro}>{error}</p>}
 
         <input
           name="senha"
@@ -40,7 +36,7 @@ export default async function RedefinirSenhaPage({
           minLength={6}
           placeholder="Nova senha"
           aria-label="Nova senha"
-          className={`mb-3 ${authInput}`}
+          className={authInput}
         />
 
         <input
@@ -51,10 +47,10 @@ export default async function RedefinirSenhaPage({
           minLength={6}
           placeholder="Confirmar nova senha"
           aria-label="Confirmar nova senha"
-          className={`mb-5 ${authInput}`}
+          className={`mt-[24px] ${authInput}`}
         />
 
-        <button type="submit" className={authButton}>
+        <button type="submit" className={`mt-[40px] ${authButton}`}>
           Salvar nova senha
         </button>
       </form>
