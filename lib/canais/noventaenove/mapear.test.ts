@@ -42,12 +42,38 @@ describe('mapearPedido99', () => {
     expect(p.observacao).toContain('1152921547153933576')
   })
 
-  it('dinheiro com troco, entregador da 99, com desconto', () => {
-    const p = mapearPedido99({ ...base, pay_type: 2, change_for: 5000, delivery_type: 1, price: { ...base.price, items_discount: 300, real_pay_price: 2200 } })
+  it('dinheiro com troco, entrega da loja, com desconto: a loja cobra o cliente', () => {
+    const p = mapearPedido99({ ...base, pay_type: 2, change_for: 5000, price: { ...base.price, items_discount: 300, real_pay_price: 2200, customer_need_paying_money: 2200 } })
     expect(p.pagamento).toMatchObject({ prepago: false, forma: 'dinheiro', trocoPara: 50 })
-    expect(p.entregaPor).toBe('app')
+    expect(p.entregaPor).toBe('loja')
     expect(p.desconto).toBe(3)
     expect(p.total).toBe(22)
+  })
+
+  // Roteiro de homologação da 99Food (checklist): com entrega da 99 a loja recebe tudo online, mesmo se o cliente pagou
+  // em dinheiro ao entregador — o pedido é sempre pago, sem valor pendente. E o preço vem no "modelo 1": sem
+  // real_pay_price/delivery_price (antes o total saía R$ 0 e o desconto, o pedido inteiro).
+  it('entregador da 99 (preço modelo 1, cliente em dinheiro): pago, sem troco, total = itens − desconto', () => {
+    const p = mapearPedido99({ ...base, pay_type: 2, change_for: 5000, delivery_type: 1, price: { order_price: 2000, items_discount: 300, delivery_discount: 0, shop_paid_money: 0, refund_price: 0 } })
+    expect(p.entregaPor).toBe('app')
+    expect(p.pagamento).toMatchObject({ prepago: true, forma: 'pix', trocoPara: null })
+    expect(p.pagamento.descricao).toContain('Pago no app 99Food')
+    expect(p.subtotal).toBe(20)
+    expect(p.taxaEntrega).toBe(0)
+    expect(p.desconto).toBe(3)
+    expect(p.total).toBe(17)
+  })
+
+  it('desconto separado entre loja e 99Food na observação (vai no recibo)', () => {
+    const p = mapearPedido99({ ...base, promotions: [{ promo_type: 2, promo_discount: 400, shop_subside_price: 400 }, { promo_type: 11, promo_discount: 250, shop_subside_price: 0 }] })
+    expect(p.observacao).toContain('desconto pago pela loja R$ 4,00')
+    expect(p.observacao).toContain('desconto pago pela 99Food R$ 2,50')
+    expect(mapearPedido99(base).observacao).not.toContain('desconto pago')
+  })
+
+  it('CEP vem em postal_code (nome da documentação)', () => {
+    const { postalCode: _, ...semCamel } = base.receive_address
+    expect(mapearPedido99({ ...base, receive_address: { ...semCamel, postal_code: '29101-220' } }).endereco?.cep).toBe('29101220')
   })
 
   it('dinheiro com entregador da 99: valor que o entregador adianta à loja vai na observação', () => {

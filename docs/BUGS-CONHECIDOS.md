@@ -137,3 +137,12 @@ checagem B-n** no script.
 - **Como evitar:** toda escrita em duas etapas desfaz a primeira se a segunda falhar (aqui: apaga o pedido e devolve
   as reservas). O ideal futuro é uma RPC única, como `comanda_lancar` do PDV.
 - **Teste:** `lib/queries/pedido-itens-falha.test.ts`.
+
+## Pedido 99Food com entregador da 99 entrava com total R$ 0 e "a receber" · 26/10/2026 · teste
+
+- **Onde:** `mapearPedido99` (`lib/canais/noventaenove/mapear.ts`).
+- **Causa:** com entrega da 99 a 99Food manda o preço no "modelo 1" (sem `real_pay_price`/`delivery_price`); o total
+  virava 0 e o desconto, o pedido inteiro. E dinheiro com entregador da 99 ficava "a receber", mas o roteiro de
+  homologação manda tratar como pago (a loja recebe online). O CEP era lido de `postalCode` (a doc usa `postal_code`).
+- **Como evitar:** testar os DOIS fluxos de entrega (loja e 99) com o JSON de exemplo da doc de cada modelo de preço.
+- **Teste:** `lib/canais/noventaenove/mapear.test.ts`.
