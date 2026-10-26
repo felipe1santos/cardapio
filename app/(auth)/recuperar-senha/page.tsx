@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { MSG_RECUPERACAO_ENVIADA } from '@/lib/auth/mensagens-acesso'
-import { AuthShell, authAviso, authButton, authInput, authLink } from '@/components/auth/auth-shell'
+import { AuthShell, authAviso, authButton, authInput, authLabel, authLink } from '@/components/auth/auth-shell'
 import { solicitarTroca } from './actions'
 
 const ERROS_CONHECIDOS: Record<string, string> = {
@@ -35,17 +35,18 @@ export default async function RecuperarSenhaPage({
           <form action={solicitarTroca}>
             {error && <p role="alert" className={authAviso.erro}>{ERROS_CONHECIDOS[error] ?? error}</p>}
 
+            <label htmlFor="recuperar-email" className={authLabel}>E-mail</label>
             <input
+              id="recuperar-email"
               name="email"
               type="email"
               required
               autoComplete="email"
-              placeholder="E-mail"
-              aria-label="E-mail"
+              placeholder="seu@email.com"
               className={authInput}
             />
 
-            <button type="submit" className={`mt-[24px] ${authButton}`}>
+            <button type="submit" className={`mt-[28px] ${authButton}`}>
               Enviar link
             </button>
           </form>

@@ -1,8 +1,6 @@
-import Link from 'next/link'
 import { AuthShell, authLink } from '@/components/auth/auth-shell'
 import { LoginCartao } from '@/components/auth/login-cartao'
-import { entrarComGoogle, signIn } from './actions'
-import { googleLigado } from '@/lib/auth/google'
+import { signIn } from './actions'
 
 const ERROR_MESSAGES: Record<string, string> = {
   pendente: 'Seu cadastro ainda não foi concluído. Acesse o link de primeiro acesso enviado pela Menuzia.',
@@ -26,27 +24,21 @@ export default async function LoginPage({
   const voltar = typeof next === 'string' && next.startsWith('/motoboy') ? next : null
   const errorMessage = error ? ERROR_MESSAGES[error] ?? error : null
   const noticeMessage = notice ? NOTICE_MESSAGES[notice] ?? null : null
-  // Escondido até o provedor Google ser ligado no Supabase (o motoboy entra só com login e senha).
-  const comGoogle = !voltar && (await googleLigado())
 
+  // Layout da imagem-modelo do dono (26/10): sem o botão do Google na tela.
   return (
     <AuthShell
-      heading="Entrar"
-      subtitulo="Bem-vindo de volta! Entre para continuar."
+      heading="Bem-vindo de volta!"
+      subtitulo="Acesse sua conta para continuar."
       rodape={
         <>
-          Não tem uma conta? <Link href="/cadastro" className={authLink}>Cadastre-se</Link>
+          Ainda não tem uma conta?
+          <br />
+          <a href="https://menuzia.com.br" className={authLink}>Conheça o Menuzia</a>
         </>
       }
     >
-      <LoginCartao
-        signIn={signIn}
-        entrarComGoogle={entrarComGoogle}
-        comGoogle={comGoogle}
-        voltar={voltar}
-        aviso={noticeMessage}
-        erro={errorMessage}
-      />
+      <LoginCartao signIn={signIn} voltar={voltar} aviso={noticeMessage} erro={errorMessage} />
     </AuthShell>
   )
 }

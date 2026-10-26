@@ -14,6 +14,7 @@ const PASTAS = ['app', 'components', 'lib']
 export const FORA_DA_REGRA = [
   'components/admin/qr-cardapio-folha.tsx',
   'lib/previa-loja.ts', // imagem de compartilhamento (não é tela)
+  'components/auth/auth-shell.tsx', // telas de acesso: imagem-modelo do dono (26/10/2026) usa 700/800
   ...DESPACHO_DE_ROTAS(),
 ]
 function DESPACHO_DE_ROTAS(): string[] {

@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { AuthShell, authAviso, authButton, authInput } from '@/components/auth/auth-shell'
+import { AuthShell, authAviso, authButton, authInput, authLabel } from '@/components/auth/auth-shell'
 import { getServerSupabase } from '@/lib/supabase/server'
 import { redefinirSenha } from './actions'
 
@@ -25,29 +25,29 @@ export default async function RedefinirSenhaPage({
 
         {error && <p role="alert" className={authAviso.erro}>{error}</p>}
 
+        <label htmlFor="nova-senha" className={authLabel}>Nova senha</label>
         <input
+          id="nova-senha"
           name="senha"
           type="password"
           autoComplete="new-password"
           required
           minLength={6}
-          placeholder="Nova senha"
-          aria-label="Nova senha"
           className={authInput}
         />
 
+        <label htmlFor="confirmar-senha" className={`mt-[20px] ${authLabel}`}>Confirmar nova senha</label>
         <input
+          id="confirmar-senha"
           name="confirmarSenha"
           type="password"
           autoComplete="new-password"
           required
           minLength={6}
-          placeholder="Confirmar nova senha"
-          aria-label="Confirmar nova senha"
-          className={`mt-[16px] ${authInput}`}
+          className={authInput}
         />
 
-        <button type="submit" className={`mt-[24px] ${authButton}`}>
+        <button type="submit" className={`mt-[28px] ${authButton}`}>
           Salvar nova senha
         </button>
       </form>

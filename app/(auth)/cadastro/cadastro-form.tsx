@@ -21,7 +21,7 @@ function CheckVerde() {
 
 function Spinner() {
   return (
-    <span className="block h-4 w-4 animate-spin rounded-full border-2 border-[#FA5A00]/25 border-t-[#FA5A00]" />
+    <span className="block h-4 w-4 animate-spin rounded-full border-2 border-[#0F0F14]/20 border-t-[#0F0F14]" />
   )
 }
 

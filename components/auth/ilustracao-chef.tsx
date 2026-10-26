@@ -1,108 +1,103 @@
 /**
- * Ilustração original da tela de acesso (26/10/2026): chef virando a frigideira sobre o fogo,
- * cores chapadas sobre o painel azul. Desenho próprio, sem licença de terceiros.
+ * Ilustração original da tela de acesso (26/10/2026): chef com a concha erguida e a frigideira
+ * sobre o fogo, cores chapadas sobre o painel amarelo. Desenho próprio, sem licença de terceiros.
  */
 
-const N = '#0B2A45' // marinho
-const D = '#071A2E' // marinho escuro
-const W = '#F4F5F7' // branco do dólmã
-const W2 = '#D5DEE8' // sombra do branco
-const S = '#F3C6A5' // pele
-const S2 = '#E2A887' // sombra da pele
-const C = '#E0104A' // chama
-const Y = '#F5B400' // miolo da chama / queijo
-const O = '#FA5A00' // lenço (laranja da marca)
+const N = '#13233A' // marinho (punhos, botões, frigideira)
+const D = '#0B1626' // marinho escuro
+const W = '#FFFFFF' // dólmã
+const W2 = '#E4E8EF' // sombra do branco
+const S = '#F6C9A6' // pele
+const S2 = '#E5A985' // sombra da pele
+const H = '#8E1B12' // cabelo
+const M = '#3E140C' // bigode e sobrancelha
+const R = '#F50A36' // lenço
+const F = '#FD5B07' // chama
+const F2 = '#FFB21A' // miolo da chama
+const B = '#FDF3D9' // mancha creme
 
 export function IlustracaoChef({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 640 560" className={className} role="img" aria-label="Chef virando a frigideira sobre o fogo">
+    <svg viewBox="0 0 640 520" className={className} role="img" aria-label="Chef com a concha erguida e a frigideira no fogo">
+      {/* mancha creme */}
+      <path
+        d="M96 300c-30-92 40-176 140-196 70-14 104-60 186-56 104 6 170 92 150 190-12 60 22 92 4 150-24 78-120 104-214 96-70-6-104 22-170 8C108 476 118 370 96 300z"
+        fill={B}
+        opacity="0.75"
+      />
+
       {/* vapor */}
-      <g fill="none" stroke={W} strokeLinecap="round" strokeWidth="9" opacity="0.9">
-        <path d="M470 175c-22-20 14-34-6-58s12-36 2-54" />
-        <path d="M528 205c-16-14 12-26-2-44" strokeWidth="7" />
-        <path d="M424 200c-12-12 8-22-2-36" strokeWidth="6" />
+      <g fill="none" stroke={W} strokeLinecap="round" transform="translate(30 70)">
+        <path d="M486 236c-40-22 6-56-22-88-26-30 18-54 4-92" strokeWidth="16" />
+        <path d="M528 250c-20-16 10-34-6-56" strokeWidth="10" />
+        <path d="M440 238c-14-12 6-24-4-38" strokeWidth="8" />
       </g>
 
-      {/* trajetória dos ingredientes */}
-      <path d="M560 360c10-70-40-130-120-140" fill="none" stroke={W} strokeWidth="4" strokeLinecap="round" strokeDasharray="2 14" opacity="0.6" />
-
-      {/* ingredientes no ar */}
-      <g>
-        <path d="M466 228c0-26 22-40 46-40s46 14 46 40z" fill="#F0A04B" />
-        <g fill={W}>
-          <ellipse cx="490" cy="206" rx="4" ry="2.4" transform="rotate(-20 490 206)" />
-          <ellipse cx="512" cy="200" rx="4" ry="2.4" />
-          <ellipse cx="534" cy="208" rx="4" ry="2.4" transform="rotate(20 534 208)" />
-        </g>
-        <rect x="412" y="258" width="44" height="44" rx="4" fill={Y} transform="rotate(-18 434 280)" />
-        <ellipse cx="520" cy="292" rx="38" ry="12" fill="#7A4126" transform="rotate(10 520 292)" />
-        <circle cx="586" cy="252" r="17" fill={C} />
-        <circle cx="586" cy="252" r="10" fill="none" stroke="#FF6B8E" strokeWidth="3" />
-      </g>
-
-      {/* fogão e bancada */}
-      <rect x="400" y="470" width="176" height="30" rx="4" fill={D} />
-      <rect x="40" y="498" width="560" height="8" rx="4" fill={N} />
+      {/* fogão */}
+      <path d="M424 474h184v18H424z" fill={D} />
+      <path d="M440 462h152v12H440z" fill={N} />
 
       {/* fogo */}
       <path
-        d="M426 472c-14-30 8-46 14-72 9 20 17 24 21 10 4-16 7-28 18-44 4 26 19 31 25 16 8 16 16 28 10 50 11-6 16-16 19-28 15 26 15 52 4 68z"
-        fill={C}
+        d="M446 462c-16-28 6-48 14-74 8 20 18 24 22 8 4-18 8-32 22-50 4 30 20 34 26 16 10 18 18 32 10 56 12-8 18-20 22-32 16 30 14 58 2 76z"
+        fill={F}
       />
-      <path d="M452 472c-6-18 6-26 10-42 7 12 13 15 17 2 6 13 18 18 17 3 12 15 14 27 7 37z" fill={Y} />
+      <path d="M474 462c-8-18 6-28 10-44 8 12 14 16 18 2 8 14 20 20 18 4 12 16 14 28 8 38z" fill={F2} />
 
-      {/* frigideira, inclinada no movimento */}
-      <g transform="rotate(-10 488 392)">
-        <path d="M300 410l104-30 4 12-104 30z" fill={N} />
-        <circle cx="306" cy="417" r="5" fill={Y} />
-        <path d="M404 380h168c-4 30-36 48-84 48s-80-18-84-48z" fill={N} />
-        <ellipse cx="488" cy="380" rx="84" ry="11" fill={D} />
-        <ellipse cx="488" cy="379" rx="74" ry="7" fill="#12385A" />
+      {/* frigideira com a comida saltando */}
+      <g transform="rotate(-6 512 382)">
+        <path d="M318 404l110-28 4 13-110 28z" fill={N} />
+        <circle cx="326" cy="410" r="6" fill={F2} />
+        <path d="M426 374h176c-4 32-38 52-88 52s-84-20-88-52z" fill={N} />
+        <ellipse cx="514" cy="374" rx="88" ry="12" fill={D} />
+        <ellipse cx="514" cy="373" rx="78" ry="8" fill="#22344E" />
+        <path d="M470 362c10-14 26-16 36-6 10-12 30-10 38 4" fill="none" stroke={W} strokeWidth="9" strokeLinecap="round" />
       </g>
 
-      {/* chef — corpo */}
-      <path d="M146 500l12-118c4-34 34-52 70-52h34c28 4 40 26 38 58l-6 112z" fill={W} />
-      <path d="M146 500l12-118c3-24 18-40 40-48-18 22-24 52-24 84l-6 82z" fill={W2} />
-      <path d="M234 340c10 30 14 80 12 160" fill="none" stroke={W2} strokeWidth="4" />
+      {/* corpo */}
+      <path d="M150 520l14-138c4-36 36-56 74-56h34c30 4 44 28 42 62l-8 132z" fill={W} />
+      <path d="M150 520l14-138c3-26 20-44 44-52-20 24-26 56-26 90l-8 100z" fill={W2} />
+      <path d="M244 336c10 32 16 96 12 184" fill="none" stroke={W2} strokeWidth="4" />
       <g fill={N}>
-        <circle cx="252" cy="392" r="5.5" />
-        <circle cx="254" cy="432" r="5.5" />
-        <circle cx="280" cy="390" r="5.5" />
-        <circle cx="282" cy="430" r="5.5" />
+        <circle cx="262" cy="398" r="7" />
+        <circle cx="266" cy="446" r="7" />
+        <circle cx="294" cy="394" r="7" />
+        <circle cx="298" cy="442" r="7" />
       </g>
 
       {/* pescoço e lenço */}
-      <path d="M218 304h30v34h-30z" fill={S2} />
-      <path d="M210 334l52 2-24 30z" fill={O} />
+      <path d="M226 300h32v36h-32z" fill={S2} />
+      <path d="M212 330l62 4-30 30z" fill={R} />
+      <path d="M262 334l22 20-6 10-20-18z" fill={R} />
 
-      {/* braço erguido com a espátula */}
-      <path d="M232 372c22-34 52-60 88-78l12 20c-30 16-56 40-74 72z" fill={W} />
-      <path d="M232 372c14-22 30-40 48-56-10 20-16 40-18 62z" fill={W2} />
-      <path d="M318 292l18-10 10 18-18 10z" fill={N} />
-      <path d="M346 292l42-34" stroke={N} strokeWidth="7" strokeLinecap="round" />
-      <path d="M380 252l22-24 16 14-22 24z" fill={N} />
-      <path d="M392 246l10-11M398 252l10-11" stroke="#12385A" strokeWidth="3" strokeLinecap="round" />
-      <circle cx="342" cy="296" r="13" fill={S} />
+      {/* braço erguido com a concha */}
+      <path d="M244 370c20-40 50-72 90-96l14 22c-34 20-62 50-82 88z" fill={W} />
+      <path d="M244 370c12-26 28-48 46-66-8 22-14 46-16 70z" fill={W2} />
+      <path d="M332 270l20-12 12 20-20 12z" fill={N} />
+      <path d="M362 268l58-44" stroke={N} strokeWidth="8" strokeLinecap="round" />
+      <path d="M414 210c10-12 30-12 38 0 8 12 0 28-16 30-18 2-30-16-22-30z" fill={N} />
+      <circle cx="358" cy="270" r="15" fill={S} />
 
       {/* cabeça */}
-      <circle cx="236" cy="276" r="42" fill={S} />
-      <ellipse cx="208" cy="284" rx="9" ry="12" fill={S2} />
-      <path d="M196 276c-4-30 18-42 44-40l-2 20c-14 0-24 10-28 34-8 2-13-4-14-14z" fill={N} />
-      <path d="M274 266c16 6 18 20 2 26z" fill={S} />
-      <path d="M250 268q8 7 16 0" fill="none" stroke={N} strokeWidth="3.5" strokeLinecap="round" />
-      <path d="M248 254l18-4" stroke={N} strokeWidth="4" strokeLinecap="round" />
-      <path d="M258 296c8-9 26-8 32 4-9-2-16 1-24 3-7 2-11-2-8-7z" fill={N} />
+      <circle cx="244" cy="268" r="46" fill={S} />
+      <ellipse cx="214" cy="276" rx="10" ry="13" fill={S2} />
+      <path d="M200 268c-4-32 20-46 48-44l-2 22c-16 0-26 12-30 36-9 2-15-4-16-14z" fill={H} />
+      <path d="M286 256c18 6 20 22 2 28z" fill={S} />
+      <circle cx="270" cy="282" r="7" fill="#F29B8B" opacity="0.6" />
+      <path d="M260 258q9 8 18 0" fill="none" stroke={D} strokeWidth="4" strokeLinecap="round" />
+      <path d="M256 244l20-5" stroke={M} strokeWidth="5" strokeLinecap="round" />
+      <path d="M266 290c9-10 30-9 36 5-10-3-18 1-27 4-8 2-13-3-9-9z" fill={M} />
 
       {/* chapéu */}
-      <path d="M196 252l74-14 4 22-74 14z" fill={W2} />
-      <path d="M198 252c-20-38-6-86 26-92 12-22 50-22 60 0 28 6 32 50-12 80z" fill={W} />
-      <path d="M232 170c4 24 6 44 4 72M260 166c6 22 8 42 6 66" fill="none" stroke={W2} strokeWidth="4" strokeLinecap="round" />
+      <path d="M198 240l82-16 5 24-82 16z" fill={W2} />
+      <path d="M200 242c-24-42-8-96 28-102 14-24 56-24 66 0 32 6 36 56-12 88z" fill={W} stroke={W2} strokeWidth="3" />
+      <path d="M238 150c4 26 6 48 4 78M270 146c6 24 8 46 6 72" fill="none" stroke={W2} strokeWidth="4" strokeLinecap="round" />
 
       {/* braço até o cabo */}
-      <path d="M262 342c26 0 42 18 54 52l6 16-24 10-14-32c-6-14-16-20-24-22z" fill={W} />
-      <path d="M296 420l24-14 7 13-24 14z" fill={N} />
-      <circle cx="324" cy="428" r="14" fill={S} />
-      <path d="M314 420c6-6 16-6 20 2" fill="none" stroke={S2} strokeWidth="3" strokeLinecap="round" />
+      <path d="M272 340c28 0 46 20 58 56l6 18-26 10-16-34c-6-16-16-22-26-24z" fill={W} />
+      <path d="M308 424l26-16 8 14-26 16z" fill={N} />
+      <circle cx="340" cy="420" r="15" fill={S} />
+      <path d="M330 412c6-6 18-6 22 2" fill="none" stroke={S2} strokeWidth="3" strokeLinecap="round" />
     </svg>
   )
 }

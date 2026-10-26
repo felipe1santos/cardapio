@@ -1,11 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useFormStatus } from 'react-dom'
 import Link from 'next/link'
-import { authAviso, authButton, authCampo, authEntrada, authLink } from './auth-shell'
+import { authAviso, authButton, authCampo, authEntrada, authLabel } from './auth-shell'
 
-/** Formulário de login (usuário e senha; Google embaixo); a moldura é o AuthShell. */
+/** Formulário de login; a moldura é o AuthShell. */
+
+// "Lembrar de mim": guarda só o usuário/e-mail neste aparelho para vir preenchido (nunca a senha).
+const CHAVE_LEMBRAR = 'menuzia:login-usuario'
 
 function BotaoEntrar() {
   const { pending } = useFormStatus()
@@ -23,12 +26,12 @@ export function OlhoSenha({ visivel, alternar }: { visivel: boolean; alternar: (
       onClick={alternar}
       aria-label={visivel ? 'Esconder senha' : 'Mostrar senha'}
       aria-pressed={visivel}
-      className="ml-[8px] flex h-[28px] w-[28px] items-center justify-center rounded-full text-[#9AA3AF] hover:text-[#3B4553] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FA5A00]"
+      className="-mr-[8px] ml-[8px] flex h-[40px] w-[40px] items-center justify-center rounded-full text-[#3B3F4A] hover:bg-[#F3F4F6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F0F14]"
     >
-      <svg viewBox="0 0 24 24" className="h-[19px] w-[19px]" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <svg viewBox="0 0 24 24" className="h-[22px] w-[22px]" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" />
         <circle cx="12" cy="12" r="3" />
-        {!visivel && <path d="M4 20L20 4" />}
+        {visivel && <path d="M4 20L20 4" />}
       </svg>
     </button>
   )
@@ -36,21 +39,35 @@ export function OlhoSenha({ visivel, alternar }: { visivel: boolean; alternar: (
 
 export function LoginCartao({
   signIn,
-  entrarComGoogle,
-  comGoogle,
   voltar,
   aviso,
   erro,
 }: {
   signIn: (formData: FormData) => Promise<void>
-  entrarComGoogle: () => Promise<void>
-  comGoogle: boolean
   voltar: string | null
   aviso: string | null
   erro: string | null
 }) {
   const [usuario, setUsuario] = useState('')
   const [verSenha, setVerSenha] = useState(false)
+  const [lembrar, setLembrar] = useState(false)
+
+  useEffect(() => {
+    try {
+      const salvo = localStorage.getItem(CHAVE_LEMBRAR)
+      if (salvo) {
+        setUsuario(salvo)
+        setLembrar(true)
+      }
+    } catch {}
+  }, [])
+
+  function aoEnviar() {
+    try {
+      if (lembrar && usuario.trim()) localStorage.setItem(CHAVE_LEMBRAR, usuario.trim())
+      else localStorage.removeItem(CHAVE_LEMBRAR)
+    } catch {}
+  }
 
   return (
     <>
@@ -62,78 +79,59 @@ export function LoginCartao({
       {aviso && <p className={authAviso.ok}>{aviso}</p>}
       {erro && <p role="alert" className={authAviso.erro}>{erro}</p>}
 
-      <form action={signIn}>
+      <form action={signIn} onSubmit={aoEnviar}>
         {voltar && <input type="hidden" name="next" value={voltar} />}
-        <label className={authCampo}>
+
+        <label htmlFor="login-usuario" className={authLabel}>E-mail ou usuário</label>
+        <div className={authCampo}>
           <input
+            id="login-usuario"
             name="email"
             type="text"
             autoComplete="username"
+            autoCapitalize="none"
+            spellCheck={false}
             required
             value={usuario}
             onChange={e => setUsuario(e.target.value)}
-            placeholder="Usuário ou e-mail"
-            aria-label="Usuário ou e-mail"
+            placeholder="seu@email.com"
             className={authEntrada}
           />
-          {usuario && (
-            <button
-              type="button"
-              onClick={() => setUsuario('')}
-              aria-label="Limpar usuário"
-              className="ml-[8px] flex h-[28px] w-[28px] items-center justify-center rounded-full text-[#9AA3AF] hover:text-[#3B4553] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FA5A00]"
-            >
-              <svg viewBox="0 0 16 16" className="h-[14px] w-[14px]" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-                <path d="M3.5 3.5l9 9M12.5 3.5l-9 9" strokeLinecap="round" />
-              </svg>
-            </button>
-          )}
-        </label>
+        </div>
 
-        <label className={`mt-[16px] ${authCampo}`}>
+        <label htmlFor="login-senha" className={`mt-[20px] ${authLabel}`}>Senha</label>
+        <div className={authCampo}>
           <input
+            id="login-senha"
             name="password"
             type={verSenha ? 'text' : 'password'}
             autoComplete="current-password"
             required
-            placeholder="Senha"
-            aria-label="Senha"
+            placeholder="••••••••"
             className={authEntrada}
           />
           <OlhoSenha visivel={verSenha} alternar={() => setVerSenha(v => !v)} />
-        </label>
-
-        <div className="mt-[12px] flex justify-end">
-          <Link href="/recuperar-senha" className={`text-[13px] ${authLink}`}>Esqueceu a senha?</Link>
         </div>
 
-        <div className="mt-[24px]">
+        <div className="mt-[16px] flex items-center justify-between gap-[12px]">
+          <label className="flex cursor-pointer items-center gap-[10px] text-[15px] text-[#3B3F4A]">
+            <input
+              type="checkbox"
+              checked={lembrar}
+              onChange={e => setLembrar(e.target.checked)}
+              className="h-[20px] w-[20px] cursor-pointer rounded-[4px] border-[#C5CAD3] accent-[#0F0F14]"
+            />
+            Lembrar de mim
+          </label>
+          <Link href="/recuperar-senha" className="text-[15px] font-medium text-[#0F0F14] underline underline-offset-[3px] hover:text-[#3B3F4A]">
+            Esqueci minha senha
+          </Link>
+        </div>
+
+        <div className="mt-[28px]">
           <BotaoEntrar />
         </div>
       </form>
-
-      {comGoogle && (
-        <form action={entrarComGoogle}>
-          <div className="my-[24px] flex items-center gap-[12px] text-[13px] text-[#9AA3AF]">
-            <span className="h-px flex-1 bg-[#E3E7ED]" />
-            ou entre com
-            <span className="h-px flex-1 bg-[#E3E7ED]" />
-          </div>
-          <button
-            type="submit"
-            data-testid="login-google"
-            className="flex h-[52px] w-full items-center justify-center gap-[10px] rounded-[10px] border border-[#E3E7ED] bg-white text-[15px] font-medium text-[#1B2430] transition-colors hover:bg-[#F6F8FA] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FA5A00]"
-          >
-            <svg viewBox="0 0 48 48" className="h-[20px] w-[20px]" aria-hidden="true">
-              <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z" />
-              <path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" />
-              <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z" />
-              <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z" />
-            </svg>
-            Google
-          </button>
-        </form>
-      )}
     </>
   )
 }
