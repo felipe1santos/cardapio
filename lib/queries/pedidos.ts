@@ -1932,7 +1932,15 @@ export async function criarPedido(
   const { error: itensInsertError } = await admin.from('pedido_itens').insert(
     linhas.map((l) => ({ ...l, pedido_id: pedido.id }))
   )
-  if (itensInsertError) throw itensInsertError
+  if (itensInsertError) {
+    // Achado #1/#2 (26/10): pedido e itens são dois INSERTs. Sem os itens, o pedido não pode ficar: apaga (itens e
+    // uso de cupom saem junto, ON DELETE CASCADE) e devolve prêmio/cupom/cashback. Assim o reenvio com a mesma chave
+    // cria o pedido de novo, em vez de receber um pedido vazio como sucesso. A impressão já ignora pedido sem item.
+    const { error: apagarError } = await admin.from('pedidos').delete().eq('id', pedido.id)
+    if (apagarError) console.error(`[criarPedido] itens falharam e não consegui apagar o pedido ${pedido.id}:`, apagarError)
+    await devolverReservas()
+    throw itensInsertError
+  }
 
   if (cupomAplicado) {
     // O contador já subiu na reserva, antes do pedido. Aqui fica só o registro de QUEM

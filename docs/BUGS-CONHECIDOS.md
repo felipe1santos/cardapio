@@ -128,3 +128,12 @@ checagem B-n** no script.
 - **Como evitar:** em toda passagem condicional, grave o efeito só depois de saber que a passagem aconteceu; se não
   aconteceu, releia o estado e decida.
 - **Teste:** `lib/pagamentos/confirmar-corrida.test.ts` (simula a corrida; falha sem a correção).
+
+## Pedido gravado sem itens quando a gravação dos itens falhava · 26/10/2026 · teste
+
+- **Onde:** `criarPedido` (`lib/queries/pedidos.ts`), vitrine, mesa legada e IA.
+- **Causa:** pedido e itens são dois INSERTs; falha no segundo deixava o pedido vazio com prêmio/cupom/cashback
+  consumidos, e o reenvio com a mesma chave recebia esse pedido vazio como sucesso.
+- **Como evitar:** toda escrita em duas etapas desfaz a primeira se a segunda falhar (aqui: apaga o pedido e devolve
+  as reservas). O ideal futuro é uma RPC única, como `comanda_lancar` do PDV.
+- **Teste:** `lib/queries/pedido-itens-falha.test.ts`.
