@@ -139,7 +139,8 @@ export function PainelImpressao({ semTopo = false }: { semTopo?: boolean } = {})
   const rapido = !!pareando && !pareando.conectado
   useEffect(() => {
     void carregar()
-    const t = setInterval(() => void carregar(), rapido ? 2000 : 5000)
+    // Só com a tela visível (revisão de escala 26/10).
+    const t = setInterval(() => { if (document.visibilityState === 'visible') void carregar() }, rapido ? 2000 : 5000)
     return () => clearInterval(t)
   }, [carregar, rapido])
 

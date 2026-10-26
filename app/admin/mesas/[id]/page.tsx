@@ -239,7 +239,8 @@ export default function MesaDetalhePage() {
   // não existe seleção — o polling seria uma consulta a cada 5s para nunca achar nada.
   useEffect(() => {
     if (somenteVisualizacao) return
-    const t = setInterval(() => void recarregarSelecao(), 5000)
+    // Só com a tela visível (revisão de escala 26/10).
+    const t = setInterval(() => { if (document.visibilityState === 'visible') void recarregarSelecao() }, 5000)
     return () => clearInterval(t)
   }, [recarregarSelecao, somenteVisualizacao])
 

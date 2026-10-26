@@ -8,6 +8,7 @@ import { adicionarNaSelecao } from '@/lib/selecao-mesa'
 import { precificarLinha, type ItemPrecificavel, type OpcaoDaLinha, type PizzaDaLoja, type TipoOpcao } from '@/lib/selecao-preco'
 import { tamanhosVendidosDaPizza } from '@/lib/pizza-tamanhos'
 import { saboresDoTamanho } from '@/lib/pizza-sabores'
+import { useLeituraPeriodica } from '@/lib/leitura-periodica'
 
 /**
  * Cardápio presencial da mesa.
@@ -226,7 +227,8 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens, pizza, ca
     if (somenteVisualizacao) return
     dispositivo.current = idDoDispositivo()
     void lerDoServidor()
-    const t = setInterval(() => void lerDoServidor(), 5000)
+    // Só com a tela visível (revisão de escala 26/10); ao voltar, lê na hora (aoVoltar).
+    const t = setInterval(() => { if (document.visibilityState === 'visible') void lerDoServidor() }, 5000)
     const aoVoltar = () => {
       if (document.visibilityState === 'visible') void lerDoServidor()
     }
@@ -692,11 +694,8 @@ function ChamarGarcom({ token }: { token: string }) {
     }
   }, [token])
 
-  useEffect(() => {
-    void ler()
-    const t = setInterval(() => void ler(), 10000)
-    return () => clearInterval(t)
-  }, [ler])
+  // A cada 10 s com a tela visível; escondida, pausa e lê ao voltar (revisão de escala 26/10).
+  useLeituraPeriodica(() => void ler(), 10000)
 
   const assumido = ativos.some((c) => c.status === 'assumido')
   const emEspera = ativos.length > 0

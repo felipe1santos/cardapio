@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { ArrowLeft, ArrowRightLeft, Ban, Check, ChevronRight, Clock, CreditCard, Minus, Plus, Printer, RotateCcw, Send, Settings2, UserCheck, Users, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -17,6 +17,7 @@ import { chamar, mascararTelefone } from '@/components/pdv/util'
 import { FotoItem } from '@/components/pdv/foto-item'
 import { MenuAcoesCelular } from '@/components/ui/menu-acoes-celular'
 import { comandaEsquecida, tempoAberta } from '@/lib/comanda-esquecida'
+import { useLeituraPeriodica } from '@/lib/leitura-periodica'
 
 /** A conta vista pelo PDV v2 (mesma rota do PDV): o fechamento completo mora lá. */
 interface ContaV2 {
@@ -106,12 +107,9 @@ export function useConta(mesaId: string) {
     setDados(corpo)
   }, [mesaId])
 
-  useEffect(() => {
-    void recarregar()
-    // Outro garçom pode receber pagamento ou cancelar item na mesma mesa.
-    const t = setInterval(() => void recarregar(), 5000)
-    return () => clearInterval(t)
-  }, [recarregar])
+  // Outro garçom pode receber pagamento ou cancelar item na mesma mesa. Só com a tela visível; ao voltar, lê na hora
+  // (revisão de escala 26/10).
+  useLeituraPeriodica(() => void recarregar(), 5000)
 
   const agir = useCallback(
     async (acao: string, corpo: Record<string, unknown> = {}) => {
