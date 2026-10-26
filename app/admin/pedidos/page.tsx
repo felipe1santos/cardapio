@@ -2,6 +2,8 @@
 
 import { Children, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRealtimeComFallback } from '@/lib/realtime-fallback'
+import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
+import { aplicarNoQuadro, criarColetorEventos, idsDoEvento, mesclarConcluidos, QUADRO_VAZIO, type LoteEventos, type Quadro } from '@/lib/kanban-quadro'
 import {
   type LucideIcon,
   Bell,
@@ -25,7 +27,7 @@ import {
   DoorOpen,
 } from 'lucide-react'
 import { PainelPedido } from '@/components/pedidos/painel-pedido'
-import { PEDIDO_SELECT, mapPedido } from '@/lib/queries/pedidos'
+import { PEDIDO_SELECT, buscarPedidosPorIds, mapPedido } from '@/lib/queries/pedidos'
 import { TopBar } from '@/components/layout/topbar'
 import { Badge } from '@/components/ui/badge'
 import { RotaPanel } from '@/components/pedidos/rota-panel'
@@ -71,6 +73,11 @@ import { ICONES } from '@/lib/icones-painel'
 import { pedidoLiberado, textoAgendado } from '@/lib/agendamento'
 import { avisoSemMotoboy } from '@/lib/motoboy/aviso'
 import { CarregandoPagina } from '@/components/admin/barra-carregamento'
+
+/** Janela que junta os eventos de um pedido (status, notificação, coordenadas…) numa busca só (achado #5). */
+const ESPERA_EVENTOS_MS = 400
+/** Acima disso, mais barato reler as listas do que buscar pedido a pedido. */
+const MAX_PEDIDOS_POR_EVENTO = 25
 
 function inicioDoDiaISO() {
   const d = new Date()
@@ -492,55 +499,136 @@ export default function PedidosPage() {
     })
   }
 
+  // Achado #5 (25/10): o evento não relê mais o quadro inteiro. As quatro listas ficam também numa ref para o pedido que
+  // mudou ser encaixado sobre o estado mais recente; recargas e encaixes rodam em fila, um de cada vez, para uma resposta
+  // antiga nunca sobrescrever uma nova.
+  const quadroRef = useRef<Quadro>(QUADRO_VAZIO)
+  const filaRef = useRef<Promise<void>>(Promise.resolve())
+  // Maior `atualizado_em` dos concluídos da última leitura (lista ou delta): o relógio só baixa o que mudou depois.
+  const ultimoConcluidoRef = useRef<string | null>(null)
+  const aplicarQuadro = useCallback((q: Quadro) => {
+    quadroRef.current = q
+    setOrders(q.orders)
+    setAgendados(q.agendados)
+    setTransit(q.transit)
+    setConcluded(q.concluded)
+  }, [])
+  const naFila = useCallback((trabalho: () => Promise<void>) => {
+    const p = filaRef.current.then(trabalho, trabalho)
+    filaRef.current = p.catch(() => {})
+    return p
+  }, [])
+
+  const buscarCorridas = useCallback(async (id: string) => {
+    // Corridas da Lalamove: as ativas (de qualquer dia) e as de hoje (para o card concluído). Falha aqui não derruba o Kanban.
+    const corridasHoje = await supabase.from('entregas_provedor').select(ENTREGA_PROVEDOR_SELECT).eq('restaurante_id', id)
+      .or(`status.in.(${CORRIDA_ATIVA.join(',')}),criado_em.gte.${inicioDoDiaISO()}`).order('criado_em', { ascending: false }).limit(300)
+      .then((r) => (r.error ? [] : (r.data ?? []).map((l) => mapEntregaProvedor(l as Record<string, unknown>))), () => [] as EntregaProvedorLinha[])
+    // Uma corrida por pedido: a ativa vence; senão a mais recente (a lista vem da mais nova para a mais antiga).
+    const porPedido: Record<string, EntregaProvedorLinha> = {}
+    for (const c of corridasHoje) if (!porPedido[c.pedidoId] || (CORRIDA_ATIVA.includes(c.status) && !CORRIDA_ATIVA.includes(porPedido[c.pedidoId].status))) porPedido[c.pedidoId] = c
+    setCorridas(porPedido)
+  }, [supabase])
+
+  const buscarSolicitacoes = useCallback(async (id: string) => {
+    // Solicitações pendentes do cliente (uma por pedido). Falha aqui não derruba o Kanban.
+    const { data: sols } = await supabase.from('pedido_solicitacoes').select(SOLICITACAO_SELECT).eq('restaurante_id', id).eq('status', 'pendente').limit(100)
+    setSolicitacoes(Object.fromEntries(((sols ?? []) as Record<string, unknown>[]).map(mapSolicitacaoCard).map((s) => [s.pedidoId, s])))
+  }, [supabase])
+
+  /** Recarga das listas. `concluidosDelta` (relógio): dos concluídos, só os que mudaram desde a última leitura. */
   const refetch = useCallback(
-    async (id: string) => {
+    (id: string, opcoes?: { concluidosDelta?: boolean }) => naFila(async () => {
       const seq = ++refetchSeq.current
       try {
-        // eslint-disable-next-line prefer-const
-        let [kanban, logistica, finalizados, corridasHoje] = await Promise.all([
+        const inicio = inicioDoDiaISO()
+        const ultimo = ultimoConcluidoRef.current
+        // Margem de 2 min: transação gravada um pouco depois do próprio `atualizado_em` não escapa do delta.
+        const desdeDelta = opcoes?.concluidosDelta && ultimo ? new Date(Date.parse(ultimo) - 120_000).toISOString() : null
+        const desdeConcluidos = desdeDelta && desdeDelta > inicio ? desdeDelta : inicio
+        const [kanban, logistica, finalizados] = await Promise.all([
           listarPedidosKanban(supabase, id),
           listarPedidosLogistica(supabase, id),
-          listarPedidosConcluidos(supabase, id, inicioDoDiaISO()),
-          // Corridas da Lalamove: as ativas (de qualquer dia) e as de hoje (para o card concluído). Falha aqui não derruba o Kanban.
-          supabase.from('entregas_provedor').select(ENTREGA_PROVEDOR_SELECT).eq('restaurante_id', id)
-            .or(`status.in.(${CORRIDA_ATIVA.join(',')}),criado_em.gte.${inicioDoDiaISO()}`).order('criado_em', { ascending: false }).limit(300)
-            .then((r) => (r.error ? [] : (r.data ?? []).map((l) => mapEntregaProvedor(l as Record<string, unknown>))), () => [] as EntregaProvedorLinha[]),
+          listarPedidosConcluidos(supabase, id, desdeConcluidos),
+          buscarCorridas(id),
         ])
         // uma chamada mais nova já começou e vai vencer — descarta esta resposta
         // desatualizada em vez de deixá-la sobrescrever o estado por último.
         if (seq !== refetchSeq.current) return
 
+        if (finalizados.length) ultimoConcluidoRef.current = finalizados.reduce((m, p) => (p.atualizadoEm > m ? p.atualizadoEm : m), finalizados[0].atualizadoEm)
+        else if (desdeConcluidos === inicio) ultimoConcluidoRef.current = null
+        const concluidos = desdeConcluidos === inicio ? finalizados : mesclarConcluidos(quadroRef.current.concluded, finalizados, inicio)
+
         const agora = new Date()
         const esperando = kanban.filter((p) => p.status === 'recebido' && !pedidoLiberado(p.agendadoPara, liberaMinRef.current, agora))
         const idsEsperando = new Set(esperando.map((p) => p.id))
-        kanban = kanban.filter((p) => !idsEsperando.has(p.id))
-        setAgendados(esperando.sort((a, b) => String(a.agendadoPara).localeCompare(String(b.agendadoPara))))
-        setOrders(kanban)
-        setTransit(logistica.filter((p) => p.status === 'em_rota'))
-        setConcluded(finalizados)
-        // Uma corrida por pedido: a ativa vence; senão a mais recente (a lista vem da mais nova para a mais antiga).
-        const porPedido: Record<string, EntregaProvedorLinha> = {}
-        for (const c of corridasHoje) if (!porPedido[c.pedidoId] || (CORRIDA_ATIVA.includes(c.status) && !CORRIDA_ATIVA.includes(porPedido[c.pedidoId].status))) porPedido[c.pedidoId] = c
-        setCorridas(porPedido)
-        // Solicitações pendentes do cliente (uma por pedido). Falha aqui não derruba o Kanban.
-        const { data: sols } = await supabase.from('pedido_solicitacoes').select(SOLICITACAO_SELECT).eq('restaurante_id', id).eq('status', 'pendente').limit(100)
-        if (seq !== refetchSeq.current) return
-        setSolicitacoes(Object.fromEntries(((sols ?? []) as Record<string, unknown>[]).map(mapSolicitacaoCard).map((s) => [s.pedidoId, s])))
-
+        const ativos = kanban.filter((p) => !idsEsperando.has(p.id))
+        aplicarQuadro({
+          orders: ativos,
+          agendados: esperando.sort((a, b) => String(a.agendadoPara).localeCompare(String(b.agendadoPara))),
+          transit: logistica.filter((p) => p.status === 'em_rota'),
+          concluded: concluidos,
+        })
+        await buscarSolicitacoes(id)
 
         // com o aceite automático ligado, agenda o avanço dos pedidos pendentes
-        agendarAutoAceite(kanban)
+        agendarAutoAceite(ativos)
       } catch {
         if (seq === refetchSeq.current) setError('Não foi possível carregar os pedidos.')
       }
-    },
-    [supabase, agendarAutoAceite]
+    }),
+    [supabase, agendarAutoAceite, naFila, aplicarQuadro, buscarCorridas, buscarSolicitacoes]
   )
+
+  /** Eventos juntados pelo coletor: busca só os pedidos que mudaram e encaixa cada um na coluna certa. */
+  const descarregarEventos = useCallback(
+    (id: string, lote: LoteEventos) => {
+      if (lote.completo) return refetch(id)
+      return naFila(async () => {
+        try {
+          const pedir = [...lote.alterados]
+          const vieram = await buscarPedidosPorIds(supabase, id, pedir)
+          const voltaram = new Set(vieram.map((p) => p.id))
+          // Pedido que não voltou saiu do alcance da tela (ex.: virou outra loja pela RLS): sai do quadro.
+          const removidos = [...lote.removidos, ...pedir.filter((pid) => !voltaram.has(pid))]
+          if (vieram.length || removidos.length) {
+            const q = aplicarNoQuadro(quadroRef.current, vieram, removidos, { agora: new Date(), liberaMin: liberaMinRef.current, inicioDia: inicioDoDiaISO() })
+            aplicarQuadro(q)
+            agendarAutoAceite(q.orders)
+          }
+          if (lote.corridas) await buscarCorridas(id)
+          if (lote.solicitacoes) await buscarSolicitacoes(id)
+        } catch {
+          // Falhou a busca curta: a recarga completa resolve (e mostra o erro, se também falhar).
+          void refetch(id)
+        }
+      })
+    },
+    [supabase, refetch, naFila, aplicarQuadro, agendarAutoAceite, buscarCorridas, buscarSolicitacoes]
+  )
+  const descarregarRef = useRef(descarregarEventos)
+  descarregarRef.current = descarregarEventos
+  const restauranteIdRef = useRef<string | null>(null)
+  restauranteIdRef.current = restauranteId
+  const coletorRef = useRef<ReturnType<typeof criarColetorEventos> | null>(null)
+  if (!coletorRef.current) {
+    coletorRef.current = criarColetorEventos({
+      esperaMs: ESPERA_EVENTOS_MS,
+      maxIds: MAX_PEDIDOS_POR_EVENTO,
+      descarregar: (lote) => { const id = restauranteIdRef.current; if (id) void descarregarRef.current(id, lote) },
+    })
+  }
+  useEffect(() => () => coletorRef.current?.cancelar(), [])
 
   // O alarme tem a própria fonte dos pedidos "recebido" (components/admin/alarme-global.tsx).
   useEffect(() => {
     ordersRef.current = orders
   }, [orders])
+  // As ações da tela (despachar, entregar, cancelar) mexem direto nas listas: o encaixe do próximo evento parte delas.
+  useEffect(() => {
+    quadroRef.current = { orders, agendados, transit, concluded }
+  }, [orders, agendados, transit, concluded])
 
   // Cleanup no unmount: timers do aceite automático (o alarme cuida de si em use-alarme).
   useEffect(() => {
@@ -620,17 +708,22 @@ export default function PedidosPage() {
       ],
       [restauranteId]
     ),
-    aoEvento: useCallback(() => { if (restauranteId) refetch(restauranteId) }, [refetch, restauranteId]),
+    // Achado #5: o evento entra no coletor (janela curta) e vira uma busca só dos pedidos que mudaram.
+    aoEvento: useCallback((payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
+      const coletor = coletorRef.current
+      if (!coletor) return
+      if (payload.table === 'entregas_provedor' || payload.table === 'pedido_solicitacoes') coletor.tabela(payload.table)
+      else coletor.pedido(idsDoEvento(payload))
+    }, []),
     aoSincronizar: useCallback(() => { if (restauranteId) refetch(restauranteId) }, [refetch, restauranteId]),
   })
 
   // Rede de segurança, não fonte primária: com o canal saudável basta um
-  // heartbeat lento; se ele cair, o poll volta ao ritmo antigo de 8s. Um refetch
-  // do Kanban custa ~30 KB num dia de pico, então manter os dois em 8s era
-  // repetir de graça o que o evento já tinha trazido.
+  // heartbeat lento; se ele cair, o poll volta ao ritmo antigo de 8s. Dos
+  // concluídos do dia (a maior parte do peso), o relógio só baixa o que mudou.
   useEffect(() => {
     if (!restauranteId) return
-    const interval = setInterval(() => refetch(restauranteId), intervaloMs)
+    const interval = setInterval(() => refetch(restauranteId, { concluidosDelta: true }), intervaloMs)
     return () => clearInterval(interval)
   }, [restauranteId, refetch, intervaloMs])
 

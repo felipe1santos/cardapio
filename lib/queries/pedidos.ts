@@ -377,6 +377,14 @@ export async function listarPedidosKanban(supabase: SupabaseClient, restauranteI
   return ((data ?? []) as unknown as PedidoRow[]).map(mapPedido)
 }
 
+/** Só os pedidos que mudaram (evento do Kanban, achado #5), no mesmo formato das listas. */
+export async function buscarPedidosPorIds(supabase: SupabaseClient, restauranteId: string, ids: string[]): Promise<Pedido[]> {
+  if (!ids.length) return []
+  const { data, error } = await supabase.from('pedidos').select(PEDIDO_SELECT).eq('restaurante_id', restauranteId).in('id', ids)
+  if (error) throw error
+  return ((data ?? []) as unknown as PedidoRow[]).map(mapPedido)
+}
+
 /**
  * Instante até o qual um agendado já está liberado para o fluxo (agora + minutos de
  * antecedência da loja, 0121). Agendado com horário depois disso ainda não aparece na
