@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useLeituraPeriodica } from '@/lib/leitura-periodica'
 import Link from 'next/link'
 import { ArrowRight, MessageCircleOff } from 'lucide-react'
 
@@ -11,16 +12,13 @@ import { ArrowRight, MessageCircleOff } from 'lucide-react'
  */
 export function AlertaWhatsapp() {
   const [a, setA] = useState<{ caiu: boolean; desde: string | null } | null>(null)
-  useEffect(() => {
-    let vivo = true
-    const ler = () => fetch('/api/admin/whatsapp/alerta', { cache: 'no-store' })
+  // A cada 60 s com a aba visível; escondida, pausa e lê ao voltar (revisão de escala 26/10). O cron segue vigiando.
+  useLeituraPeriodica(() => {
+    void fetch('/api/admin/whatsapp/alerta', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
-      .then((j) => { if (vivo) setA(j) })
+      .then((j) => setA(j))
       .catch(() => {})
-    void ler()
-    const t = setInterval(ler, 60_000)
-    return () => { vivo = false; clearInterval(t) }
-  }, [])
+  }, 60_000)
   if (!a?.caiu) return null
   const desde = a.desde ? new Date(a.desde).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null
   return (

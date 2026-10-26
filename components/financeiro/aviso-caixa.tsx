@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useLeituraPeriodica } from '@/lib/leitura-periodica'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { EVENTO_SAIR_CAIXA, sairDoPainel } from '@/lib/sessao-cliente'
 import { tempoAberto } from '@/lib/financeiro/caixa-regras'
@@ -17,15 +18,16 @@ import Link from 'next/link'
 export function AvisoCaixa() {
   const [e, setE] = useState<{ aberto: boolean; abertoPorNome: string | null; abertoEm: string | null; aAcertarCentavos?: number } | null>(null)
   const [, setTick] = useState(0)
+  const ler = useCallback(() => void fetch('/api/admin/financeiro/caixa?leve=1', { cache: 'no-store' })
+    .then(async (r) => setE(r.ok ? await r.json() : null)).catch(() => {}), [])
+  // Servidor: a cada 60 s com a aba visível; escondida, pausa e lê ao voltar (revisão de escala 26/10).
+  useLeituraPeriodica(ler, 60_000)
   useEffect(() => {
-    let vivo = true
-    const ler = () => void fetch('/api/admin/financeiro/caixa?leve=1', { cache: 'no-store' })
-      .then(async (r) => { if (vivo) setE(r.ok ? await r.json() : null) }).catch(() => {})
-    ler()
-    const i = window.setInterval(() => { ler(); setTick((x) => x + 1) }, 60_000)
+    // O "há X h" anda sozinho (sem requisição); mudança no caixa lê na hora.
+    const i = window.setInterval(() => setTick((x) => x + 1), 60_000)
     window.addEventListener('menuzia:caixa-mudou', ler)
-    return () => { vivo = false; window.clearInterval(i); window.removeEventListener('menuzia:caixa-mudou', ler) }
-  }, [])
+    return () => { window.clearInterval(i); window.removeEventListener('menuzia:caixa-mudou', ler) }
+  }, [ler])
   if (!e) return null
   const texto = e.aberto
     ? `Caixa aberto por ${e.abertoPorNome ?? '—'}${e.abertoEm ? ` · há ${tempoAberto(e.abertoEm)}` : ''}`

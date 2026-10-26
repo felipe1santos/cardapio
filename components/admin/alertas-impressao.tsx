@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useLeituraPeriodica } from '@/lib/leitura-periodica'
 import Link from 'next/link'
 import { AlertTriangle, ArrowRight, Printer } from 'lucide-react'
 
@@ -12,16 +13,13 @@ import { AlertTriangle, ArrowRight, Printer } from 'lucide-react'
  */
 export function AlertasImpressao() {
   const [a, setA] = useState<{ imprimirSozinhoDesligado: boolean; semAssistente: boolean } | null>(null)
-  useEffect(() => {
-    let vivo = true
-    const ler = () => fetch('/api/admin/impressao/alerta', { cache: 'no-store' })
+  // A cada 60 s com a aba visível; escondida, pausa e lê ao voltar (revisão de escala 26/10).
+  useLeituraPeriodica(() => {
+    void fetch('/api/admin/impressao/alerta', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
-      .then((j) => { if (vivo) setA(j) })
+      .then((j) => setA(j))
       .catch(() => {})
-    void ler()
-    const t = setInterval(ler, 60_000)
-    return () => { vivo = false; clearInterval(t) }
-  }, [])
+  }, 60_000)
   if (!a || (!a.semAssistente && !a.imprimirSozinhoDesligado)) return null
   const vermelho = a.semAssistente
   return (
