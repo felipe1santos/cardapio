@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { CABECALHO_SESSAO, lerSessaoAssinada, segredoDaSessao } from './sessao-assinada'
 
 export interface AppSession {
   userId: string
@@ -9,9 +10,25 @@ export interface AppSession {
   email?: string | null
 }
 
+/**
+ * Sessão já conferida pelo middleware nesta mesma requisição (egress, 26/10): cabeçalho interno assinado. Fora de
+ * requisição (scripts, testes sem Next) ou sem assinatura válida, devolve null e quem chama confere como sempre.
+ */
+async function sessaoDoMiddleware(): Promise<AppSession | null> {
+  try {
+    const { headers } = await import('next/headers')
+    return await lerSessaoAssinada((await headers()).get(CABECALHO_SESSAO), segredoDaSessao())
+  } catch {
+    return null
+  }
+}
+
 export async function getCurrentSession(
   supabase: SupabaseClient
 ): Promise<AppSession | null> {
+  const pronta = await sessaoDoMiddleware()
+  if (pronta) return pronta
+
   const {
     data: { user },
   } = await supabase.auth.getUser()

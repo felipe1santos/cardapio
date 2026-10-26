@@ -3,6 +3,7 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { decidirAcesso, ehRotaDoModuloMesas, superficie } from '@/lib/auth/rotas'
 import { caminhoPermitidoCompleto, normalizarAcessos, podeSensivel, primeiraTela, sensivelDaRequisicao, type Acessos } from '@/lib/acessos'
 import { corpoBloqueado, moduloDoCaminho } from '@/lib/modulos'
+import { assinarSessao, CABECALHO_SESSAO, segredoDaSessao, type SessaoAssinada } from '@/lib/auth/sessao-assinada'
 
 /**
  * Porteiro do painel. Esconder item do menu não protege nada: quem digita a URL entra.
@@ -47,13 +48,15 @@ export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
   let papel: string | null = null
   let acessos: Acessos | null = null
+  // Egress (26/10): o que foi conferido aqui segue para a rota assinado — getCurrentSession não repete getUser + `usuarios`.
+  let sessaoConferida: SessaoAssinada | null = null
 
   const { data: auth } = await supabase.auth.getUser()
   // Super Admin: aqui só renova a sessão (o cookie novo vai na resposta). Quem autoriza é a própria página
   // (SUPERADMIN_EMAILS); as regras de papel do painel não se aplicam.
   if (pathname === '/superadmin' || pathname.startsWith('/superadmin/')) return response
   if (auth.user) {
-    const { data, error } = await supabase.from('usuarios').select('papel, acessos').eq('id', auth.user.id).maybeSingle()
+    const { data, error } = await supabase.from('usuarios').select('papel, acessos, restaurante_id, nome').eq('id', auth.user.id).maybeSingle()
     if (error) {
       console.error('[middleware] não consegui ler o papel', error.message)
       // Falha de rede/banco, não de permissão. Numa PÁGINA, deixar passar é o menor mal:
@@ -76,6 +79,10 @@ export async function middleware(request: NextRequest) {
     }
     papel = (data?.papel as string | undefined) ?? null
     acessos = normalizarAcessos((data as { acessos?: unknown } | null)?.acessos)
+    const restauranteId = (data as { restaurante_id?: string | null } | null)?.restaurante_id
+    if (papel && restauranteId) {
+      sessaoConferida = { userId: auth.user.id, restauranteId, papel, nome: ((data as { nome?: string | null }).nome ?? '') as string, email: auth.user.email ?? null }
+    }
   }
 
   // Motoboy (10/10): nenhuma tela nem API do painel — só o app dele. Página → /motoboy; API → 403.
@@ -143,7 +150,17 @@ export async function middleware(request: NextRequest) {
     decisao = decidirAcesso(pathname, papel, !error && ligado === true)
   }
 
-  if (decisao.tipo === 'seguir') return response
+  if (decisao.tipo === 'seguir') {
+    // Cabeçalho interno: o que vier do navegador com esse nome é descartado; só vale o que este porteiro assina.
+    const segredo = segredoDaSessao()
+    const cabecalhos = new Headers(request.headers)
+    cabecalhos.delete(CABECALHO_SESSAO)
+    if (sessaoConferida && segredo) cabecalhos.set(CABECALHO_SESSAO, await assinarSessao(sessaoConferida, segredo))
+    const seguir = NextResponse.next({ request: { headers: cabecalhos } })
+    // Sessão renovada aqui: o cookie novo continua indo para o navegador.
+    for (const c of response.cookies.getAll()) seguir.cookies.set(c)
+    return seguir
+  }
 
   if (decisao.tipo === 'negar') {
     return NextResponse.json(
