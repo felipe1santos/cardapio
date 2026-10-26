@@ -3587,7 +3587,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 'lg:rounded-[12px] lg:border lg:border-[var(--v-borda)] lg:bg-white lg:p-3.5 lg:shadow-sm',
                 gavetaAtiva ? 'mt-3 rounded-[12px] border border-[var(--v-borda)] bg-white p-[12px] shadow-sm' : semCapa ? '' : 'lg:-mt-10',
               ].join(' ')}>
-                <div className="h-[64px] w-[64px] flex-shrink-0 overflow-hidden rounded-[14px] bg-[var(--v-placeholder)] ring-1 ring-black/[0.06] sm:h-[88px] sm:w-[88px] sm:rounded-[12px] lg:h-[96px] lg:w-[96px]">
+                <div className="h-[60px] w-[60px] flex-shrink-0 overflow-hidden rounded-[16px] bg-[var(--v-placeholder)] sm:h-[88px] sm:w-[88px] sm:rounded-[12px] lg:h-[96px] lg:w-[96px]">
                   {restaurante.logoUrl ? (
                     // Logo da loja fica acima da dobra em todos os breakpoints: sem lazy.
                     // eslint-disable-next-line @next/next/no-img-element
@@ -3598,46 +3598,49 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     </div>
                   )}
                 </div>
-                {/* Hierarquia (26/10/2026): nome em destaque → endereço → etiqueta de status (+ tempo/nota).
-                    Antes o status vinha acima do nome, em 11px, e o nome tinha o mesmo corpo de um item. */}
                 <div className="min-w-0 flex-1">
-                  <h1 className="line-clamp-2 text-[18px] font-semibold leading-[22px] tracking-[-0.01em] text-[var(--v-texto)] sm:text-[20px] sm:leading-[26px] lg:text-[24px] lg:leading-[30px]">{storeName}</h1>
+                  {/* Status ACIMA do nome, em texto puro — é o primeiro dado que
+                      o cliente procura ("ainda dá tempo de pedir?") e, como
+                      linha própria, ele lê antes mesmo do nome da loja.
+                      Aberta: verde, com o ponto pulsando. Fechada: vermelho,
+                      com a próxima abertura, sem pulsar — nada a acompanhar. */}
                   {/* Cabeçalho configurável (0214): o que a loja desligou em Perfil some, sem deixar buraco. */}
-                  {cab.endereco && (restaurante.bairro || restaurante.cidade) && (
-                    <p className="mt-[4px] flex min-w-0 items-center gap-[4px] text-[13px] leading-[18px] text-[var(--v-secundario)]">
-                      <MapPin className="h-[14px] w-[14px] flex-shrink-0" strokeWidth={2} aria-hidden="true" />
-                      <span className="truncate">{capitalizarTexto([restaurante.bairro, restaurante.cidade].filter(Boolean).join(', '))}</span>
-                    </p>
-                  )}
-                  {(cab.status || cab.tempo || (cab.avaliacao && restaurante.avaliacaoNota !== null && restaurante.avaliacaoQtd !== null)) && (
-                  <div className="mt-[8px] flex flex-wrap items-center gap-x-[10px] gap-y-[6px] text-[12px] leading-[16px]">
-                    {/* Aberta: verde, com o ponto pulsando. Fechada: vermelho, com a próxima abertura, sem pulsar. */}
-                    {!cab.status ? null : restaurante.lojaAberta ? (
-                      <span className="inline-flex items-center gap-[6px] rounded-full bg-[#E9F7EF] px-[8px] py-[3px] font-semibold text-[var(--v-aberto)]" data-testid="status-aberta">
-                        {/* Pontinho verde piscando suave (para com "reduzir movimento"). */}
-                        <span className="inline-flex h-[7px] w-[7px] flex-shrink-0 rounded-full bg-[var(--v-aberto)] [animation:ponto-aberta_1.6s_ease-in-out_infinite] motion-reduce:[animation:none]" />
-                        {restaurante.fechamentoHoraTexto ? `Aberta até ${restaurante.fechamentoHoraTexto}` : 'Aberta agora'}
-                      </span>
-                    ) : restaurante.somenteAgendado ? (
-                      <span className="inline-flex min-w-0 items-center gap-[6px] rounded-full bg-[var(--v-acao-bg)] px-[8px] py-[3px] font-semibold text-[var(--v-acao)]" data-testid="status-somente-agendado">
+                  {!cab.status ? null : restaurante.lojaAberta ? (
+                    <span className="mb-[2px] flex items-center gap-1.5 text-[11px] font-semibold leading-[16px] text-[var(--v-aberto)]" data-testid="status-aberta">
+                      {/* Pontinho verde piscando suave (para com "reduzir movimento"). */}
+                      <span className="inline-flex h-[7px] w-[7px] flex-shrink-0 rounded-full bg-[var(--v-aberto)] [animation:ponto-aberta_1.6s_ease-in-out_infinite] motion-reduce:[animation:none]" />
+                      {restaurante.fechamentoHoraTexto ? `Aberta até ${restaurante.fechamentoHoraTexto}` : 'Aberta agora'}
+                    </span>
+                  ) : restaurante.somenteAgendado ? (
+                    <span className="mb-[2px] flex flex-col text-[11px] font-semibold leading-[16px] text-[var(--v-acao)]" data-testid="status-somente-agendado">
+                      <span className="flex items-center gap-1.5">
                         <span className="h-[7px] w-[7px] flex-shrink-0 rounded-full bg-[var(--v-acao)]" />
-                        <span className="truncate">Só pedidos agendados{restaurante.abrimosTexto ? ` · ${restaurante.abrimosTexto}` : ''}</span>
+                        Somente pedidos agendados
                       </span>
-                    ) : (
-                      <span className="inline-flex min-w-0 items-center gap-[6px] rounded-full bg-[#FDECEC] px-[8px] py-[3px] font-semibold text-[#B91C1C]">
-                        <span className="h-[7px] w-[7px] flex-shrink-0 rounded-full bg-[#B91C1C]" />
-                        <span className="truncate">{/* Abertura no mesmo dia já vem como "Abre 18:30" (a pílula do rodapé usa
-                            assim); aqui o verbo é nosso, então tira o dele pra não virar "abre abre". */}
-                        {horarioTexto ? `Fechada · abre ${horarioTexto.toLowerCase().replace(/^abre\s+/, '')}` : 'Fechada agora'}</span>
-                      </span>
-                    )}
+                      {restaurante.abrimosTexto && <span className="truncate font-semibold text-[var(--v-secundario)]">{restaurante.abrimosTexto}</span>}
+                    </span>
+                  ) : (
+                    <span className="mb-[2px] flex items-center gap-1.5 text-[11px] font-semibold leading-[16px] text-[#B91C1C]">
+                      <span className="h-[7px] w-[7px] flex-shrink-0 rounded-full bg-[#B91C1C]" />
+                      <span className="truncate">{/* Abertura no mesmo dia já vem como "Abre 18:30" (a pílula do rodapé usa
+                          assim); aqui o verbo é nosso, então tira o dele pra não virar "abre abre". */}
+                      {horarioTexto ? `Fechada · abre ${horarioTexto.toLowerCase().replace(/^abre\s+/, '')}` : 'Fechada agora'}</span>
+                    </span>
+                  )}
+                  {/* 14/700 no celular: a referência mantém o nome da loja no
+                      mesmo corpo do nome dos produtos — quem escolhe onde pedir
+                      já escolheu; a tela agora é do cardápio. No desktop, onde
+                      sobra largura, ele volta a crescer. */}
+                  <h1 className="truncate text-[14px] font-semibold leading-[20px] text-[var(--v-texto)] sm:text-[20px] lg:text-[24px]">{storeName}</h1>
+                  {(cab.tempo || (cab.avaliacao && restaurante.avaliacaoNota !== null && restaurante.avaliacaoQtd !== null)) && (
+                  <div className="mt-[6px] flex items-center gap-[12px] text-[12px] font-medium text-petrol sm:text-[12.5px]">
                     {cab.tempo && (
-                      <span className="inline-flex flex-shrink-0 items-center gap-1 font-medium text-petrol">
-                        <Truck className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={2.5} /> 30–45 min
-                      </span>
+                    <span className="inline-flex flex-shrink-0 items-center gap-1">
+                      <Truck className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={2.5} /> 30–45 min
+                    </span>
                     )}
                     {cab.avaliacao && restaurante.avaliacaoNota !== null && restaurante.avaliacaoQtd !== null && (
-                      <span className="inline-flex flex-shrink-0 items-center gap-1 font-medium text-petrol">
+                      <span className="inline-flex flex-shrink-0 items-center gap-1">
                         <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 flex-shrink-0 fill-petrol"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
                         {formatarNota(restaurante.avaliacaoNota)}
                         <span className="font-medium text-text-subtle">({restaurante.avaliacaoQtd})</span>
@@ -3645,14 +3648,20 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     )}
                   </div>
                   )}
+                  {cab.endereco && (restaurante.bairro || restaurante.cidade) && (
+                    <p className="mt-[6px] truncate text-[12px] font-normal leading-[1.2] text-[var(--v-secundario)] sm:text-[12.5px]">
+                      📍 {capitalizarTexto([restaurante.bairro, restaurante.cidade].filter(Boolean).join(', '))}
+                    </p>
+                  )}
                 </div>
-                {/* Lado a lado e redondos, no topo do bloco: o nome agora quebra em duas linhas em vez de ser cortado. */}
-                <div className="flex flex-shrink-0 items-center gap-[8px] self-start">
+                {/* Empilhados no celular: lado a lado eles comiam a largura do
+                    nome da loja e cortavam o texto. */}
+                <div className="flex flex-shrink-0 flex-col items-center gap-1.5 sm:flex-row sm:gap-2">
                   <button
                     // Fechar pelo mesmo botão limpa o termo, igual ao × da barra:
                     // termo invisível seguiria filtrando o cardápio.
                     onClick={() => { if (searchOpen) setSearch(''); setSearchOpen(!searchOpen) }}
-                    className="flex h-[38px] w-[38px] items-center justify-center rounded-full border border-[var(--v-borda)] bg-white transition-colors hover:bg-[#F3F4F6] sm:h-10 sm:w-10"
+                    className="flex h-9 w-9 items-center justify-center rounded-md bg-[#F3F4F6] transition-colors hover:bg-border sm:h-10 sm:w-10"
                     aria-label="Buscar no cardápio"
                   >
                     <svg viewBox="0 0 24 24" className="h-[17px] w-[17px] flex-shrink-0 fill-text-subtle/70">
@@ -3661,7 +3670,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   </button>
                   <button
                     onClick={() => setInfoOpen(true)}
-                    className="flex h-[38px] w-[38px] items-center justify-center rounded-full border border-[var(--v-borda)] bg-white transition-colors hover:bg-[#F3F4F6] sm:h-10 sm:w-10"
+                    className="flex h-9 w-9 items-center justify-center rounded-md bg-[#F3F4F6] transition-colors hover:bg-border sm:h-10 sm:w-10"
                     aria-label="Informações da loja"
                   >
                     <svg viewBox="0 0 24 24" className="h-[17px] w-[17px] flex-shrink-0 fill-text-subtle/70">
