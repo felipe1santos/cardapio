@@ -173,6 +173,7 @@ export const ROTULO_EVENTO: Record<string, string> = {
   // Monitor do WhatsApp (0209, 20/10).
   'whatsapp.caiu': 'WhatsApp da loja desconectou sozinho (loja avisada)',
   'whatsapp.reconectado': 'WhatsApp da loja voltou (avisos pendentes reenviados)',
+  'whatsapp.conexao': 'WhatsApp da loja mudou de conexão (com o motivo da Evolution)',
   'whatsapp.retorno_automatico': 'Robô/IA voltou a atender (loja assumiu e não respondeu no prazo)',
   'pix_online.devolvido': 'Devolveu Pix online ao cliente',
   'pix_online.conta_conectada': 'Conectou a conta do Mercado Pago',
@@ -240,6 +241,7 @@ export const ROTULO_EVENTO: Record<string, string> = {
   'impressao.beta_retirado': 'Plataforma retirou a loja do piloto do Assistente Beta',
   // Painel da plataforma (superadmin), 2026-10-04 — também na auditoria da plataforma (0139).
   'plataforma.pre_cadastrou': 'Plataforma pré-cadastrou o cliente',
+  'plataforma.novo_link_convite': 'Plataforma gerou um link novo de convite',
   'plataforma.removeu_pre_cadastro': 'Plataforma removeu o pré-cadastro',
   'plataforma.bloqueou': 'Plataforma bloqueou o acesso da loja',
   'plataforma.desbloqueou': 'Plataforma desbloqueou o acesso da loja',
