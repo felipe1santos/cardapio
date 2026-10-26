@@ -187,6 +187,8 @@ export default function DashboardPage() {
     const precisa = desdeNecessario(intervalo)
     if (!precisaRecarregar(carregadoDesde, precisa)) return
     let ativo = true
+    // Ampliando o período: os números de antes valem só para a janela já carregada — mostra "carregando" (revisão 26/10).
+    if (carregadoDesde !== undefined) setLoading(true)
     carregarDashboard(supabase, restauranteId, precisa === null ? null : new Date(precisa).toISOString())
       .then((d) => { if (!ativo) return; setDados(d); setCarregadoDesde(precisa) })
       .catch(() => { if (ativo) setError('Não foi possível carregar o dashboard.') })
