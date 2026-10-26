@@ -12,6 +12,7 @@ import { avisarPainelPedidoNovo } from '@/lib/push/painel-pedidos'
 import { conferirAprovacao, type Aprovacao } from '@/lib/financeiro/caixa'
 import { avisarPixExpiradoIa } from '@/lib/agente-ia/avisos'
 import { textoPixParceiroPago } from '@/lib/entregas/parceiro-pix'
+import { acaoDaPendencia } from './pendencias'
 
 /**
  * Pix online (Mercado Pago) — núcleo. Plano: docs/pix-online/plano.md (aprovado em 2026-10-04).
@@ -519,7 +520,15 @@ export async function verificarPendentes(admin: SupabaseClient, opcoes: { limite
     if (r === 'confirmado') resumo.confirmadas++
     else if (r === 'a_devolver') resumo.a_devolver++
     else if (r === 'erro_api' || r === 'sem_conta') resumo.erros++
-    else if (r === 'pendente' && new Date(reg.expira_em).getTime() + 60_000 < agora) {
+    else if (acaoDaPendencia(r, reg.expira_em, agora) === 'expirar') {
+      // Cartão recusado e prazo vencido (26/10): recusado já é final no MP — só expira aqui, sem cancelar lá.
+      const { data: ped } = await admin.from('pedidos').select('id, status').eq('id', reg.pedido_id).single()
+      const { data: atual } = await admin.from('pagamentos_online').select('*').eq('id', reg.id).single()
+      if (ped?.status === 'aguardando_pagamento') await expirarPedido(admin, atual, ped)
+      else await admin.from('pagamentos_online').update({ status: 'cancelado' }).eq('id', reg.id).in('status', ['pendente', 'verificacao_pendente'])
+      resumo.expiradas++
+    }
+    else if (acaoDaPendencia(r, reg.expira_em, agora) === 'cancelar_no_mp_e_expirar') {
       // Venceu no MP e ainda "pendente" lá: cancela no MP e expira aqui.
       await comTokenDaLoja(admin, reg.restaurante_id, (t) => provedorMp().cancelar(t, reg.mp_payment_id)).catch(() => null)
       const de = await conferirPagamento(admin, reg.mp_payment_id, 'verificacao')

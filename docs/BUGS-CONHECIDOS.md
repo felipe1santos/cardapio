@@ -108,3 +108,14 @@ checagem B-n** no script.
 - **Como evitar:** antes de pôr algo em `setInterval`/cron/polling, contar requisições por minuto × lojas.
   Trava de "já fiz?" lida do banco a cada minuto custa o mesmo que o trabalho — junte numa consulta só ou guarde
   na memória do servidor.
+
+## Cartão online recusado preso em "pendente" para sempre · 26/10/2026 · teste
+
+- **Onde:** `verificarPendentes` (`lib/pagamentos/pix-online.ts`), cron do Pix a cada minuto.
+- **Causa:** cartão recusado (`rejected`) devolve `recusado` na conferência e o cron só expirava o que voltava
+  `pendente`. Três cobranças de teste de 12/10 foram conferidas ~19 mil vezes cada (1 chamada ao Mercado Pago por
+  minuto) e os pedidos ficaram em "aguardando pagamento".
+- **Como evitar:** todo resultado da conferência precisa de um destino depois do prazo — a regra fica em
+  `acaoDaPendencia` (`lib/pagamentos/pendencias.ts`).
+- **Teste:** `lib/pagamentos/pendencias.test.ts` e `lib/pagamentos/verificar-pendentes.test.ts` (cron inteiro com
+  banco em memória; falha sem a correção).
