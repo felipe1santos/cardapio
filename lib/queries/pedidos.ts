@@ -583,25 +583,31 @@ export async function listarEntregadores(supabase: SupabaseClient, restauranteId
   }
 
   const agora = Date.now()
-  return (data ?? []).map((d) => ({
-    id: d.id,
-    nome: d.nome,
-    telefone: d.telefone,
+  return (data ?? []).map((d) => mapEntregador(d, counts.get(d.id) ?? 0, agora))
+}
+
+/** Linha de `entregadores` → Entregador. Também usada para aplicar o evento do Realtime (achado #7). */
+export function mapEntregador(d: Record<string, unknown>, emRota: number, agora: number): Entregador {
+  const ultimo = (d.ultimo_acesso_em as string | null | undefined) ?? null
+  return {
+    id: d.id as string,
+    nome: d.nome as string,
+    telefone: d.telefone as string,
     status: d.status as StatusEntregador,
-    token: d.token,
-    emRota: counts.get(d.id) ?? 0,
-    online: !!d.ultimo_acesso_em && agora - new Date(d.ultimo_acesso_em).getTime() < ENTREGADOR_ONLINE_MS,
+    token: d.token as string,
+    emRota,
+    online: !!ultimo && agora - new Date(ultimo).getTime() < ENTREGADOR_ONLINE_MS,
     localizacao:
-      d.localizacao_lat === null || d.localizacao_lng === null
+      d.localizacao_lat === null || d.localizacao_lat === undefined || d.localizacao_lng === null || d.localizacao_lng === undefined
         ? null
         : { lat: Number(d.localizacao_lat), lng: Number(d.localizacao_lng), atualizadaEm: d.localizacao_atualizada_em as string },
-    fotoUrl: d.foto_url ?? null,
-    veiculo: d.veiculo ?? '',
-    placa: d.placa ?? '',
-    desativado: !!(d as { desativado_em?: string | null }).desativado_em,
-    temLogin: !!(d as { usuario_id?: string | null }).usuario_id,
-    ultimoAcessoEm: d.ultimo_acesso_em ?? null,
-  }))
+    fotoUrl: (d.foto_url as string | null | undefined) ?? null,
+    veiculo: (d.veiculo as string | null | undefined) ?? '',
+    placa: (d.placa as string | null | undefined) ?? '',
+    desativado: !!d.desativado_em,
+    temLogin: !!d.usuario_id,
+    ultimoAcessoEm: ultimo,
+  }
 }
 
 export interface PerfilEntregadorInput {

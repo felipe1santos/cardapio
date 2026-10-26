@@ -24,6 +24,7 @@ import { precisaPixAntes } from '@/lib/entregas/parceiro-pix'
 import { pedidoDeApp } from '@/lib/pedido-editavel'
 import { CORRIDA_ATIVA, ENTREGA_PROVEDOR_SELECT, mapEntregaProvedor, type EntregaProvedorLinha } from '@/lib/entregas/lalamove-status'
 import { useEventosPedidos } from '@/lib/realtime-pedidos'
+import { aplicarEventoEntregador } from '@/lib/entregadores-evento'
 
 // Milhar com ponto ("R$ 4.088,00"): função única do painel, ver lib/moeda.ts.
 const brl = formatarReal
@@ -124,6 +125,8 @@ function RotaPanelBase({ supabase, restauranteId, apiKey, onClose }: RotaPanelPr
   const [todos, setTodos] = useState<Pedido[]>([])
   const [pedidos, setPedidos] = useState<Pedido[]>([])
   const [drivers, setDrivers] = useState<Entregador[]>([])
+  const driversRef = useRef<Entregador[]>([])
+  driversRef.current = drivers
   const [ordem, setOrdem] = useState<string[]>([])
   const [marcados, setMarcados] = useState<Set<string>>(new Set())
   const [motoboyId, setMotoboyId] = useState<string | null>(null)
@@ -214,7 +217,12 @@ function RotaPanelBase({ supabase, restauranteId, apiKey, onClose }: RotaPanelPr
     if (supabase && restauranteId) {
       const channel = supabase
         .channel(`rota-panel-${restauranteId}`)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'entregadores', filter: `restaurante_id=eq.${restauranteId}` }, () => refetch())
+        // Heartbeat do motoboy (achado #7): aplica na linha dele (online e posição no mapa), sem reler tudo.
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'entregadores', filter: `restaurante_id=eq.${restauranteId}` }, (payload) => {
+          const r = aplicarEventoEntregador(driversRef.current, payload)
+          if (r.recarregar) refetch()
+          else { driversRef.current = r.lista; setDrivers(r.lista) }
+        })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'entregas_provedor', filter: `restaurante_id=eq.${restauranteId}` }, () => refetch())
         .subscribe()
       return () => {

@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRealtimeComFallback } from '@/lib/realtime-fallback'
+import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
+import { aplicarEventoEntregador } from '@/lib/entregadores-evento'
 import { Bike, ChevronDown, ChevronUp } from 'lucide-react'
 import { avisoDePedidosParados } from '@/lib/pedido-parado'
 import { TopBar } from '@/components/layout/topbar'
@@ -173,6 +175,8 @@ export default function PedidosFinalizadosPage() {
   const [orders, setOrders] = useState<Pedido[]>([])
   const [concluidos, setConcluidos] = useState<Pedido[]>([])
   const [drivers, setDrivers] = useState<Entregador[]>([])
+  const driversRef = useRef<Entregador[]>([])
+  driversRef.current = drivers
   const [closingOpen, setClosingOpen] = useState(false)
 
   const [linkDriver, setLinkDriver] = useState<Entregador | null>(null)
@@ -290,7 +294,15 @@ export default function PedidosFinalizadosPage() {
       const filtro = restauranteId ? `restaurante_id=eq.${restauranteId}` : undefined
       return [{ tabela: 'pedidos', filtro }, { tabela: 'entregadores', filtro }]
     }, [restauranteId]),
-    aoEvento: useCallback(() => { if (restauranteId) refetch(restauranteId) }, [refetch, restauranteId]),
+    aoEvento: useCallback((payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
+      if (!restauranteId) return
+      // Heartbeat do motoboy (achado #7): aplica na linha dele, sem reler pedidos e concluídos.
+      if (payload.table === 'entregadores') {
+        const r = aplicarEventoEntregador(driversRef.current, payload)
+        if (!r.recarregar) { driversRef.current = r.lista; setDrivers(r.lista); return }
+      }
+      refetch(restauranteId)
+    }, [refetch, restauranteId]),
     aoSincronizar: useCallback(() => { if (restauranteId) refetch(restauranteId) }, [refetch, restauranteId]),
   })
 
