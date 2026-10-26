@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Pedido } from './queries/pedidos'
-import { aplicarNoQuadro, criarColetorEventos, criarFila, idsDoEvento, mesclarConcluidos, QUADRO_VAZIO, type Quadro } from './kanban-quadro'
+import { aplicarNoQuadro, criarColetorEventos, criarFila, idsDoEvento, mesclarConcluidos, novosSemItens, QUADRO_VAZIO, type Quadro } from './kanban-quadro'
 
 describe('criarFila (recargas em fila, uma de cada vez)', () => {
   it('recargas completas pedidas enquanto outra ESPERA na fila viram uma só', async () => {
@@ -119,6 +119,14 @@ describe('aplicarNoQuadro', () => {
   })
 })
 
+describe('mesclarConcluidos: pedido que voltou para os ativos (revisão 26/10)', () => {
+  it('sai dos concluídos quando aparece entre os ativos', () => {
+    const atual = [p('a', { status: 'entregue', atualizadoEm: '2026-10-25T19:00:00.000Z' }), p('b', { status: 'entregue', atualizadoEm: '2026-10-25T19:10:00.000Z' })]
+    const r = mesclarConcluidos(atual, [], INICIO_DIA, new Set(['a']))
+    expect(ids(r)).toEqual(['b'])
+  })
+})
+
 describe('mesclarConcluidos (delta do relógio)', () => {
   it('troca por id, ordena do mais recente e larga o que é de antes de hoje', () => {
     const atual = [p('a', { status: 'entregue', atualizadoEm: '2026-10-25T19:00:00.000Z' }), p('velho', { status: 'entregue', atualizadoEm: '2026-10-24T23:00:00.000Z' })]
@@ -126,6 +134,13 @@ describe('mesclarConcluidos (delta do relógio)', () => {
     const r = mesclarConcluidos(atual, delta, INICIO_DIA)
     expect(ids(r)).toEqual(['a', 'b'])
     expect(r[0].total).toBe(99)
+  })
+})
+
+describe('novosSemItens (revisão 26/10)', () => {
+  it('pedido recebido que chegou sem itens é buscado de novo; os outros não', () => {
+    const lista = [p('p1', { status: 'recebido', itens: [] }), p('p2', { status: 'recebido', itens: [{} as Pedido['itens'][number]] }), p('p3', { status: 'preparando', itens: [] })]
+    expect(novosSemItens(lista)).toEqual(['p1'])
   })
 })
 

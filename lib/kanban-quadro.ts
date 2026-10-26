@@ -69,11 +69,17 @@ export function aplicarNoQuadro(q: Quadro, alterados: Pedido[], removidos: strin
 }
 
 /** Concluídos que mudaram desde a última leitura (relógio do Kanban) juntados aos que já estão na tela. */
-export function mesclarConcluidos(atual: Pedido[], delta: Pedido[], inicioDia: string): Pedido[] {
+export function mesclarConcluidos(atual: Pedido[], delta: Pedido[], inicioDia: string, idsAtivos: Set<string> = new Set()): Pedido[] {
   const porId = new Map(atual.map((p) => [p.id, p]))
   for (const p of delta) porId.set(p.id, p)
   const corte = Date.parse(inicioDia)
-  return [...porId.values()].filter((p) => Date.parse(p.atualizadoEm) >= corte).sort(porAtualizacaoDesc)
+  // Pedido que voltou para os ativos (ex.: "Não entregue") sai daqui — o delta só traz quem ainda está concluído.
+  return [...porId.values()].filter((p) => Date.parse(p.atualizadoEm) >= corte && !idsAtivos.has(p.id)).sort(porAtualizacaoDesc)
+}
+
+/** Pedido novo que chegou sem itens (os itens gravam logo depois do pedido): vale buscar de novo em instantes. */
+export function novosSemItens(pedidos: Pedido[]): string[] {
+  return pedidos.filter((p) => p.status === 'recebido' && p.itens.length === 0).map((p) => p.id)
 }
 
 /** Id que um evento do Realtime alterou ou removeu. */

@@ -3,7 +3,7 @@
 import { Children, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRealtimeComFallback } from '@/lib/realtime-fallback'
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
-import { aplicarNoQuadro, criarColetorEventos, criarFila, idsDoEvento, mesclarConcluidos, QUADRO_VAZIO, type LoteEventos, type Quadro } from '@/lib/kanban-quadro'
+import { aplicarNoQuadro, criarColetorEventos, criarFila, idsDoEvento, mesclarConcluidos, novosSemItens, QUADRO_VAZIO, type LoteEventos, type Quadro } from '@/lib/kanban-quadro'
 import {
   type LucideIcon,
   Bell,
@@ -507,6 +507,7 @@ export default function PedidosPage() {
   if (!filaRef.current) filaRef.current = criarFila()
   // Recargas colapsadas na fila (criarFila): se alguma delas pediu os concluídos inteiros, a que roda pede inteiros.
   const concluidosInteirosRef = useRef(false)
+  const rebuscadosRef = useRef(new Set<string>())
   // Maior `atualizado_em` dos concluídos da última leitura (lista ou delta): o relógio só baixa o que mudou depois.
   const ultimoConcluidoRef = useRef<string | null>(null)
   const aplicarQuadro = useCallback((q: Quadro) => {
@@ -561,7 +562,8 @@ export default function PedidosPage() {
 
         if (finalizados.length) ultimoConcluidoRef.current = finalizados.reduce((m, p) => (p.atualizadoEm > m ? p.atualizadoEm : m), finalizados[0].atualizadoEm)
         else if (desdeConcluidos === inicio) ultimoConcluidoRef.current = null
-        const concluidos = desdeConcluidos === inicio ? finalizados : mesclarConcluidos(quadroRef.current.concluded, finalizados, inicio)
+        const idsAtivos = new Set([...kanban, ...logistica].map((p) => p.id))
+        const concluidos = desdeConcluidos === inicio ? finalizados : mesclarConcluidos(quadroRef.current.concluded, finalizados, inicio, idsAtivos)
 
         const agora = new Date()
         const esperando = kanban.filter((p) => p.status === 'recebido' && !pedidoLiberado(p.agendadoPara, liberaMinRef.current, agora))
@@ -600,6 +602,12 @@ export default function PedidosPage() {
             const q = aplicarNoQuadro(quadroRef.current, vieram, removidos, { agora: new Date(), liberaMin: liberaMinRef.current, inicioDia: inicioDoDiaISO() })
             aplicarQuadro(q)
             agendarAutoAceite(q.orders)
+            // Pedido novo que chegou antes dos itens (revisão 26/10): busca de novo em 1,5 s, uma vez por pedido.
+            const rebuscar = novosSemItens(vieram).filter((pid) => !rebuscadosRef.current.has(pid))
+            if (rebuscar.length) {
+              for (const pid of rebuscar) rebuscadosRef.current.add(pid)
+              setTimeout(() => { for (const pid of rebuscar) coletorRef.current?.pedido({ alterado: pid }) }, 1500)
+            }
           }
           if (lote.corridas) await buscarCorridas(id)
           if (lote.solicitacoes) await buscarSolicitacoes(id)
