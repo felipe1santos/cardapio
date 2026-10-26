@@ -71,7 +71,9 @@ function garantirCanal() {
       // Recomeça daqui a pouco, no mesmo cliente (o supabase-js também tenta sozinho).
       e.canal = null
       e.conectado = false
-      setTimeout(() => { void cliente.removeChannel(canal); garantirCanal() }, 3000)
+      // Recria só depois que o canal velho saiu: com o socket de pé, o realtime-js devolve o MESMO canal (mesmo tópico)
+      // enquanto a saída não fecha, e o novo nasceria morto (revisão 26/10).
+      setTimeout(() => { void cliente.removeChannel(canal).catch(() => null).finally(() => garantirCanal()) }, 3000)
     }
   })
 }
