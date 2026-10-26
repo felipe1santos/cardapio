@@ -394,6 +394,26 @@ export function inicioDoDiaSaoPaulo(agora = new Date()): string {
   return new Date(`${partes}T00:00:00-03:00`).toISOString()
 }
 
+/**
+ * Totais de várias comandas (achado #9, 26/10): uma chamada a `comanda_totais_lote` (0226) em vez de uma por comanda.
+ * Sem a função no banco (deploy antes da migration), volta ao cálculo comanda a comanda.
+ */
+async function totaisEmLote(admin: SupabaseClient, ids: string[]): Promise<Map<string, Record<string, number>>> {
+  const mapa = new Map<string, Record<string, number>>()
+  if (!ids.length) return mapa
+  const { data, error } = await admin.rpc('comanda_totais_lote', { p_comandas: ids })
+  if (!error) {
+    for (const t of (data ?? []) as (Record<string, number> & { comanda_id: string })[]) mapa.set(t.comanda_id, t)
+    return mapa
+  }
+  const um = await Promise.all(ids.map((id) => admin.rpc('comanda_totais', { p_comanda: id })))
+  ids.forEach((id, i) => {
+    const t = ((um[i]?.data as unknown[] | null) ?? [])[0] as Record<string, number> | undefined
+    if (t) mapa.set(id, t)
+  })
+  return mapa
+}
+
 export async function listarCentralBalcao(
   admin: SupabaseClient,
   restauranteId: string,
@@ -423,10 +443,10 @@ export async function listarCentralBalcao(
     admin.from('comandas').select('id', { count: 'exact', head: true }).eq('restaurante_id', restauranteId).eq('tipo', 'balcao').eq('status', 'aberta'),
     admin.from('pagamentos_comanda').select('valor').eq('restaurante_id', restauranteId).eq('canal', 'balcao').is('estornado_em', null).gte('criado_em', desde),
   ])
-  const totais = await Promise.all(ids.map((id) => admin.rpc('comanda_totais', { p_comanda: id })))
+  const totaisPorComanda = await totaisEmLote(admin, ids)
 
-  const linhas = lista.map((c, i) => {
-    const tot = ((totais[i]?.data as unknown[] | null) ?? [])[0] as Record<string, number> | undefined
+  const linhas = lista.map((c) => {
+    const tot = totaisPorComanda.get(c.id)
     const doPedido = ((peds ?? []) as { comanda_id: string; status: string; atendimento_status: string | null }[]).filter((p) => p.comanda_id === c.id)
     const dosPags = ((pags ?? []) as { comanda_id: string; estornado_em: string | null }[]).filter((p) => p.comanda_id === c.id)
     return {
