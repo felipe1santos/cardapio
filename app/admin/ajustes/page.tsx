@@ -31,7 +31,7 @@ import { PilhaToasts, useToasts } from '@/components/admin/toasts'
 import { normalizarInstagram } from '@/lib/instagram'
 import { PIX_CHAVE_MAX, TIPOS_PIX, tipoPixValido } from '@/lib/pix-chave'
 import { fonteVitrine } from '@/lib/fonte-vitrine'
-import { buscarRestauranteIdDoUsuario, IMAGEM_TAMANHOS, type LayoutCardapio, type ImagemTamanho, type FonteVitrine, type DesignVitrine, type MenuVitrine, type CorRodape, VERMELHO_TAKEAT } from '@/lib/queries/cardapio'
+import { buscarRestauranteIdDoUsuario, IMAGEM_TAMANHOS, type LayoutCardapio, type ImagemTamanho, type FonteVitrine, FONTES_VITRINE, type DesignVitrine, type MenuVitrine, type CorRodape, VERMELHO_TAKEAT } from '@/lib/queries/cardapio'
 import { AjustarFoco } from '@/components/ajustar-foco'
 import { FOCO_PADRAO, objectPosition, type Foco } from '@/lib/foco-imagem'
 import { BANNER_PROMO_MAX_IMAGENS, BANNER_PROMO_MAX_TEXTO, bannerPromocional } from '@/lib/banner-promocional'
@@ -1048,11 +1048,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
               {config?.vitrineNova && (
               <Field label="Fonte da vitrine" hint="Vale para a vitrine inteira: home, itens, sacola e pedido.">
                 <div className={`${fonteVitrine.variable} grid grid-cols-2 gap-2.5`} data-testid="fonte-vitrine">
-                  {([
-                    ['atual', 'Atual', 'var(--font-vitrine)'],
-                    ['ifood', 'Estilo iFood', 'var(--font-meta)'],
-                    ['takeat', 'Estilo Takeat', 'Poppins, sans-serif'],
-                  ] as const).map(([valor, titulo, familia]) => (
+                  {FONTES_VITRINE.map(({ valor, titulo, familia }) => (
                     <button
                       key={valor}
                       type="button"
@@ -2232,7 +2228,7 @@ export default function AjustesPage() {
  * está na raiz como --font-meta.
  */
 function PreviaLinhaItem({ tamanho, fonte }: { tamanho: number; fonte: FonteVitrine }) {
-  const familia = fonte === 'ifood' ? 'var(--font-meta), Figtree, sans-serif' : fonte === 'takeat' ? 'Poppins, sans-serif' : 'var(--font-vitrine), Montserrat, sans-serif'
+  const familia = (FONTES_VITRINE.find((f) => f.valor === fonte) ?? FONTES_VITRINE[0]).familia
   return (
     <div className={`${fonteVitrine.variable} mt-3`} data-testid="previa-linha-item">
       <div className="mb-1.5 text-[12.5px] font-medium text-text-subtle">Prévia na vitrine</div>

@@ -137,6 +137,24 @@ html:has(.vitrine-sem-zoom) {
   font-weight: 600 !important;
 }
 
+/* Mais fontes (Ajustes › Fonte da vitrine, 0227, 26/10/2026), todas em public/fontes via app/fontes.css:
+   DM Sans (400–700, moderna), Nunito (400–600, arredondada; o que viria em 700+ cai para 600) e Inter. */
+.font-loja.vitrine-fonte-dmsans,
+.font-loja.vitrine-fonte-dmsans * {
+  font-family: 'DM Sans', system-ui, sans-serif;
+}
+.font-loja.vitrine-fonte-nunito,
+.font-loja.vitrine-fonte-nunito * {
+  font-family: Nunito, system-ui, sans-serif;
+}
+.font-loja.vitrine-fonte-nunito :is(b, strong, h1, h2, h3, h4, .font-bold, .font-extrabold, .font-black, [style*="font-weight: 700"]) {
+  font-weight: 600 !important;
+}
+.font-loja.vitrine-fonte-inter,
+.font-loja.vitrine-fonte-inter * {
+  font-family: var(--font-inter), Inter, system-ui, sans-serif;
+}
+
 /* Design "Simples" da vitrine (Ajustes › Design da vitrine, 0219): o mesmo cardápio, mais reto e sem
    efeito. Cantos de 3px (círculos de verdade — rádio, ponto, botão de ícone — continuam redondos; pílula
    com texto fica reta; foto e cartão de item [data-canto] ficam com o canto da referência Brendi — 8px na
@@ -882,6 +900,63 @@ html:has(.vitrine-sem-zoom) {
 }
 @media (prefers-reduced-motion: reduce) {
   .efeito-confete { display: none; }
+}
+
+/* Barra "líquida" da aba Cupons (2026-10-26, components/vitrine/cupons-visuais.tsx): enche ao
+   aparecer, a ponta ondula e bolhas sobem. Só transform/opacity/clip-path; sem efeito para quem
+   pediu "reduzir movimento" (e o design Simples já zera as animações). */
+.barra-fluida-nivel {
+  width: var(--p);
+  background: linear-gradient(90deg, #059669 0%, #10B981 55%, #34D399 100%);
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.08);
+  transition: width 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: barra-fluida-encher 1.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes barra-fluida-encher {
+  from { width: 0; }
+  to { width: var(--p); }
+}
+.barra-fluida-brilho {
+  position: absolute;
+  inset: 1px 4px auto 4px;
+  height: 40%;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0));
+}
+/* Ponta ondulada: meias-luas verdes saindo da borda do nível, descendo sem parar. */
+.barra-fluida-ponta {
+  position: absolute;
+  top: -100%;
+  right: -5px;
+  width: 6px;
+  height: 300%;
+  background: radial-gradient(circle at 0 50%, #34D399 4.5px, transparent 5px) 0 0 / 6px 9px repeat-y;
+  animation: barra-fluida-ondular 0.9s linear infinite;
+}
+@keyframes barra-fluida-ondular {
+  from { transform: translateY(0); }
+  to { transform: translateY(9px); }
+}
+.barra-fluida-bolha {
+  position: absolute;
+  bottom: -4px;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.75);
+  opacity: 0;
+  animation: barra-fluida-bolha 3.3s ease-in infinite;
+}
+@keyframes barra-fluida-bolha {
+  0% { transform: translateY(0) scale(0.6); opacity: 0; }
+  20% { opacity: 0.9; }
+  100% { transform: translateY(-14px) scale(1); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .barra-fluida-nivel,
+  .barra-fluida-ponta,
+  .barra-fluida-bolha { animation: none !important; }
+  .barra-fluida-bolha { display: none; }
 }
 
 /* Telas do PDV/Mesas em pilha (2026-10-01): entrada leve (~150 ms, transform/opacity). */

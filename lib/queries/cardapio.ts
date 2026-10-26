@@ -1145,9 +1145,19 @@ export function imagemTamanhoValido(v: unknown): ImagemTamanho | null {
   return v !== null && v !== undefined && (IMAGEM_TAMANHOS as readonly number[]).includes(n) ? (n as ImagemTamanho) : null
 }
 /** Fonte da vitrine (0152): 'atual' = Montserrat; 'ifood' = Figtree, peso até 600; 'takeat' = Poppins (0223). */
-export type FonteVitrine = 'atual' | 'ifood' | 'takeat'
+/** 26/10/2026 (0227): + 'dmsans' (DM Sans), 'nunito' (Nunito) e 'inter' (Inter), todas servidas de public/fontes. */
+export type FonteVitrine = 'atual' | 'ifood' | 'takeat' | 'dmsans' | 'nunito' | 'inter'
+/** Opções de Ajustes › Fonte da vitrine: valor, nome no painel e a família usada na prévia (a vitrine usa globals.css). */
+export const FONTES_VITRINE: ReadonlyArray<{ valor: FonteVitrine; titulo: string; familia: string }> = [
+  { valor: 'atual', titulo: 'Montserrat (padrão)', familia: 'var(--font-vitrine), Montserrat, sans-serif' },
+  { valor: 'dmsans', titulo: 'DM Sans (moderna)', familia: '"DM Sans", sans-serif' },
+  { valor: 'takeat', titulo: 'Poppins (estilo Takeat)', familia: 'Poppins, sans-serif' },
+  { valor: 'ifood', titulo: 'Figtree (estilo iFood)', familia: 'var(--font-meta), Figtree, sans-serif' },
+  { valor: 'nunito', titulo: 'Nunito (arredondada)', familia: 'Nunito, sans-serif' },
+  { valor: 'inter', titulo: 'Inter (neutra)', familia: 'var(--font-inter), Inter, sans-serif' },
+]
 export function fonteVitrineValida(v: unknown): FonteVitrine {
-  return v === 'ifood' || v === 'takeat' ? v : 'atual'
+  return FONTES_VITRINE.some((f) => f.valor === v) ? (v as FonteVitrine) : 'atual'
 }
 /** Design da vitrine (0219): 'padrao' = o de sempre; 'simples' = cantos retos, sem sombra/degradê/animação. */
 export type DesignVitrine = 'padrao' | 'simples'

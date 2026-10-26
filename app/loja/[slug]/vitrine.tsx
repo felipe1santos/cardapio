@@ -5,6 +5,8 @@ import { fotosDaVitrine } from '@/lib/fotos-item'
 import { formasDoCanal } from '@/lib/formas-pagamento'
 import { comVideo, midiasDaFicha, type Midia, type VideoItem } from '@/lib/video-vitrine'
 import { VideoLoop } from '@/components/vitrine/video-loop'
+import { useFotoInteira } from '@/components/vitrine/foto-inteira'
+import { BarraFluida, CanhotoCupom, MASCARA_TICKET, SeloPremio } from '@/components/vitrine/cupons-visuais'
 import { BarraNav } from '@/components/vitrine/barra-nav'
 import { BarraNavBotoes } from '@/components/vitrine/barra-nav-botoes'
 import { CABECALHO_PADRAO } from '@/lib/vitrine-cabecalho'
@@ -12,7 +14,7 @@ import { House as PhHouse, Receipt as PhReceipt, Ticket as PhTicket, User as PhU
 import { TelaPixOnline, type PixAguardando } from '@/components/vitrine/tela-pix-online'
 import { TelaCartaoOnline, type CartaoAguardando } from '@/components/vitrine/tela-cartao-online'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { UtensilsCrossed, HandPlatter, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, ChevronRight, ChevronLeft, Clock, Gift, Ticket, Percent, Check, RotateCcw, Store, User } from 'lucide-react'
+import { UtensilsCrossed, HandPlatter, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, ChevronRight, ChevronLeft, Clock, Gift, Ticket, Check, RotateCcw, Store, User } from 'lucide-react'
 import { BarraTotal, DiamanteRoxo, LinhaValor, OpcaoRadio, SeloRoxo, StepperRedondo, TituloSecao, VERDE_DESCONTO } from '@/components/vitrine/sacola-ifood'
 import { FichaLoja } from '@/components/vitrine/ficha-loja'
 import { EstadoVazioIlustrado, FotoItemPedido, ILUSTRACOES, IlustracaoStatus, ModalSaiuParaEntrega, usePedidoSaiuParaAvisar } from '@/components/vitrine/ilustracoes-pedido'
@@ -291,25 +293,21 @@ const ABA = 'inline-flex flex-shrink-0 items-center gap-[6px] whitespace-nowrap 
 const ABA_ATIVA = 'border-[var(--tema-primaria)] font-semibold text-[var(--v-texto)]'
 const ABA_INATIVA = 'border-transparent font-medium text-[#6B7280] hover:text-[var(--v-texto)]'
 
-// 21/10/2026: compacta, uma linha, ticket pequeno. Verde = cupom/desconto; roxo = prêmio da fidelidade.
-const COR_RESGATE = {
-  cupom: 'border-[#BBF7D0] bg-[#F0FDF4] text-[#15803D]',
-  premio: 'border-[#E9D5FF] bg-[#FAF5FF] text-[#7E22CE]',
-} as const
-
-function FaixaResgate({ onClick, tipo, children }: { onClick: () => void; tipo: keyof typeof COR_RESGATE; children: React.ReactNode }) {
+// 26/10/2026: cupons e prêmios para resgatar viram uma pílula no cabeçalho da loja, ao lado de
+// "Minha conta" (antes: faixa verde entre o banner e os destaques, cortando o cardápio). Mesmas cores
+// da chamada "Aproveite benefícios!", para a vitrine ter uma cor de ação só.
+function FaixaResgate({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
   const [ref, visivel] = useVisivel<HTMLButtonElement>()
   return (
     <button
       ref={ref}
       onClick={onClick}
       data-testid="faixa-resgate"
-      data-tipo={tipo}
       data-visivel={visivel ? 'sim' : 'nao'}
-      className={`flex min-w-0 flex-1 items-center gap-[8px] rounded-[8px] border px-[10px] py-[7px] text-left ${COR_RESGATE[tipo]}`}
+      className="inline-flex min-w-0 items-center gap-[6px] rounded-full bg-[var(--v-acao-bg)] py-[6px] pl-[10px] pr-[8px] text-[12px] font-semibold leading-[16px] text-[var(--v-acao)] transition-opacity hover:opacity-80"
     >
-      <span className="efeito-balancar inline-flex flex-shrink-0"><IconeTagSvg nome="ticket" tamanho={16} /></span>
-      <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold leading-[16px]">{children}</span>
+      <span className="efeito-balancar inline-flex flex-shrink-0"><IconeTagSvg nome="ticket" tamanho={15} /></span>
+      <span className="min-w-0 truncate">{children}</span>
       <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" strokeWidth={2.5} />
     </button>
   )
@@ -510,26 +508,29 @@ function CarrosselPromo({ slides, foco }: { slides: Midia[]; foco: string }) {
 
   return (
     <div data-testid="banner-promo" data-canto className="relative mx-auto aspect-[3/2] w-full max-w-[500px] overflow-hidden rounded-[10px] border border-border">
-      {slides.map((m, i) => m.tipo === 'video' ? (
-        // Só o slide da vez toca; os outros mostram a capa (nada é baixado à toa).
-        i === atual
-          ? <VideoLoop key={m.url} url={m.url} capa={m.capa} alt="" className="absolute inset-0 h-full w-full object-cover" style={{ objectPosition: foco }} />
-          // eslint-disable-next-line @next/next/no-img-element
-          : <img key={m.url} src={m.capa} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover opacity-0" style={{ objectPosition: foco }} />
-      ) : (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          key={m.url}
-          src={m.url}
-          alt=""
-          // A primeira carrega logo (está na dobra); as outras só quando a vez
-          // delas chega perto — não vale disputar banda com as fotos dos pratos.
-          loading={i === 0 ? 'eager' : 'lazy'}
-          decoding="async"
-          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${i === atual ? 'opacity-100' : 'opacity-0'}`}
-          style={{ objectPosition: foco }}
-        />
-      ))}
+      {/* 26/10/2026: a mídia vai inteira (object-contain) — arte quadrada e vídeo em pé eram cortados
+          pelo quadro 3:2. O que sobra do quadro é a própria imagem desfocada (mesma URL, nada a mais
+          baixado). Desfoque e escala inline: o design Simples zera classes de escala. */}
+      {slides.map((m, i) => {
+        const ativo = i === atual
+        const fundo = m.tipo === 'video' ? m.capa : m.url
+        // A primeira carrega logo (está na dobra); as outras só quando a vez
+        // delas chega perto — não vale disputar banda com as fotos dos pratos.
+        const carregar = i === 0 ? 'eager' : 'lazy'
+        return (
+          <div key={m.url} aria-hidden={!ativo} className={`absolute inset-0 transition-opacity duration-700 ${ativo ? 'opacity-100' : 'opacity-0'}`}>
+            {fundo && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={fundo} alt="" loading={carregar} decoding="async" className="absolute inset-0 h-full w-full object-cover" style={{ objectPosition: foco, filter: 'blur(20px) brightness(0.85)', transform: 'scale(1.2)' }} />
+            )}
+            {m.tipo === 'video'
+              // Só o slide da vez toca; os outros ficam só com a capa desfocada (nada é baixado à toa).
+              ? ativo && <VideoLoop url={m.url} capa={m.capa} alt="" className="absolute inset-0 h-full w-full object-contain" />
+              // eslint-disable-next-line @next/next/no-img-element
+              : <img src={m.url} alt="" loading={carregar} decoding="async" className="absolute inset-0 h-full w-full object-contain" />}
+          </div>
+        )
+      })}
       {urls.length > 1 && (
         <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5">
           {urls.map((url, i) => (
@@ -565,6 +566,7 @@ function urlDeListagem(item: FotoDeItem): string | null {
 
 function ProductThumb({ item, size = 96, fallbackIcon: FallbackIcon = HandPlatter }: { item: FotoDeItem; size?: number; fallbackIcon?: typeof UtensilsCrossed }) {
   const src = urlDeListagem(item)
+  const { inteira, imgProps } = useFotoInteira(src)
   // Vídeo marcado para o card da home (0213): toca no lugar da foto, com a capa enquanto carrega.
   if (item.video?.home) {
     return <VideoLoop url={item.video.url} capa={item.video.capa} alt={item.nome} data-canto className="flex-shrink-0 rounded-[8px] object-cover" style={{ width: size, height: size }} />
@@ -573,6 +575,7 @@ function ProductThumb({ item, size = 96, fallbackIcon: FallbackIcon = HandPlatte
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
+        {...imgProps}
         src={src}
         alt={item.nome}
         // Thumb de listagem: só baixa quando chega perto da viewport. O cardápio
@@ -585,7 +588,8 @@ function ProductThumb({ item, size = 96, fallbackIcon: FallbackIcon = HandPlatte
         // Canto de 8px: a referência arredonda a foto do item o suficiente para
         // ela não brigar com o texto, sem virar cartão.
         data-canto
-        className="flex-shrink-0 rounded-[8px] object-cover"
+        // Embalagem em fundo branco (lata, garrafa) vai inteira; prato continua preenchendo o quadro.
+        className={`flex-shrink-0 rounded-[8px] ${inteira ? 'bg-white object-contain p-[6%]' : 'object-cover'}`}
         style={{ width: size, height: size }}
       />
     )
@@ -601,12 +605,24 @@ function ProductThumb({ item, size = 96, fallbackIcon: FallbackIcon = HandPlatte
   )
 }
 
-/** Ícone de fallback do thumb de prêmio/cupom quando não há foto — "%" para descontos, caminhão pra frete grátis, talheres pra item. */
-function iconePremio(tipo: 'item_gratis' | 'desconto_percentual' | 'desconto_valor' | 'entrega_gratis'): typeof UtensilsCrossed {
-  if (tipo === 'desconto_percentual' || tipo === 'desconto_valor') return Percent
-  if (tipo === 'entrega_gratis') return Truck
-  return UtensilsCrossed
+/** Foto grande da ficha do item; embalagem em fundo branco vai inteira (useFotoInteira). */
+function FotoDaFicha({ src, alt, style }: { src: string; alt: string; style?: React.CSSProperties }) {
+  const { inteira, imgProps } = useFotoInteira(src, 0.85)
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      {...imgProps}
+      src={src}
+      alt={alt}
+      loading="eager"
+      decoding="async"
+      fetchPriority="high"
+      className={`h-[min(85vw,510px)] w-full lg:h-[260px] ${inteira ? 'bg-white object-contain py-[6%]' : 'object-cover'}`}
+      style={style}
+    />
+  )
 }
+
 
 /**
  * Foto de produto. `prioritaria` só é usada quando a imagem é o próprio LCP da
@@ -617,6 +633,7 @@ function ProductImage({ item, className = '', prioritaria = false }: { item: Fot
   // Prioritária = está substituindo a capa da loja, ocupando a largura toda:
   // aí vale a full. Nos cards de listagem, a miniatura basta.
   const src = prioritaria ? item.imagemUrl : urlDeListagem(item)
+  const { inteira, imgProps } = useFotoInteira(prioritaria ? null : src)
   if (!prioritaria && item.video?.home) {
     return <VideoLoop url={item.video.url} capa={item.video.capa} alt={item.nome} className={`object-cover ${className}`} />
   }
@@ -624,12 +641,13 @@ function ProductImage({ item, className = '', prioritaria = false }: { item: Fot
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
+        {...imgProps}
         src={src}
         alt={item.nome}
         loading={prioritaria ? 'eager' : 'lazy'}
         decoding="async"
         {...(prioritaria ? { fetchPriority: 'high' as const } : {})}
-        className={`object-cover ${className}`}
+        className={`${inteira ? 'bg-white object-contain p-[6%]' : 'object-cover'} ${className}`}
       />
     )
   }
@@ -3265,7 +3283,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     const partes: string[] = []
     if (premiosProntosHoje > 0) partes.push(`${premiosProntosHoje} ${premiosProntosHoje === 1 ? 'prêmio' : 'prêmios'}`)
     if (cuponsPublicosCount > 0) partes.push(`${cuponsPublicosCount} ${cuponsPublicosCount === 1 ? 'cupom' : 'cupons'}`)
-    return partes.length > 0 ? `Você tem ${partes.join(' e ')} pra resgatar →` : null
+    return partes.length > 0 ? `${partes.join(' e ')} pra resgatar` : null
   })()
 
   /**
@@ -3666,15 +3684,24 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   endereço salvo, histórico e cupom, e evita o login no meio do
                   checkout, onde ele desiste. Some quando já está identificado. */}
               {/* Menu de 4 botões não tem Perfil: quem já entrou acha a conta aqui. */}
-              {perfilCliente && restaurante.menuVitrine === 'botoes' && (
-                <button
-                  onClick={() => setContaOpen(true)}
-                  className="-ml-1 mt-[12px] inline-flex items-center gap-[6px] rounded px-1 py-1 text-[12px] font-semibold leading-[16px] text-[var(--v-acao)] transition-opacity hover:opacity-80 lg:hidden"
-                  data-testid="minha-conta"
-                >
-                  Minha conta
-                  <ChevronRight className="h-3.5 w-3.5" strokeWidth={2.5} />
-                </button>
+              {perfilCliente && (restaurante.menuVitrine === 'botoes' || bannerResgateTexto) && (
+                <div className="mt-[12px] flex items-center justify-between gap-[12px]">
+                  {restaurante.menuVitrine === 'botoes' ? (
+                    <button
+                      onClick={() => setContaOpen(true)}
+                      className="-ml-1 inline-flex flex-shrink-0 items-center gap-[6px] rounded px-1 py-1 text-[12px] font-semibold leading-[16px] text-[var(--v-acao)] transition-opacity hover:opacity-80 lg:invisible"
+                      data-testid="minha-conta"
+                    >
+                      Minha conta
+                      <ChevronRight className="h-3.5 w-3.5" strokeWidth={2.5} />
+                    </button>
+                  ) : <span />}
+                  {bannerResgateTexto && (
+                    <FaixaResgate onClick={() => { setTab('cupons'); setDestacarCupons(true); window.scrollTo({ top: 0 }) }}>
+                      {bannerResgateTexto}
+                    </FaixaResgate>
+                  )}
+                </div>
               )}
               {!perfilCliente && (
                 <div className="mt-[12px] flex items-center justify-between gap-[12px]">
@@ -3806,22 +3833,6 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   </span>
                   <span className="flex-shrink-0 text-[12px] font-semibold uppercase tracking-wide text-[var(--tema-primaria)]">Ver</span>
                 </button>
-              </div>
-            )}
-
-            {/* Banner ÚNICO de resgate: prêmios prontos hoje + cupons públicos da loja */}
-            {bannerResgateTexto && activeCategory !== '__promos__' && !search.trim() && !gavetaEmTela && (
-              <div className="flex gap-[8px] px-4 pt-3 lg:px-0">
-                {premiosProntosHoje > 0 && (
-                  <FaixaResgate tipo="premio" onClick={() => { setTab('cupons'); setDestacarCupons(true); window.scrollTo({ top: 0 }) }}>
-                    {premiosProntosHoje} {premiosProntosHoje === 1 ? 'prêmio' : 'prêmios'} pra resgatar
-                  </FaixaResgate>
-                )}
-                {cuponsPublicosCount > 0 && (
-                  <FaixaResgate tipo="cupom" onClick={() => { setTab('cupons'); setDestacarCupons(true); window.scrollTo({ top: 0 }) }}>
-                    {premiosProntosHoje > 0 ? `${cuponsPublicosCount} ${cuponsPublicosCount === 1 ? 'cupom' : 'cupons'}` : `Você tem ${cuponsPublicosCount} ${cuponsPublicosCount === 1 ? 'cupom' : 'cupons'} pra resgatar`}
-                  </FaixaResgate>
-                )}
               </div>
             )}
 
@@ -4399,7 +4410,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                           ].join(' ')}
                         >
                           <div className="flex items-start gap-3.5 p-3.5">
-                            <ProductThumb item={{ nome: r.premioItemNome ?? r.campanhaNome, imagemUrl: r.premioItemImagemUrl ?? null }} size={112} fallbackIcon={iconePremio(r.premioTipo)} />
+                            {r.premioItemImagemUrl
+                              ? <ProductThumb item={{ nome: r.premioItemNome ?? r.campanhaNome, imagemUrl: r.premioItemImagemUrl }} size={112} />
+                              : <SeloPremio tipo={r.premioTipo} tamanho={112} />}
                             <div className="min-w-0 flex-1">
                               <span className={['inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide', r.podeResgatarHoje ? 'bg-promo text-white' : 'bg-promo-bg text-promo'].join(' ')}>
                                 {r.podeResgatarHoje ? 'Pronto pra usar hoje' : 'Prêmio desbloqueado'}
@@ -4449,19 +4462,22 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                         : `${fracaoProgresso(campanha, progresso)} ${campanha.tipoMeta === 'qtd_pedidos' ? 'pedidos' : 'itens'}`
                       const diasContam = campanha.diasSemanaContam.length > 0 ? diasSemanaTexto(campanha.diasSemanaContam) : null
                       return (
-                        <div key={campanha.id} className="rounded-md border border-border bg-white p-3.5 shadow-sm">
-                          <div className="flex items-start gap-3">
-                            <ProductThumb item={{ nome: campanha.premioItemNome ?? campanha.nome, imagemUrl: campanha.premioItemImagemUrl ?? null }} size={56} fallbackIcon={iconePremio(campanha.premioTipo)} />
+                        <div key={campanha.id} data-canto className="rounded-[12px] bg-white p-[14px] shadow-[0_1px_3px_rgba(16,24,40,0.08)]">
+                          <div className="flex items-center gap-3">
+                            {campanha.premioItemImagemUrl
+                              ? <ProductThumb item={{ nome: campanha.premioItemNome ?? campanha.nome, imagemUrl: campanha.premioItemImagemUrl }} size={56} />
+                              : <SeloPremio tipo={campanha.premioTipo} />}
                             <div className="min-w-0 flex-1">
-                              <div className="text-[14px] font-semibold leading-snug text-text-main">{campanha.nome}</div>
-                              <div className="mt-0.5 text-[12px] text-text-subtle">Prêmio: {label}</div>
+                              <div className="text-[15px] font-semibold leading-snug text-text-main first-letter:uppercase">{campanha.nome}</div>
+                              <div className="mt-0.5 text-[12px] text-text-subtle first-letter:uppercase">Prêmio: {label}</div>
                             </div>
                           </div>
-                          <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#F3F4F6]">
-                            <div className="h-full rounded-full bg-[#10B981] transition-all duration-500" style={{ width: `${Math.min(100, Math.max(0, resumo.percentual))}%` }} />
+                          {/* 26/10/2026: barra "líquida" (cupons-visuais.tsx) no lugar da faixa verde reta. */}
+                          <div className="mt-[14px]">
+                            <BarraFluida percentual={resumo.percentual} rotulo={`Progresso da missão ${campanha.nome}`} />
                           </div>
-                          <div className="mt-1.5 flex items-center justify-between gap-2 text-[12px]">
-                            <span className="font-semibold text-[#10B981]">{progressoTexto}</span>
+                          <div className="mt-[8px] flex items-center justify-between gap-2 text-[12px]">
+                            <span className="font-semibold text-[#047857]">{progressoTexto}</span>
                             <span className="font-medium text-text-subtle">{resumo.faltaTexto}</span>
                           </div>
                           {diasContam && <p className="mt-1.5 text-[11px] text-text-subtle">Contam pedidos feitos {diasContam}.</p>}
@@ -4481,37 +4497,46 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   </h2>
                   <div className="space-y-3">
                     {cuponsLoja.map((c) => (
-                      <div key={c.id} data-resgate-disponivel className={['rounded-md border border-border bg-white p-3.5 shadow-sm', destacarCupons ? 'ring-2 ring-[#0369A1] ring-offset-2' : ''].join(' ')}>
-                        <div className="flex items-center gap-3">
-                          <ProductThumb item={{ nome: nomeLimpo(c.itemNome) || labelCupom(c), imagemUrl: c.itemImagemUrl ?? null }} size={48} fallbackIcon={iconePremio(c.tipo)} />
-                          <span className="flex-shrink-0 rounded border border-dashed border-[var(--tema-primaria)] bg-[var(--tema-light)] px-2.5 py-1.5 text-[13px] font-semibold tracking-widest text-[var(--tema-primaria)]">{c.codigo}</span>
-                          <div className="min-w-0 flex-1">
-                            <div className="truncate text-[13px] font-semibold text-text-main">{labelCupom(c)}</div>
-                            {c.descricao && <div className="mt-0.5 truncate text-[12px] text-text-subtle">{c.descricao}</div>}
-                            {(c.valorMinimoPedido != null || c.validadeFim) && (
-                              <div className="mt-0.5 text-[11px] text-text-subtle">
-                                {[
-                                  c.valorMinimoPedido != null ? `Pedido mínimo ${brl(c.valorMinimoPedido)}` : null,
-                                  c.validadeFim ? `Válido até ${new Date(`${c.validadeFim}T12:00:00`).toLocaleDateString('pt-BR')}` : null,
-                                ].filter(Boolean).join(' · ')}
-                              </div>
+                      // 26/10/2026: cartão em forma de ticket — canhoto com o valor grande + picote, no lugar
+                      // da miniatura cinza com "%". A foto do item entra quando o cupom é de item grátis.
+                      <div key={c.id} data-resgate-disponivel data-canto style={MASCARA_TICKET} className={['flex overflow-hidden rounded-[12px] border bg-white', destacarCupons ? 'border-[#0369A1]' : 'border-[#E5E8EC]'].join(' ')}>
+                        <CanhotoCupom tipo={c.tipo} valor={c.valor ?? null} />
+                        <div className="min-w-0 flex-1 p-[14px]">
+                          <div className="flex items-start gap-[10px]">
+                            <div className="min-w-0 flex-1">
+                              <div className="text-[15px] font-semibold leading-[20px] text-text-main first-letter:uppercase">{labelCupom(c)}</div>
+                              {c.descricao && <div className="mt-[2px] line-clamp-2 text-[12px] leading-[16px] text-text-subtle">{c.descricao}</div>}
+                            </div>
+                            {c.tipo === 'item_gratis' && c.itemImagemUrl && (
+                              <ProductThumb item={{ nome: nomeLimpo(c.itemNome) || labelCupom(c), imagemUrl: c.itemImagemUrl }} size={44} />
+                            )}
+                          </div>
+                          {(c.valorMinimoPedido != null || c.validadeFim) && (
+                            <div className="mt-[6px] text-[11px] leading-[15px] text-text-subtle">
+                              {[
+                                c.valorMinimoPedido != null ? `Pedido mínimo ${brl(c.valorMinimoPedido)}` : null,
+                                c.validadeFim ? `Válido até ${new Date(`${c.validadeFim}T12:00:00`).toLocaleDateString('pt-BR')}` : null,
+                              ].filter(Boolean).join(' · ')}
+                            </div>
+                          )}
+                          <div className="mt-[12px] flex items-center gap-[8px]">
+                            <span className="min-w-0 truncate rounded-[6px] border border-dashed border-[#CBD2DA] bg-[#F8FAFC] px-[8px] py-[6px] text-[12px] font-semibold tracking-[0.12em] text-text-main">{c.codigo}</span>
+                            {cupomAplicado?.codigo === c.codigo ? (
+                              <button onClick={removerBeneficio} className="ml-auto flex-shrink-0 rounded-[8px] border border-promo px-[12px] py-[8px] text-[12px] font-semibold text-promo" data-testid="resgate-na-sacola">
+                                Na sacola · remover
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => void aplicarCupomDaAba(c.codigo)}
+                                disabled={resgatando === c.codigo}
+                                data-testid="resgatar-cupom"
+                                className="ml-auto flex-shrink-0 rounded-[8px] bg-[var(--tema-primaria)] px-[16px] py-[8px] text-[13px] font-semibold text-white transition-opacity hover:opacity-90 active:scale-[0.98] disabled:opacity-60"
+                              >
+                                {resgatando === c.codigo ? 'Conferindo…' : 'Resgatar'}
+                              </button>
                             )}
                           </div>
                         </div>
-                        {cupomAplicado?.codigo === c.codigo ? (
-                          <button onClick={removerBeneficio} className="mt-3 w-full rounded border border-promo py-2.5 text-[12px] font-semibold uppercase tracking-wide text-promo" data-testid="resgate-na-sacola">
-                            Na sacola · remover
-                          </button>
-                        ) : (
-                        <button
-                          onClick={() => void aplicarCupomDaAba(c.codigo)}
-                          disabled={resgatando === c.codigo}
-                          data-testid="resgatar-cupom"
-                          className="mt-3 w-full rounded bg-[var(--tema-primaria)] py-2.5 text-[12px] font-semibold uppercase tracking-wide text-white transition-colors hover:opacity-90 active:scale-[0.99] disabled:opacity-60"
-                        >
-                          {resgatando === c.codigo ? 'Conferindo…' : 'Resgatar'}
-                        </button>
-                        )}
                       </div>
                     ))}
                   </div>
@@ -4798,13 +4823,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 // O sheet só é montado depois do clique, então não concorre com o
                 // carregamento inicial — aqui a foto é o conteúdo principal.
                 // eslint-disable-next-line @next/next/no-img-element
-                ? <img
+                ? <FotoDaFicha
                     src={sheetGaveta?.capaUrl ?? productSheet.imagemUrl!}
                     alt={productSheet.nome}
-                    loading="eager"
-                    decoding="async"
-                    fetchPriority="high"
-                    className="h-[min(85vw,510px)] w-full object-cover lg:h-[260px]"
                     style={sheetGaveta?.capaUrl ? { objectPosition: objectPosition(sheetGaveta.capaFoco) } : undefined}
                   />
                 : <div className="flex h-[min(85vw,510px)] items-center justify-center bg-[#F3F4F6] lg:h-[260px]"><HandPlatter className="h-20 w-20 text-[#9CA3AF]" strokeWidth={1.5} /></div>
