@@ -21,7 +21,7 @@ function CheckVerde() {
 
 function Spinner() {
   return (
-    <span className="block h-4 w-4 animate-spin rounded-full border-2 border-[#2457D6]/25 border-t-[#2457D6]" />
+    <span className="block h-4 w-4 animate-spin rounded-full border-2 border-[#FA5A00]/25 border-t-[#FA5A00]" />
   )
 }
 
@@ -86,7 +86,7 @@ export function CadastroForm({ error, convite }: { error?: string; convite: stri
   const podeEnviar = liberado && statusUsuario === 'disponivel' && senhasOk && !!convite
 
   return (
-    <form action={cadastrar} className="pt-[24px]">
+    <form action={cadastrar}>
       <input type="hidden" name="convite" value={convite} />
       <p className={authAviso.info}>
         Cadastro só por convite: digite o e-mail que a Menuzia cadastrou pra você. Quando ele for confirmado, o restante do cadastro é liberado.
@@ -116,7 +116,7 @@ export function CadastroForm({ error, convite }: { error?: string; convite: stri
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="email@autorizado.com"
-            className={`${authInput} pr-[48px] ${statusEmail === 'autorizado' ? 'bg-white shadow-[0_0_0_1px_#16A34A] focus:shadow-[0_0_0_1px_#16A34A]' : ''}`}
+            className={`${authInput} pr-[48px] ${statusEmail === 'autorizado' ? 'border-[#16A34A] focus:border-[#16A34A] focus:shadow-[0_0_0_4px_rgba(22,163,74,0.12)]' : ''}`}
           />
           <span className="absolute right-[12px] top-1/2 -translate-y-1/2">
             {statusEmail === 'checando' && <Spinner />}

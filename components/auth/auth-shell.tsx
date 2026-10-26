@@ -1,80 +1,87 @@
 import { ReactNode } from 'react'
+import { IlustracaoChef } from './ilustracao-chef'
 
 /**
- * Telas de acesso (login, cadastro, trocar e redefinir senha) no molde do portal de lojistas da 99Food
- * (pedido do dono, 26/10/2026): foto cheia, faixa escura no topo e no rodapé, cartão de 540px à direita.
- * Fonte PingFang SC (fora da Apple cai na Inter do app). Medidas em px porque a raiz do painel é 87,5%.
+ * Telas de acesso (login, cadastro, trocar e redefinir senha), 26/10/2026, referência escolhida pelo
+ * dono: painel azul com ilustração própria + formulário em Poppins com ações em laranja.
+ * No celular o azul vira o topo e o formulário sobe numa folha branca.
+ * Medidas em px porque a raiz do painel é 87,5%.
  */
 
-export const AUTH_FONTE = '"PingFang SC","PingFangSC-Regular",var(--font-inter),-apple-system,"Segoe UI",sans-serif'
-const FONTE_MEDIA = '"PingFang SC","PingFangSC-Medium",var(--font-inter),-apple-system,"Segoe UI",sans-serif'
+export const AUTH_FONTE = 'Poppins,var(--font-inter),-apple-system,"Segoe UI",sans-serif'
 
-/** Caixa cinza do campo; use com `authEntrada` dentro quando houver ícone ao lado. */
+/** Caixa do campo; use com `authEntrada` dentro quando houver ícone ao lado. */
 export const authCampo =
-  'flex h-[44px] w-full items-center rounded-[6px] bg-[#F2F4F6] px-[15px] transition-shadow focus-within:bg-white focus-within:shadow-[0_0_0_1px_#2457D6]'
+  'flex h-[52px] w-full items-center rounded-[10px] border border-[#E3E7ED] bg-white px-[16px] transition-[border-color,box-shadow] focus-within:border-[#FA5A00] focus-within:shadow-[0_0_0_4px_rgba(250,90,0,0.12)]'
 export const authEntrada =
-  'h-full min-w-0 flex-1 bg-transparent text-[16px] text-[#2B3847] placeholder:text-[#A3A8AF] focus:outline-none'
+  'h-full min-w-0 flex-1 bg-transparent text-[15px] text-[#1B2430] placeholder:text-[#9AA3AF] focus:outline-none'
 
 /** Campo simples (sem ícone). */
 export const authInput =
-  'h-[44px] w-full rounded-[6px] bg-[#F2F4F6] px-[15px] text-[16px] text-[#2B3847] placeholder:text-[#A3A8AF] transition-shadow focus:bg-white focus:shadow-[0_0_0_1px_#2457D6] focus:outline-none'
+  'h-[52px] w-full rounded-[10px] border border-[#E3E7ED] bg-white px-[16px] text-[15px] text-[#1B2430] placeholder:text-[#9AA3AF] transition-[border-color,box-shadow] focus:border-[#FA5A00] focus:shadow-[0_0_0_4px_rgba(250,90,0,0.12)] focus:outline-none'
 
 export const authButton =
-  'h-[44px] w-full rounded-[6px] bg-[linear-gradient(90deg,#1B45C2_0%,#2F6FEB_100%)] text-[16px] text-white transition-[filter] hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2457D6] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:brightness-100'
+  'h-[52px] w-full rounded-[10px] bg-[#FA5A00] text-[16px] font-semibold text-white shadow-[0_8px_20px_-8px_rgba(250,90,0,0.6)] transition-colors hover:bg-[#E14F00] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FA5A00] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none disabled:hover:bg-[#FA5A00]'
 
-export const authLabel = 'mb-[6px] block text-[13px] text-[#43474B]'
-export const authLink = 'text-[#1D4ED8] hover:underline'
+export const authLabel = 'mb-[6px] block text-[13px] font-medium text-[#3B4553]'
+export const authLink = 'font-semibold text-[#C2410C] hover:underline'
 
-/** Faixas de aviso dentro do cartão. */
+/** Faixas de aviso dentro do formulário. */
 export const authAviso = {
-  info: 'mb-[16px] rounded-[6px] bg-[#EEF3FF] px-[12px] py-[10px] text-[13px] leading-[19px] text-[#1E3A8A]',
-  ok: 'mb-[16px] rounded-[6px] bg-price-bg px-[12px] py-[10px] text-[13px] leading-[19px] text-price-text',
-  erro: 'mb-[16px] rounded-[6px] bg-danger-bg px-[12px] py-[10px] text-[13px] leading-[19px] text-[#B91C1C]',
+  info: 'mb-[16px] rounded-[10px] bg-[#EAF2F9] px-[14px] py-[10px] text-[13px] leading-[19px] text-[#0B4370]',
+  ok: 'mb-[16px] rounded-[10px] bg-price-bg px-[14px] py-[10px] text-[13px] leading-[19px] text-price-text',
+  erro: 'mb-[16px] rounded-[10px] bg-danger-bg px-[14px] py-[10px] text-[13px] leading-[19px] text-[#B91C1C]',
+}
+
+function Marca({ clara }: { clara?: boolean }) {
+  return (
+    <span className={`flex items-center gap-[8px] text-[20px] font-semibold tracking-[-0.01em] ${clara ? 'text-white' : 'text-[#0B2A45]'}`}>
+      <span className="flex h-[28px] w-[28px] items-center justify-center rounded-[8px] bg-[#FA5A00] text-[20px] leading-none text-white">+</span>
+      Menuzia
+    </span>
+  )
 }
 
 export function AuthShell({
   heading,
+  subtitulo,
   children,
   rodape,
 }: {
   heading: string
+  subtitulo?: string
   children: ReactNode
-  /** Faixa cinza no pé do cartão (links de navegação). */
+  /** Linha no pé do formulário (ex.: "Não tem uma conta? Cadastre-se"). */
   rodape?: ReactNode
 }) {
   return (
-    <main
-      className="relative flex min-h-screen flex-col bg-[#14213D] bg-cover bg-[position:30%_center]"
-      style={{ backgroundImage: 'url(/auth-bg.webp)', fontFamily: AUTH_FONTE }}
-    >
-      <header className="flex h-[56px] shrink-0 items-center bg-black/50 px-[16px] sm:h-[70px] sm:px-[40px]">
-        <span className="flex items-center gap-[8px] text-[24px] font-semibold tracking-[-0.01em] text-white">
-          <span className="flex h-[28px] w-[28px] items-center justify-center rounded-[6px] bg-[linear-gradient(135deg,#1B45C2,#2F6FEB)] text-[20px] leading-none">
-            +
-          </span>
-          Menuzia
-        </span>
-      </header>
-
-      <div className="flex flex-1 items-center justify-center px-[16px] py-[32px] sm:justify-end sm:px-[40px] lg:pr-[12%]">
-        <div className="w-full overflow-hidden rounded-[8px] bg-white shadow-[0_2px_8px_rgba(72,79,87,0.3)] sm:w-[540px]">
-          <div className="px-[20px] pb-[40px] pt-[36px] sm:px-[30px]">
-            <h1 className="text-[26px] font-normal leading-[26px] text-[#43474B]" style={{ fontFamily: FONTE_MEDIA }}>
-              {heading}
-            </h1>
-            {children}
+    <main className="flex min-h-screen flex-col bg-[#0A5689] lg:flex-row" style={{ fontFamily: AUTH_FONTE }}>
+      {/* Painel azul com a ilustração */}
+      <section className="relative flex shrink-0 flex-col overflow-hidden bg-[radial-gradient(ellipse_at_50%_45%,#1467A0_0%,#0A5689_60%)] px-[20px] pb-[44px] pt-[20px] lg:min-h-screen lg:w-[52%] lg:px-[56px] lg:pb-[56px] lg:pt-[40px]">
+        <Marca clara />
+        <div className="flex flex-1 flex-col items-center justify-center">
+          <IlustracaoChef className="h-auto w-full max-w-[240px] lg:max-w-[560px]" />
+          <div className="mt-[8px] hidden max-w-[440px] text-center lg:block">
+            <p className="text-[28px] font-semibold leading-[36px] text-white">Do fogão à porta do cliente.</p>
+            <p className="mt-[10px] text-[15px] leading-[24px] text-white/75">
+              Pedidos, cozinha e entregas da sua loja em um só lugar.
+            </p>
           </div>
-          {rodape && (
-            <div className="flex min-h-[60px] flex-wrap items-center justify-center gap-x-[12px] gap-y-[4px] bg-[#F8F9FA] px-[20px] py-[12px] text-[12px] text-[#5B5F65]">
-              {rodape}
-            </div>
-          )}
         </div>
-      </div>
+      </section>
 
-      <footer className="bg-black/50 py-[6px] text-center text-[12px] text-white/80">
-        © {new Date().getFullYear()} Menuzia
-      </footer>
+      {/* Formulário */}
+      <section className="relative -mt-[24px] flex flex-1 flex-col rounded-t-[28px] bg-white px-[20px] pb-[32px] pt-[32px] lg:mt-0 lg:items-center lg:justify-center lg:rounded-none lg:px-[48px]">
+        <div className="mx-auto w-full max-w-[400px]">
+          <h1 className="text-[28px] font-semibold leading-[36px] text-[#0B2A45]">{heading}</h1>
+          {subtitulo && <p className="mt-[6px] text-[14px] leading-[22px] text-[#5F6B7A]">{subtitulo}</p>}
+          <div className="mt-[28px]">{children}</div>
+          {rodape && <p className="mt-[28px] text-center text-[14px] text-[#5F6B7A]">{rodape}</p>}
+        </div>
+        <p className="mt-auto pt-[32px] text-center text-[12px] text-[#9AA3AF] lg:absolute lg:bottom-[20px] lg:pt-0">
+          © {new Date().getFullYear()} Menuzia
+        </p>
+      </section>
     </main>
   )
 }

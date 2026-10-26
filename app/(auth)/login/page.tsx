@@ -31,14 +31,11 @@ export default async function LoginPage({
 
   return (
     <AuthShell
-      heading="Login"
+      heading="Entrar"
+      subtitulo="Bem-vindo de volta! Entre para continuar."
       rodape={
         <>
-          <Link href="/recuperar-senha" className="hover:text-[#1D4ED8]">Esqueceu sua senha?</Link>
-          <span className="hidden h-[12px] w-px bg-[#D5D8DD] sm:block" aria-hidden="true" />
-          <span>
-            Não tem uma conta? <Link href="/cadastro" className={authLink}>Cadastre-se</Link>
-          </span>
+          Não tem uma conta? <Link href="/cadastro" className={authLink}>Cadastre-se</Link>
         </>
       }
     >

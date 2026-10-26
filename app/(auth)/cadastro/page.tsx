@@ -12,10 +12,11 @@ export default async function CadastroPage({
   return (
     <AuthShell
       heading="Cadastro"
+      subtitulo="Crie o acesso da sua loja na Menuzia."
       rodape={
-        <span>
+        <>
           Já tem uma conta? <Link href="/login" className={authLink}>Entrar</Link>
-        </span>
+        </>
       }
     >
       <CadastroForm error={error} convite={convite ?? ''} />

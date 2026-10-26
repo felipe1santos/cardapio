@@ -20,11 +20,8 @@ export default async function RedefinirSenhaPage({
   }
 
   return (
-    <AuthShell heading="Nova senha">
-      <form action={redefinirSenha} className="pt-[24px]">
-        <p className="mb-[24px] text-[14px] leading-[22px] text-[#5B5F65]">
-          Defina sua nova senha de acesso. Mínimo de 6 caracteres.
-        </p>
+    <AuthShell heading="Nova senha" subtitulo="Defina sua nova senha de acesso. Mínimo de 6 caracteres.">
+      <form action={redefinirSenha}>
 
         {error && <p role="alert" className={authAviso.erro}>{error}</p>}
 
@@ -47,10 +44,10 @@ export default async function RedefinirSenhaPage({
           minLength={6}
           placeholder="Confirmar nova senha"
           aria-label="Confirmar nova senha"
-          className={`mt-[24px] ${authInput}`}
+          className={`mt-[16px] ${authInput}`}
         />
 
-        <button type="submit" className={`mt-[40px] ${authButton}`}>
+        <button type="submit" className={`mt-[24px] ${authButton}`}>
           Salvar nova senha
         </button>
       </form>

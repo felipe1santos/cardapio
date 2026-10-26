@@ -19,23 +19,20 @@ export default async function RecuperarSenhaPage({
   return (
     <AuthShell
       heading="Trocar senha"
+      subtitulo={sent ? undefined : 'Informe seu e-mail e enviaremos um link para você cadastrar uma nova senha.'}
       rodape={
-        <span>
+        <>
           Lembrou a senha? <Link href="/login" className={authLink}>Entrar</Link>
-        </span>
+        </>
       }
     >
-      <div className="pt-[24px]">
+      <div>
         {sent ? (
           <p className={authAviso.ok}>
             {MSG_RECUPERACAO_ENVIADA} Verifique sua caixa de entrada (e o spam).
           </p>
         ) : (
           <form action={solicitarTroca}>
-            <p className="mb-[24px] text-[14px] leading-[22px] text-[#5B5F65]">
-              Informe seu e-mail e enviaremos um link para você cadastrar uma nova senha.
-            </p>
-
             {error && <p role="alert" className={authAviso.erro}>{ERROS_CONHECIDOS[error] ?? error}</p>}
 
             <input
@@ -48,7 +45,7 @@ export default async function RecuperarSenhaPage({
               className={authInput}
             />
 
-            <button type="submit" className={`mt-[40px] ${authButton}`}>
+            <button type="submit" className={`mt-[24px] ${authButton}`}>
               Enviar link
             </button>
           </form>
