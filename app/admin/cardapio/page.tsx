@@ -7,6 +7,7 @@ import { avisoDoItem, erroDoItem, statusAoCriarItem } from '@/lib/item-cadastro'
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Clock, CupSoda, GripVertical, Images, MoreVertical, Pause, Pencil, Pizza, Play, Plus, Sandwich, Search, Soup, Star, Trash2, X } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
+import { MenuAcoesCelular } from '@/components/ui/menu-acoes-celular'
 import { Flutuante } from '@/components/ui/flutuante'
 import { Badge } from '@/components/ui/badge'
 import { getBrowserSupabase } from '@/lib/supabase/client'
@@ -65,7 +66,7 @@ import { ordenar } from '@/lib/ordem-cardapio'
 import { PizzaTamanhosPrecos } from '@/components/cardapio/pizza-tamanhos-precos'
 import { TamanhosDoItem } from '@/components/cardapio/tamanhos-do-item'
 import { FoodIcon } from '@/components/cardapio/icone-comida'
-import { Aviso, BotaoIcone, FaixaErro, ItemThumb } from '@/components/cardapio/ui'
+import { Aviso, FaixaErro, ItemThumb } from '@/components/cardapio/ui'
 import { EtiquetasProdutoForm } from '@/components/admin/etiquetas-produto-form'
 import { FichaPreparoForm } from '@/components/admin/ficha-preparo-form'
 import { etiquetasTopoLigadas, motivoTagPersonalizadaInvalida } from '@/lib/etiquetas-vitrine'
@@ -1472,34 +1473,6 @@ export default function CardapioPage() {
 
   const activeGroupIdObj = groups.find((g) => g.nome === activeGroup) ?? null
 
-  /** Ações da categoria: ordem, editar, horário, fotos em massa e excluir — tocáveis, não só no hover. */
-  function acoesCategoria(group: GrupoCardapio, compacto = false) {
-    const cls = compacto ? 'h-6 w-6 border-transparent bg-transparent' : ''
-    const ic = compacto ? 'h-3 w-3' : 'h-3.5 w-3.5'
-    return (
-      <>
-        <BotaoIcone rotulo="Subir categoria (ordem na vitrine)" className={cls} disabled={groups[0]?.id === group.id} onClick={() => moveCategoria(group, -1)}>
-          <ArrowUp className={ic} />
-        </BotaoIcone>
-        <BotaoIcone rotulo="Descer categoria (ordem na vitrine)" className={cls} disabled={groups[groups.length - 1]?.id === group.id} onClick={() => moveCategoria(group, 1)}>
-          <ArrowDown className={ic} />
-        </BotaoIcone>
-        <BotaoIcone rotulo="Editar categoria (nome e foto)" className={cls} onClick={() => startEditCategoria(group)}>
-          <Pencil className={ic} />
-        </BotaoIcone>
-        <BotaoIcone rotulo="Horário automático da categoria" className={cls} onClick={() => startScheduleCategoria(group)}>
-          <Clock className={ic} />
-        </BotaoIcone>
-        <BotaoIcone rotulo="Subir fotos em massa" className={cls} onClick={() => setBulkTarget({ tipo: 'item', grupoId: group.id, nome: group.nome })}>
-          <Images className={ic} />
-        </BotaoIcone>
-        <BotaoIcone rotulo="Excluir categoria" perigo className={cls} onClick={() => deleteCategoria(group)}>
-          <Trash2 className={ic} />
-        </BotaoIcone>
-      </>
-    )
-  }
-
   function formEdicaoCategoria(group: GrupoCardapio) {
     return (
                   <div className="space-y-2 rounded-menuzia border border-primary/40 bg-primary/5 px-2 py-2">
@@ -1673,15 +1646,8 @@ export default function CardapioPage() {
               <Plus className="h-3.5 w-3.5" /> Categoria
             </button>
           </div>
-          {activeGroupIdObj && editingGroupId !== activeGroupIdObj.id && schedulingGroupId !== activeGroupIdObj.id && (
-            <div className="flex items-center justify-end gap-2 rounded-[6px] border-[0.8px] border-[var(--adm-borda-cartao)] bg-white px-3 py-1.5 sm:justify-between">
-              <span className="min-w-0 truncate text-[12px] text-[var(--adm-texto-suave)] max-sm:hidden">
-                Categoria <b className="text-[var(--adm-texto)]">{activeGroupIdObj.nome}</b>
-                {activeGroupIdObj.horarioAtivoInicio && activeGroupIdObj.horarioAtivoFim ? ` · ${activeGroupIdObj.horarioAtivoInicio}–${activeGroupIdObj.horarioAtivoFim}` : ''}
-              </span>
-              <div className="flex flex-shrink-0 items-center gap-1">{acoesCategoria(activeGroupIdObj)}</div>
-            </div>
-          )}
+          {/* 27/10: a fileira de ações da categoria ocupava uma linha inteira no celular; virou o ⋮ ao lado do
+              nome da categoria, no cabeçalho dos itens. */}
           {activeGroupIdObj && editingGroupId === activeGroupIdObj.id && formEdicaoCategoria(activeGroupIdObj)}
           {activeGroupIdObj && schedulingGroupId === activeGroupIdObj.id && formHorarioCategoria()}
         </div>
@@ -1782,12 +1748,32 @@ export default function CardapioPage() {
           {/* Itens */}
           <section className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-[6px] border-[0.8px] border-[var(--adm-borda-cartao)] bg-white max-lg:overflow-visible">
             <div className="flex flex-wrap items-center gap-2 border-b border-[var(--adm-borda)] px-3.5 py-2.5">
-              <div className="mr-auto min-w-0">
-                <h2 className="truncate text-[14px] font-semibold text-[var(--adm-texto-forte)]">{activeGroup ?? 'Sem categoria'}</h2>
-                <p className="text-[11.5px] text-[var(--adm-texto-suave)]">
-                  {visibleItems.length} {visibleItems.length === 1 ? 'item' : 'itens'}
-                  {selected.size > 0 && <> · <b className="text-[var(--adm-azul)]">{selected.size} selecionado(s)</b></>}
-                </p>
+              <div className="mr-auto flex min-w-0 items-center gap-1">
+                <div className="min-w-0">
+                  <h2 className="truncate text-[14px] font-semibold text-[var(--adm-texto-forte)]">{activeGroup ?? 'Sem categoria'}</h2>
+                  <p className="text-[11.5px] text-[var(--adm-texto-suave)]">
+                    {visibleItems.length} {visibleItems.length === 1 ? 'item' : 'itens'}
+                    {activeGroupIdObj?.horarioAtivoInicio && activeGroupIdObj.horarioAtivoFim ? ` · ${activeGroupIdObj.horarioAtivoInicio}–${activeGroupIdObj.horarioAtivoFim}` : ''}
+                    {selected.size > 0 && <> · <b className="text-[var(--adm-azul)]">{selected.size} selecionado(s)</b></>}
+                  </p>
+                </div>
+                {/* Celular/tablet: ações da categoria num ⋮ (no desktop ficam na lista de categorias). */}
+                {activeGroupIdObj && editingGroupId !== activeGroupIdObj.id && schedulingGroupId !== activeGroupIdObj.id && (
+                  <MenuAcoesCelular
+                    tamanho={36}
+                    rotulo={`Ações da categoria ${activeGroupIdObj.nome}`}
+                    testid="categoria-menu-celular"
+                    className="!border-transparent lg:hidden"
+                    acoes={[
+                      { rotulo: 'Subir na ordem', icone: <ArrowUp className="h-4 w-4" />, desabilitada: groups[0]?.id === activeGroupIdObj.id, onClick: () => moveCategoria(activeGroupIdObj, -1) },
+                      { rotulo: 'Descer na ordem', icone: <ArrowDown className="h-4 w-4" />, desabilitada: groups[groups.length - 1]?.id === activeGroupIdObj.id, onClick: () => moveCategoria(activeGroupIdObj, 1) },
+                      { rotulo: 'Editar nome e foto', icone: <Pencil className="h-4 w-4" />, onClick: () => startEditCategoria(activeGroupIdObj) },
+                      { rotulo: 'Horário automático', icone: <Clock className="h-4 w-4" />, onClick: () => startScheduleCategoria(activeGroupIdObj) },
+                      { rotulo: 'Subir fotos em massa', icone: <Images className="h-4 w-4" />, onClick: () => setBulkTarget({ tipo: 'item', grupoId: activeGroupIdObj.id, nome: activeGroupIdObj.nome }) },
+                      { rotulo: 'Excluir categoria', icone: <Trash2 className="h-4 w-4" />, perigo: true, onClick: () => deleteCategoria(activeGroupIdObj) },
+                    ]}
+                  />
+                )}
               </div>
               <div className="relative min-w-[180px] flex-1 sm:max-w-[260px] max-sm:order-last max-sm:basis-full">
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--adm-texto-suave)]" />
@@ -1837,7 +1823,7 @@ export default function CardapioPage() {
                   {avisoOrdem.texto}
                 </p>
               ) : activeGroupId && visibleItems.length > 1 ? (
-                <p data-testid="dica-ordem" className="py-1.5 text-[11.5px] text-[var(--adm-texto-suave)]">
+                <p data-testid="dica-ordem" className="py-1.5 text-[11.5px] text-[var(--adm-texto-suave)] max-sm:hidden">
                   {buscaAtiva
                     ? 'Com a busca ativa a ordem não pode ser alterada. Limpe a busca para arrastar.'
                     : 'Arraste pela alça ⋮⋮ para mudar a ordem na vitrine e nos QR Codes. No teclado: foque a alça e use as setas.'}
@@ -1977,7 +1963,8 @@ export default function CardapioPage() {
                 </div>
               )}
               {activeGroupId && visibleItems.length > 0 && (
-                <div className={`grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-3.5 p-4 ${view === 'table' ? 'lg:hidden' : ''}`}>
+                // Celular: 2 colunas (27/10); a partir de sm, a grade automática de sempre.
+                <div className={`grid grid-cols-2 gap-2.5 p-2.5 sm:grid-cols-[repeat(auto-fill,minmax(200px,1fr))] sm:gap-3.5 sm:p-4 ${view === 'table' ? 'lg:hidden' : ''}`}>
                   {itensNaOrdem.map((item) => (
                     <div
                       key={item.id}
@@ -1987,7 +1974,7 @@ export default function CardapioPage() {
                       data-testid="produto-cartao"
                       className="cardapio-produto-cartao flex flex-col overflow-hidden rounded-menuzia border border-border bg-white"
                     >
-                      <div className="relative flex h-[120px] items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
+                      <div className="relative flex h-[120px] items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 max-sm:h-auto max-sm:aspect-[4/3]">
                         {(item.imagemThumbUrl ?? item.imagemUrl)
                           // Card de 120px de altura: miniatura basta.
                           // eslint-disable-next-line @next/next/no-img-element
@@ -1996,19 +1983,20 @@ export default function CardapioPage() {
                         }
                         {item.status !== 'disponivel' && <div className="absolute left-2 top-2"><StatusBadge status={item.status} /></div>}
                       </div>
-                      <div className="flex flex-1 flex-col gap-1.5 p-3">
-                        <div className="flex items-center gap-1.5">
+                      <div className="flex flex-1 flex-col gap-1.5 p-3 max-sm:gap-1 max-sm:p-2">
+                        <div className="flex items-center gap-1.5 max-sm:gap-0.5">
                           <span
                             {...ordemItens.propsDaAlca(item.id)}
                             title={buscaAtiva ? 'Limpe a busca para reordenar' : 'Arraste para mudar a ordem (ou use as setas)'}
-                            className={`-ml-1 flex h-9 w-8 flex-shrink-0 items-center justify-center rounded-[4px] text-[var(--adm-texto-suave)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--adm-azul)] ${buscaAtiva ? 'opacity-30' : 'hover:bg-[#EEF2F6]'}`}
+                            className={`-ml-1 flex h-9 w-8 flex-shrink-0 items-center justify-center rounded-[4px] text-[var(--adm-texto-suave)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--adm-azul)] max-sm:w-6 ${buscaAtiva ? 'opacity-30' : 'hover:bg-[#EEF2F6]'}`}
                           >
                             <GripVertical className="h-4 w-4" aria-hidden="true" />
                           </span>
                           <BotaoFavorito item={item} salvando={favoritoSalvandoId === item.id} desabilitado={!podeEditarCatalogo} onAlternar={() => alternarFavorito(item)} />
-                          <div className="text-sm font-semibold">{item.nome}</div>
                         </div>
-                        <div className="flex-1 text-xs leading-relaxed text-text-subtle">{descricaoEmTextoPuro(item.descricao)}</div>
+                        {/* Nome em linha própria: no celular (2 colunas) dividir a linha com alça e estrela espremia o nome. */}
+                        <div className="text-sm font-semibold leading-snug max-sm:line-clamp-2 max-sm:text-[13px]">{item.nome}</div>
+                        <div className="flex-1 text-xs leading-relaxed text-text-subtle max-sm:line-clamp-2 max-sm:flex-none max-sm:text-[11.5px] max-sm:leading-[15px]">{descricaoEmTextoPuro(item.descricao)}</div>
                         {/* Cadastro que o cliente sente antes do lojista perceber: item de
                             graça na vitrine, promoção que não desconta (lib/item-cadastro.ts). */}
                         {(() => {
@@ -2024,7 +2012,8 @@ export default function CardapioPage() {
                             <p className="rounded-menuzia bg-warn-bg px-2 py-1 text-[11px] font-semibold leading-snug text-warn">{aviso}</p>
                           ) : null
                         })()}
-                        <div className="mt-1 flex items-center justify-between">
+                        {/* Celular: preço em cima e Pausar/Editar lado a lado, cada um com metade da largura. */}
+                        <div className="mt-1 flex items-center justify-between max-sm:mt-auto max-sm:flex-col max-sm:items-start max-sm:gap-1.5">
                           {item.promocaoPreco !== null ? (
                             <span className="flex flex-col">
                               <span className="rounded-menuzia bg-price-bg px-2 py-1 text-[13px] font-semibold text-price-text">
@@ -2037,13 +2026,13 @@ export default function CardapioPage() {
                               <PrecoDaLista item={item} />
                             </span>
                           )}
-                          <span className="prod-acoes flex items-center gap-1.5" data-testid="produto-acoes">
+                          <span className="prod-acoes flex items-center gap-1.5 max-sm:grid max-sm:w-full max-sm:grid-cols-2" data-testid="produto-acoes">
                             <button onClick={() => toggleItemStatus(item)} disabled={statusSavingId === item.id} aria-label={item.status === 'disponivel' ? `Pausar ${item.nome}` : `Retomar ${item.nome}`} title={item.status === 'disponivel' ? 'Pausar item' : 'Retomar item'}
-                              className="toque-icone flex h-[30px] w-[30px] items-center justify-center rounded-menuzia border border-border bg-white text-text-subtle hover:border-primary hover:text-primary disabled:opacity-50">
+                              className="toque-icone flex h-[30px] w-[30px] items-center justify-center rounded-menuzia border border-border bg-white text-text-subtle hover:border-primary hover:text-primary disabled:opacity-50 max-sm:h-9 max-sm:w-full">
                               {item.status === 'disponivel' ? <Pause className="h-[15px] w-[15px]" strokeWidth={2} /> : <Play className="h-[15px] w-[15px]" strokeWidth={2} />}
                             </button>
                             <button onClick={() => openEditItem(item)} aria-label={`Editar ${item.nome}`} data-testid="produto-editar"
-                              className="toque-icone flex h-[30px] w-[30px] items-center justify-center rounded-menuzia border border-border bg-white text-text-subtle hover:border-primary hover:text-primary">
+                              className="toque-icone flex h-[30px] w-[30px] items-center justify-center rounded-menuzia border border-border bg-white text-text-subtle hover:border-primary hover:text-primary max-sm:h-9 max-sm:w-full max-sm:border-[var(--adm-azul)] max-sm:text-[var(--adm-azul)]">
                               <svg viewBox="0 0 24 24" className="h-[15px] w-[15px] fill-current">
                                 <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75z" />
                               </svg>
