@@ -100,6 +100,8 @@ function tempoDecorrido(iso: string): string {
   if (min < 1) return 'agora'
   if (min < 60) return `${min} min`
   const h = Math.floor(min / 60)
+  // Conta esquecida: "321h17" não se lê; em dias (27/10).
+  if (h >= 24) return `${Math.floor(h / 24)} d`
   return `${h}h${String(min % 60).padStart(2, '0')}`
 }
 

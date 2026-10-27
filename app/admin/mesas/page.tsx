@@ -452,7 +452,7 @@ export default function MesasPage() {
                   {/* Conta de dias atrás: o "3h20" do relógio normal não diz que a mesa
                       está presa. Aqui a etiqueta grita, com o tempo em dias. */}
                   {contaAberta && comandaEsquecida({ abertaEm: mesa.abertaEm }, agora) && (
-                    <span className="mt-1 inline-flex w-fit items-center rounded-menuzia bg-white/95 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-danger shadow-sm">
+                    <span className="mt-1 inline-flex w-fit max-w-full items-center truncate rounded-menuzia bg-white/95 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-danger shadow-sm">
                       Aberta há {tempoAberta(mesa.abertaEm!, agora)}
                     </span>
                   )}
@@ -508,7 +508,7 @@ export default function MesasPage() {
                       tamanho={32}
                       rotulo={`Ações da ${mesa.nome}`}
                       testid={`mesa-menu-${mesa.id}`}
-                      className="absolute right-[2px] top-[2px] md:hidden"
+                      className="absolute right-[2px] top-[2px] !bg-transparent active:!bg-black/20 md:hidden"
                       acoes={[
                         { rotulo: 'Ver QR Code', icone: <QrCode className="h-4 w-4" />, onClick: () => setQrDaMesa(mesa) },
                         { rotulo: 'Editar', icone: <Pencil className="h-4 w-4" />, onClick: () => { setEmEdicao(mesa); setFormAberto(true) } },
