@@ -82,7 +82,8 @@ export function fotosDoPedido(pedido: PedidoCliente, cardapio: ItemCardapio[], l
   const fotos: string[] = []
   for (const item of pedido.itens) {
     const doCardapio = porNome.get(chave(item.nome))
-    const url = doCardapio?.imagemThumbUrl ?? doCardapio?.imagemUrl
+    // Item só com vídeo (sem foto): a capa do vídeo serve de foto (26/10/2026).
+    const url = doCardapio?.imagemThumbUrl ?? doCardapio?.imagemUrl ?? doCardapio?.video?.capa
     // Sem repetir a mesma foto: dois sabores do mesmo item viravam duas
     // miniaturas idênticas, gastando o espaço que o terceiro item usaria.
     if (url && !fotos.includes(url)) fotos.push(url)

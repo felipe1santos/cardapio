@@ -174,6 +174,11 @@ describe('fotosDoPedido', () => {
     expect(fotosDoPedido(pedido([{}]), cardapio)).toEqual(['https://exemplo/thumb.png'])
   })
 
+  it('item só com vídeo usa a capa do vídeo como foto', () => {
+    const cardapio = [item({ imagemUrl: null, video: { url: 'https://exemplo/v.mp4', capa: 'https://exemplo/v.webp', home: true, posicao: 0, carrossel: true } } as Partial<ItemCardapio>)]
+    expect(fotosDoPedido(pedido([{}]), cardapio)).toEqual(['https://exemplo/v.webp'])
+  })
+
   it('não repete a mesma foto: dois sabores do mesmo item ocupariam duas vagas', () => {
     const cardapio = [item({ nome: 'Pizza', imagemUrl: 'https://exemplo/p.png' })]
     expect(fotosDoPedido(pedido([{ nome: 'Pizza' }, { nome: 'Pizza' }]), cardapio)).toEqual(['https://exemplo/p.png'])
