@@ -121,8 +121,8 @@ export function LinhaValor({ rotulo, valor, verde = false, forte = false, testid
 
 /** Cartão de opção com rádio à direita (entrega, pagamento). */
 export function OpcaoRadio({
-  ativo, onClick, titulo, subtitulo, direita, icone, testid,
-}: { ativo: boolean; onClick: () => void; titulo: ReactNode; subtitulo?: ReactNode; direita?: ReactNode; icone?: ReactNode; testid?: string }) {
+  ativo, onClick, titulo, subtitulo, direita, icone, fundoIcone, testid,
+}: { ativo: boolean; onClick: () => void; titulo: ReactNode; subtitulo?: ReactNode; direita?: ReactNode; icone?: ReactNode; fundoIcone?: string; testid?: string }) {
   return (
     <button
       type="button"
@@ -134,7 +134,7 @@ export function OpcaoRadio({
         ativo ? 'border-[var(--tema-primaria)] shadow-[0_0_0_1px_var(--tema-primaria)]' : 'border-[#E5E5E5] hover:border-[#BDBDBD]',
       ].join(' ')}
     >
-      {icone && <span className="flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-[8px] bg-[#F5F5F5]">{icone}</span>}
+      {icone && <span className="flex h-[40px] w-[40px] flex-shrink-0 items-center justify-center rounded-[10px]" style={{ background: fundoIcone ?? '#F5F5F5' }}>{icone}</span>}
       <span className="min-w-0 flex-1">
         <span className="block text-[14px] font-semibold leading-[18px] text-[#3D3D3D]">{titulo}</span>
         {subtitulo && <span className="mt-[2px] block text-[12px] leading-[16px] text-[#5C5C5C]">{subtitulo}</span>}

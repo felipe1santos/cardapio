@@ -106,12 +106,12 @@ export function FotoItemPedido({ src, quantidade }: { src?: string | null; quant
   const [falhou, setFalhou] = useState(false)
   const temFoto = !!src && !falhou
   return (
-    <span className="relative h-[56px] w-[56px] flex-shrink-0" data-testid="foto-item-pedido" data-tem-foto={temFoto ? 'sim' : 'nao'}>
+    <span className="relative h-[72px] w-[72px] flex-shrink-0" data-testid="foto-item-pedido" data-tem-foto={temFoto ? 'sim' : 'nao'}>
       {temFoto ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={src!} alt="" loading="lazy" onError={() => setFalhou(true)} className="h-full w-full rounded-[8px] border border-[#EDEDED] object-cover" />
+        <img src={src!} alt="" loading="lazy" onError={() => setFalhou(true)} className="h-full w-full rounded-[10px] border border-[#EDEDED] object-cover" />
       ) : (
-        <span className="flex h-full w-full items-center justify-center rounded-[8px] border border-[#EDEDED] bg-[#F5F5F5] text-[#9CA3AF]" aria-hidden>
+        <span className="flex h-full w-full items-center justify-center rounded-[10px] border border-[#EDEDED] bg-[#F5F5F5] text-[#9CA3AF]" aria-hidden>
           <svg viewBox="0 0 24 24" className="h-[26px] w-[26px]" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
             <path d="M4 10a8 5 0 0 1 16 0z" /><path d="M3.5 13.5h17" /><path d="M4.5 16.5h15a0 0 0 0 1 0 0 2.5 2.5 0 0 1-2.5 2.5H7a2.5 2.5 0 0 1-2.5-2.5z" />
           </svg>

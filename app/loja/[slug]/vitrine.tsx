@@ -6,11 +6,12 @@ import { formasDoCanal } from '@/lib/formas-pagamento'
 import { comVideo, midiasDaFicha, type Midia, type VideoItem } from '@/lib/video-vitrine'
 import { VideoLoop } from '@/components/vitrine/video-loop'
 import { useFotoInteira } from '@/components/vitrine/foto-inteira'
+import { CartaoModoPagamento, iconeFormaPagamento } from '@/components/vitrine/checkout-visuais'
 import { BarraFluida, CanhotoCupom, COR_BENEFICIO, IconeEntregador, MASCARA_TICKET, SeloPremio } from '@/components/vitrine/cupons-visuais'
 import { BarraNav } from '@/components/vitrine/barra-nav'
 import { BarraNavBotoes } from '@/components/vitrine/barra-nav-botoes'
 import { CABECALHO_PADRAO } from '@/lib/vitrine-cabecalho'
-import { House as PhHouse, Receipt as PhReceipt, SealCheck as PhSealCheck, Ticket as PhTicket, User as PhUser } from '@phosphor-icons/react'
+import { House as PhHouse, MapPin as PhMapPin, Receipt as PhReceipt, SealCheck as PhSealCheck, Ticket as PhTicket, User as PhUser } from '@phosphor-icons/react'
 import { TelaPixOnline, type PixAguardando } from '@/components/vitrine/tela-pix-online'
 import { TelaCartaoOnline, type CartaoAguardando } from '@/components/vitrine/tela-cartao-online'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -126,13 +127,14 @@ const ENDERECO_VAZIO: EnderecoCliente = { rua: '', numero: '', complemento: '', 
 
 // Cores vivas e sólidas, alinhadas ao Kanban (laranja recebido, azul preparando,
 // verde pronto/entregue, azul claro em rota, vermelho cancelado).
+// 26/10/2026: tons suaves (fundo claro + texto forte, contraste ≥ 4,5:1) no lugar da cor chapada.
 const STATUS_PEDIDO_INFO: Record<string, { label: string; cls: string }> = {
-  recebido: { label: 'Recebido', cls: 'bg-[#F97316] text-white' },
-  preparando: { label: 'Preparando', cls: 'bg-[#024A7D] text-white' },
-  pronto: { label: 'Pronto', cls: 'bg-[#16A34A] text-white' },
-  em_rota: { label: 'Saiu para entrega', cls: 'bg-[#3B82F6] text-white' },
-  entregue: { label: 'Entregue', cls: 'bg-[#15803D] text-white' },
-  cancelado: { label: 'Cancelado', cls: 'bg-[#ef4444] text-white' },
+  recebido: { label: 'Recebido', cls: 'bg-[#FFF1E6] text-[#C2410C]' },
+  preparando: { label: 'Preparando', cls: 'bg-[#E6EFF8] text-[#024A7D]' },
+  pronto: { label: 'Pronto', cls: 'bg-[#E7F6EC] text-[#15803D]' },
+  em_rota: { label: 'Saiu para entrega', cls: 'bg-[#E8F0FE] text-[#1D4ED8]' },
+  entregue: { label: 'Entregue', cls: 'bg-[#E7F6EC] text-[#166534]' },
+  cancelado: { label: 'Cancelado', cls: 'bg-[#FDECEC] text-[#B91C1C]' },
 }
 
 /** Selo do pedido; na loja sem entregador, o concluído aparece como "Saiu para entrega". */
@@ -145,7 +147,7 @@ function novaChavePedido(): string {
 function infoStatusPedido(p: { status: string; saidaSemConfirmacao?: boolean }): { label: string; cls: string } {
   // O rótulo é a regra comum com o robô do WhatsApp (lib/status-pedido-cliente); aqui só a cor.
   const label = rotuloStatusPedidoCliente(p)
-  if (p.saidaSemConfirmacao && p.status === 'entregue') return { label, cls: 'bg-[#15803D] text-white' }
+  if (p.saidaSemConfirmacao && p.status === 'entregue') return { label, cls: 'bg-[#E7F6EC] text-[#166534]' }
   return { label, cls: STATUS_PEDIDO_INFO[p.status]?.cls ?? 'bg-[#F3F4F6] text-text-subtle' }
 }
 
@@ -2665,6 +2667,21 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   // A forma escolhida saiu (outro canal, cartão online desligado...): volta para a primeira aceita.
   useEffect(() => { if (idsPagamento.length && !idsPagamento.includes(payMethod)) setPayMethod(idsPagamento[0]) }, [idsPagamento, payMethod])
 
+  // "Como prefere pagar?" (26/10/2026): com formas online E na entrega, o cliente escolhe o jeito primeiro
+  // (dois cartões grandes) e só então vê as formas daquele jeito.
+  // Cor de ação do checkout = a do rodapé ("Ver sacola"/"Continuar"), para o caminho todo ter uma cor só.
+  const estiloAcao = restaurante?.corRodape === 'takeat' ? ({ '--tema-primaria': VERMELHO_TAKEAT } as React.CSSProperties) : undefined
+  const metodosOnline = idsPagamento.filter((m) => m === 'Cartão online' || (m === 'Pix' && pixAgora))
+  const metodosEntrega = idsPagamento.filter((m) => !metodosOnline.includes(m))
+  const escolheModo = metodosOnline.length > 0 && metodosEntrega.length > 0
+  const [modoPagamento, setModoPagamento] = useState<'online' | 'entrega' | null>(null)
+  function escolherModo(m: 'online' | 'entrega') {
+    setModoPagamento(m)
+    const lista = m === 'online' ? metodosOnline : metodosEntrega
+    if (!lista.includes(payMethod)) setPayMethod(lista[0])
+    setCheckoutError(null)
+  }
+
   const PAY_MAP: Record<string, 'pix' | 'cartao' | 'dinheiro' | 'vale'> = {
     Pix: 'pix',
     'Pix na entrega': 'pix',
@@ -2872,6 +2889,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     // Troco pedido tem que cobrir a conta: senão o entregador sai sem o troco
     // combinado e o caixa dele fecha errado (lib/troco.ts). O servidor confere de
     // novo — aqui o cliente descobre antes de mandar o pedido.
+    if (checkoutStep === 1 && escolheModo && modoPagamento === null) {
+      setCheckoutError('Escolha como prefere pagar: online ou na entrega.')
+      return
+    }
     if (checkoutStep === 1 && payMethod === 'Vale' && !(valeBandeira && bandeirasVale.includes(valeBandeira))) {
       setCheckoutError('Escolha a bandeira do vale.')
       return
@@ -4225,7 +4246,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                                   <div className="text-[15px] font-semibold leading-[20px] text-[#1F1F1F]">Pedido #{p.numero}</div>
                                   <div className="text-[12px] leading-[16px] text-[#6B7280]">{data} · {p.tipo === 'retirada' ? 'Retirada' : 'Entrega'}</div>
                                 </div>
-                                <span className={['flex-shrink-0 rounded-full px-[9px] py-[3px] text-[11.5px] font-semibold', info.cls].join(' ')}>{info.label}</span>
+                                <span className={['flex-shrink-0 rounded-[6px] px-[8px] py-[3px] text-[12px] font-semibold', info.cls].join(' ')}>{info.label}</span>
                               </div>
                               <p className="mt-[6px] line-clamp-2 text-[13px] leading-[18px] text-[#5C5C5C]">{resumo}</p>
                             </div>
@@ -4302,13 +4323,13 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/50 sm:items-center sm:p-4" onClick={() => setPedidoDetalhe(null)}>
               <div className="flex max-h-[92dvh] w-full max-w-md flex-col overflow-hidden rounded-t-2xl bg-white sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between border-b border-border px-5 py-4">
-                  <h2 className="text-[17px] font-semibold text-text-main">Detalhes do pedido</h2>
+                  <h2 className="text-[17px] font-semibold text-text-main">Pedido #{p.numero}</h2>
                   <button onClick={() => setPedidoDetalhe(null)} className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F3F4F6] text-[15px] text-text-subtle transition-colors hover:bg-border">✕</button>
                 </div>
 
                 <div className="flex-1 overflow-y-auto px-5 py-4">
                   <div className="flex items-center justify-between gap-2">
-                    <span className={['rounded px-2.5 py-1 text-[12px] font-semibold uppercase tracking-wide', info.cls].join(' ')}>{info.label}</span>
+                    <span className={['rounded-[6px] px-[10px] py-[4px] text-[13px] font-semibold', info.cls].join(' ')}>{info.label}</span>
                     <span className="text-[12px] text-text-subtle">
                       {new Date(p.criadoEm).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                     </span>
@@ -4337,7 +4358,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   )}
 
                   <div className="my-4 border-t border-border" />
-                  <h3 className="text-[15px] font-semibold text-text-main">Pedido N° {p.numero}</h3>
+                  <h3 className="text-[15px] font-semibold text-text-main">Itens do pedido</h3>
 
                   <ul className="mt-3 space-y-3">
                     {p.itens.map((i, idx) => {
@@ -4357,7 +4378,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                               <p className="mt-1 text-[12px] font-semibold uppercase text-text-main">OBS: {i.observacao}</p>
                             )}
                           </div>
-                          <span className="flex-shrink-0 text-[14px] font-semibold text-text-main">{brl(i.precoUnitario * i.quantidade)}</span>
+                          <span className="flex-shrink-0 text-[15px] font-semibold text-text-main">{brl(i.precoUnitario * i.quantidade)}</span>
                         </li>
                       )
                     })}
@@ -4385,7 +4406,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                       href={waLink}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex w-full items-center justify-center gap-2 rounded bg-[var(--tema-primaria)] py-3.5 text-[13px] font-semibold uppercase tracking-wide text-white transition-colors hover:bg-[var(--tema-dark)]"
+                      className="flex h-[50px] w-full items-center justify-center gap-2 rounded-[12px] bg-[var(--tema-primaria)] text-[15px] font-semibold text-white transition-[filter] hover:brightness-110"
                     >
                       <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
                         <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1C10.61 21 3 13.39 3 4c0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" />
@@ -5217,13 +5238,13 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
           No celular o checkout aberto rola no PRÓPRIO documento (a home fica escondida): é
           isso que deixa a barra do navegador recolher ao rolar. Fechado, ou no desktop, segue
           como camada fixa por cima (2026-10-01). */}
-      <div className={`fixed inset-0 z-[60] overflow-y-auto bg-[#F3F4F6] transition-all duration-300 lg:flex lg:items-center lg:justify-center lg:overflow-hidden lg:bg-black/50 lg:p-6 lg:translate-x-0 ${checkoutOpen ? 'translate-x-0 max-lg:relative max-lg:overflow-visible lg:opacity-100' : 'translate-x-full lg:opacity-0 lg:pointer-events-none'}`} data-testid="checkout">
+      <div className={`fixed inset-0 z-[60] overflow-y-auto bg-[#F3F4F6] transition-all duration-300 lg:flex lg:items-center lg:justify-center lg:overflow-hidden lg:bg-black/50 lg:p-6 lg:translate-x-0 ${checkoutOpen ? 'translate-x-0 max-lg:relative max-lg:overflow-visible lg:opacity-100' : 'translate-x-full lg:opacity-0 lg:pointer-events-none'}`} data-testid="checkout" style={estiloAcao}>
         <div className="mx-auto flex min-h-dvh max-w-[600px] flex-col bg-white lg:block lg:min-h-0 lg:max-h-[85vh] lg:w-full lg:overflow-y-auto lg:rounded lg:pb-0 lg:shadow-2xl">
           <div className="sticky top-0 z-10 flex h-[56px] items-center gap-[8px] border-b border-[#EFEFEF] bg-white px-[8px]">
             <button onClick={checkoutBack} aria-label="Voltar" className="flex h-[40px] w-[40px] items-center justify-center rounded-full text-[var(--tema-dark)] hover:bg-[var(--tema-light)]">
               <ChevronLeft className="h-[24px] w-[24px]" strokeWidth={2.2} />
             </button>
-            <span className="flex-1 text-center text-[14px] font-semibold uppercase tracking-[0.08em] text-[#3D3D3D]" data-testid="titulo-etapa">
+            <span className="flex-1 text-center text-[16px] font-semibold text-[#1F1F1F]" data-testid="titulo-etapa">
               {checkoutStep === 0 ? 'Resumo do pedido' : checkoutStep === 2 ? (tipoPedido === 'retirada' ? 'Retirada' : 'Entrega') : 'Pagamento'}
             </span>
             <span className="w-[40px]" />
@@ -5255,7 +5276,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   <section className="mb-[20px]">
                     <TituloSecao>Entregar no endereço</TituloSecao>
                     <div className="flex items-start gap-[12px] rounded-[8px] border border-[#E5E5E5] bg-white p-[14px]" data-testid="endereco-resumo">
-                      <MapPin className="mt-[2px] h-[20px] w-[20px] flex-shrink-0 text-[#3D3D3D]" strokeWidth={1.8} />
+                      <span className="flex h-[40px] w-[40px] flex-shrink-0 items-center justify-center rounded-[10px] bg-[#FDECEC] text-[#B91C1C]"><PhMapPin weight="duotone" size={22} aria-hidden /></span>
                       <div className="min-w-0 flex-1">
                         <p className="text-[14px] font-semibold leading-[18px] text-[#3D3D3D]">{endereco.rua}, {endereco.numero}</p>
                         <p className="mt-[2px] text-[12px] leading-[16px] text-[#5C5C5C]">
@@ -5382,7 +5403,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 <section className="mb-[20px]" data-testid="retirada-local">
                   <TituloSecao>Retirar na loja</TituloSecao>
                   <div className="flex items-start gap-[12px] rounded-[8px] border border-[#E5E5E5] bg-white p-[14px]">
-                    <Store className="mt-[2px] h-[20px] w-[20px] flex-shrink-0 text-[#3D3D3D]" strokeWidth={1.8} />
+                    <span className="flex h-[40px] w-[40px] flex-shrink-0 items-center justify-center rounded-[10px]" style={{ background: iconeFormaPagamento('retirada').fundo }}>{iconeFormaPagamento('retirada').icone}</span>
                     <div className="min-w-0 flex-1">
                       <p className="text-[14px] font-semibold leading-[18px] text-[#3D3D3D]">{restaurante?.nome}</p>
                       <p className="mt-[2px] text-[12px] leading-[16px] text-[#5C5C5C]">{restaurante?.endereco?.trim() || 'Confirme o endereço com a loja.'}</p>
@@ -5402,7 +5423,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                       titulo="Padrão"
                       subtitulo={agendando ? 'Entrega agendada' : `Hoje, ${PRAZO_ENTREGA}`}
                       direita={tipoPedido === 'entrega' ? (freteRotulo ?? (fee === 0 ? 'Grátis' : brl(fee))) : undefined}
-                      icone={<Truck className="h-[18px] w-[18px] text-[#3D3D3D]" strokeWidth={2} />}
+                      icone={<span className="text-[#15803D]"><IconeEntregador tamanho={17} /></span>}
+                      fundoIcone="#ECFDF3"
                       testid="opcao-entrega-padrao"
                     />
                   )}
@@ -5413,14 +5435,15 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                       titulo="Retirar na loja"
                       subtitulo="Você busca no balcão"
                       direita="Grátis"
-                      icone={<Store className="h-[18px] w-[18px] text-[#3D3D3D]" strokeWidth={2} />}
+                      icone={iconeFormaPagamento('retirada').icone}
+                      fundoIcone={iconeFormaPagamento('retirada').fundo}
                       testid="opcao-retirada"
                     />
                   )}
                 </section>
               )}
               {aceitaEntrega && aceitaRetirada && tipoPedido === 'entrega' && (
-                <button onClick={() => setTipoPedido('retirada')} className="mb-[20px] flex w-full items-center justify-between gap-[8px] rounded-[8px] bg-[#F5F5F5] px-[14px] py-[12px] text-left text-[13px] font-semibold text-[#3D3D3D]" data-testid="atalho-retirada">
+                <button onClick={() => setTipoPedido('retirada')} className="mb-[20px] flex w-full items-center justify-between gap-[8px] rounded-[10px] border border-dashed border-[#00466F]/30 bg-[#F2F7FB] px-[14px] py-[12px] text-left text-[13px] font-semibold text-[#00466F]" data-testid="atalho-retirada">
                   <span>Taxa grátis retirando o seu pedido na loja</span>
                   <ChevronRight className="h-[18px] w-[18px] flex-shrink-0" strokeWidth={2} />
                 </button>
@@ -5486,15 +5509,25 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
           {checkoutOpen && (checkoutStep === 1 || checkoutStep === 3) && (
             <div className="px-[16px] pb-[20px]" data-testid="etapa-pagamento">
-              {(pixAgora || cartaoAgora) && (
+              {escolheModo && (
+                <section className="mb-[20px]" data-testid="modo-pagamento">
+                  <TituloSecao>Como prefere pagar?</TituloSecao>
+                  <div className="grid grid-cols-2 gap-[10px]">
+                    <CartaoModoPagamento tipo="online" titulo="Pagar online" texto="Pix ou cartão, agora pelo app" ativo={modoPagamento === 'online'} onClick={() => escolherModo('online')} testid="modo-online" />
+                    <CartaoModoPagamento tipo="entrega" titulo={tipoPedido === 'retirada' ? 'Pagar na retirada' : 'Pagar na entrega'} texto={tipoPedido === 'retirada' ? 'No balcão, ao retirar' : 'Ao receber o pedido'} ativo={modoPagamento === 'entrega'} onClick={() => escolherModo('entrega')} testid="modo-entrega" />
+                  </div>
+                </section>
+              )}
+              {(pixAgora || cartaoAgora) && (!escolheModo || modoPagamento === 'online') && (
                 <section className="mb-[20px]" data-testid="pagar-agora">
-                  <TituloSecao>Pagar agora</TituloSecao>
+                  <TituloSecao>{escolheModo ? 'Escolha a forma' : 'Pagar agora'}</TituloSecao>
                   {pixAgora && <OpcaoRadio
                     ativo={payMethod === 'Pix'}
                     onClick={() => setPayMethod('Pix')}
                     titulo={rotuloPagamento('Pix', tipoPedido)}
                     subtitulo="Pix online: pague agora pelo app do banco (QR Code ou copia e cola)"
-                    icone={<PixIcon className="h-[20px] w-[20px]" />}
+                    icone={<PixIcon className="h-[22px] w-[22px]" />}
+                    fundoIcone="#E6F7F4"
                     testid="pagamento-pix-online"
                   />}
                   {cartaoAgora && (
@@ -5503,23 +5536,26 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                       onClick={() => setPayMethod('Cartão online')}
                       titulo="Cartão online"
                       subtitulo="Crédito ou débito, pago agora pelo Mercado Pago"
-                      icone={<CreditCard className="h-[20px] w-[20px] text-[#1D4ED8]" strokeWidth={1.8} />}
+                      icone={iconeFormaPagamento('cartao_online').icone}
+                      fundoIcone={iconeFormaPagamento('cartao_online').fundo}
                       testid="pagamento-cartao-online"
                     />
                   )}
                 </section>
               )}
+              {(!escolheModo || modoPagamento === 'entrega') && (
               <section className="mb-[20px]" data-testid="pagar-na-entrega">
-                <TituloSecao>{tipoPedido === 'retirada' ? 'Pagar na retirada' : 'Pagar na entrega'}</TituloSecao>
+                <TituloSecao>{escolheModo ? 'Escolha a forma' : tipoPedido === 'retirada' ? 'Pagar na retirada' : 'Pagar na entrega'}</TituloSecao>
                 {pixChave && (
-                  <OpcaoRadio ativo={payMethod === (pixAgora ? 'Pix na entrega' : 'Pix')} onClick={() => setPayMethod(pixAgora ? 'Pix na entrega' : 'Pix')} titulo={rotuloPagamento('Pix', tipoPedido)} subtitulo="Pagamento instantâneo e seguro" icone={<PixIcon className="h-[20px] w-[20px]" />} testid="pagamento-pix" />
+                  <OpcaoRadio ativo={payMethod === (pixAgora ? 'Pix na entrega' : 'Pix')} onClick={() => setPayMethod(pixAgora ? 'Pix na entrega' : 'Pix')} titulo={rotuloPagamento('Pix', tipoPedido)} subtitulo="Pagamento instantâneo e seguro" icone={<PixIcon className="h-[22px] w-[22px]" />} fundoIcone="#E6F7F4" testid="pagamento-pix" />
                 )}
                 {(cartaoCredito || cartaoDebito) && <OpcaoRadio
                   ativo={payMethod === 'Cartão na entrega'}
                   onClick={() => setPayMethod('Cartão na entrega')}
                   titulo={rotuloPagamento('Cartão na entrega', tipoPedido)}
                   subtitulo={`${cartaoCredito && cartaoDebito ? 'Crédito ou débito' : cartaoCredito ? 'Só crédito' : 'Só débito'} na maquininha${tipoPedido === 'retirada' ? ', ao retirar' : ''}`}
-                  icone={<CreditCard className="h-[20px] w-[20px] text-[#1D4ED8]" strokeWidth={1.8} />}
+                  icone={iconeFormaPagamento('maquininha').icone}
+                  fundoIcone={iconeFormaPagamento('maquininha').fundo}
                   testid="pagamento-cartao"
                 />}
                 {idsPagamento.includes('Dinheiro') && <OpcaoRadio
@@ -5527,7 +5563,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   onClick={() => setPayMethod('Dinheiro')}
                   titulo={rotuloPagamento('Dinheiro', tipoPedido)}
                   subtitulo={tipoPedido === 'retirada' ? 'Pague em espécie ao retirar' : 'Pague em espécie na entrega'}
-                  icone={<Banknote className="h-[20px] w-[20px] text-[#0B7A3E]" strokeWidth={1.8} />}
+                  icone={iconeFormaPagamento('dinheiro').icone}
+                  fundoIcone={iconeFormaPagamento('dinheiro').fundo}
                   testid="pagamento-dinheiro"
                 />}
                 {bandeirasVale.length > 0 && (
@@ -5536,7 +5573,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     onClick={() => setPayMethod('Vale')}
                     titulo="Vale-refeição / alimentação"
                     subtitulo={bandeirasVale.join(', ')}
-                    icone={<CreditCard className="h-[20px] w-[20px] text-[#7E22CE]" strokeWidth={1.8} />}
+                    icone={iconeFormaPagamento('vale').icone}
+                    fundoIcone={iconeFormaPagamento('vale').fundo}
                     testid="pagamento-vale"
                   />
                 )}
@@ -5561,6 +5599,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
               )}
 
               </section>
+              )}
               {/* Cupom ou prêmio de fidelidade */}
               <div className="mb-[20px] rounded-[8px] border border-[#E5E5E5] bg-white p-[14px]" data-testid="cupom-codigo">
                 <h3 className="mb-[10px] text-[16px] font-semibold leading-[20px] text-[#1F1F1F]">Cupom</h3>
@@ -5652,14 +5691,16 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
           Fora da camada do checkout de propósito: ela tem transform, e um fixed lá dentro
           ficaria preso a ela em vez de à tela. */}
       {checkoutOpen && checkoutStep === 3 && (
-        <div className="fixed inset-0 flex items-end justify-center bg-[rgba(17,24,39,0.55)] lg:items-center lg:p-6" style={{ zIndex: CAMADA_MAXIMA }} onClick={checkoutBack} data-testid="revise-pedido">
+        <div className="fixed inset-0 flex items-end justify-center bg-[rgba(17,24,39,0.55)] lg:items-center lg:p-6" style={{ zIndex: CAMADA_MAXIMA, ...estiloAcao }} onClick={checkoutBack} data-testid="revise-pedido">
           <div role="dialog" aria-modal="true" aria-labelledby="titulo-revise" onClick={(e) => e.stopPropagation()} className="flex max-h-[92dvh] w-full max-w-[600px] flex-col rounded-t-[16px] bg-white shadow-2xl lg:max-w-[480px] lg:rounded-[12px]">
             <div className="flex-1 overflow-y-auto px-[20px] pt-[12px]">
               <div className="mx-auto mb-[12px] h-[4px] w-[40px] rounded-full bg-[#D4D4D4] lg:hidden" />
-              <h2 id="titulo-revise" className="mb-[8px] text-[18px] font-semibold leading-[24px] text-[#1F1F1F]">Revise o seu pedido</h2>
+              {/* 26/10/2026: ícones coloridos por assunto, "Alterar" em entrega e pagamento, fotos dos itens. */}
+              <h2 id="titulo-revise" className="text-[19px] font-semibold leading-[24px] text-[#1F1F1F]">Revise o seu pedido</h2>
+              <p className="mb-[6px] text-[13px] leading-[18px] text-[#5C5C5C]">Confira tudo antes de enviar para a loja.</p>
               <div className="divide-y divide-[#EFEFEF]">
                 <div className="flex items-start gap-[12px] py-[12px]" data-testid="revise-entrega">
-                  <span className="flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-[8px] bg-[#F5F5F5]">{tipoPedido === 'retirada' ? <Store className="h-[18px] w-[18px] text-[#3D3D3D]" strokeWidth={2} /> : <MapPin className="h-[18px] w-[18px] text-[#3D3D3D]" strokeWidth={2} />}</span>
+                  <span className="flex h-[40px] w-[40px] flex-shrink-0 items-center justify-center rounded-[10px]" style={{ background: tipoPedido === 'retirada' ? '#E6EFF5' : '#FDECEC' }}>{tipoPedido === 'retirada' ? iconeFormaPagamento('retirada').icone : <PhMapPin weight="duotone" size={22} color="#B91C1C" aria-hidden />}</span>
                   <div className="min-w-0 flex-1 text-[14px] leading-[18px]">
                     <div className="font-semibold text-[#3D3D3D]">
                       {agendando && agData && agHora
@@ -5673,11 +5714,19 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     </div>
                     {tipoPedido === 'entrega' && endereco.referencia.trim() && <div className="text-[12px] leading-[16px] text-[#5C5C5C]">Ref.: {endereco.referencia}</div>}
                   </div>
+                  {ORDEM_CHECKOUT.indexOf(2) >= ORDEM_CHECKOUT.indexOf(checkoutMinStep) && (
+                    <button type="button" onClick={() => { setCheckoutError(null); setCheckoutStep(2) }} className="flex-shrink-0 text-[13px] font-semibold text-[var(--tema-primaria)]">Alterar</button>
+                  )}
                 </div>
                 <div className="flex items-start gap-[12px] py-[12px]" data-testid="revise-pagamento">
-                  <span className="flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-[8px] bg-[#F5F5F5]">
-                    {payMethod.startsWith('Pix') ? <PixIcon className="h-[18px] w-[18px]" /> : payMethod === 'Dinheiro' ? <Banknote className="h-[18px] w-[18px] text-[#0B7A3E]" strokeWidth={1.8} /> : <CreditCard className="h-[18px] w-[18px] text-[#1D4ED8]" strokeWidth={1.8} />}
-                  </span>
+                  {(() => {
+                    const f = payMethod.startsWith('Pix') ? null : iconeFormaPagamento(payMethod === 'Dinheiro' ? 'dinheiro' : payMethod === 'Vale' ? 'vale' : payMethod === 'Cartão online' ? 'cartao_online' : 'maquininha')
+                    return (
+                      <span className="flex h-[40px] w-[40px] flex-shrink-0 items-center justify-center rounded-[10px]" style={{ background: f ? f.fundo : '#E6F7F4' }}>
+                        {f ? f.icone : <PixIcon className="h-[21px] w-[21px]" />}
+                      </span>
+                    )
+                  })()}
                   <div className="min-w-0 flex-1 text-[14px] leading-[18px]">
                     <div className="font-semibold text-[#3D3D3D]">{payMethod === 'Pix' && pixAgora ? 'Pagar agora · Pix online' : payMethod === 'Cartão online' ? 'Pagar agora · Cartão online' : payMethod === 'Vale' ? `Vale · ${valeBandeira ?? ''}` : rotuloPagamento(payMethod === 'Pix na entrega' ? 'Pix' : payMethod, tipoPedido)}</div>
                     <div className="mt-[2px] text-[12px] leading-[16px] text-[#5C5C5C]">
@@ -5689,16 +5738,25 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                         : tipoPedido === 'retirada' ? 'Na maquininha, ao retirar' : 'Na maquininha, na entrega'}
                     </div>
                   </div>
+                  <button type="button" onClick={() => { setCheckoutError(null); setCheckoutStep(1) }} className="flex-shrink-0 text-[13px] font-semibold text-[var(--tema-primaria)]">Alterar</button>
                 </div>
                 <div className="flex items-start gap-[12px] py-[12px]" data-testid="revise-itens">
-                  <span className="flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-[8px] bg-[#F5F5F5]"><HandPlatter className="h-[18px] w-[18px] text-[#3D3D3D]" strokeWidth={2} /></span>
+                  <span className="flex h-[40px] w-[40px] flex-shrink-0 items-center justify-center rounded-[10px] bg-[#FFF6E5]"><HandPlatter className="h-[20px] w-[20px] text-[#B45309]" strokeWidth={2} /></span>
                   <div className="min-w-0 flex-1 text-[14px] leading-[18px]">
                     <div className="font-semibold text-[#3D3D3D]">{cartCount} {cartCount === 1 ? 'item' : 'itens'}</div>
                     <div className="mt-[2px] line-clamp-2 text-[12px] leading-[16px] text-[#5C5C5C]">{cart.map((l) => `${l.qty}× ${nomeLimpo(l.name)}`).join(', ')}</div>
+                    {cart.some((l) => l.imagemUrl) && (
+                      <div className="mt-[8px] flex gap-[6px]">
+                        {cart.filter((l) => l.imagemUrl).slice(0, 5).map((l) => (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img key={l.key} src={l.imagemUrl!} alt="" loading="lazy" className="h-[44px] w-[44px] rounded-[8px] border border-[#EFEFEF] object-cover" />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-start gap-[12px] py-[12px]" data-testid="revise-dados">
-                  <span className="flex h-[36px] w-[36px] flex-shrink-0 items-center justify-center rounded-[8px] bg-[#F5F5F5]"><User className="h-[18px] w-[18px] text-[#3D3D3D]" strokeWidth={2} /></span>
+                  <span className="flex h-[40px] w-[40px] flex-shrink-0 items-center justify-center rounded-[10px] bg-[#EEF4FF]"><User className="h-[20px] w-[20px] text-[#1D4ED8]" strokeWidth={2} /></span>
                   <div className="min-w-0 flex-1 text-[14px] leading-[18px]">
                     <div className="font-semibold text-[#3D3D3D]">{cliente.nome}</div>
                     {cliente.telefone && <div className="mt-[2px] text-[12px] leading-[16px] text-[#5C5C5C]">{cliente.telefone}</div>}
@@ -5712,7 +5770,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             </div>
             <div className="border-t border-[#EFEFEF] bg-white p-[16px] pb-[max(env(safe-area-inset-bottom),16px)]" data-barra-checkout>
               {linhasIndisponiveis.length > 0 ? avisoIndisponivel() : checkoutError && <div className="mb-[10px] rounded-[6px] border border-danger bg-danger-bg px-[12px] py-[8px] text-[13px] font-medium text-danger">{checkoutError}</div>}
-              <button onClick={checkoutNext} disabled={submitting || linhasIndisponiveis.length > 0} className="flex w-full items-center justify-center rounded-[8px] bg-[#0B7A3E] px-[20px] py-[14px] text-[15px] font-semibold text-white shadow-sm transition-colors hover:bg-[#096634] active:scale-[0.98] disabled:opacity-60" data-testid="fazer-pedido">
+              <button onClick={checkoutNext} disabled={submitting || linhasIndisponiveis.length > 0} className="flex h-[52px] w-full items-center justify-center rounded-[12px] bg-[var(--tema-primaria)] px-[20px] text-[16px] font-semibold text-white shadow-sm transition-[filter] hover:brightness-110 active:scale-[0.98] disabled:opacity-60" data-testid="fazer-pedido">
                 {submitting ? 'Enviando…' : 'Fazer pedido'}
               </button>
               <button onClick={checkoutBack} disabled={submitting} className="mt-[8px] w-full py-[10px] text-[14px] font-semibold text-[var(--tema-dark)]" data-testid="alterar-pedido">Alterar pedido</button>
