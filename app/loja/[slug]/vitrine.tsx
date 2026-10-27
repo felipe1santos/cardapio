@@ -4320,7 +4320,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             ? `https://wa.me/${waDigits.length <= 11 ? '55' + waDigits : waDigits}?text=${encodeURIComponent(`Olá! Sobre meu pedido #${p.numero}`)}`
             : null
           return (
-            <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/50 sm:items-center sm:p-4" onClick={() => setPedidoDetalhe(null)}>
+            <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/50 sm:items-center sm:p-4" style={estiloAcao} onClick={() => setPedidoDetalhe(null)}>
               <div className="flex max-h-[92dvh] w-full max-w-md flex-col overflow-hidden rounded-t-2xl bg-white sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between border-b border-border px-5 py-4">
                   <h2 className="text-[17px] font-semibold text-text-main">Pedido #{p.numero}</h2>
@@ -5638,7 +5638,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                       <button
                         onClick={() => validarCupomCheckout()}
                         disabled={cupomValidando || !cupomCodigoInput.trim()}
-                        className="flex-shrink-0 rounded-md bg-[var(--tema-dark)] px-4 text-[12px] font-semibold uppercase tracking-wide text-white transition-colors hover:brightness-90 disabled:opacity-50"
+                        className="flex-shrink-0 rounded-[10px] bg-[var(--tema-primaria)] px-[18px] text-[14px] font-semibold text-white transition-[filter] hover:brightness-110 disabled:bg-[#EEF0F3] disabled:text-[#8A8F98]"
                       >
                         {cupomValidando ? 'Validando…' : 'Aplicar'}
                       </button>
