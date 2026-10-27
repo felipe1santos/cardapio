@@ -146,3 +146,12 @@ checagem B-n** no script.
   homologação manda tratar como pago (a loja recebe online). O CEP era lido de `postalCode` (a doc usa `postal_code`).
 - **Como evitar:** testar os DOIS fluxos de entrega (loja e 99) com o JSON de exemplo da doc de cada modelo de preço.
 - **Teste:** `lib/canais/noventaenove/mapear.test.ts`.
+
+## Item só com vídeo aparecia sem imagem na lista da vitrine · 26/10/2026 · teste
+
+- **Onde:** card da lista e dos destaques da vitrine (`ProductThumb`/`ProductImage` em `app/loja/[slug]/vitrine.tsx`).
+- **Causa:** o card só tocava o vídeo com "No card da página inicial" marcado, e essa opção vem desmarcada. Item sem
+  foto e com vídeo ficava sem imagem nenhuma na lista; o dono achou que o vídeo não tinha sido salvo.
+- **Como evitar:** decisão de "o que mostrar no card" passa por `videoNoCard` (`lib/video-vitrine.ts`): vídeo quando
+  marcado OU quando não há foto. Card nunca fica vazio se o item tem alguma mídia.
+- **Teste:** `lib/video-vitrine.test.ts` (videoNoCard).
