@@ -7,11 +7,12 @@ import {
   Money as PhMoney,
   Storefront as PhStorefront,
   CheckCircle as PhCheckCircle,
+  Lightning as PhLightning,
 } from '@phosphor-icons/react'
 
 /**
  * Peças do checkout da vitrine (26/10/2026): a escolha "pagar online × pagar na entrega" em dois cartões grandes
- * com ilustração própria (public/vitrine/ilustracoes/pagar-*.svg) e os ícones de cada forma de pagamento.
+ * com imagens do dono (public/vitrine/ilustracoes/pagar-*.webp) e os ícones de cada forma de pagamento.
  */
 
 const MODO = {
@@ -20,8 +21,10 @@ const MODO = {
 } as const
 
 /** Cartão vertical grande para escolher como pagar. */
-export function CartaoModoPagamento({ tipo, titulo, texto, ativo, onClick, testid }: {
+export function CartaoModoPagamento({ tipo, titulo, texto, ativo, onClick, testid, selo }: {
   tipo: 'online' | 'entrega'; titulo: string; texto: string; ativo: boolean; onClick: () => void; testid?: string
+  /** Etiqueta no canto da imagem (ex.: "Mais rápido" no pagamento online). */
+  selo?: string
 }) {
   const m = MODO[tipo]
   return (
@@ -33,10 +36,16 @@ export function CartaoModoPagamento({ tipo, titulo, texto, ativo, onClick, testi
       className="relative flex flex-col overflow-hidden rounded-[14px] border-2 bg-white text-left transition-[border-color,box-shadow] active:scale-[0.99]"
       style={{ borderColor: ativo ? m.borda : '#E5E7EB', boxShadow: ativo ? `0 0 0 3px ${m.borda}22` : undefined }}
     >
-      {/* 26/10/2026: ilustração própria (public/vitrine/ilustracoes/pagar-*.svg) ocupando o alto do cartão. */}
+      {/* 26/10/2026: imagens do dono (public/vitrine/ilustracoes/pagar-*.webp) ocupando o alto do cartão. */}
       <span className="relative flex h-[164px] items-center justify-center px-[8px] pt-[8px]" style={{ background: m.fundo }} aria-hidden="true">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={tipo === 'online' ? '/vitrine/ilustracoes/pagar-online.svg' : '/vitrine/ilustracoes/pagar-entrega.svg'} alt="" className="h-full w-full object-contain" />
+        <img src={tipo === 'online' ? '/vitrine/ilustracoes/pagar-online.webp' : '/vitrine/ilustracoes/pagar-entrega.webp'} alt="" className="h-full w-full object-contain mix-blend-multiply" />
+        {selo && (
+          <span className="absolute left-[8px] top-[8px] inline-flex items-center gap-[4px] rounded-[6px] px-[7px] py-[3px] text-[11.5px] font-semibold text-white shadow-sm" style={{ background: m.cor }} data-testid="selo-modo">
+            <PhLightning weight="fill" size={12} aria-hidden />
+            {selo}
+          </span>
+        )}
         {ativo && <PhCheckCircle weight="fill" size={24} className="absolute right-[8px] top-[8px]" style={{ color: m.cor }} />}
       </span>
       <span className="block px-[14px] pb-[14px] pt-[12px]">

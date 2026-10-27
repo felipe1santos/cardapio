@@ -15,7 +15,7 @@ import { House as PhHouse, MapPin as PhMapPin, Receipt as PhReceipt, SealCheck a
 import { TelaPixOnline, type PixAguardando } from '@/components/vitrine/tela-pix-online'
 import { TelaCartaoOnline, type CartaoAguardando } from '@/components/vitrine/tela-cartao-online'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { UtensilsCrossed, HandPlatter, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, ChevronRight, ChevronLeft, Clock, Gift, Ticket, Check, RotateCcw, Store, User } from 'lucide-react'
+import { UtensilsCrossed, HandPlatter, Pencil, Truck, MapPin, Phone, ChevronDown, ChevronRight, ChevronLeft, Clock, Gift, Ticket, Check, RotateCcw, User } from 'lucide-react'
 import { BarraTotal, DiamanteRoxo, LinhaValor, OpcaoRadio, StepperRedondo, TituloSecao, VERDE_DESCONTO } from '@/components/vitrine/sacola-ifood'
 import { FichaLoja } from '@/components/vitrine/ficha-loja'
 import { EstadoVazioIlustrado, FotoItemPedido, ILUSTRACOES, IlustracaoStatus, ModalSaiuParaEntrega, usePedidoSaiuParaAvisar } from '@/components/vitrine/ilustracoes-pedido'
@@ -5517,14 +5517,16 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   <h2 className="text-[20px] font-semibold leading-[26px] text-[#1F1F1F]">Como prefere pagar?</h2>
                   <p className="mt-[4px] text-[13.5px] leading-[19px] text-[#5C5C5C]">Escolha agora e, em seguida, a forma de pagamento.</p>
                   <div className="mt-[18px] grid grid-cols-2 gap-[12px]">
-                    <CartaoModoPagamento tipo="online" titulo="Pagar online" texto="Pix ou cartão, agora pelo app" ativo={false} onClick={() => escolherModo('online')} testid="modo-online" />
+                    <CartaoModoPagamento tipo="online" titulo="Pagar online" texto="Pix ou cartão, agora pelo app" ativo={false} onClick={() => escolherModo('online')} testid="modo-online" selo="Mais rápido" />
                     <CartaoModoPagamento tipo="entrega" titulo={tipoPedido === 'retirada' ? 'Pagar na retirada' : 'Pagar na entrega'} texto={tipoPedido === 'retirada' ? 'No balcão, ao retirar' : 'Ao receber o pedido'} ativo={false} onClick={() => escolherModo('entrega')} testid="modo-entrega" />
                   </div>
                 </section>
               ) : escolheModo && (
                 <div className="mb-[16px] flex items-center gap-[12px] rounded-[12px] border border-[#E5E7EB] bg-white p-[10px]" data-testid="modo-escolhido">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={modoPagamento === 'online' ? '/vitrine/ilustracoes/pagar-online.svg' : '/vitrine/ilustracoes/pagar-entrega.svg'} alt="" className="h-[48px] w-[48px] flex-shrink-0 rounded-[10px] object-contain" style={{ background: modoPagamento === 'online' ? '#EEF4FF' : '#F2F9E6' }} />
+                  <span className="flex h-[48px] w-[48px] flex-shrink-0 overflow-hidden rounded-[10px]" style={{ background: modoPagamento === 'online' ? '#EEF4FF' : '#F2F9E6' }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={modoPagamento === 'online' ? '/vitrine/ilustracoes/pagar-online.webp' : '/vitrine/ilustracoes/pagar-entrega.webp'} alt="" className="h-full w-full object-contain mix-blend-multiply" />
+                  </span>
                   <div className="min-w-0 flex-1">
                     <div className="text-[14.5px] font-semibold text-[#1F1F1F]">{modoPagamento === 'online' ? 'Pagar online' : tipoPedido === 'retirada' ? 'Pagar na retirada' : 'Pagar na entrega'}</div>
                     <div className="text-[12px] text-[#5C5C5C]">{modoPagamento === 'online' ? 'Pix ou cartão, agora pelo app' : 'Você paga quando receber'}</div>
