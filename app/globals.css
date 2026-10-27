@@ -813,6 +813,17 @@ html:has(.vitrine-sem-zoom) {
   --cor-primary: 0 70 111;
   --cor-primary-dark: 0 52 84;
   --cor-danger: 204 1 1;
+  /* O painel pinta .bg-primary, foco, campos e botões secundários com --adm-* (regras de [data-admin-shell]). */
+  --adm-azul: #00466f;
+  --adm-azul-escuro: #003454;
+  --adm-azul-claro: #e6eff5;
+  --adm-superficie-2: #ffffff;
+  --adm-borda: #d5dfe7;
+  --adm-texto-medio: #33475b;
+}
+[data-perfil-loja] :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea) {
+  border-radius: 9px !important;
+  font-size: 14px !important;
 }
 [data-perfil-loja] [data-rotulo-campo] {
   text-transform: none;
@@ -824,10 +835,6 @@ html:has(.vitrine-sem-zoom) {
   font-size: 12px;
   line-height: 17px;
   color: #617284;
-}
-[data-perfil-loja] :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea) {
-  border-radius: 9px;
-  border-color: #D5DFE7;
 }
 [data-perfil-loja] :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea):focus {
   border-color: #00466F;
