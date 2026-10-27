@@ -4,7 +4,9 @@
  * Ficha "Sobre a loja" da vitrine nova (2026-10-07): logo, status, contato (WhatsApp, Instagram,
  * endereço com mapa), entrega e taxa por bairro, num cartão só. Fonte da vitrine, peso até 600.
  */
-import { Clock, MapPin, Truck, Store, ChevronRight, X } from 'lucide-react'
+import { useState } from 'react'
+import { Clock, MapPin, Truck, Store, ChevronRight, X, Search, Navigation } from 'lucide-react'
+import { Moped as PhMoped } from '@phosphor-icons/react'
 import { capitalizarTexto } from '@/lib/texto'
 import { mascararTelefoneBR } from '@/lib/telefone'
 
@@ -37,15 +39,17 @@ export function IconeInstagram({ className = 'h-[20px] w-[20px]' }: { className?
   )
 }
 
-function LinhaContato({ icone, titulo, texto, href, acao, testid }: {
+function LinhaContato({ icone, titulo, texto, href, acao, testid, completo = false }: {
   icone: React.ReactNode; titulo: string; texto: string; href?: string; acao?: string; testid?: string
+  /** Texto inteiro em até 2 linhas (endereço), em vez de cortar com reticências. */
+  completo?: boolean
 }) {
   const conteudo = (
     <>
       <span className="flex h-[40px] w-[40px] flex-shrink-0 items-center justify-center rounded-[10px] bg-[#F5F5F5]">{icone}</span>
       <span className="min-w-0 flex-1">
         <span className="block text-[12px] leading-[16px] text-[#5C5C5C]">{titulo}</span>
-        <span className="block truncate text-[14px] font-semibold leading-[20px] text-[#1F1F1F]">{texto}</span>
+        <span className={`block text-[14px] font-semibold leading-[20px] text-[#1F1F1F] ${completo ? 'line-clamp-2' : 'truncate'}`}>{texto}</span>
       </span>
       {href && (
         <span className="flex flex-shrink-0 items-center gap-[2px] text-[12px] font-semibold text-[var(--v-acao)]">
@@ -86,6 +90,25 @@ export interface FichaLojaProps {
 export function FichaLoja(p: FichaLojaProps) {
   const insta = usuarioInstagram(p.instagramUrl)
   const temContato = !!(p.whatsapp || p.telefone || insta || p.endereco)
+  const [filtroBairro, setFiltroBairro] = useState('')
+  const semAcento = (s: string) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase()
+  const bairrosVisiveis = filtroBairro.trim()
+    ? p.bairros.filter((b) => semAcento(b.bairro).includes(semAcento(filtroBairro.trim())))
+    : p.bairros
+  const atalhos = [
+    p.whatsapp && {
+      rotulo: 'WhatsApp',
+      href: `https://wa.me/${p.whatsapp}`,
+      // eslint-disable-next-line @next/next/no-img-element
+      icone: <img src="/icons/integracoes/whatsapp-icon.svg" alt="" className="h-[20px] w-[20px]" />,
+    },
+    insta && { rotulo: 'Instagram', href: p.instagramUrl!, icone: <IconeInstagram className="h-[19px] w-[19px]" /> },
+    p.endereco && {
+      rotulo: 'Como chegar',
+      href: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(p.endereco)}`,
+      icone: <Navigation className="h-[17px] w-[17px] text-[#1F1F1F]" strokeWidth={2.2} />,
+    },
+  ].filter(Boolean) as { rotulo: string; href: string; icone: React.ReactNode }[]
   return (
     <>
       <div className="fixed inset-0 z-[64] bg-[#111827]/60" onClick={p.onFechar} />
@@ -98,8 +121,9 @@ export function FichaLoja(p: FichaLojaProps) {
           onClick={(e) => e.stopPropagation()}
           data-testid="ficha-loja"
         >
-          {/* Cabeçalho: logo, nome e status */}
+          {/* Cabeçalho: logo, nome e status. A alça indica que a folha fecha arrastando/tocando fora. */}
           <div className="relative bg-white px-[20px] pb-[18px] pt-[20px]">
+            <span aria-hidden="true" className="absolute left-1/2 top-[8px] h-[4px] w-[36px] -translate-x-1/2 rounded-full bg-[#D9DCE1] sm:hidden" />
             <button onClick={p.onFechar} aria-label="Fechar" className="absolute right-[12px] top-[12px] flex h-[36px] w-[36px] items-center justify-center rounded-full bg-[#F3F4F6] text-[#3D3D3D] transition-colors hover:bg-[#E5E7EB]">
               <X className="h-[18px] w-[18px]" strokeWidth={2.2} />
             </button>
@@ -127,6 +151,17 @@ export function FichaLoja(p: FichaLojaProps) {
                 </div>
               </div>
             </div>
+            {/* Atalhos (26/10/2026): o que o cliente mais procura aqui vira um toque. */}
+            {atalhos.length > 0 && (
+              <div className="mt-[16px] grid gap-[8px]" style={{ gridTemplateColumns: `repeat(${atalhos.length}, minmax(0, 1fr))` }} data-testid="ficha-loja-atalhos">
+                {atalhos.map((a) => (
+                  <a key={a.rotulo} href={a.href} target="_blank" rel="noopener noreferrer" className="flex flex-col items-center gap-[6px] rounded-[12px] border border-[#EFEFEF] bg-white px-[8px] py-[10px] text-[12px] font-semibold text-[#1F1F1F] transition-colors hover:bg-[#FAFAFA] active:scale-[0.98]">
+                    <span className="flex h-[36px] w-[36px] items-center justify-center rounded-full bg-[#F5F5F5]">{a.icone}</span>
+                    {a.rotulo}
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="flex-1 space-y-[16px] overflow-y-auto overscroll-contain px-[16px] pb-[max(env(safe-area-inset-bottom),20px)] pt-[16px]">
@@ -155,6 +190,7 @@ export function FichaLoja(p: FichaLojaProps) {
                     <LinhaContato
                       icone={<MapPin className="h-[20px] w-[20px] text-[#D92D20]" strokeWidth={2} />}
                       titulo="Endereço"
+                      completo
                       texto={capitalizarTexto(p.endereco)}
                       href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.endereco)}`}
                       acao="Mapa"
@@ -181,8 +217,9 @@ export function FichaLoja(p: FichaLojaProps) {
                 </div>
               </div>
               {p.freteGratisAcima !== null && (
-                <div className="mt-[8px] rounded-[10px] bg-[#E8F5EE] px-[12px] py-[9px] text-[13px] font-semibold text-[#0B7A3E]">
-                  Frete grátis em pedidos acima de {brl(p.freteGratisAcima)}
+                <div className="mt-[8px] flex items-center gap-[10px] rounded-[12px] border border-[#EFEFEF] bg-white px-[12px] py-[10px]">
+                  <span className="flex h-[32px] w-[32px] flex-shrink-0 items-center justify-center rounded-full bg-[#E9F7EF] text-[#0B7A3E]" aria-hidden="true"><PhMoped weight="duotone" size={19} /></span>
+                  <span className="text-[13px] leading-[18px] text-[#3D3D3D]">Entrega <span className="font-semibold text-[#0B7A3E]">grátis</span> em pedidos acima de <span className="font-semibold text-[#1F1F1F]">{brl(p.freteGratisAcima)}</span></span>
                 </div>
               )}
             </section>
@@ -194,9 +231,25 @@ export function FichaLoja(p: FichaLojaProps) {
                   <h3 className="text-[13px] font-semibold text-[#5C5C5C]">Taxa de entrega</h3>
                   {p.bairros.length > 0 && <span className="text-[12px] text-[#5C5C5C]">a partir de {brl(p.menorTaxa)}</span>}
                 </div>
+                {p.bairros.length > 8 && (
+                  <label className="mb-[8px] flex h-[40px] items-center gap-[8px] rounded-full border border-[#EFEFEF] bg-white px-[12px] focus-within:border-[#BDBDBD]">
+                    <Search className="h-[16px] w-[16px] flex-shrink-0 text-[#8A8F98]" strokeWidth={2.2} aria-hidden="true" />
+                    <input
+                      type="search"
+                      value={filtroBairro}
+                      onChange={(e) => setFiltroBairro(e.target.value)}
+                      placeholder="Procure o seu bairro"
+                      aria-label="Procurar bairro"
+                      className="h-full min-w-0 flex-1 bg-transparent text-[16px] text-[#1F1F1F] outline-none placeholder:text-[#8A8F98]"
+                    />
+                  </label>
+                )}
                 {p.bairros.length > 0 ? (
                   <div className="max-h-[32dvh] overflow-y-auto overscroll-contain rounded-[12px] border border-[#EFEFEF] bg-white" data-testid="ficha-loja-bairros">
-                    {p.bairros.map((b) => (
+                    {bairrosVisiveis.length === 0 && (
+                      <div className="px-[14px] py-[12px] text-[13px] text-[#5C5C5C]">Bairro não está na lista: vale a taxa de demais bairros, ou calcule pelo CEP.</div>
+                    )}
+                    {bairrosVisiveis.map((b) => (
                       <div key={b.bairro} className="flex items-center justify-between gap-[12px] border-b border-[#F3F3F3] px-[14px] py-[10px] text-[14px] last:border-none">
                         <span className="min-w-0 truncate text-[#3D3D3D]">{capitalizarTexto(b.bairro)}</span>
                         <span className={['flex-shrink-0 font-semibold', b.taxa === 0 ? 'text-[#0B7A3E]' : 'text-[#1F1F1F]'].join(' ')}>{b.taxa === 0 ? 'Grátis' : brl(b.taxa)}</span>

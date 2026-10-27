@@ -907,10 +907,22 @@ html:has(.vitrine-sem-zoom) {
    pediu "reduzir movimento" (e o design Simples já zera as animações). */
 .barra-fluida-nivel {
   width: var(--p);
-  background: linear-gradient(90deg, #059669 0%, #10B981 55%, #34D399 100%);
-  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.08);
+  /* 26/10/2026: verde de progresso vivo (green-600 → green-400), no lugar do esmeralda fechado. */
+  background: linear-gradient(90deg, #16A34A 0%, #22C55E 60%, #4ADE80 100%);
   transition: width 0.9s cubic-bezier(0.22, 1, 0.36, 1);
   animation: barra-fluida-encher 1.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+/* Reflexo que corre da esquerda para a direita: o "líquido" andando dentro da barra. */
+.barra-fluida-correr {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 0%, rgba(255, 255, 255, 0) 35%, rgba(255, 255, 255, 0.55) 50%, rgba(255, 255, 255, 0) 65%, transparent 100%);
+  background-size: 220% 100%;
+  animation: barra-fluida-correr 2.2s linear infinite;
+}
+@keyframes barra-fluida-correr {
+  from { background-position: 120% 0; }
+  to { background-position: -120% 0; }
 }
 @keyframes barra-fluida-encher {
   from { width: 0; }
@@ -922,20 +934,6 @@ html:has(.vitrine-sem-zoom) {
   height: 40%;
   border-radius: 999px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0));
-}
-/* Ponta ondulada: meias-luas verdes saindo da borda do nível, descendo sem parar. */
-.barra-fluida-ponta {
-  position: absolute;
-  top: -100%;
-  right: -5px;
-  width: 6px;
-  height: 300%;
-  background: radial-gradient(circle at 0 50%, #34D399 4.5px, transparent 5px) 0 0 / 6px 9px repeat-y;
-  animation: barra-fluida-ondular 0.9s linear infinite;
-}
-@keyframes barra-fluida-ondular {
-  from { transform: translateY(0); }
-  to { transform: translateY(9px); }
 }
 .barra-fluida-bolha {
   position: absolute;
@@ -954,7 +952,7 @@ html:has(.vitrine-sem-zoom) {
 }
 @media (prefers-reduced-motion: reduce) {
   .barra-fluida-nivel,
-  .barra-fluida-ponta,
+  .barra-fluida-correr,
   .barra-fluida-bolha { animation: none !important; }
   .barra-fluida-bolha { display: none; }
 }

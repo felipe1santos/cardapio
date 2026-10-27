@@ -6,16 +6,16 @@ import { formasDoCanal } from '@/lib/formas-pagamento'
 import { comVideo, midiasDaFicha, type Midia, type VideoItem } from '@/lib/video-vitrine'
 import { VideoLoop } from '@/components/vitrine/video-loop'
 import { useFotoInteira } from '@/components/vitrine/foto-inteira'
-import { BarraFluida, CanhotoCupom, MASCARA_TICKET, SeloPremio } from '@/components/vitrine/cupons-visuais'
+import { BarraFluida, CanhotoCupom, COR_BENEFICIO, IconeEntregador, MASCARA_TICKET, SeloPremio } from '@/components/vitrine/cupons-visuais'
 import { BarraNav } from '@/components/vitrine/barra-nav'
 import { BarraNavBotoes } from '@/components/vitrine/barra-nav-botoes'
 import { CABECALHO_PADRAO } from '@/lib/vitrine-cabecalho'
-import { House as PhHouse, Receipt as PhReceipt, Ticket as PhTicket, User as PhUser } from '@phosphor-icons/react'
+import { House as PhHouse, Receipt as PhReceipt, SealCheck as PhSealCheck, Ticket as PhTicket, User as PhUser } from '@phosphor-icons/react'
 import { TelaPixOnline, type PixAguardando } from '@/components/vitrine/tela-pix-online'
 import { TelaCartaoOnline, type CartaoAguardando } from '@/components/vitrine/tela-cartao-online'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { UtensilsCrossed, HandPlatter, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, ChevronRight, ChevronLeft, Clock, Gift, Ticket, Check, RotateCcw, Store, User } from 'lucide-react'
-import { BarraTotal, DiamanteRoxo, LinhaValor, OpcaoRadio, SeloRoxo, StepperRedondo, TituloSecao, VERDE_DESCONTO } from '@/components/vitrine/sacola-ifood'
+import { BarraTotal, DiamanteRoxo, LinhaValor, OpcaoRadio, StepperRedondo, TituloSecao, VERDE_DESCONTO } from '@/components/vitrine/sacola-ifood'
 import { FichaLoja } from '@/components/vitrine/ficha-loja'
 import { EstadoVazioIlustrado, FotoItemPedido, ILUSTRACOES, IlustracaoStatus, ModalSaiuParaEntrega, usePedidoSaiuParaAvisar } from '@/components/vitrine/ilustracoes-pedido'
 import { fonteVitrine as fonteVitrineCss } from '@/lib/fonte-vitrine'
@@ -213,6 +213,11 @@ const formatarNota = (nota: number) => nota.toLocaleString('pt-BR', { minimumFra
 const MOTIVO_LOGIN_CUPOM = 'Entre com seu telefone para usar este cupom.'
 
 /** Rótulo curto do benefício de um cupom da vitrine ("10% de desconto", "Item grátis"…). */
+/** Texto para comparar na busca: minúsculo e sem acento. */
+function normalizarBusca(s: string): string {
+  return s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase()
+}
+
 function labelCupom(c: Pick<CupomVitrine, 'tipo' | 'valor' | 'itemNome'>): string {
   switch (c.tipo) {
     case 'item_gratis': return `${nomeLimpo(c.itemNome) || 'Item'} grátis`
@@ -2244,7 +2249,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       key: editingLineKey ?? `${productSheet.id}-${Date.now()}`,
       itemId: productSheet.id,
       name: productSheet.nome,
-      imagemUrl: productSheet.imagemUrl,
+      imagemUrl: productSheet.imagemUrl ?? productSheet.video?.capa ?? null,
       qty,
       unit: unitPrice,
       addons: addonsList,
@@ -2284,7 +2289,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
           key: `bump-${item.id}-${Date.now()}`,
           itemId: item.id,
           name: item.nome,
-          imagemUrl: item.imagemUrl,
+          imagemUrl: item.imagemUrl ?? item.video?.capa ?? null,
           qty: 1,
           unit: item.promocaoPreco ?? item.preco,
           addons: [],
@@ -3057,27 +3062,29 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   // moto de entrega cheia no estilo do ícone do WhatsApp do rodapé. O texto usa um verde mais fechado do
   // mesmo tom (#137547, 5,5:1) — o #24A96A dá 2,9:1 e não passa no contraste mínimo de 4,5:1.
   const freteGratisBanner = freteGratisAtivo && cart.length > 0 && tipoPedido === 'entrega' ? (
-    <div data-testid="frete-gratis" data-atingido={ganhouFreteGratis ? 'sim' : 'nao'} className="mb-3 rounded-[8px] border border-[#24A96A]/25 bg-[#EAFFF5] px-[12px] py-[10px]">
-      <div className="flex items-center gap-[10px]">
-        <IconeMotoEntrega className="h-[22px] w-[22px] flex-shrink-0 fill-[#24A96A]" />
+    // 26/10/2026: cartão branco (o bloco verde-menta destoava da sacola), moto em selo redondo, o que falta em
+    // negrito e a barra "líquida" da aba Cupons (BarraFluida). Garantida: selo de check, sem barra.
+    <div data-testid="frete-gratis" data-atingido={ganhouFreteGratis ? 'sim' : 'nao'} className="mb-3 flex items-center gap-[12px] rounded-[12px] border border-[#E5E8EC] bg-white px-[14px] py-[12px]">
+      <span className="flex h-[40px] w-[40px] flex-shrink-0 items-center justify-center rounded-full bg-[#ECFDF3] text-[#16A34A]" aria-hidden="true">
+        {ganhouFreteGratis ? <PhSealCheck weight="fill" size={24} /> : <IconeEntregador tamanho={17} />}
+      </span>
+      <div className="min-w-0 flex-1">
         {ganhouFreteGratis ? (
           <>
-            <span className="min-w-0 flex-1 text-[14px] font-semibold leading-[18px] text-[#137547]">Entrega grátis garantida!</span>
-            <svg viewBox="0 0 24 24" className="h-[20px] w-[20px] flex-shrink-0 fill-[#24A96A]" aria-label="Garantida">
-              <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm-1.3 14.2-4-4 1.4-1.4 2.6 2.6 5.6-5.6 1.4 1.4-7 7Z" />
-            </svg>
+            <p className="text-[14px] font-semibold leading-[18px] text-[#1F1F1F]">Entrega grátis garantida</p>
+            <p className="mt-[2px] text-[12px] leading-[16px] text-[#5C5C5C]">Seu pedido passou de {brl(freteGratisMinimo ?? 0)}.</p>
           </>
         ) : (
           <>
-            <span className="min-w-0 flex-1 text-[14px] font-semibold leading-[18px] text-[#137547]">
-              Faltam {brl(Math.max(0, (freteGratisMinimo ?? 0) - subtotal))} para a entrega grátis
-            </span>
-            <span className="flex-shrink-0 text-[12px] font-medium tabular-nums text-[#137547]" title="Valor da meta">{brl(freteGratisMinimo ?? 0)}</span>
+            <p className="text-[14px] leading-[18px] text-[#3D3D3D]">
+              Faltam <span className="font-semibold text-[#15803D]">{brl(Math.max(0, (freteGratisMinimo ?? 0) - subtotal))}</span> para a entrega grátis
+            </p>
+            <div className="mt-[8px]">
+              <BarraFluida fina percentual={(subtotal / (freteGratisMinimo || 1)) * 100} rotulo="Progresso até a entrega grátis" />
+            </div>
+            <p className="mt-[4px] text-right text-[11px] tabular-nums leading-[14px] text-[#5C5C5C]">{brl(subtotal)} de {brl(freteGratisMinimo ?? 0)}</p>
           </>
         )}
-      </div>
-      <div className="ml-[32px] mt-[8px] h-[4px] overflow-hidden rounded-full bg-[#24A96A]/20">
-        <div className="h-full rounded-full bg-[#24A96A] transition-all duration-300" style={{ width: `${ganhouFreteGratis ? 100 : Math.min(100, (subtotal / (freteGratisMinimo || 1)) * 100)}%` }} />
       </div>
     </div>
   ) : null
@@ -3196,37 +3203,52 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     <div className="mb-[24px]" data-testid="cupons-sacola">
       <TituloSecao>Cupons disponíveis</TituloSecao>
       <div className="-mx-[16px] flex gap-[10px] overflow-x-auto px-[16px] pb-[4px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {/* 26/10/2026: cartão de uma linha (selo + texto + botão) — antes tinha ~140px de altura.
+            Cor pelo tipo do benefício (COR_BENEFICIO); prêmio do clube mantém o diamante roxo. */}
         {premiosSacola.map((r) => {
           const aplicado = recompensaSelecionada?.id === r.id
+          const cor = COR_BENEFICIO[r.premioTipo] ?? COR_BENEFICIO.desconto_percentual
           return (
-            <div key={r.id} data-cupom-sacola="premio" className={['flex w-[236px] flex-shrink-0 flex-col rounded-[8px] border bg-white p-[12px]', aplicado ? 'border-[#6D28D9]' : 'border-[#E5E5E5]'].join(' ')}>
-              <SeloRoxo>Clube</SeloRoxo>
-              <div className="mt-[8px] line-clamp-2 text-[14px] font-semibold leading-[18px] text-[#3D3D3D] first-letter:uppercase">{premioLabelCampanha({ premioTipo: r.premioTipo, premioValor: r.premioValor }, r.premioItemNome)}</div>
-              <div className="mt-[2px] truncate text-[12px] text-[#5C5C5C]">{r.campanhaNome}</div>
+            <div key={r.id} data-cupom-sacola="premio" className={['flex w-[264px] flex-shrink-0 items-center gap-[10px] rounded-[12px] border bg-white p-[10px]', aplicado ? '' : 'border-[#E5E5E5]'].join(' ')} style={aplicado ? { borderColor: cor.forte } : undefined}>
+              <span className="flex h-[40px] w-[40px] flex-shrink-0 items-center justify-center rounded-[10px]" style={{ background: cor.claro }} aria-hidden="true"><DiamanteRoxo tamanho={18} /></span>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[13.5px] font-semibold leading-[18px] text-[#1F1F1F] first-letter:uppercase">{premioLabelCampanha({ premioTipo: r.premioTipo, premioValor: r.premioValor }, r.premioItemNome)}</div>
+                <div className="truncate text-[12px] leading-[16px] text-[#5C5C5C]">Clube · {r.campanhaNome}</div>
+              </div>
               <button
                 onClick={() => (aplicado ? removerBeneficio() : usarRecompensa(r))}
                 data-testid={aplicado ? 'cupom-sacola-remover' : 'cupom-sacola-aplicar'}
-                className={['mt-[10px] rounded-[6px] py-[8px] text-[13px] font-semibold transition-colors', aplicado ? 'border border-[#6D28D9] bg-white text-[#6D28D9]' : 'bg-[#6D28D9] text-white hover:bg-[#5B21B6]'].join(' ')}
+                className="h-[32px] flex-shrink-0 rounded-full px-[12px] text-[12.5px] font-semibold transition-opacity hover:opacity-90"
+                style={aplicado ? { color: cor.forte, boxShadow: `inset 0 0 0 1px ${cor.forte}` } : { background: cor.forte, color: '#fff' }}
               >
-                {aplicado ? 'Aplicado · remover' : 'Aplicar'}
+                {aplicado ? 'Remover' : 'Aplicar'}
               </button>
             </div>
           )
         })}
         {cuponsSacola.map((c) => {
           const aplicado = cupomAplicado?.codigo === c.codigo
+          const cor = COR_BENEFICIO[c.tipo] ?? COR_BENEFICIO.desconto_percentual
           return (
-            <div key={c.id} data-cupom-sacola="cupom" className={['flex w-[236px] flex-shrink-0 flex-col rounded-[8px] border bg-white p-[12px]', aplicado ? 'border-[#0B7A3E]' : 'border-[#E5E5E5]'].join(' ')}>
-              <span className="self-start rounded-[4px] border border-dashed border-[#5C5C5C] px-[6px] py-[2px] text-[12px] font-semibold tracking-[0.08em] text-[#3D3D3D]">{c.codigo}</span>
-              <div className="mt-[8px] line-clamp-2 text-[14px] font-semibold leading-[18px] text-[#3D3D3D]">{labelCupom(c)}</div>
-              <div className="mt-[2px] truncate text-[12px] text-[#5C5C5C]">{c.valorMinimoPedido != null ? `Pedido mínimo ${brl(c.valorMinimoPedido)}` : (c.descricao || 'Cupom da loja')}</div>
+            <div key={c.id} data-cupom-sacola="cupom" className={['flex w-[264px] flex-shrink-0 items-center gap-[10px] rounded-[12px] border bg-white p-[10px]', aplicado ? '' : 'border-[#E5E5E5]'].join(' ')} style={aplicado ? { borderColor: cor.forte } : undefined}>
+              <span className="flex h-[40px] w-[40px] flex-shrink-0 items-center justify-center rounded-[10px]" style={{ background: cor.claro, color: cor.forte }} aria-hidden="true">
+                <Ticket className="h-[19px] w-[19px]" strokeWidth={2} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[13.5px] font-semibold leading-[18px] text-[#1F1F1F]">{labelCupom(c)}</div>
+                <div className="truncate text-[12px] leading-[16px] text-[#5C5C5C]">
+                  <span className="font-semibold tracking-[0.06em]" style={{ color: cor.texto }}>{c.codigo}</span>
+                  {c.valorMinimoPedido != null ? ` · mín. ${brl(c.valorMinimoPedido)}` : ''}
+                </div>
+              </div>
               <button
                 onClick={() => (aplicado ? removerBeneficio() : void aplicarCupomDaAba(c.codigo))}
                 disabled={resgatando === c.codigo}
                 data-testid={aplicado ? 'cupom-sacola-remover' : 'cupom-sacola-aplicar'}
-                className={['mt-[10px] rounded-[6px] py-[8px] text-[13px] font-semibold transition-colors disabled:opacity-60', aplicado ? 'border border-[#0B7A3E] bg-white text-[#0B7A3E]' : 'bg-[#0B7A3E] text-white hover:bg-[#096634]'].join(' ')}
+                className="h-[32px] flex-shrink-0 rounded-full px-[12px] text-[12.5px] font-semibold transition-opacity hover:opacity-90 disabled:opacity-60"
+                style={aplicado ? { color: cor.forte, boxShadow: `inset 0 0 0 1px ${cor.forte}` } : { background: cor.forte, color: '#fff' }}
               >
-                {resgatando === c.codigo ? 'Aplicando…' : aplicado ? 'Aplicado · remover' : 'Aplicar'}
+                {resgatando === c.codigo ? '…' : aplicado ? 'Remover' : 'Aplicar'}
               </button>
             </div>
           )
@@ -3315,12 +3337,13 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     const conf = conferencia[line.key]
     const fora = !!conf && !conf.ok
     return (
-      <div key={line.key} data-linha-sacola data-indisponivel={fora ? 'sim' : undefined} className={['flex items-start gap-[12px] py-[14px]', hasBorder ? 'border-b border-[#EFEFEF]' : ''].join(' ')}>
-        <button onClick={() => editCartLine(line)} aria-label={`Editar ${nome}`} disabled={fora} className={['h-[56px] w-[56px] flex-shrink-0 overflow-hidden rounded-[8px] border border-[#EFEFEF]', fora ? 'opacity-40 grayscale' : ''].join(' ')}>
-          <ProductThumb item={{ nome, imagemUrl: line.imagemUrl }} size={56} />
+      // 26/10/2026: foto de 72px, nome → detalhes → (preço | lápis + quantidade) numa linha só embaixo.
+      <div key={line.key} data-linha-sacola data-indisponivel={fora ? 'sim' : undefined} className={['flex items-stretch gap-[12px] py-[14px]', hasBorder ? 'border-b border-[#EFEFEF]' : ''].join(' ')}>
+        <button onClick={() => editCartLine(line)} aria-label={`Editar ${nome}`} disabled={fora} className={['h-[72px] w-[72px] flex-shrink-0 overflow-hidden rounded-[10px] border border-[#EFEFEF]', fora ? 'opacity-40 grayscale' : ''].join(' ')}>
+          <ProductThumb item={{ nome, imagemUrl: line.imagemUrl }} size={72} />
         </button>
-        <div className="min-w-0 flex-1">
-          <div className={`text-[14px] font-semibold leading-[18px] ${fora ? 'text-[#5C5C5C] line-through' : 'text-[#3D3D3D]'}`}>{nome}</div>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className={`line-clamp-2 text-[15px] font-semibold leading-[19px] ${fora ? 'text-[#5C5C5C] line-through' : 'text-[#1F1F1F]'}`}>{nome}</div>
           {fora && (
             <div className="mt-[4px] inline-flex rounded-[6px] bg-[#FDECEC] px-[8px] py-[2px] text-[12px] font-semibold text-[#B42318]" data-testid="linha-indisponivel">
               {conf.tipo === 'indisponivel' ? 'Indisponível no momento' : conf.motivo}
@@ -3334,23 +3357,25 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
           )}
           {adicionais && <div className="mt-[2px] line-clamp-2 text-[12px] leading-[16px] text-[#5C5C5C]">{adicionais}</div>}
           {line.obs && <div className="mt-[2px] truncate text-[12px] italic leading-[16px] text-[#5C5C5C]">&ldquo;{line.obs}&rdquo;</div>}
-          <div className="mt-[6px] flex flex-wrap items-baseline gap-x-[6px]">
-            <span className="text-[14px] font-semibold" style={{ color: original !== null ? VERDE_DESCONTO : '#3D3D3D' }} data-preco-linha>{brl(line.unit * line.qty)}</span>
-            {original !== null && <span className="text-[12px] line-through" style={{ color: '#737373' }} data-preco-antigo>{brl(original)}</span>}
+          <div className="mt-auto flex items-center justify-between gap-[8px] pt-[8px]">
+            <div className="flex min-w-0 flex-wrap items-baseline gap-x-[6px]">
+              <span className="text-[15px] font-semibold" style={{ color: original !== null ? VERDE_DESCONTO : '#1F1F1F' }} data-preco-linha>{brl(line.unit * line.qty)}</span>
+              {original !== null && <span className="text-[12px] line-through" style={{ color: '#737373' }} data-preco-antigo>{brl(original)}</span>}
+            </div>
+            {fora ? (
+              <button onClick={() => removerLinha(line.key)} className="flex-shrink-0 rounded-[8px] border border-[#B42318] px-[12px] py-[6px] text-[13px] font-semibold text-[#B42318] hover:bg-[#FDECEC]" data-testid="remover-indisponivel">
+                Remover
+              </button>
+            ) : (
+              <div className="flex flex-shrink-0 items-center gap-[6px]">
+                <button onClick={() => editCartLine(line)} aria-label={`Editar ${nome}`} data-editar-linha className="flex h-[32px] w-[32px] items-center justify-center rounded-full border border-[#E5E5E5] text-[var(--tema-dark)] hover:bg-[var(--tema-light)]">
+                  <Pencil className="h-[15px] w-[15px]" strokeWidth={2} />
+                </button>
+                <StepperRedondo qtd={line.qty} onMenos={() => changeLineQty(line.key, -1)} onMais={() => changeLineQty(line.key, 1)} lixeiraNoUm rotulo={nome} tamanho={32} />
+              </div>
+            )}
           </div>
         </div>
-        {fora ? (
-          <button onClick={() => removerLinha(line.key)} className="flex-shrink-0 rounded-[8px] border border-[#B42318] px-[12px] py-[6px] text-[13px] font-semibold text-[#B42318] hover:bg-[#FDECEC]" data-testid="remover-indisponivel">
-            Remover
-          </button>
-        ) : (
-        <div className="flex flex-shrink-0 flex-col items-end gap-[8px]">
-          <button onClick={() => editCartLine(line)} aria-label={`Editar ${nome}`} data-editar-linha className="flex h-[30px] w-[30px] items-center justify-center rounded-full text-[var(--tema-dark)] hover:bg-[var(--tema-light)]">
-            <Pencil className="h-[16px] w-[16px]" strokeWidth={2} />
-          </button>
-          <StepperRedondo qtd={line.qty} onMenos={() => changeLineQty(line.key, -1)} onMais={() => changeLineQty(line.key, 1)} lixeiraNoUm rotulo={nome} tamanho={30} />
-        </div>
-        )}
       </div>
     )
   }
@@ -3401,6 +3426,14 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   // A busca desliga a gaveta de propósito — é a saída de quem não quer navegar
   // e precisa varrer o cardápio inteiro.
   const gavetaAtiva = restaurante.layoutCardapio === 'gaveta' && !search.trim()
+  // Busca (26/10/2026): sem acento e sem caixa, no nome e na descrição ("hamburguer" acha "Hambúrguer").
+  const termoBusca = normalizarBusca(search.trim())
+  const gruposDaBusca = termoBusca
+    ? groups
+        .map((g) => ({ ...g, itens: g.itens.filter((i) => normalizarBusca(`${i.nome} ${i.descricao ?? ''}`).includes(termoBusca)) }))
+        .filter((g) => g.itens.length > 0)
+    : groups
+  const itensDaBusca = termoBusca ? gruposDaBusca.flatMap((g) => g.itens) : []
   // Lado da foto na lista: Ajustes (0152) ou, sem escolha, o tamanho de antes.
   const tamanhoImagem = restaurante.imagemTamanho ?? (restaurante.imagemGrande ? 140 : 120)
 
@@ -3719,22 +3752,52 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             </div>
             )}
 
-            {/* Search (colapsável) — só ocupa espaço quando aberta */}
+            {/* Busca (26/10/2026): pílula fixa no topo enquanto aberta, texto em 16px (sem zoom no iPhone),
+                limpar dentro do campo e "Cancelar" ao lado. Vazia, sugere os pratos mais pedidos. */}
             {searchOpen && (
-              <div className="mx-4 mt-3 lg:mx-8">
-                <div className="flex items-center gap-2.5 rounded-md bg-white px-4 py-3 shadow-sm">
-                  <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] flex-shrink-0 fill-text-subtle/60">
-                    <path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19zm-6 0A4.5 4.5 0 119.5 5a4.5 4.5 0 010 9z" />
-                  </svg>
-                  <input
-                    autoFocus
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Buscar no cardápio…"
-                    className="w-full border-none bg-transparent text-sm text-text-main outline-none placeholder:text-text-subtle"
-                  />
-                  <button onClick={() => { setSearch(''); setSearchOpen(false) }} className="text-text-subtle hover:text-text-main">×</button>
+              <div className="sticky top-0 z-20 bg-white px-[16px] pb-[10px] pt-[10px] lg:top-16 lg:bg-transparent lg:px-8" data-testid="busca-vitrine">
+                <div className="flex items-center gap-[10px]">
+                  <label className="flex h-[44px] min-w-0 flex-1 items-center gap-[8px] rounded-full bg-[#F2F3F5] px-[14px] ring-[var(--tema-primaria)] focus-within:bg-white focus-within:ring-2">
+                    <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] flex-shrink-0 fill-[#6B7280]" aria-hidden="true">
+                      <path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19zm-6 0A4.5 4.5 0 119.5 5a4.5 4.5 0 010 9z" />
+                    </svg>
+                    <input
+                      autoFocus
+                      type="search"
+                      enterKeyHint="search"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Buscar pratos e bebidas"
+                      aria-label="Buscar no cardápio"
+                      className="h-full min-w-0 flex-1 border-none bg-transparent text-[16px] text-[var(--v-texto)] outline-none placeholder:text-[#8A8F98] [&::-webkit-search-cancel-button]:hidden"
+                    />
+                    {search && (
+                      <button type="button" onClick={() => setSearch('')} aria-label="Limpar busca" className="flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-full bg-[#9CA3AF] text-white">
+                        <svg viewBox="0 0 16 16" className="h-[10px] w-[10px]" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+                      </button>
+                    )}
+                  </label>
+                  <button type="button" onClick={() => { setSearch(''); setSearchOpen(false) }} className="flex-shrink-0 text-[14px] font-semibold text-[var(--v-texto)]">
+                    Cancelar
+                  </button>
                 </div>
+                {!search.trim() && destaques.length > 0 && (
+                  <div className="mt-[12px]">
+                    <div className="mb-[8px] text-[12px] font-semibold text-[#6B7280]">Mais pedidos</div>
+                    <div className="flex flex-wrap gap-[8px]">
+                      {destaques.slice(0, 6).map((i) => (
+                        <button key={i.id} type="button" onClick={() => setSearch(nomeLimpo(i.nome))} className="rounded-full border border-[var(--v-borda)] bg-white px-[12px] py-[6px] text-[13px] text-[var(--v-texto)] transition-colors hover:bg-[#F3F4F6]">
+                          {nomeLimpo(i.nome)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {search.trim() && (
+                  <div className="mt-[10px] text-[12px] text-[#6B7280]" aria-live="polite" data-testid="busca-contagem">
+                    {itensDaBusca.length === 0 ? 'Nenhum resultado' : `${itensDaBusca.length} ${itensDaBusca.length === 1 ? 'resultado' : 'resultados'} para “${search.trim()}”`}
+                  </div>
+                )}
               </div>
             )}
 
@@ -3753,7 +3816,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 fica — sem ela os itens em promoção não teriam nenhuma porta de
                 entrada nesse modo — e a barra inteira some quando a loja não
                 tem promoção. */}
-            {(!gavetaAtiva || (promoItems.length > 0 && !gavetaEmTela)) && (
+            {!searchOpen && (!gavetaAtiva || (promoItems.length > 0 && !gavetaEmTela)) && (
             <div className="sticky top-0 z-10 flex gap-[20px] overflow-x-auto border-b border-[var(--v-borda)] bg-white px-[16px] pt-[8px] [scrollbar-width:none] lg:top-16 lg:mt-3 lg:px-0">
               {promoItems.length > 0 && (
                 <button
@@ -3786,7 +3849,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 da dobra: o cliente abria o cardápio e via um anúncio no lugar da
                 comida. Aqui ela é a primeira coisa dentro do cardápio, que é
                 onde um anúncio é lido sem atrapalhar quem já sabe o que quer. */}
-            {(bannerPromo.tipo !== 'nenhum' || slidesPromo.length > 0) && !gavetaEmTela && (
+            {(bannerPromo.tipo !== 'nenhum' || slidesPromo.length > 0) && !gavetaEmTela && !searchOpen && (
               <div className="mx-[16px] mt-[16px] lg:mx-8">
                 {slidesPromo.length === 0 && bannerPromo.tipo === 'texto' ? (
                   // Aviso escrito pela loja, para quem não tem arte pronta. Usa a
@@ -3902,10 +3965,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
             {/* Regular categories (or search results) */}
             {!loading && activeCategory !== '__promos__' && !gavetaAtiva &&
-              (search.trim()
-                ? groups.map((g) => ({ ...g, itens: g.itens.filter((i) => i.nome.toLowerCase().includes(search.toLowerCase())) })).filter((g) => g.itens.length > 0)
-                : groups
-              ).map((cat) => (
+              gruposDaBusca.map((cat) => (
                 <div key={cat.id} id={`sec-${cat.id}`} className="pb-1 pt-2 lg:px-0">
                   {/* Título centralizado, 16/600: na referência ele funciona como
                       divisória entre blocos de produtos, não como manchete. */}
@@ -3913,8 +3973,17 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   <ItemsGrid items={cat.itens} layout={restaurante.layoutCardapio} onSelect={openProduct} tamanhoImagem={tamanhoImagem} />
                 </div>
               ))}
-            {search.trim() && groups.every((g) => !g.itens.some((i) => i.nome.toLowerCase().includes(search.toLowerCase()))) && (
-              <div className="px-4 py-16 text-center text-sm text-text-subtle lg:px-0">Nenhum item encontrado para &ldquo;{search}&rdquo;.</div>
+            {termoBusca && itensDaBusca.length === 0 && (
+              <div className="flex flex-col items-center px-[24px] py-[48px] text-center" data-testid="busca-vazia">
+                <span className="flex h-[56px] w-[56px] items-center justify-center rounded-full bg-[#F2F3F5]" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" className="h-[26px] w-[26px] fill-[#9CA3AF]"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 10-.7.7l.27.28v.79l5 4.99L20.49 19zm-6 0A4.5 4.5 0 119.5 5a4.5 4.5 0 010 9z" /></svg>
+                </span>
+                <p className="mt-[14px] text-[15px] font-semibold text-[var(--v-texto)]">Nada encontrado para “{search.trim()}”</p>
+                <p className="mt-[4px] max-w-[280px] text-[13px] leading-[19px] text-[var(--v-secundario)]">Confira a grafia ou tente uma palavra mais curta, como “burger” ou “batata”.</p>
+                <button type="button" onClick={() => setSearch('')} className="mt-[16px] rounded-full border border-[var(--v-borda)] px-[16px] py-[8px] text-[13px] font-semibold text-[var(--v-texto)] hover:bg-[#F3F4F6]">
+                  Limpar busca
+                </button>
+              </div>
             )}
 
             {/* Sem bloco de "fim do cardápio" (P8, 2026-10-04): a lista termina no último
@@ -4123,74 +4192,86 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 testid="pedidos-vazio"
               />
             ) : (
-              <div className="space-y-4 pb-4">
-                {meusPedidos.map((p) => {
-                  const info = infoStatusPedido(p)
-                  const ativo = pedidoEstaEmAndamento(p, agoraAcompanhamento)
-                  const data = new Date(p.criadoEm).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
-                  const resumo = p.itens.map((i) => `${i.quantidade}× ${i.nome}`).join(', ')
-                  return (
-                    <div key={p.id} className="overflow-hidden rounded border border-border bg-white transition-shadow hover:shadow-md">
-                    <button
-                      type="button"
-                      onClick={() => setPedidoDetalhe(p)}
-                      className="block w-full text-left active:scale-[0.99]"
-                    >
-                      <div className="flex items-start justify-between gap-3 p-4">
-                        <div className="min-w-0">
-                          <div className="text-[15px] font-semibold">Pedido #{p.numero}</div>
-                          <div className="mt-0.5 text-[12px] text-text-subtle">{data} · {p.tipo === 'retirada' ? 'Retirada' : 'Entrega'}</div>
-                        </div>
-                        <span className={['flex-shrink-0 rounded px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide', info.cls].join(' ')}>{info.label}</span>
-                      </div>
-                      <div className="border-t border-border px-4 py-3">
-                        {/* As fotos vêm do cardápio de hoje: é uma lista de comida,
-                            e um pedido reconhecido pela imagem é pedido de novo
-                            mais rápido do que um lido linha a linha. */}
-                        <div className="flex items-start gap-3">
-                          {fotosPorPedido.get(p.id)?.length ? (
-                            <span className="flex flex-shrink-0 -space-x-2">
-                              {fotosPorPedido.get(p.id)!.map((url) => (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                  key={url}
-                                  src={url}
-                                  alt=""
-                                  loading="lazy"
-                                  decoding="async"
-                                  className="h-11 w-11 rounded-[8px] border-2 border-white object-cover shadow-sm"
-                                />
-                              ))}
-                            </span>
-                          ) : null}
-                          <p className="line-clamp-2 min-w-0 flex-1 text-[13px] text-text-subtle">{resumo}</p>
-                        </div>
-                        <div className="mt-2 flex items-center justify-between">
-                          <span className="text-[12px] font-semibold text-[var(--tema-primaria)]">Ver detalhes →</span>
-                          <span className="text-[15px] font-semibold text-[#16A34A]">{brl(p.total)}</span>
-                        </div>
-                      </div>
-                      {ativo && <div className="px-4 pb-4"><PedidoTimeline status={p.status} tipo={p.tipo} semConfirmacao={p.saidaSemConfirmacao} /></div>}
-                      {p.status === 'cancelado' && (
-                        <div className="border-t border-danger/30 bg-danger-bg px-4 py-2.5 text-[12px] font-medium text-danger">Este pedido foi cancelado.</div>
-                      )}
-                    </button>
-                    {/* Repetir só faz sentido em pedido encerrado — o que está em
-                        andamento o cliente ainda vai receber. */}
-                    {!ativo && (
-                      <div className="border-t border-border p-3">
-                        <button
-                          onClick={() => abrirRepeticao(p)}
-                          className="flex w-full items-center justify-center gap-2 rounded bg-[var(--tema-light)] py-2.5 text-[12px] font-semibold uppercase tracking-wide text-[var(--tema-primaria)] transition-colors hover:bg-[var(--tema-primaria)] hover:text-white"
-                        >
-                          <RotateCcw className="h-3.5 w-3.5" strokeWidth={2.5} />
-                          Pedir de novo
+              // 26/10/2026: em andamento primeiro (com a linha do tempo), depois os anteriores. Cada cartão:
+              // fotos + número/data + status em etiqueta; rodapé numa linha só com total, Detalhes e Pedir de novo.
+              <div className="pb-4">
+                {(() => {
+                  const emAndamento = meusPedidos.filter((p) => pedidoEstaEmAndamento(p, agoraAcompanhamento))
+                  const anteriores = meusPedidos.filter((p) => !pedidoEstaEmAndamento(p, agoraAcompanhamento))
+                  const cartao = (p: typeof meusPedidos[number]) => {
+                    const info = infoStatusPedido(p)
+                    const ativo = pedidoEstaEmAndamento(p, agoraAcompanhamento)
+                    const data = new Date(p.criadoEm).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).replace('.', '')
+                    const resumo = p.itens.map((i) => `${i.quantidade}× ${nomeLimpo(i.nome)}`).join(', ')
+                    const fotos = fotosPorPedido.get(p.id) ?? []
+                    return (
+                      <div key={p.id} data-canto className={['overflow-hidden rounded-[14px] border bg-white', ativo ? 'border-[var(--tema-primaria)]/30 shadow-[0_2px_10px_rgba(16,24,40,0.06)]' : 'border-[#ECEEF1]'].join(' ')} data-testid="pedido-cartao">
+                        <button type="button" onClick={() => setPedidoDetalhe(p)} className="block w-full p-[14px] text-left active:bg-[#FAFAFA]">
+                          <div className="flex items-start gap-[12px]">
+                            {/* As fotos vêm do cardápio de hoje: um pedido reconhecido pela imagem é pedido de novo mais rápido. */}
+                            {fotos.length > 0 ? (
+                              <span className="flex flex-shrink-0 -space-x-3">
+                                {fotos.slice(0, 3).map((url) => (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img key={url} src={url} alt="" loading="lazy" decoding="async" className="h-[48px] w-[48px] rounded-[10px] border-2 border-white object-cover shadow-sm" />
+                                ))}
+                              </span>
+                            ) : (
+                              <span className="flex h-[48px] w-[48px] flex-shrink-0 items-center justify-center rounded-[10px] bg-[#F3F4F6]" aria-hidden="true"><PhReceipt size={22} className="text-[#9CA3AF]" /></span>
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-start justify-between gap-[8px]">
+                                <div className="min-w-0">
+                                  <div className="text-[15px] font-semibold leading-[20px] text-[#1F1F1F]">Pedido #{p.numero}</div>
+                                  <div className="text-[12px] leading-[16px] text-[#6B7280]">{data} · {p.tipo === 'retirada' ? 'Retirada' : 'Entrega'}</div>
+                                </div>
+                                <span className={['flex-shrink-0 rounded-full px-[9px] py-[3px] text-[11.5px] font-semibold', info.cls].join(' ')}>{info.label}</span>
+                              </div>
+                              <p className="mt-[6px] line-clamp-2 text-[13px] leading-[18px] text-[#5C5C5C]">{resumo}</p>
+                            </div>
+                          </div>
+                          {ativo && <div className="mt-[12px]"><PedidoTimeline status={p.status} tipo={p.tipo} semConfirmacao={p.saidaSemConfirmacao} /></div>}
                         </button>
+                        {p.status === 'cancelado' && (
+                          <div className="border-t border-danger/30 bg-danger-bg px-[14px] py-[8px] text-[12px] font-medium text-danger">Este pedido foi cancelado.</div>
+                        )}
+                        <div className="flex items-center gap-[8px] border-t border-[#F1F2F4] px-[14px] py-[10px]">
+                          <span className="min-w-0 flex-1 text-[15px] font-semibold text-[#1F1F1F]">{brl(p.total)}</span>
+                          <button type="button" onClick={() => setPedidoDetalhe(p)} className="h-[36px] flex-shrink-0 rounded-full px-[12px] text-[13px] font-semibold text-[#3D3D3D] hover:bg-[#F3F4F6]">
+                            Detalhes
+                          </button>
+                          {/* Repetir só faz sentido em pedido encerrado — o que está em andamento o cliente ainda vai receber. */}
+                          {!ativo && (
+                            <button
+                              type="button"
+                              onClick={() => abrirRepeticao(p)}
+                              className="flex h-[36px] flex-shrink-0 items-center gap-[6px] rounded-full bg-[var(--tema-primaria)] px-[14px] text-[13px] font-semibold text-white transition-[filter] hover:brightness-110 active:scale-[0.98]"
+                            >
+                              <RotateCcw className="h-[14px] w-[14px]" strokeWidth={2.5} />
+                              Pedir de novo
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    )}
-                    </div>
+                    )
+                  }
+                  return (
+                    <>
+                      {emAndamento.length > 0 && (
+                        <section className="mb-[24px]">
+                          <h2 className="mb-[10px] text-[17px] font-semibold tracking-tight text-[#1F1F1F]">Em andamento</h2>
+                          <div className="space-y-[12px]">{emAndamento.map(cartao)}</div>
+                        </section>
+                      )}
+                      {anteriores.length > 0 && (
+                        <section>
+                          <h2 className="mb-[10px] text-[17px] font-semibold tracking-tight text-[#1F1F1F]">{emAndamento.length > 0 ? 'Pedidos anteriores' : 'Seus pedidos'}</h2>
+                          <div className="space-y-[12px]">{anteriores.map(cartao)}</div>
+                        </section>
+                      )}
+                    </>
                   )
-                })}
+                })()}
               </div>
             )}
           </div>
@@ -4389,54 +4470,59 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
               {/* Prêmios prontos pra resgatar */}
               {recompensas.length > 0 && (
                 <section>
-                  <h2 className="mb-2.5 text-[17px] font-semibold tracking-tight">Prêmios prontos 🎁</h2>
+                  <h2 className="mb-2.5 flex items-center gap-2 text-[17px] font-semibold tracking-tight">
+                    <Gift className="h-[19px] w-[19px] text-[#6D28D9]" strokeWidth={2} />
+                    Prêmios prontos
+                  </h2>
                   <div className="space-y-3">
                     {recompensas.map((r) => {
                       const label = premioLabelCampanha({ premioTipo: r.premioTipo, premioValor: r.premioValor }, r.premioItemNome)
                       const diasTexto = r.diasSemanaResgate.length > 0 ? diasSemanaTexto(r.diasSemanaResgate) : null
+                      // 26/10/2026: cor do tipo do prêmio (COR_BENEFICIO), selo em frase, foto menor e botão ao lado.
+                      const cor = COR_BENEFICIO[r.premioTipo] ?? COR_BENEFICIO.item_gratis
                       return (
                         <div
                           key={r.id}
-                          className={[
-                            'overflow-hidden rounded-md bg-white shadow-sm',
-                            r.podeResgatarHoje ? 'animate-premio-pronto border-2 border-promo' : 'border border-border opacity-90',
-                            destacarCupons && r.podeResgatarHoje ? 'ring-2 ring-[#0369A1] ring-offset-2' : '',
-                          ].join(' ')}
+                          data-canto
+                          className={['overflow-hidden rounded-[14px] border bg-white p-[14px]', r.podeResgatarHoje ? '' : 'border-[#ECEEF1] opacity-90', destacarCupons && r.podeResgatarHoje ? 'ring-2 ring-[#0369A1] ring-offset-2' : ''].join(' ')}
+                          style={r.podeResgatarHoje ? { borderColor: cor.forte, boxShadow: `0 0 0 1px ${cor.forte}` } : undefined}
                         >
-                          <div className="flex items-start gap-3.5 p-3.5">
+                          <div className="flex items-center gap-[12px]">
                             {r.premioItemImagemUrl
-                              ? <ProductThumb item={{ nome: r.premioItemNome ?? r.campanhaNome, imagemUrl: r.premioItemImagemUrl }} size={112} />
-                              : <SeloPremio tipo={r.premioTipo} tamanho={112} />}
+                              ? <ProductThumb item={{ nome: r.premioItemNome ?? r.campanhaNome, imagemUrl: r.premioItemImagemUrl }} size={72} />
+                              : <SeloPremio tipo={r.premioTipo} tamanho={72} />}
                             <div className="min-w-0 flex-1">
-                              <span className={['inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide', r.podeResgatarHoje ? 'bg-promo text-white' : 'bg-promo-bg text-promo'].join(' ')}>
-                                {r.podeResgatarHoje ? 'Pronto pra usar hoje' : 'Prêmio desbloqueado'}
+                              <span className="inline-flex items-center gap-[5px] rounded-full px-[8px] py-[2px] text-[11.5px] font-semibold" style={{ background: cor.claro, color: cor.texto }}>
+                                <DiamanteRoxo tamanho={11} />
+                                {r.podeResgatarHoje ? 'Pronto para usar hoje' : 'Prêmio desbloqueado'}
                               </span>
-                              <div className="mt-1.5 text-[15px] font-semibold leading-snug text-text-main first-letter:uppercase">{label}</div>
-                              <div className="mt-0.5 text-[12px] text-text-subtle">{r.campanhaNome}</div>
-                              {diasTexto && <div className="mt-1 text-[12px] font-medium text-text-subtle">Resgate {diasTexto}</div>}
+                              <div className="mt-[6px] text-[15px] font-semibold leading-[20px] text-text-main first-letter:uppercase">{label}</div>
+                              <div className="text-[12px] text-text-subtle">{r.campanhaNome}</div>
+                              {diasTexto && <div className="mt-[2px] text-[12px] font-medium text-text-subtle">Resgate {diasTexto}</div>}
                             </div>
                           </div>
-                          <div className="px-3.5 pb-3.5">
+                          <div className="mt-[12px] flex justify-end">
                             {recompensaSelecionada?.id === r.id ? (
-                              <button onClick={removerBeneficio} className="w-full rounded border border-promo py-3 text-[12px] font-semibold uppercase tracking-wide text-promo" data-testid="resgate-na-sacola">
+                              <button onClick={removerBeneficio} className="h-[38px] rounded-full px-[16px] text-[13px] font-semibold" style={{ color: cor.forte, boxShadow: `inset 0 0 0 1px ${cor.forte}` }} data-testid="resgate-na-sacola">
                                 Na sacola · remover
                               </button>
                             ) : (
-                            <button
-                              onClick={() => usarRecompensa(r)}
-                              disabled={!r.podeResgatarHoje}
-                              data-testid="resgatar-premio"
-                              className={['w-full rounded py-3 text-[12px] font-semibold uppercase tracking-wide transition-all', r.podeResgatarHoje ? 'bg-promo text-white hover:bg-promo-dark active:scale-[0.99]' : 'cursor-not-allowed bg-[#F3F4F6] text-text-subtle'].join(' ')}
-                            >
-                              Resgatar
-                            </button>
-                            )}
-                            {!r.podeResgatarHoje && diasTexto && (
-                              <p className="mt-2 rounded border border-warn bg-warn-bg px-2.5 py-1.5 text-[12px] font-medium text-[#92400E]">
-                                Hoje não é dia de resgate — este prêmio vale {diasTexto}.
-                              </p>
+                              <button
+                                onClick={() => usarRecompensa(r)}
+                                disabled={!r.podeResgatarHoje}
+                                data-testid="resgatar-premio"
+                                className="h-[38px] rounded-full px-[18px] text-[13px] font-semibold text-white transition-[filter] hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:!bg-[#F3F4F6] disabled:text-text-subtle"
+                                style={{ background: cor.forte }}
+                              >
+                                Resgatar
+                              </button>
                             )}
                           </div>
+                          {!r.podeResgatarHoje && diasTexto && (
+                            <p className="mt-2 rounded border border-warn bg-warn-bg px-2.5 py-1.5 text-[12px] font-medium text-[#92400E]">
+                              Hoje não é dia de resgate — este prêmio vale {diasTexto}.
+                            </p>
+                          )}
                         </div>
                       )
                     })}
@@ -4486,7 +4572,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
               {cuponsLoja.length > 0 && (
                 <section>
                   <h2 className="mb-2.5 flex items-center gap-2 text-[17px] font-semibold tracking-tight">
-                    <Ticket className="h-[19px] w-[19px] text-[var(--tema-primaria)]" strokeWidth={2} />
+                    <Ticket className="h-[19px] w-[19px] text-[#6D28D9]" strokeWidth={2} />
                     Cupons da loja
                   </h2>
                   <div className="space-y-3">
@@ -4524,7 +4610,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                                 onClick={() => void aplicarCupomDaAba(c.codigo)}
                                 disabled={resgatando === c.codigo}
                                 data-testid="resgatar-cupom"
-                                className="ml-auto flex-shrink-0 rounded-[8px] bg-[var(--tema-primaria)] px-[16px] py-[8px] text-[13px] font-semibold text-white transition-opacity hover:opacity-90 active:scale-[0.98] disabled:opacity-60"
+                                className="ml-auto flex-shrink-0 rounded-full px-[16px] py-[8px] text-[13px] font-semibold text-white transition-opacity hover:opacity-90 active:scale-[0.98] disabled:opacity-60"
+                                style={{ background: (COR_BENEFICIO[c.tipo] ?? COR_BENEFICIO.desconto_percentual).forte }}
                               >
                                 {resgatando === c.codigo ? 'Conferindo…' : 'Resgatar'}
                               </button>
@@ -5939,12 +6026,13 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
           <div className="fixed inset-0 z-[85] bg-[#111827]/70" onClick={() => setPremioCarrinhoAberto(false)} />
           <div className="fixed left-1/2 top-1/2 z-[86] w-[calc(100%-2.5rem)] max-w-[340px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-lg bg-white shadow-2xl">
             <div className="border-b border-border px-5 pb-4 pt-5 text-center">
-              <span className="mx-auto mb-2.5 flex h-14 w-14 items-center justify-center rounded-full bg-promo-bg text-[28px] leading-none">🎁</span>
+              {/* 26/10/2026: cor do tipo do prêmio (COR_BENEFICIO) no selo, no texto e no botão; sem caixa alta. */}
+              <span className="mx-auto mb-2.5 flex"><SeloPremio tipo={premioParaUsarNoCarrinho.premioTipo} tamanho={56} /></span>
               <h2 className="text-[17px] font-semibold leading-tight text-text-main">Você tem um prêmio pra usar</h2>
               <p className="mt-1 text-[13px] leading-relaxed text-text-subtle">Aplique agora e ele entra no total deste pedido.</p>
             </div>
             <div className="px-5 pb-5 pt-4 text-center">
-              <p className="text-[16px] font-semibold leading-snug text-promo first-letter:uppercase">
+              <p className="text-[16px] font-semibold leading-snug first-letter:uppercase" style={{ color: (COR_BENEFICIO[premioParaUsarNoCarrinho.premioTipo] ?? COR_BENEFICIO.item_gratis).texto }}>
                 {premioLabelCampanha(
                   { premioTipo: premioParaUsarNoCarrinho.premioTipo, premioValor: premioParaUsarNoCarrinho.premioValor },
                   premioParaUsarNoCarrinho.premioItemNome
@@ -5953,7 +6041,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
               <p className="mt-0.5 text-[12px] text-text-subtle">{premioParaUsarNoCarrinho.campanhaNome}</p>
               <button
                 onClick={() => { setPremioCarrinhoAberto(false); usarRecompensa(premioParaUsarNoCarrinho) }}
-                className="mt-4 w-full rounded-md bg-promo px-4 py-3.5 text-[13px] font-semibold uppercase tracking-wide text-white transition-colors hover:bg-promo-dark active:scale-[0.99]"
+                className="mt-4 h-[48px] w-full rounded-full px-4 text-[15px] font-semibold text-white transition-[filter] hover:brightness-110 active:scale-[0.99]"
+                style={{ background: (COR_BENEFICIO[premioParaUsarNoCarrinho.premioTipo] ?? COR_BENEFICIO.item_gratis).forte }}
               >
                 Usar meu prêmio
               </button>
@@ -6035,15 +6124,5 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     </div>
     </VitrineNovaContext.Provider>
     </LojaEtiquetasContext.Provider>
-  )
-}
-
-/** Moto de entrega (motoboy), cheia e arredondada — Material Icons "delivery_dining" (Apache 2.0). */
-function IconeMotoEntrega({ className = '' }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" className={className} aria-hidden>
-      <path d="M19 7c0-1.1-.9-2-2-2h-3v2h3v2.65L13.52 14H10V9H6c-2.21 0-4 1.79-4 4v3h2c0 1.66 1.34 3 3 3s3-1.34 3-3h4.48L19 10.35V7zM7 17c-.55 0-1-.45-1-1h2c0 .55-.45 1-1 1z" />
-      <path d="M5 6h5v2H5zM19 13c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3zm0 4c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z" />
-    </svg>
   )
 }
