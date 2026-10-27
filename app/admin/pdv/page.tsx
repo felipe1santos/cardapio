@@ -1296,18 +1296,19 @@ export default function PdvPage() {
               ))}
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+            {/* Celular: 3 mesas por linha (27/10). */}
+            <div className="grid grid-cols-3 gap-2 sm:gap-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
               {/* Balcão — venda avulsa */}
               <button
                 type="button"
                 onClick={() => (pdvV2 ? setTelaBalcao(true) : selecionarMesa(null))}
                 data-testid="card-balcao"
-                className="flex aspect-[4/3] flex-col justify-between rounded-menuzia bg-sidebar-bg p-3 text-left text-white shadow-sm transition-all hover:brightness-110 active:scale-[0.97] sm:aspect-square"
+                className="flex aspect-square min-w-0 flex-col justify-between rounded-menuzia bg-sidebar-bg p-2.5 text-left text-white shadow-sm transition-all hover:brightness-110 active:scale-[0.97] sm:p-3"
               >
-                <span className="text-[11px] font-semibold uppercase tracking-wide text-white/60">{pdvV2 ? 'Comandas' : 'Avulso'}</span>
-                <div>
-                  <span className="block text-[20px] font-semibold leading-none">Balcão</span>
-                  <span className="mt-1 block text-[11px] text-white/70">{pdvV2 ? 'Central de balcão' : 'Venda rápida'}</span>
+                <span className="truncate text-[10px] font-semibold uppercase tracking-wide text-white/60 sm:text-[11px]">{pdvV2 ? 'Comandas' : 'Avulso'}</span>
+                <div className="min-w-0">
+                  <span className="block truncate text-[18px] font-semibold leading-none sm:text-[20px]">Balcão</span>
+                  <span className="mt-1 block truncate text-[10.5px] text-white/70 sm:text-[11px]">{pdvV2 ? 'Central de balcão' : 'Venda rápida'}</span>
                 </div>
               </button>
 
@@ -1323,31 +1324,31 @@ export default function PdvPage() {
                     data-testid={`mesa-${mesa.nome}`}
                     data-estado={estado}
                     className={[
-                      'flex aspect-[4/3] min-w-0 flex-col justify-between rounded-menuzia p-3 text-left text-white shadow-sm transition-all hover:brightness-105 active:scale-[0.97] sm:aspect-square',
+                      'flex aspect-square min-w-0 flex-col justify-between rounded-menuzia p-2.5 text-left text-white shadow-sm transition-all hover:brightness-105 active:scale-[0.97] sm:p-3',
                       cor,
                     ].join(' ')}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-semibold uppercase tracking-wide text-white/80">{labelEstado}</span>
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="truncate text-[10px] font-semibold uppercase tracking-wide text-white/80">{labelEstado}</span>
                       {mesa.comandaAberta && (
-                        <span className="text-[10px] font-medium text-white/75">
+                        <span className="flex-shrink-0 text-[10px] font-medium tabular-nums text-white/75">
                           {tempoDecorrido(mesa.comandaAberta.abertaEm)}
                         </span>
                       )}
                     </div>
-                    <div>
-                      <span className="block truncate text-[21px] font-semibold leading-none sm:text-[24px]">{mesa.nome}</span>
+                    <div className="min-w-0">
+                      <span className="block truncate text-[19px] font-semibold leading-none sm:text-[24px]">{mesa.nome}</span>
                       {mesa.comandaAberta?.clienteNome && (
-                        <span className="mt-1 block truncate text-[12px] font-semibold text-white/90">{mesa.comandaAberta.clienteNome}</span>
+                        <span className="mt-1 block truncate text-[11px] font-semibold text-white/90 sm:text-[12px]">{mesa.comandaAberta.clienteNome}</span>
                       )}
                       {mesa.comandaAberta ? (
-                        <span className="mt-1.5 block text-[13px] font-semibold text-white/95">
-                          {formatBRL(mesa.total)} · {mesa.qtdPedidos} ped
+                        <span className="mt-1 block truncate text-[12px] font-semibold tabular-nums text-white/95 sm:mt-1.5 sm:text-[13px]">
+                          {formatBRL(mesa.total)}<span className="max-sm:hidden"> · {mesa.qtdPedidos} ped</span>
                         </span>
                       ) : estado === 'limpeza' ? (
-                        <span className="mt-1.5 block text-[11px] text-white/85">Toque p/ liberar</span>
+                        <span className="mt-1 block truncate text-[10.5px] text-white/85 sm:mt-1.5 sm:text-[11px]">Toque p/ liberar</span>
                       ) : (
-                        <span className="mt-1.5 block text-[11px] text-white/75">Toque p/ abrir</span>
+                        <span className="mt-1 block truncate text-[10.5px] text-white/75 sm:mt-1.5 sm:text-[11px]">Toque p/ abrir</span>
                       )}
                     </div>
                   </button>

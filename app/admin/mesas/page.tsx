@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { BellRing, Lock, LockOpen, Pencil, Plus, Power, Printer, QrCode, Search, Settings, X } from 'lucide-react'
+import { BellRing, Lock, LockOpen, Pencil, Plus, Power, Printer, QrCode, Search, Settings, UtensilsCrossed, X } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { BotaoTelaCheia } from '@/components/ui/tela-cheia'
 import { MenuAcoesCelular } from '@/components/ui/menu-acoes-celular'
@@ -402,8 +402,8 @@ export default function MesasPage() {
 
         {!carregando && !erro && mesas.length === 0 && (
           <div className="rounded-menuzia border border-border bg-main px-6 py-12 text-center">
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-bg-page text-2xl">
-              🍽️
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-bg-page text-text-subtle">
+              <UtensilsCrossed className="h-6 w-6" aria-hidden />
             </div>
             <p className="text-[14px] font-semibold text-text-main">Nenhuma mesa cadastrada</p>
             <p className="mx-auto mt-1 max-w-sm text-[12px] text-text-subtle">
@@ -426,7 +426,7 @@ export default function MesasPage() {
         )}
 
         {!carregando && !erro && mesas.length > 0 && (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+          <div className="grid grid-cols-3 gap-2 sm:gap-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
             {visiveis.map((mesa) => {
               const tom = TOM_ESTADO[mesa.estado]
               const chamadoDaMesa = chamados.find((c) => c.mesaId === mesa.id) ?? null
@@ -439,13 +439,14 @@ export default function MesasPage() {
               const acao = mesa.estado === 'limpeza' ? 'Toque p/ liberar' : !atende ? 'Ver conta' : contaAberta ? 'Toque p/ abrir' : 'Toque p/ lançar'
               const conteudo = (
                 <>
-                  <div className="flex items-start justify-between gap-1">
-                    <span className="text-[10px] font-semibold uppercase tracking-wide opacity-85">
+                  {/* Celular: 3 por linha (27/10) — a 1ª linha deixa espaço para o ⋮ do canto. */}
+                  <div className={['flex items-start justify-between gap-1', gerencia ? 'max-md:pr-7' : ''].join(' ')}>
+                    <span className="truncate text-[10px] font-semibold uppercase tracking-wide opacity-85">
                       {mesa.bloqueada && <Lock className="mr-0.5 inline h-3 w-3 align-[-2px]" />}
                       {ROTULO_ESTADO[mesa.estado]}
                     </span>
                     {contaAberta && mesa.abertaEm && (
-                      <span className="text-[10px] font-medium opacity-80">{esperaTexto(mesa.abertaEm, agora).replace(/^há /, '')}</span>
+                      <span className="flex-shrink-0 text-[10px] font-medium tabular-nums opacity-80 max-sm:hidden">{esperaTexto(mesa.abertaEm, agora).replace(/^há /, '')}</span>
                     )}
                   </div>
                   {/* Conta de dias atrás: o "3h20" do relógio normal não diz que a mesa
@@ -462,17 +463,20 @@ export default function MesasPage() {
                     </span>
                   )}
                   <div className="mt-auto min-w-0">
-                    <span className="block truncate text-[24px] font-semibold leading-none">{mesa.nome}</span>
-                    <span className="mt-1 block truncate text-[10px] opacity-80">
+                    <span className="block truncate text-[19px] font-semibold leading-none sm:text-[24px]">{mesa.nome}</span>
+                    <span className="mt-1 block truncate text-[10px] opacity-80 max-sm:hidden">
                       {mesa.setor || 'Sem setor'}
                       {mesa.capacidade ? ` · ${mesa.capacidade} lugares` : ''}
                     </span>
                     {contaAberta ? (
-                      <span className="mt-1 block truncate text-[13px] font-semibold">
-                        {mesa.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} · {mesa.qtdPedidos} lanç.
+                      <span className="mt-1 block truncate text-[12px] font-semibold tabular-nums sm:text-[13px]">
+                        {mesa.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        <span className="max-sm:hidden"> · {mesa.qtdPedidos} lanç.</span>
+                        {/* Celular: o tempo sai do topo (lugar do ⋮) e desce para cá, junto dos lançamentos. */}
+                        {mesa.abertaEm && <span className="block text-[10px] font-medium opacity-80 sm:hidden">{esperaTexto(mesa.abertaEm, agora).replace(/^há /, '')} · {mesa.qtdPedidos} lanç.</span>}
                       </span>
                     ) : (
-                      abre && <span className="mt-1 block text-[11px] opacity-80">{acao}</span>
+                      abre && <span className="mt-1 block truncate text-[10.5px] opacity-80 sm:text-[11px]">{acao}</span>
                     )}
                     {gerencia && mesa.qrRevogado && mesa.estado !== 'inativa' && (
                       <span className="mt-1 block text-[10px] font-semibold uppercase">QR revogado</span>
@@ -481,8 +485,7 @@ export default function MesasPage() {
                 </>
               )
               const classeBloco = [
-                'flex aspect-[4/3] min-w-0 flex-col rounded-menuzia p-3 text-left shadow-sm transition-all sm:aspect-square',
-                gerencia ? 'max-md:pr-11' : '',
+                'flex aspect-square min-w-0 flex-col rounded-menuzia p-2.5 text-left shadow-sm transition-all sm:p-3',
                 tom.bloco,
                 tom.texto,
                 abre ? 'hover:brightness-105 active:scale-[0.97]' : '',
@@ -502,10 +505,10 @@ export default function MesasPage() {
                   {gerencia && (
                     <MenuAcoesCelular
                       claro
-                      tamanho={34}
+                      tamanho={32}
                       rotulo={`Ações da ${mesa.nome}`}
                       testid={`mesa-menu-${mesa.id}`}
-                      className="absolute right-[6px] top-[6px] md:hidden"
+                      className="absolute right-[2px] top-[2px] md:hidden"
                       acoes={[
                         { rotulo: 'Ver QR Code', icone: <QrCode className="h-4 w-4" />, onClick: () => setQrDaMesa(mesa) },
                         { rotulo: 'Editar', icone: <Pencil className="h-4 w-4" />, onClick: () => { setEmEdicao(mesa); setFormAberto(true) } },
