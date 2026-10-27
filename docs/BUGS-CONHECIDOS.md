@@ -155,3 +155,13 @@ checagem B-n** no script.
 - **Como evitar:** decisão de "o que mostrar no card" passa por `videoNoCard` (`lib/video-vitrine.ts`): vídeo quando
   marcado OU quando não há foto. Card nunca fica vazio se o item tem alguma mídia.
 - **Teste:** `lib/video-vitrine.test.ts` (videoNoCard).
+
+## Alerta "WhatsApp desconectado" repetia a cada 6 h por dias · 27/10/2026 · teste
+
+- **Onde:** monitor do WhatsApp (`decidirMonitor` em `lib/whatsapp-monitor.ts`), push "🔴 WhatsApp desconectado".
+- **Causa:** (1) a proteção da desconexão pelo painel valia só 30 min contados de AGORA; passado esse tempo, a loja
+  desconectada de propósito (Menuzia, 23/10) virava "caiu sozinho" e alertava; (2) o alerta repetia a cada 6 h sem fim
+  (Nossa Cozinha, fora desde 20/10, recebia 4 push por dia).
+- **Como evitar:** "manual" compara a hora da QUEDA com a da desconexão pelo painel (não com agora). Alerta na queda +
+  um lembrete depois de 24 h; queda com mais de 48 h não lembra mais (a faixa vermelha do painel continua).
+- **Teste:** `lib/whatsapp-monitor.test.ts`.

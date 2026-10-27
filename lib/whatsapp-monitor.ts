@@ -16,7 +16,8 @@ import { registrarAuditoria } from '@/lib/auditoria'
  *   · aviso: faixa vermelha no painel (estado no banco), push ao dono/equipe e alerta grave (Super Admin lê o estado).
  */
 export const THROTTLE_MS = 2 * 60_000
-const DEDUPE_ALERTA_MS = 6 * 3600_000
+const DEDUPE_ALERTA_MS = 24 * 3600_000
+const FIM_LEMBRETES_MS = 48 * 3600_000
 const JANELA_REENVIO_MS = 2 * 3600_000
 
 interface Loja { id: string; nome: string; evolution_instance: string | null; whatsapp_estado: string | null; whatsapp_estado_em: string | null; whatsapp_caiu_em: string | null; whatsapp_alertado_em: string | null; whatsapp_desconexao_manual_em: string | null }
@@ -29,10 +30,12 @@ export function decidirMonitor(p: { anterior: string | null; novo: EstadoConexao
   const agoraIso = new Date(p.agora).toISOString()
   if (p.novo === 'open') return { estado: 'open', caiuEm: null, alertar: false, voltou: !!p.caiuEm || (p.anterior !== null && p.anterior !== 'open'), manual: false }
   const estado = p.novo ?? 'close'
-  // Desconexão feita pelo painel nos últimos 30 min: foi de propósito, não alerta.
-  const manual = !!p.manualEm && p.agora - Date.parse(p.manualEm) < 30 * 60_000
   const caiuEm = p.caiuEm ?? agoraIso
-  const jaAlertou = !!p.alertadoEm && p.agora - Date.parse(p.alertadoEm) < DEDUPE_ALERTA_MS
+  // Queda que começou até 30 min depois de desconectar pelo painel: foi de propósito, não alerta — nem dias depois
+  // (27/10: a Menuzia, desconectada em 23/10, recebia o alerta a cada 6 h quando os 30 min passavam).
+  const manual = !!p.manualEm && Date.parse(caiuEm) >= Date.parse(p.manualEm) && Date.parse(caiuEm) - Date.parse(p.manualEm) < 30 * 60_000
+  // Um alerta na queda e um lembrete depois de 24 h; queda com mais de 48 h não lembra mais (a faixa do painel fica).
+  const jaAlertou = (!!p.alertadoEm && p.agora - Date.parse(p.alertadoEm) < DEDUPE_ALERTA_MS) || (!!p.alertadoEm && p.agora - Date.parse(caiuEm) > FIM_LEMBRETES_MS)
   // Achado #14 (26/10): "conectando" curto é a Evolution retomando a sessão, não queda.
   const conectandoRecente = estado === 'connecting' && p.agora - Date.parse(caiuEm) < TOLERANCIA_CONECTANDO_MS
   return { estado, caiuEm, alertar: !manual && !jaAlertou && !conectandoRecente, voltou: false, manual }

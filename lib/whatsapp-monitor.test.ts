@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { caiuParaPainel, decidirMonitor, THROTTLE_MS } from './whatsapp-monitor'
 
-/** Etapa 3 (20/10): alerta só quando a conexão cai sozinha; desconexão pelo painel fica em silêncio; não repete em 6 h. */
+/** Etapa 3 (20/10): alerta só quando a conexão cai sozinha; desconexão pelo painel fica em silêncio; lembrete único depois de 24 h (27/10). */
 const agora = Date.parse('2026-10-20T01:00:00Z')
 const iso = (min: number) => new Date(agora - min * 60_000).toISOString()
 
@@ -16,8 +16,18 @@ describe('monitor do WhatsApp: decisão', () => {
     expect(d.alertar).toBe(false)
     expect(d.caiuEm).toBe(iso(90))
   })
-  it('alertou há 7 h e segue caído → alerta de novo', () => {
-    expect(decidirMonitor({ anterior: 'close', novo: 'close', caiuEm: iso(420), manualEm: null, alertadoEm: iso(420), agora }).alertar).toBe(true)
+  it('alertou há 7 h e segue caído → ainda não repete (lembrete só depois de 24 h)', () => {
+    expect(decidirMonitor({ anterior: 'close', novo: 'close', caiuEm: iso(420), manualEm: null, alertadoEm: iso(420), agora }).alertar).toBe(false)
+  })
+  it('caído há 25 h e alertou há 25 h → UM lembrete', () => {
+    expect(decidirMonitor({ anterior: 'close', novo: 'close', caiuEm: iso(25 * 60), manualEm: null, alertadoEm: iso(25 * 60), agora }).alertar).toBe(true)
+  })
+  it('caído há 3 dias → não lembra mais (a faixa vermelha do painel continua)', () => {
+    expect(decidirMonitor({ anterior: 'close', novo: 'close', caiuEm: iso(72 * 60), manualEm: null, alertadoEm: iso(25 * 60), agora }).alertar).toBe(false)
+  })
+  it('desconectou pelo painel e o close chegou 2 min depois → continua manual mesmo dias depois (Menuzia, 23/10)', () => {
+    const d = decidirMonitor({ anterior: 'close', novo: 'close', caiuEm: iso(3 * 24 * 60 - 2), manualEm: iso(3 * 24 * 60), alertadoEm: null, agora })
+    expect(d).toMatchObject({ alertar: false, manual: true })
   })
   it('o dono desconectou pelo painel há 5 min → sem alerta (manual)', () => {
     const d = decidirMonitor({ anterior: 'open', novo: 'close', caiuEm: null, manualEm: iso(5), alertadoEm: null, agora })
