@@ -41,6 +41,16 @@ export function comVideo(fotos: string[], video: VideoArquivo & { posicao: numbe
   return lista
 }
 
+/**
+ * O card da lista toca o vídeo no lugar da foto? Sim quando a loja marcou "no card da página inicial" — e também
+ * quando o item NÃO tem foto (26/10/2026): desmarcado por padrão, o item só com vídeo ficava sem imagem nenhuma na
+ * lista e parecia que o vídeo não tinha sido salvo.
+ */
+export function videoNoCard(item: { imagemUrl: string | null; video?: VideoItem | null }): boolean {
+  if (!item.video) return false
+  return item.video.home || !item.imagemUrl
+}
+
 /** Carrossel da ficha do item: o vídeo só entra se a loja marcou "no carrossel". */
 export function midiasDaFicha(fotos: string[], video: VideoItem | null): Midia[] {
   return comVideo(fotos, video?.carrossel ? video : null)

@@ -3,7 +3,7 @@
 import { FotosCarrossel } from './fotos-carrossel'
 import { fotosDaVitrine } from '@/lib/fotos-item'
 import { formasDoCanal } from '@/lib/formas-pagamento'
-import { comVideo, midiasDaFicha, type Midia, type VideoItem } from '@/lib/video-vitrine'
+import { videoNoCard, comVideo, midiasDaFicha, type Midia, type VideoItem } from '@/lib/video-vitrine'
 import { VideoLoop } from '@/components/vitrine/video-loop'
 import { useFotoInteira } from '@/components/vitrine/foto-inteira'
 import { CartaoModoPagamento, iconeFormaPagamento } from '@/components/vitrine/checkout-visuais'
@@ -577,7 +577,7 @@ function ProductThumb({ item, size = 96, fallbackIcon: FallbackIcon = HandPlatte
   const src = urlDeListagem(item)
   const { inteira, imgProps } = useFotoInteira(src)
   // Vídeo marcado para o card da home (0213): toca no lugar da foto, com a capa enquanto carrega.
-  if (item.video?.home) {
+  if (item.video && videoNoCard(item)) {
     return <VideoLoop url={item.video.url} capa={item.video.capa} alt={item.nome} data-canto className="flex-shrink-0 rounded-[8px] object-cover" style={{ width: size, height: size }} />
   }
   if (src) {
@@ -643,7 +643,7 @@ function ProductImage({ item, className = '', prioritaria = false }: { item: Fot
   // aí vale a full. Nos cards de listagem, a miniatura basta.
   const src = prioritaria ? item.imagemUrl : urlDeListagem(item)
   const { inteira, imgProps } = useFotoInteira(prioritaria ? null : src)
-  if (!prioritaria && item.video?.home) {
+  if (!prioritaria && item.video && videoNoCard(item)) {
     return <VideoLoop url={item.video.url} capa={item.video.capa} alt={item.nome} className={`object-cover ${className}`} />
   }
   if (src) {

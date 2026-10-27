@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { argsConversao, comVideo, midiasDaFicha, validarArquivoVideo, videoDoBanner, videoDoItem } from './video-vitrine'
+import { argsConversao, comVideo, midiasDaFicha, validarArquivoVideo, videoDoBanner, videoDoItem, videoNoCard } from './video-vitrine'
 
 const v = { url: 'https://x/v.mp4', capa: 'https://x/c.webp' }
 
@@ -37,5 +37,21 @@ describe('vídeo da vitrine', () => {
     expect(a).toContain('libx264')
     expect(a).toContain('+faststart')
     expect(a.at(-1)).toBe('out')
+  })
+
+  describe('videoNoCard (vídeo no lugar da foto na lista)', () => {
+    const v = { url: 'https://x/v.mp4', capa: 'https://x/v.webp', home: false, carrossel: true, posicao: 0 }
+    it('marcado "no card da página inicial": usa o vídeo', () => {
+      expect(videoNoCard({ imagemUrl: 'https://x/f.jpg', video: { ...v, home: true } })).toBe(true)
+    })
+    it('item sem foto e com vídeo: usa o vídeo mesmo desmarcado (senão o card fica sem imagem)', () => {
+      expect(videoNoCard({ imagemUrl: null, video: v })).toBe(true)
+    })
+    it('com foto e desmarcado: fica a foto', () => {
+      expect(videoNoCard({ imagemUrl: 'https://x/f.jpg', video: v })).toBe(false)
+    })
+    it('sem vídeo: não', () => {
+      expect(videoNoCard({ imagemUrl: null, video: null })).toBe(false)
+    })
   })
 })
