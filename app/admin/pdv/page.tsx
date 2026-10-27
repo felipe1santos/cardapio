@@ -39,7 +39,8 @@ import { FotoItem } from '@/components/pdv/foto-item'
 import { ConfigurarItem, precoUnitarioPdv, type EstadoConfig } from '@/components/pdv/configurar-item'
 import { BotaoPdv, ICONES_PDV, TelaPdv, saindoDaPilha } from '@/components/pdv/tela-pdv'
 import { BotaoTelaCheia } from '@/components/ui/tela-cheia'
-import { ArrowLeft, CookingPot, Receipt } from '@phosphor-icons/react'
+import { ArrowLeft, Clock as PhClock, CookingPot, Receipt, Storefront as PhStorefront } from '@phosphor-icons/react'
+import { COR_MESA, TEXTO_MESA } from '@/lib/cores-mesa'
 import { MenuAcoesCelular } from '@/components/ui/menu-acoes-celular'
 import { AvisoCaixa } from '@/components/financeiro/aviso-caixa'
 import { useEstadoSessao } from '@/lib/sessao-cliente'
@@ -105,15 +106,6 @@ function tempoDecorrido(iso: string): string {
   return `${h}h${String(min % 60).padStart(2, '0')}`
 }
 
-/** Cor do bloco por estado — as mesmas do mapa do salão, para as telas combinarem. */
-const COR_ESTADO_MESA: Record<EstadoMesa, string> = {
-  livre: 'bg-status-ready',
-  aguardando: 'bg-status-preparing',
-  ocupada: 'bg-primary',
-  limpeza: 'bg-status-pending',
-  bloqueada: 'bg-sidebar-bg',
-  inativa: 'bg-border',
-}
 
 /**
  * Estado visual da mesa no painel do PDV. A regra é a mesma do salão
@@ -1278,7 +1270,7 @@ export default function PdvPage() {
                 <div className="hidden items-center gap-4 md:flex">
                   {(['livre', 'aguardando', 'ocupada', 'limpeza'] as const).map((estado) => (
                     <span key={estado} className="flex items-center gap-1.5" title={AJUDA_ESTADO[estado]}>
-                      <span className={['h-3 w-3 rounded-full', COR_ESTADO_MESA[estado]].join(' ')} />
+                      <span className="h-3 w-3 rounded-full" style={{ background: COR_MESA[estado].borda }} />
                       <span className="text-[11px] font-semibold text-text-subtle">{ROTULO_ESTADO[estado]}</span>
                     </span>
                   ))}
@@ -1292,7 +1284,7 @@ export default function PdvPage() {
             <div className="-mx-3 mb-3 flex gap-3 overflow-x-auto px-3 [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden">
               {(['livre', 'aguardando', 'ocupada', 'limpeza'] as const).map((estado) => (
                 <span key={estado} className="flex flex-shrink-0 items-center gap-1.5">
-                  <span className={['h-2.5 w-2.5 rounded-full', COR_ESTADO_MESA[estado]].join(' ')} />
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ background: COR_MESA[estado].borda }} />
                   <span className="text-[12px] font-semibold text-text-subtle">{ROTULO_ESTADO[estado]}</span>
                 </span>
               ))}
@@ -1301,22 +1293,21 @@ export default function PdvPage() {
             {/* Celular: 3 mesas por linha (27/10). */}
             <div className="grid grid-cols-3 gap-2 sm:gap-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
               {/* Balcão — venda avulsa */}
+              {/* 27/10 (referência do dono): Balcão em branco com a borda na cor da marca, como o "Drive-Thru". */}
               <button
                 type="button"
                 onClick={() => (pdvV2 ? setTelaBalcao(true) : selecionarMesa(null))}
                 data-testid="card-balcao"
-                className="flex aspect-square min-w-0 flex-col justify-between rounded-menuzia bg-sidebar-bg p-2.5 text-left text-white shadow-sm transition-all hover:brightness-110 active:scale-[0.97] sm:p-3"
+                className="flex min-h-[100px] min-w-0 flex-col items-center justify-center gap-1 rounded-[6px] border-2 border-[var(--pdv-azul)] bg-white p-2.5 text-center text-[var(--pdv-azul)] transition-all hover:-translate-y-px hover:shadow-md active:scale-[0.97] sm:min-h-[118px] sm:p-3"
               >
-                <span className="truncate text-[10px] font-semibold uppercase tracking-wide text-white/60 sm:text-[11px]">{pdvV2 ? 'Comandas' : 'Avulso'}</span>
-                <div className="min-w-0">
-                  <span className="block truncate text-[18px] font-semibold leading-none sm:text-[20px]">Balcão</span>
-                  <span className="mt-1 block truncate text-[10.5px] text-white/70 sm:text-[11px]">{pdvV2 ? 'Central de balcão' : 'Venda rápida'}</span>
-                </div>
+                <PhStorefront weight="duotone" size={28} aria-hidden />
+                <span className="block max-w-full truncate text-[15px] font-semibold leading-none sm:text-[16px]">Balcão</span>
+                <span className="block max-w-full truncate text-[10.5px] font-medium text-[#4B5563] sm:text-[11px]">{pdvV2 ? 'Central de balcão' : 'Venda rápida'}</span>
               </button>
 
               {mesasEstado.map((mesa) => {
                 const estado = mesaEstadoVisual(mesa)
-                const cor = COR_ESTADO_MESA[estado]
+                const cor = COR_MESA[estado]
                 const labelEstado = ROTULO_ESTADO[estado]
                 return (
                   <button
@@ -1325,32 +1316,26 @@ export default function PdvPage() {
                     onClick={() => clicarMesa(mesa)}
                     data-testid={`mesa-${mesa.nome}`}
                     data-estado={estado}
-                    className={[
-                      'flex aspect-square min-w-0 flex-col justify-between rounded-menuzia p-2.5 text-left text-white shadow-sm transition-all hover:brightness-105 active:scale-[0.97] sm:p-3',
-                      cor,
-                    ].join(' ')}
+                    className="flex min-h-[100px] min-w-0 flex-col rounded-[6px] border-2 p-2.5 text-left transition-all hover:-translate-y-px hover:shadow-md active:scale-[0.97] sm:min-h-[118px] sm:p-3"
+                    style={{ background: cor.fundo, borderColor: cor.borda, color: TEXTO_MESA }}
                   >
-                    <div className="flex items-center justify-between gap-1">
-                      <span className="truncate text-[10px] font-semibold uppercase tracking-wide text-white/80">{labelEstado}</span>
+                    <span className="block w-full truncate text-[18px] font-semibold leading-[22px] sm:text-[20px]">{mesa.nome}</span>
+                    <span className="mt-0.5 block w-full truncate text-[11px] font-semibold" style={{ color: cor.forte }}>
+                      {mesa.comandaAberta?.clienteNome || labelEstado}
+                    </span>
+                    <div className="mt-auto flex w-full min-w-0 flex-wrap items-end justify-between gap-x-1 gap-y-0.5 pt-1.5">
+                      {mesa.comandaAberta ? (
+                        <span className="min-w-0 truncate text-[12.5px] font-semibold tabular-nums sm:text-[13px]">
+                          {formatBRL(mesa.total)}<span className="font-medium text-[#4B5563] max-sm:hidden"> · {mesa.qtdPedidos} ped</span>
+                        </span>
+                      ) : (
+                        <span className="min-w-0 truncate text-[11px] font-medium text-[#374151]">{estado === 'limpeza' ? 'Toque p/ liberar' : 'Toque p/ abrir'}</span>
+                      )}
                       {mesa.comandaAberta && (
-                        <span className="flex-shrink-0 text-[10px] font-medium tabular-nums text-white/75">
+                        <span className="inline-flex flex-shrink-0 items-center gap-0.5 rounded-[4px] px-1.5 py-[2px] text-[10px] font-semibold tabular-nums text-white" style={{ background: cor.forte }}>
+                          <PhClock weight="bold" size={11} aria-hidden />
                           {tempoDecorrido(mesa.comandaAberta.abertaEm)}
                         </span>
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <span className="block truncate text-[19px] font-semibold leading-none sm:text-[24px]">{mesa.nome}</span>
-                      {mesa.comandaAberta?.clienteNome && (
-                        <span className="mt-1 block truncate text-[11px] font-semibold text-white/90 sm:text-[12px]">{mesa.comandaAberta.clienteNome}</span>
-                      )}
-                      {mesa.comandaAberta ? (
-                        <span className="mt-1 block truncate text-[12px] font-semibold tabular-nums text-white/95 sm:mt-1.5 sm:text-[13px]">
-                          {formatBRL(mesa.total)}<span className="max-sm:hidden"> · {mesa.qtdPedidos} ped</span>
-                        </span>
-                      ) : estado === 'limpeza' ? (
-                        <span className="mt-1 block truncate text-[10.5px] text-white/85 sm:mt-1.5 sm:text-[11px]">Toque p/ liberar</span>
-                      ) : (
-                        <span className="mt-1 block truncate text-[10.5px] text-white/75 sm:mt-1.5 sm:text-[11px]">Toque p/ abrir</span>
                       )}
                     </div>
                   </button>

@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { BellRing, Lock, LockOpen, Pencil, Plus, Power, Printer, QrCode, Search, Settings, UtensilsCrossed, X } from 'lucide-react'
+import { BellRing, Clock, Lock, LockOpen, Pencil, Plus, Power, Printer, QrCode, Search, Settings, UtensilsCrossed, X } from 'lucide-react'
+import { COR_MESA, TEXTO_MESA } from '@/lib/cores-mesa'
 import { TopBar } from '@/components/layout/topbar'
 import { BotaoTelaCheia } from '@/components/ui/tela-cheia'
 import { MenuAcoesCelular } from '@/components/ui/menu-acoes-celular'
@@ -34,17 +35,6 @@ import { PainelChamados, useRelogio } from './chamados'
  * Cor do estado no mapa do salão — blocos cheios, como no PDV: verde livre, azul ocupada.
  * Bloqueada fica escura e inativa cinza. Chamado aberto ganha selo vermelho pulsando.
  */
-const TOM_ESTADO: Record<EstadoMesa, { bloco: string; texto: string; ponto: string }> = {
-  livre: { bloco: 'bg-status-ready', texto: 'text-white', ponto: 'bg-status-ready' },
-  // Azul claro: mesa aberta (com nome do cliente) esperando alguém anotar — ocupada.
-  aguardando: { bloco: 'bg-status-preparing', texto: 'text-white', ponto: 'bg-status-preparing' },
-  ocupada: { bloco: 'bg-primary', texto: 'text-white', ponto: 'bg-primary' },
-  // Laranja: conta fechada, mesa esperando limpeza (0095). Não aceita atendimento.
-  limpeza: { bloco: 'bg-status-pending', texto: 'text-white', ponto: 'bg-status-pending' },
-  bloqueada: { bloco: 'bg-sidebar-bg', texto: 'text-white', ponto: 'bg-sidebar-bg' },
-  inativa: { bloco: 'bg-border', texto: 'text-text-subtle', ponto: 'bg-text-subtle' },
-}
-
 const ORDEM_FILTROS: (EstadoMesa | 'todas')[] = ['todas', 'livre', 'aguardando', 'ocupada', 'limpeza', 'bloqueada', 'inativa']
 
 interface MesaNaTela extends Mesa {
@@ -366,7 +356,7 @@ export default function MesasPage() {
                 ].join(' ')}
               >
                 {f !== 'todas' && (
-                  <span className={`mr-1.5 inline-block h-2 w-2 rounded-full align-middle ${TOM_ESTADO[f].ponto} ${filtro === f ? 'ring-1 ring-white' : ''}`} />
+                  <span className={`mr-1.5 inline-block h-2 w-2 rounded-full align-middle ${filtro === f ? 'ring-1 ring-white' : ''}`} style={{ background: COR_MESA[f].borda }} />
                 )}
                 {f === 'todas' ? 'Todas' : ROTULO_ESTADO[f]}
                 <span className="ml-1.5 opacity-70">{contagem[f] ?? 0}</span>
@@ -428,7 +418,7 @@ export default function MesasPage() {
         {!carregando && !erro && mesas.length > 0 && (
           <div className="grid grid-cols-3 gap-2 sm:gap-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
             {visiveis.map((mesa) => {
-              const tom = TOM_ESTADO[mesa.estado]
+              const cor = COR_MESA[mesa.estado]
               const chamadoDaMesa = chamados.find((c) => c.mesaId === mesa.id) ?? null
               // "Aguardando" e "Ocupada" são a mesma conta aberta, mudando só se já tem
               // lançamento — o que vale para abrir, para o relógio e para o caixa vale nos dois.
@@ -437,68 +427,67 @@ export default function MesasPage() {
               // lançamento, então o bloco não vira atalho.
               const abre = mesa.estado !== 'inativa' && mesa.estado !== 'bloqueada' && (atende || contaAberta)
               const acao = mesa.estado === 'limpeza' ? 'Toque p/ liberar' : !atende ? 'Ver conta' : contaAberta ? 'Toque p/ abrir' : 'Toque p/ lançar'
+              // Conta de dias atrás: o relógio normal não diz que a mesa está presa — a pílula fica vermelha.
+              const esquecida = contaAberta && comandaEsquecida({ abertaEm: mesa.abertaEm }, agora)
+              // 27/10 (referência do dono): fundo claro tingido, borda da mesma cor, nome em destaque no topo e
+              // valor + cronômetro na base.
               const conteudo = (
                 <>
-                  {/* Celular: 3 por linha (27/10) — a 1ª linha deixa espaço para o ⋮ do canto. */}
-                  <div className={['flex items-start justify-between gap-1', gerencia ? 'max-md:pr-7' : ''].join(' ')}>
-                    <span className="truncate text-[10px] font-semibold uppercase tracking-wide opacity-85">
-                      {mesa.bloqueada && <Lock className="mr-0.5 inline h-3 w-3 align-[-2px]" />}
-                      {ROTULO_ESTADO[mesa.estado]}
-                    </span>
-                    {contaAberta && mesa.abertaEm && (
-                      <span className="flex-shrink-0 text-[10px] font-medium tabular-nums opacity-80 max-sm:hidden">{esperaTexto(mesa.abertaEm, agora).replace(/^há /, '')}</span>
-                    )}
-                  </div>
-                  {/* Conta de dias atrás: o "3h20" do relógio normal não diz que a mesa
-                      está presa. Aqui a etiqueta grita, com o tempo em dias. */}
-                  {contaAberta && comandaEsquecida({ abertaEm: mesa.abertaEm }, agora) && (
-                    <span className="mt-1 inline-flex w-fit max-w-full items-center truncate rounded-menuzia bg-white/95 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-danger shadow-sm">
-                      <span className="max-sm:hidden">Aberta&nbsp;</span>há {tempoAberta(mesa.abertaEm!, agora)}
-                    </span>
-                  )}
+                  <span className={['block truncate text-[18px] font-semibold leading-[22px] sm:text-[20px]', gerencia ? 'max-md:pr-6' : ''].join(' ')}>{mesa.nome}</span>
+                  <span className="mt-0.5 flex min-w-0 items-center gap-1 text-[11px] font-semibold" style={{ color: cor.forte }}>
+                    {mesa.bloqueada && <Lock className="h-3 w-3 flex-shrink-0" aria-hidden />}
+                    <span className="truncate">{ROTULO_ESTADO[mesa.estado]}</span>
+                  </span>
+                  <span className="mt-0.5 block truncate text-[10.5px] text-[#4B5563] max-sm:hidden">
+                    {mesa.setor || 'Sem setor'}
+                    {mesa.capacidade ? ` · ${mesa.capacidade} lugares` : ''}
+                  </span>
                   {chamadoDaMesa && (
-                    <span className="mt-1 inline-flex w-fit items-center gap-1 rounded-menuzia bg-danger px-1.5 py-0.5 text-[10px] font-semibold uppercase text-white shadow-sm motion-safe:animate-pulse">
-                      <BellRing className="h-3 w-3" />
+                    <span className="mt-1 inline-flex w-fit max-w-full items-center gap-1 truncate rounded-[4px] bg-danger px-1.5 py-0.5 text-[10px] font-semibold uppercase text-white shadow-sm motion-safe:animate-pulse">
+                      <BellRing className="h-3 w-3 flex-shrink-0" />
                       {chamadoDaMesa.status === 'assumido' ? 'Alguém já vai' : 'Chamando'}
                     </span>
                   )}
-                  <div className="mt-auto min-w-0">
-                    <span className="block truncate text-[19px] font-semibold leading-none sm:text-[24px]">{mesa.nome}</span>
-                    <span className="mt-1 block truncate text-[10px] opacity-80 max-sm:hidden">
-                      {mesa.setor || 'Sem setor'}
-                      {mesa.capacidade ? ` · ${mesa.capacidade} lugares` : ''}
-                    </span>
+                  {gerencia && mesa.qrRevogado && mesa.estado !== 'inativa' && (
+                    <span className="mt-1 block text-[10px] font-semibold uppercase" style={{ color: cor.forte }}>QR revogado</span>
+                  )}
+                  <div className="mt-auto flex min-w-0 flex-wrap items-end justify-between gap-x-1 gap-y-0.5 pt-1.5">
                     {contaAberta ? (
-                      <span className="mt-1 block truncate text-[12px] font-semibold tabular-nums sm:text-[13px]">
+                      <span className="min-w-0 truncate text-[12.5px] font-semibold tabular-nums sm:text-[13px]">
                         {mesa.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                        <span className="max-sm:hidden"> · {mesa.qtdPedidos} lanç.</span>
-                        {/* Celular: o tempo sai do topo (lugar do ⋮) e desce para cá, junto dos lançamentos. */}
-                        {mesa.abertaEm && <span className="block text-[10px] font-medium opacity-80 sm:hidden">{esperaTexto(mesa.abertaEm, agora).replace(/^há /, '')} · {mesa.qtdPedidos} lanç.</span>}
+                        <span className="font-medium text-[#4B5563] max-sm:hidden"> · {mesa.qtdPedidos} lanç.</span>
                       </span>
                     ) : (
-                      abre && <span className="mt-1 block truncate text-[10.5px] opacity-80 sm:text-[11px]">{acao}</span>
+                      abre && <span className="min-w-0 truncate text-[11px] font-medium text-[#374151]">{acao}</span>
                     )}
-                    {gerencia && mesa.qrRevogado && mesa.estado !== 'inativa' && (
-                      <span className="mt-1 block text-[10px] font-semibold uppercase">QR revogado</span>
+                    {contaAberta && mesa.abertaEm && (
+                      <span
+                        className="inline-flex flex-shrink-0 items-center gap-0.5 rounded-[4px] px-1.5 py-[2px] text-[10px] font-semibold tabular-nums text-white"
+                        style={{ background: esquecida ? '#B91C1C' : cor.forte }}
+                        title={`Conta aberta ${esperaTexto(mesa.abertaEm, agora)}`}
+                      >
+                        <Clock className="h-[11px] w-[11px]" aria-hidden />
+                        {esquecida ? tempoAberta(mesa.abertaEm, agora) : esperaTexto(mesa.abertaEm, agora).replace(/^há /, '')}
+                      </span>
                     )}
                   </div>
                 </>
               )
               const classeBloco = [
-                'flex aspect-square min-w-0 flex-col rounded-menuzia p-2.5 text-left shadow-sm transition-all sm:p-3',
-                tom.bloco,
-                tom.texto,
-                abre ? 'hover:brightness-105 active:scale-[0.97]' : '',
+                'flex min-h-[100px] min-w-0 flex-col rounded-[6px] border-2 p-2.5 text-left transition-all sm:min-h-[118px] sm:p-3',
+                mesa.estado === 'inativa' ? 'border-dashed' : '',
+                abre ? 'hover:-translate-y-px hover:shadow-md active:scale-[0.97]' : '',
                 chamadoDaMesa ? 'ring-2 ring-danger ring-offset-2 ring-offset-page' : '',
               ].join(' ')
+              const estiloBloco = { background: cor.fundo, borderColor: cor.borda, color: TEXTO_MESA }
               return (
                 <div key={mesa.id} className="relative flex min-w-0 flex-col gap-1">
                   {abre ? (
-                    <Link href={`/admin/mesas/${mesa.id}`} className={classeBloco} aria-label={`${mesa.nome} — ${ROTULO_ESTADO[mesa.estado]}`}>
+                    <Link href={`/admin/mesas/${mesa.id}`} className={classeBloco} style={estiloBloco} aria-label={`${mesa.nome} — ${ROTULO_ESTADO[mesa.estado]}`}>
                       {conteudo}
                     </Link>
                   ) : (
-                    <div className={classeBloco}>{conteudo}</div>
+                    <div className={classeBloco} style={estiloBloco}>{conteudo}</div>
                   )}
 
                   {/* Celular: sem a fileira de botões; as mesmas ações num ⋮ no canto do cartão. */}
@@ -508,7 +497,7 @@ export default function MesasPage() {
                       tamanho={32}
                       rotulo={`Ações da ${mesa.nome}`}
                       testid={`mesa-menu-${mesa.id}`}
-                      className="absolute right-[2px] top-[2px] !bg-transparent active:!bg-black/20 md:hidden"
+                      className="absolute right-[2px] top-[2px] !bg-transparent !text-[#1F2937] active:!bg-black/10 md:hidden"
                       acoes={[
                         { rotulo: 'Ver QR Code', icone: <QrCode className="h-4 w-4" />, onClick: () => setQrDaMesa(mesa) },
                         { rotulo: 'Editar', icone: <Pencil className="h-4 w-4" />, onClick: () => { setEmEdicao(mesa); setFormAberto(true) } },
