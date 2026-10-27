@@ -453,7 +453,7 @@ export default function MesasPage() {
                       está presa. Aqui a etiqueta grita, com o tempo em dias. */}
                   {contaAberta && comandaEsquecida({ abertaEm: mesa.abertaEm }, agora) && (
                     <span className="mt-1 inline-flex w-fit max-w-full items-center truncate rounded-menuzia bg-white/95 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-danger shadow-sm">
-                      Aberta há {tempoAberta(mesa.abertaEm!, agora)}
+                      <span className="max-sm:hidden">Aberta&nbsp;</span>há {tempoAberta(mesa.abertaEm!, agora)}
                     </span>
                   )}
                   {chamadoDaMesa && (
