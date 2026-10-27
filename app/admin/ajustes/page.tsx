@@ -14,7 +14,7 @@ import { TabQrCode } from '@/components/admin/ajustes-qrcode'
 import { SubmenuVertical } from '@/components/admin/submenu-vertical'
 import { IlustracaoLanche } from '@/components/admin/ilustracao-lanche'
 import { getBrowserSupabase } from '@/lib/supabase/client'
-import { Building2, Clock, CreditCard, Eye, Image as ImageIcon, Link2, MapPin, Megaphone, PanelTop, Palette, Star } from 'lucide-react'
+import { Clock as PhClock, CreditCard as PhCreditCard, Eye as PhEye, ImageSquare as PhImageSquare, LinkSimple as PhLinkSimple, MapPin as PhMapPin, MegaphoneSimple as PhMegaphoneSimple, Palette as PhPalette, Panorama as PhPanorama, Star as PhStar, Storefront as PhStorefront, Trash as PhTrash, Plus as PhPlus, Copy as PhCopy, UploadSimple as PhUploadSimple } from '@phosphor-icons/react'
 import { FormasPagamentoPerfil } from '@/components/admin/formas-pagamento-perfil'
 import { configParaTela, errosConfig, type ConfigFormas, type Conectados } from '@/lib/formas-pagamento'
 import { CartaoLinksDivulgar } from '@/components/admin/links-divulgar'
@@ -74,38 +74,123 @@ type Tab = AbaAjustes
 /** Todos os ids possíveis (para ler o ?aba= ao abrir). */
 const TAB_IDS = abasDoAjustes({ podeAjustes: true, podeImpressao: true, agenteLiberado: true }).map((t) => t.id)
 
+/**
+ * Cores do Perfil da loja (pedido do dono, 26/10/2026): azul #00466F como cor principal, vermelho #CC0101 como
+ * oposta (remover, alertas, localização) e complementares por assunto, no ícone de cada seção.
+ */
+const COR_SECAO = {
+  azul: { fundo: '#E6EFF5', icone: '#00466F' },
+  vermelho: { fundo: '#FCE8E8', icone: '#CC0101' },
+  ambar: { fundo: '#FFF3DC', icone: '#B26A00' },
+  teal: { fundo: '#E2F3F1', icone: '#0F766E' },
+  verde: { fundo: '#E6F5EC', icone: '#15803D' },
+  violeta: { fundo: '#EEEBFA', icone: '#5B4BB7' },
+} as const
+type CorSecao = keyof typeof COR_SECAO
+
 /** Bloco de seção do painel de ajustes — agrupa campos afins sob um título. */
 function Secao({
   titulo,
   descricao,
   icone,
+  cor = 'azul',
   className = '',
   testid,
   children,
 }: {
   titulo: string
   descricao?: string
-  /** Ícone lucide discreto à esquerda do título. */
+  /** Ícone (Phosphor duotone) no selo colorido à esquerda do título. */
   icone?: React.ReactNode
+  cor?: CorSecao
   className?: string
   testid?: string
   children: React.ReactNode
 }) {
+  const c = COR_SECAO[cor]
   return (
-    <section className={['fin-card min-w-0', className].join(' ')} data-testid={testid}>
-      <div className="flex items-start gap-3 border-b border-[#E4E7EA] px-5 py-4">
+    <section className={['min-w-0 rounded-[14px] border border-[#E3E8EE] bg-white shadow-[0_1px_2px_rgba(0,40,70,0.05),0_4px_14px_rgba(0,40,70,0.04)]', className].join(' ')} data-testid={testid}>
+      <div className="flex items-start gap-3.5 border-b border-[#EEF1F4] px-5 py-4">
         {icone && (
-          <span aria-hidden className="mt-[1px] flex h-[34px] w-[34px] flex-shrink-0 items-center justify-center rounded-[8px] bg-[#E1EDF7] text-[#0868A6] [&>svg]:h-[18px] [&>svg]:w-[18px]">
+          <span aria-hidden className="flex h-[40px] w-[40px] flex-shrink-0 items-center justify-center rounded-[11px] [&>svg]:h-[22px] [&>svg]:w-[22px]" style={{ background: c.fundo, color: c.icone }}>
             {icone}
           </span>
         )}
         <div className="min-w-0">
-          <h3 className="text-[16px] font-semibold leading-tight text-[#1C2B33]">{titulo}</h3>
-          {descricao && <p className="mt-1 text-[13px] leading-[18px] text-[#465A69]">{descricao}</p>}
+          <h3 className="text-[16px] font-semibold leading-tight text-[#0B2233]">{titulo}</h3>
+          {descricao && <p className="mt-1 text-[13px] leading-[18px] text-[#526273]">{descricao}</p>}
         </div>
       </div>
       <div className="space-y-4.5 px-5 py-4">{children}</div>
     </section>
+  )
+}
+
+/** Interruptor (liga/desliga) do Perfil da loja. */
+function Interruptor({ ligado, onChange, rotulo }: { ligado: boolean; onChange: (v: boolean) => void; rotulo: string }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={ligado}
+      aria-label={rotulo}
+      onClick={() => onChange(!ligado)}
+      className={['relative h-[24px] w-[42px] flex-shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00466F] focus-visible:ring-offset-2', ligado ? 'bg-[#00466F]' : 'bg-[#C9D3DC]'].join(' ')}
+    >
+      <span className={['absolute top-[3px] h-[18px] w-[18px] rounded-full bg-white shadow transition-[left]', ligado ? 'left-[21px]' : 'left-[3px]'].join(' ')} />
+    </button>
+  )
+}
+
+const HORAS = Array.from({ length: 24 }, (_, h) => String(h).padStart(2, '0'))
+const MINUTOS = Array.from({ length: 12 }, (_, m) => String(m * 5).padStart(2, '0'))
+
+/** Hora em 24 h (o campo nativo mostrava AM/PM conforme o navegador). Minuto de 5 em 5, mantendo o valor salvo. */
+function SeletorHora({ valor, onChange, rotulo }: { valor: string; onChange: (v: string) => void; rotulo: string }) {
+  const [h = '00', m = '00'] = (valor || '00:00').split(':')
+  const minutos = MINUTOS.includes(m) ? MINUTOS : [...MINUTOS, m].sort()
+  const caixa = 'h-[36px] appearance-none rounded-[8px] border border-[#D5DFE7] bg-white px-2.5 text-center text-[14px] font-semibold tabular-nums text-[#0B2233] outline-none transition-colors hover:border-[#00466F]/50 focus:border-[#00466F] focus:ring-2 focus:ring-[#00466F]/15'
+  return (
+    <span className="inline-flex items-center gap-1" role="group" aria-label={rotulo}>
+      <select value={h} onChange={(e) => onChange(`${e.target.value}:${m}`)} aria-label={`${rotulo} (hora)`} className={caixa}>
+        {HORAS.map((x) => <option key={x} value={x}>{x}</option>)}
+      </select>
+      <span className="font-semibold text-[#526273]">:</span>
+      <select value={m} onChange={(e) => onChange(`${h}:${e.target.value}`)} aria-label={`${rotulo} (minuto)`} className={caixa}>
+        {minutos.map((x) => <option key={x} value={x}>{x}</option>)}
+      </select>
+    </span>
+  )
+}
+
+/** Grupo de seções do Perfil da loja, na ordem em que o lojista preenche (número = passo do cadastro). */
+function GrupoPerfil({ numero, id, titulo, descricao, children }: { numero: number; id: string; titulo: string; descricao: string; children: React.ReactNode }) {
+  return (
+    <div id={`grupo-${id}`} className="scroll-mt-[64px] space-y-4">
+      <div className="flex items-center gap-3 px-1">
+        <span className="flex h-[30px] w-[30px] flex-shrink-0 items-center justify-center rounded-full bg-[#00466F] text-[13px] font-semibold text-white">{numero}</span>
+        <div className="min-w-0">
+          <h2 className="text-[17px] font-semibold leading-tight text-[#0B2233]">{titulo}</h2>
+          <p className="text-[12.5px] leading-[17px] text-[#526273]">{descricao}</p>
+        </div>
+      </div>
+      {children}
+    </div>
+  )
+}
+
+/** Botão de enviar/trocar imagem do Perfil: azul claro com ícone, no lugar do contorno cinza. */
+function BotaoUpload({ onClick, disabled, children }: { onClick: () => void; disabled?: boolean; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="inline-flex h-[38px] items-center gap-2 rounded-[9px] border border-[#00466F]/25 bg-[#E6EFF5] px-3.5 text-[13px] font-semibold text-[#00466F] transition-colors hover:border-[#00466F]/50 hover:bg-[#D7E6F0] disabled:cursor-wait disabled:opacity-60"
+    >
+      <PhUploadSimple size={16} weight="bold" aria-hidden />
+      {children}
+    </button>
   )
 }
 
@@ -458,6 +543,13 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
     setTurnos(dia, horarioDias[dia].map((t, i) => (i === index ? { ...t, ...patch } : t)))
   }
 
+  /** Copia os turnos de um dia para todos os outros (26/10/2026: preencher a semana de uma vez). */
+  function copiarParaTodos(dia: string) {
+    const base = horarioDias[dia]
+    setHorarioDias(Object.fromEntries(Object.keys(horarioDias).map((d) => [d, base.map((t) => ({ ...t }))])))
+    setSaved(false)
+  }
+
   const diasComSobreposicao = Object.entries(horarioDias)
     .filter(([, turnos]) => turnosSobrepostos(turnos))
     .map(([dia]) => Number(dia))
@@ -558,473 +650,261 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
   return (
     <div className={['flex flex-1 flex-col overflow-hidden', !active ? 'hidden' : ''].join(' ')}>
       <div className="flex-1 overflow-y-auto px-4 py-5 sm:px-5 lg:px-6" data-ajustes-rolagem>
-        {/* Ordem de cadastro de empresa (2026-10-06): dados, logo, banners, endereço, horário, aparência e o resto. */}
-        <div className="space-y-4">
+        {/* Perfil da loja reorganizado (26/10/2026, pedido do dono): na ordem em que se preenche — quem é a loja,
+            onde fica e quando abre, o que divulga, como vende e, por último, a aparência (fonte, tamanho). */}
+        <div className="space-y-9" data-perfil-loja>
 
-        {/* 15/10: colunas empilhadas (sem buraco entre cards de alturas diferentes). */}
-        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <div className="min-w-0 space-y-4">
+        <nav aria-label="Etapas do perfil" className="sticky top-0 z-10 -mx-1 flex gap-2 overflow-x-auto bg-page/95 px-1 py-2 backdrop-blur [scrollbar-width:none]">
+          {([['identidade', 'Identidade'], ['local', 'Endereço e horário'], ['divulgacao', 'Divulgação'], ['vendas', 'Pagamento'], ['aparencia', 'Aparência'], ['links', 'Links']] as const).map(([id, rotulo], i) => (
+            <a key={id} href={`#grupo-${id}`} className="flex flex-shrink-0 items-center gap-1.5 rounded-full border border-[#D5DFE7] bg-white px-3 py-1.5 text-[12.5px] font-semibold text-[#00466F] transition-colors hover:border-[#00466F] hover:bg-[#E6EFF5]">
+              <span className="text-[11px] text-[#7A8A99]">{i + 1}</span>{rotulo}
+            </a>
+          ))}
+        </nav>
 
-        <Secao titulo="Dados da loja" descricao="Nome, contato e redes — como o cliente encontra e fala com você." icone={<Building2 />} testid="secao-dados">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Nome do estabelecimento">
-              <Input value={form.nome} onChange={(e) => set('nome', e.target.value)} placeholder="Ex: Burger House" />
+        <GrupoPerfil numero={1} id="identidade" titulo="Identidade da loja" descricao="Nome, contato, logo e capa: o primeiro que o cliente vê.">
+          <Secao titulo="Dados da loja" descricao="Nome, contato e redes — como o cliente encontra e fala com você." icone={<PhStorefront weight="duotone" />} cor="azul" testid="secao-dados">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Nome do estabelecimento">
+                <Input value={form.nome} onChange={(e) => set('nome', e.target.value)} placeholder="Ex: Burger House" />
+              </Field>
+              <Field label="Telefone / WhatsApp">
+                <Input value={form.telefone} onChange={(e) => set('telefone', e.target.value)} placeholder="(00) 00000-0000" />
+              </Field>
+              {/* 19/10: o robô e o Agente de IA respondem "quanto tempo?" daqui. Vazio: média real dos últimos pedidos; sem ela, atendente. */}
+              <Field label="Tempo de entrega" hint="O que o robô e a IA dizem ao cliente (ex.: 30–40 min). Em branco, usam a média real dos últimos pedidos entregues; sem média, chamam o atendente.">
+                <Input value={form.tempoEntrega} onChange={(e) => set('tempoEntrega', e.target.value)} placeholder="30–40 min" maxLength={60} data-testid="perfil-tempo-entrega" />
+              </Field>
+              <Field label="Tempo de retirada" hint="Quanto tempo o pedido leva para ficar pronto no balcão (ex.: 15 min).">
+                <Input value={form.tempoRetirada} onChange={(e) => set('tempoRetirada', e.target.value)} placeholder="15 min" maxLength={60} data-testid="perfil-tempo-retirada" />
+              </Field>
+              {/* 0205: a chave Pix saiu da tela do Robô — o robô e a IA leem daqui. Sem chave, não falam de Pix. */}
+              <Field label="Tipo da chave Pix" hint="CPF, CNPJ, telefone, e-mail ou aleatória.">
+                <select value={form.pixTipo} onChange={(e) => set('pixTipo', e.target.value)} data-testid="perfil-pix-tipo" className="w-full rounded-menuzia border border-border bg-white px-3 py-2.5 font-sans text-sm text-text-main outline-none transition-colors focus:border-primary">
+                  <option value="">Escolha…</option>
+                  {TIPOS_PIX.map((t) => <option key={t.valor} value={t.valor}>{t.rotulo}</option>)}
+                </select>
+              </Field>
+              <Field label="Chave Pix" hint="O robô e a IA mandam esta chave quando o cliente escolhe Pix. Em branco, não oferecem Pix.">
+                <Input value={form.pixChave} onChange={(e) => set('pixChave', e.target.value)} placeholder="Sem chave, o robô não fala de Pix" maxLength={PIX_CHAVE_MAX} data-testid="perfil-pix-chave" />
+              </Field>
+            </div>
+            <Field label="Instagram da loja" hint="Link do perfil (https://instagram.com/sualoja) ou @sualoja. Vira o QR code impresso no fim da comanda da cozinha (Impressão Beta). Em branco: a comanda sai com o QR do seu cardápio.">
+              <Input value={form.instagram} onChange={(e) => set('instagram', e.target.value)} placeholder="https://instagram.com/sualoja" data-testid="loja-instagram" />
             </Field>
-            <Field label="Telefone / WhatsApp">
-              <Input value={form.telefone} onChange={(e) => set('telefone', e.target.value)} placeholder="(00) 00000-0000" />
-            </Field>
-            {/* 19/10: o robô e o Agente de IA respondem "quanto tempo?" daqui. Vazio: média real dos últimos pedidos; sem ela, atendente. */}
-            <Field label="Tempo de entrega" hint="O que o robô e a IA dizem ao cliente (ex.: 30–40 min). Em branco, usam a média real dos últimos pedidos entregues; sem média, chamam o atendente.">
-              <Input value={form.tempoEntrega} onChange={(e) => set('tempoEntrega', e.target.value)} placeholder="30–40 min" maxLength={60} data-testid="perfil-tempo-entrega" />
-            </Field>
-            <Field label="Tempo de retirada" hint="Quanto tempo o pedido leva para ficar pronto no balcão (ex.: 15 min).">
-              <Input value={form.tempoRetirada} onChange={(e) => set('tempoRetirada', e.target.value)} placeholder="15 min" maxLength={60} data-testid="perfil-tempo-retirada" />
-            </Field>
-            {/* 0205: a chave Pix saiu da tela do Robô — o robô e a IA leem daqui. Sem chave, não falam de Pix. */}
-            <Field label="Tipo da chave Pix" hint="CPF, CNPJ, telefone, e-mail ou aleatória.">
-              <select value={form.pixTipo} onChange={(e) => set('pixTipo', e.target.value)} data-testid="perfil-pix-tipo" className="w-full rounded-menuzia border border-border bg-white px-3 py-2.5 font-sans text-sm text-text-main outline-none transition-colors focus:border-primary">
-                <option value="">Escolha…</option>
-                {TIPOS_PIX.map((t) => <option key={t.valor} value={t.valor}>{t.rotulo}</option>)}
-              </select>
-            </Field>
-            <Field label="Chave Pix" hint="O robô e a IA mandam esta chave quando o cliente escolhe Pix. Em branco, não oferecem Pix.">
-              <Input value={form.pixChave} onChange={(e) => set('pixChave', e.target.value)} placeholder="Sem chave, o robô não fala de Pix" maxLength={PIX_CHAVE_MAX} data-testid="perfil-pix-chave" />
-            </Field>
-          </div>
-          <Field label="Instagram da loja" hint="Link do perfil (https://instagram.com/sualoja) ou @sualoja. Vira o QR code impresso no fim da comanda da cozinha (Impressão Beta). Em branco: a comanda sai com o QR do seu cardápio.">
-            <Input value={form.instagram} onChange={(e) => set('instagram', e.target.value)} placeholder="https://instagram.com/sualoja" data-testid="loja-instagram" />
-          </Field>
-          {config && (
-            <Field label="Endereço público da loja" hint="Gerado automaticamente a partir do nome — não pode ser alterado por aqui.">
-              <div className="flex items-center gap-2.5 rounded-menuzia border border-border bg-page px-3 py-2.5">
-                {/* O domínio precisa ser o real — o lojista copia daqui pra
-                    colar na bio do Instagram. "cardapio.app" era placeholder
-                    e mandava o cliente pra um endereço que não existe. */}
-                <span className="text-sm text-text-subtle">
-                  {typeof window === 'undefined' ? '' : `${window.location.host}/loja/`}
-                </span>
-                <span className="text-sm font-semibold text-text-main">{config.slug}</span>
-              </div>
-            </Field>
-          )}
-        </Secao>
-
-        {formasTela && (
-          <Secao titulo="Formas de pagamento aceitas" descricao="O que o cliente pode escolher em cada canal. Vale para o cardápio, o robô e o Agente de IA." icone={<CreditCard />} testid="secao-formas-pagamento">
-            <FormasPagamentoPerfil valor={formasTela} onChange={(v) => { setFormas(v); setFormasMexeu(true); setSaved(false) }}
-              mesa={mesaFormas?.lista ?? null} onMesa={(l) => { setMesaFormas((m) => (m ? { ...m, lista: l } : m)); setMesaMexeu(true); setSaved(false) }}
-              conectados={conectados} temChavePix={!!form.pixChave.trim()} />
-          </Secao>
-        )}
-
-        <Secao titulo="Banner promocional ou aviso" descricao="Uma faixa dentro do cardápio, logo abaixo das categorias: imagens das promoções ou um aviso em texto." icone={<Megaphone />} testid="secao-promo">
-          <Field
-            label="Banner promocional"
-            hint="Aparece dentro do cardápio, logo abaixo das categorias. Escolha o formato do quadro abaixo (vídeo em pé: Stories 9:16). Suba uma ou mais imagens (com mais de uma, elas passam sozinhas) OU escreva um aviso. Deixe tudo em branco pra não mostrar nada."
-          >
-            <div className="space-y-3">
-              <div data-testid="formato-banner">
-                <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Formato do banner</div>
-                <div className="grid grid-cols-4 gap-2">
-                  {FORMATOS_BANNER.map((f) => (
-                    <button
-                      key={f.valor}
-                      type="button"
-                      aria-pressed={form.bannerPromoFormato === f.valor}
-                      data-testid={`formato-${f.legenda.replace(':', 'x')}`}
-                      onClick={() => { setForm((prev) => ({ ...prev, bannerPromoFormato: f.valor })); setSaved(false) }}
-                      className={[
-                        'flex flex-col items-center gap-1.5 rounded-menuzia border px-2 py-2.5 transition-colors',
-                        form.bannerPromoFormato === f.valor ? 'border-primary bg-primary/10' : 'border-border bg-white hover:border-primary/50',
-                      ].join(' ')}
-                    >
-                      <span className="flex h-9 items-center" aria-hidden="true">
-                        <span className="block rounded-[3px] border-2 border-current text-text-subtle" style={{ height: f.ratio >= 1 ? 36 / f.ratio : 36, width: f.ratio >= 1 ? 36 : 36 * f.ratio }} />
-                      </span>
-                      <span className="text-[12px] font-semibold text-text-main">{f.titulo}</span>
-                      <span className="text-[11px] text-text-subtle">{f.legenda}</span>
-                    </button>
-                  ))}
+            {config && (
+              <Field label="Endereço público da loja" hint="Gerado automaticamente a partir do nome — não pode ser alterado por aqui.">
+                <div className="flex items-center gap-2.5 rounded-menuzia border border-border bg-page px-3 py-2.5">
+                  {/* O domínio precisa ser o real — o lojista copia daqui pra
+                      colar na bio do Instagram. "cardapio.app" era placeholder
+                      e mandava o cliente pra um endereço que não existe. */}
+                  <span className="text-sm text-text-subtle">
+                    {typeof window === 'undefined' ? '' : `${window.location.host}/loja/`}
+                  </span>
+                  <span className="text-sm font-semibold text-text-main">{config.slug}</span>
                 </div>
-                <p className="mt-1.5 text-[11px] text-text-subtle">Tamanho ideal: {formatoBanner.ideal}. Arte ou vídeo de outro formato aparece inteiro, com o fundo desfocado.</p>
-              </div>
-              {imagensPromo.length > 0 && (
-                <div className="space-y-2">
-                  {imagensPromo.map((url, i) => (
-                    <div key={url} className="flex items-center gap-2">
-                      {/* Miniatura na proporção da faixa do celular, com o foco
-                          escolhido — é assim que o cliente vai ver. */}
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={url}
-                        alt={`Banner promocional ${i + 1}`}
-                        // Prévia na proporção escolhida em "Formato do banner" (0228); a vitrine mostra a arte inteira.
-                        className="w-full min-w-0 max-w-[200px] flex-1 rounded-[10px] border border-border bg-[#111] object-contain"
-                        style={{ aspectRatio: String(formatoBanner.ratio) }}
-                      />
-                      <div className="flex flex-shrink-0 flex-col gap-1">
-                        <button
-                          type="button"
-                          onClick={() => moverImagemPromo(url, -1)}
-                          disabled={i === 0}
-                          aria-label="Mover para antes"
-                          className="grid h-8 w-8 place-items-center rounded-menuzia border border-border text-text-subtle hover:border-primary hover:text-primary disabled:opacity-30"
-                        >
-                          ↑
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => moverImagemPromo(url, 1)}
-                          disabled={i === imagensPromo.length - 1}
-                          aria-label="Mover para depois"
-                          className="grid h-8 w-8 place-items-center rounded-menuzia border border-border text-text-subtle hover:border-primary hover:text-primary disabled:opacity-30"
-                        >
-                          ↓
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => removerImagemPromo(url)}
-                          aria-label="Remover imagem"
-                          className="grid h-8 w-8 place-items-center rounded-menuzia border border-border text-danger hover:bg-danger-bg"
-                        >
-                          ×
-                        </button>
-                      </div>
+              </Field>
+            )}
+          </Secao>
+          <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+          <Secao titulo="Logo" descricao="Aparece como avatar da loja no cardápio e no painel." icone={<PhImageSquare weight="duotone" />} cor="azul" testid="secao-logo">
+            <Field label="Logotipo" hint="Quadrada, de preferência. Em branco, a vitrine mostra a inicial do nome.">
+              <div className="flex items-center gap-3">
+                {form.logoUrl
+                  // eslint-disable-next-line @next/next/no-img-element
+                  ? <img src={form.logoUrl} alt="Logotipo" className="h-16 w-16 rounded-menuzia border border-border object-cover" />
+                  : <div className="flex h-16 w-16 items-center justify-center rounded-menuzia border border-border bg-page text-xl font-semibold text-text-subtle">
+                      {form.nome.trim().charAt(0).toUpperCase() || '?'}
                     </div>
-                  ))}
-                  {imagensPromo.length > 1 && (
-                    <p className="text-[11px] text-text-subtle">
-                      {imagensPromo.length} imagens — no cardápio elas passam sozinhas, a cada 5 segundos, nesta ordem.
+                }
+                <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoPick} />
+                <div className="flex flex-col gap-1.5">
+                  <BotaoUpload onClick={() => logoInputRef.current?.click()} disabled={uploadingLogo}>
+                    {uploadingLogo ? 'Enviando…' : form.logoUrl ? 'Trocar logo' : 'Enviar logo'}
+                  </BotaoUpload>
+                  {form.logoUrl && (
+                    <button type="button" onClick={() => set('logoUrl', '')} className="text-[12px] text-text-subtle hover:text-danger">Remover</button>
+                  )}
+                </div>
+              </div>
+            </Field>
+          </Secao>
+          <Secao titulo="Banner de capa" descricao="A imagem grande do topo do cardápio." icone={<PhPanorama weight="duotone" />} cor="azul" testid="secao-capa">
+            <Field label="Banner de capa" hint="Imagem de capa exibida no topo do cardápio do cliente. Deixe em branco para usar o degradê padrão.">
+              <div className="space-y-2.5">
+                {form.bannerUrl && (
+                  // A miniatura mostra o recorte REAL da vitrine no celular
+                  // (2:1 + o ponto de foco escolhido), pra que o lojista veja
+                  // aqui mesmo o efeito de "Ajustar posição" sem abrir a loja.
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={form.bannerUrl}
+                    alt="Banner de capa"
+                    className="aspect-[2/1] w-full rounded-menuzia border border-border object-cover"
+                    style={{ objectPosition: objectPosition(form.bannerFoco) }}
+                  />
+                )}
+                <input ref={bannerInputRef} type="file" accept="image/*" className="hidden" onChange={handleBannerPick} />
+                <div className="flex flex-wrap items-center gap-3">
+                  <BotaoUpload onClick={() => bannerInputRef.current?.click()} disabled={uploadingBanner}>
+                    {uploadingBanner ? 'Enviando…' : form.bannerUrl ? 'Trocar capa' : 'Enviar capa'}
+                  </BotaoUpload>
+                  {form.bannerUrl && (
+                    <AjustarFoco
+                      src={form.bannerUrl}
+                      foco={form.bannerFoco}
+                      onChange={(f) => { setForm((prev) => ({ ...prev, bannerFoco: f })); setSaved(false) }}
+                      // Medido na vitrine em produção: 2:1 no celular (aspect
+                      // fixo) e 1214×280 no desktop. O 3,8 que estava aqui vinha
+                      // de contar `lg:h-80` como 320 px — o html da vitrine tem
+                      // base 14 px, então são 280 px e a proporção real é 4,33.
+                      proporcoes={[{ rotulo: 'Celular', ratio: 2 }, { rotulo: 'Computador', ratio: 4.33 }]}
+                      titulo="Posição do banner de capa"
+                      descricao="A capa aparece em proporções diferentes no celular e no computador. Marque o que não pode ser cortado."
+                      disabled={uploadingBanner}
+                    />
+                  )}
+                  {form.bannerUrl && (
+                    <button type="button" onClick={() => { setForm((prev) => ({ ...prev, bannerUrl: '', bannerMobileUrl: '', bannerFoco: FOCO_PADRAO })); setSaved(false) }} className="text-[12px] text-text-subtle hover:text-danger">Remover</button>
+                  )}
+                </div>
+              </div>
+            </Field>
+          </Secao>
+          </div>
+        </GrupoPerfil>
+
+        <GrupoPerfil numero={2} id="local" titulo="Endereço e horário" descricao="Onde a loja fica e quando ela abre para pedidos.">
+          <Secao
+            titulo="Endereço"
+            descricao="Base do cálculo de frete, do mapa de calor do Dashboard e da localização mostrada ao cliente."
+            icone={<PhMapPin weight="duotone" />}
+            cor="vermelho"
+            testid="secao-endereco"
+          >
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+              <div className="space-y-3.5">
+                <div className="grid gap-3 sm:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
+                  <div>
+                    <CampoLabel>Rua</CampoLabel>
+                    <Input value={form.enderecoRua} onChange={(e) => set('enderecoRua', e.target.value)} placeholder="Rua das Flores" />
+                  </div>
+                  <div>
+                    <CampoLabel>Número</CampoLabel>
+                    <Input value={form.enderecoNumero} onChange={(e) => set('enderecoNumero', e.target.value)} placeholder="123" />
+                  </div>
+                </div>
+                <div>
+                  <CampoLabel>Complemento</CampoLabel>
+                  <Input value={form.enderecoComplemento} onChange={(e) => set('enderecoComplemento', e.target.value)} placeholder="Sala, bloco, referência (opcional)" />
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <CampoLabel>Bairro</CampoLabel>
+                    <Input value={form.enderecoBairro} onChange={(e) => set('enderecoBairro', e.target.value)} placeholder="Centro" />
+                  </div>
+                  <div>
+                    <CampoLabel>Cidade</CampoLabel>
+                    <Input value={form.enderecoCidade} onChange={(e) => set('enderecoCidade', e.target.value)} placeholder="Fortaleza" />
+                  </div>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+                  <div>
+                    <CampoLabel>UF</CampoLabel>
+                    <Input value={form.enderecoEstado} onChange={(e) => set('enderecoEstado', e.target.value.toUpperCase().slice(0, 2))} placeholder="CE" maxLength={2} />
+                  </div>
+                  <div>
+                    <CampoLabel>CEP</CampoLabel>
+                    <Input value={form.cep} onChange={(e) => set('cep', e.target.value)} placeholder="00000-000" inputMode="numeric" autoComplete="postal-code" name="cep" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <StorePinMap
+                  apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
+                  address={enderecoResumo}
+                  lat={form.latitude}
+                  lng={form.longitude}
+                  onChange={setPin}
+                  className="h-[240px] w-full border border-border"
+                />
+                <p className="text-[11px] text-text-subtle">Arraste o pin pra ajustar a localização exata da loja no mapa.</p>
+
+                {/* Confirmação do que foi preenchido, logo abaixo do mapa. */}
+                <div className="rounded-menuzia bg-[#024A7D] px-3.5 py-3 text-white">
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-white/65">
+                    Endereço cadastrado
+                  </div>
+                  {enderecoResumo ? (
+                    <>
+                      <p className="mt-1 text-[13px] font-semibold leading-snug">{enderecoResumo}</p>
+                      {form.cep.trim() && (
+                        <p className="mt-0.5 text-[12px] text-white/75">CEP {form.cep.trim()}</p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="mt-1 text-[12px] leading-snug text-white/75">
+                      Preencha os campos ao lado para confirmar o endereço aqui.
                     </p>
                   )}
                 </div>
-              )}
-
-              <input ref={bannerPromoInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleBannerPromoPick} />
-              <div className="flex flex-wrap items-center gap-3">
-                <Button variant="outline" type="button" onClick={() => bannerPromoInputRef.current?.click()} disabled={uploadingBannerPromo || imagensPromo.length >= BANNER_PROMO_MAX_IMAGENS}>
-                  {uploadingBannerPromo ? 'Enviando…' : imagensPromo.length > 0 ? 'Adicionar imagem' : 'Enviar imagem'}
-                </Button>
-                {imagensPromo.length > 0 && (
-                  <AjustarFoco
-                    src={imagensPromo[0]!}
-                    foco={form.bannerPromoFoco}
-                    onChange={(f) => { setForm((prev) => ({ ...prev, bannerPromoFoco: f })); setSaved(false) }}
-                    // A faixa tem 139 px no celular e 169 px no desktop (10% a
-                    // mais que antes). Daí 358/139 = 2,58 no celular e
-                    // 1224/169 = 7,24 no desktop — continua um talho largo, e é
-                    // por isso que ela precisa de foco.
-                    // 2026-10-23: o banner segue a referência Brendi (3:2) no celular e no computador.
-                    proporcoes={[{ rotulo: 'Celular e computador', ratio: formatoBanner.ratio }]}
-                    titulo="Posição do banner promocional"
-                    descricao={`O banner está no formato ${formatoBanner.legenda} (ideal ${formatoBanner.ideal}). Se a sua arte for de outro formato, marque o que não pode sumir. Vale para todas as imagens.`}
-                    disabled={uploadingBannerPromo}
-                  />
-                )}
-                {imagensPromo.length >= BANNER_PROMO_MAX_IMAGENS && (
-                  <span className="text-[11px] text-text-subtle">Limite de {BANNER_PROMO_MAX_IMAGENS} imagens.</span>
-                )}
-              </div>
-
-              {/* Vídeo em loop (0213): um slide a mais do carrossel, na posição escolhida. */}
-              <div className="border-t border-border pt-3">
-                <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Vídeo no banner</div>
-                <VideoDaVitrine destino="banner" valor={form.bannerPromoVideo} totalImagens={imagensPromo.length} rotuloPosicao="Posição no banner:"
-                  onChange={(v) => {
-                    setForm((prev) => ({ ...prev, bannerPromoVideo: v }))
-                    setSaved(false)
-                    // Primeira mídia do banner é o vídeo: sugere o formato dele (vídeo em pé → Stories).
-                    if (v && imagensPromo.length === 0) void formatoDoVideo(v.url).then((f) => f && setForm((prev) => ({ ...prev, bannerPromoFormato: f })))
-                  }} />
-              </div>
-
-              {/* Alternativa para quem não tem arte pronta. Só aparece no
-                  cardápio quando não há imagem nenhuma — as duas coisas na
-                  mesma faixa brigariam pelo mesmo espaço. */}
-              <div className="border-t border-border pt-3">
-                <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
-                  Ou um aviso em texto
-                </div>
-                {/* Chrome tratava este campo como "usuário" (sem name/type e com campos de senha
-                    na mesma página) e o preenchia com o e-mail salvo (2026-10-01). */}
-                <input
-                  type="text"
-                  id="aviso-vitrine-texto"
-                  name="aviso-vitrine-texto"
-                  autoComplete="off"
-                  data-1p-ignore
-                  data-lpignore="true"
-                  data-form-type="other"
-                  data-testid="aviso-texto"
-                  value={form.bannerPromoTexto}
-                  onChange={(e) => { setForm((prev) => ({ ...prev, bannerPromoTexto: e.target.value.slice(0, BANNER_PROMO_MAX_TEXTO) })); setSaved(false) }}
-                  placeholder="Ex.: Hoje a pizza grande sai por R$ 49 até 22h"
-                  className="w-full rounded-menuzia border border-border px-2.5 py-2 font-sans text-[13px] text-text-main outline-none focus:border-primary"
-                />
-                <div className="mt-1 flex items-center justify-between gap-2">
-                  <p className="text-[11px] text-text-subtle">
-                    {imagensPromo.length > 0
-                      ? 'Enquanto houver imagem, o aviso em texto não aparece no cardápio.'
-                      : 'Aparece como uma faixa com a cor da sua loja.'}
-                  </p>
-                  <span className="flex-shrink-0 text-[11px] text-text-subtle">{form.bannerPromoTexto.length}/{BANNER_PROMO_MAX_TEXTO}</span>
-                </div>
-                <EditorAviso
-                  corLoja={paletaAtual.primaria}
-                  corLojaClara={paletaAtual.light}
-                  texto={form.bannerPromoTexto}
-                  estilo={{ corTexto: form.avisoCorTexto, corFundo: form.avisoCorFundo, pulsar: form.avisoPulsar }}
-                  onChange={(e) => { setForm((prev) => ({ ...prev, avisoCorTexto: e.corTexto, avisoCorFundo: e.corFundo, avisoPulsar: e.pulsar })); setSaved(false) }}
-                />
               </div>
             </div>
-          </Field>
-        </Secao>
-
-        </div>
-        <div className="min-w-0 space-y-4">
-
-        <Secao titulo="Logo" descricao="Aparece como avatar da loja no cardápio e no painel." icone={<ImageIcon />} testid="secao-logo">
-          <Field label="Logotipo" hint="Quadrada, de preferência. Em branco, a vitrine mostra a inicial do nome.">
-            <div className="flex items-center gap-3">
-              {form.logoUrl
-                // eslint-disable-next-line @next/next/no-img-element
-                ? <img src={form.logoUrl} alt="Logotipo" className="h-16 w-16 rounded-menuzia border border-border object-cover" />
-                : <div className="flex h-16 w-16 items-center justify-center rounded-menuzia border border-border bg-page text-xl font-semibold text-text-subtle">
-                    {form.nome.trim().charAt(0).toUpperCase() || '?'}
-                  </div>
-              }
-              <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoPick} />
-              <div className="flex flex-col gap-1.5">
-                <Button variant="outline" type="button" onClick={() => logoInputRef.current?.click()} disabled={uploadingLogo}>
-                  {uploadingLogo ? 'Enviando…' : form.logoUrl ? 'Trocar imagem' : 'Enviar imagem'}
-                </Button>
-                {form.logoUrl && (
-                  <button type="button" onClick={() => set('logoUrl', '')} className="text-[12px] text-text-subtle hover:text-danger">Remover</button>
-                )}
-              </div>
-            </div>
-          </Field>
-        </Secao>
-
-        <Secao titulo="Banner de capa" descricao="A imagem grande do topo do cardápio." icone={<PanelTop />} testid="secao-capa">
-          <Field label="Banner de capa" hint="Imagem de capa exibida no topo do cardápio do cliente. Deixe em branco para usar o degradê padrão.">
-            <div className="space-y-2.5">
-              {form.bannerUrl && (
-                // A miniatura mostra o recorte REAL da vitrine no celular
-                // (2:1 + o ponto de foco escolhido), pra que o lojista veja
-                // aqui mesmo o efeito de "Ajustar posição" sem abrir a loja.
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={form.bannerUrl}
-                  alt="Banner de capa"
-                  className="aspect-[2/1] w-full rounded-menuzia border border-border object-cover"
-                  style={{ objectPosition: objectPosition(form.bannerFoco) }}
-                />
-              )}
-              <input ref={bannerInputRef} type="file" accept="image/*" className="hidden" onChange={handleBannerPick} />
-              <div className="flex flex-wrap items-center gap-3">
-                <Button variant="outline" type="button" onClick={() => bannerInputRef.current?.click()} disabled={uploadingBanner}>
-                  {uploadingBanner ? 'Enviando…' : form.bannerUrl ? 'Trocar imagem' : 'Enviar imagem'}
-                </Button>
-                {form.bannerUrl && (
-                  <AjustarFoco
-                    src={form.bannerUrl}
-                    foco={form.bannerFoco}
-                    onChange={(f) => { setForm((prev) => ({ ...prev, bannerFoco: f })); setSaved(false) }}
-                    // Medido na vitrine em produção: 2:1 no celular (aspect
-                    // fixo) e 1214×280 no desktop. O 3,8 que estava aqui vinha
-                    // de contar `lg:h-80` como 320 px — o html da vitrine tem
-                    // base 14 px, então são 280 px e a proporção real é 4,33.
-                    proporcoes={[{ rotulo: 'Celular', ratio: 2 }, { rotulo: 'Computador', ratio: 4.33 }]}
-                    titulo="Posição do banner de capa"
-                    descricao="A capa aparece em proporções diferentes no celular e no computador. Marque o que não pode ser cortado."
-                    disabled={uploadingBanner}
-                  />
-                )}
-                {form.bannerUrl && (
-                  <button type="button" onClick={() => { setForm((prev) => ({ ...prev, bannerUrl: '', bannerMobileUrl: '', bannerFoco: FOCO_PADRAO })); setSaved(false) }} className="text-[12px] text-text-subtle hover:text-danger">Remover</button>
-                )}
-              </div>
-            </div>
-          </Field>
-        </Secao>
-
-        <Secao titulo="Prova social" descricao="Reforça a confiança de quem chega no cardápio pela primeira vez." icone={<Star />} testid="secao-prova">
-          <Field label="Avaliação" hint="Exibida na vitrine como prova social — preencha manualmente com base nas avaliações reais da loja (Google, iFood, etc.). Deixe em branco pra não mostrar nada.">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <CampoLabel>Nota</CampoLabel>
-                <Input
-                  value={form.avaliacaoNota}
-                  onChange={(e) => set('avaliacaoNota', e.target.value)}
-                  placeholder="4.9"
-                  inputMode="decimal"
-                />
-              </div>
-              <div>
-                <CampoLabel>Quantidade de avaliações</CampoLabel>
-                <Input
-                  value={form.avaliacaoQtd}
-                  onChange={(e) => set('avaliacaoQtd', e.target.value)}
-                  placeholder="912"
-                  inputMode="numeric"
-                />
-              </div>
-            </div>
-          </Field>
-        </Secao>
-
-        </div>
-        </div>
-
-        <Secao
-          titulo="Endereço"
-          descricao="Base do cálculo de frete, do mapa de calor do Dashboard e da localização mostrada ao cliente."
-          icone={<MapPin />}
-          testid="secao-endereco"
-        >
-          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
-            <div className="space-y-3.5">
-              <div className="grid gap-3 sm:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
-                <div>
-                  <CampoLabel>Rua</CampoLabel>
-                  <Input value={form.enderecoRua} onChange={(e) => set('enderecoRua', e.target.value)} placeholder="Rua das Flores" />
-                </div>
-                <div>
-                  <CampoLabel>Número</CampoLabel>
-                  <Input value={form.enderecoNumero} onChange={(e) => set('enderecoNumero', e.target.value)} placeholder="123" />
-                </div>
-              </div>
-              <div>
-                <CampoLabel>Complemento</CampoLabel>
-                <Input value={form.enderecoComplemento} onChange={(e) => set('enderecoComplemento', e.target.value)} placeholder="Sala, bloco, referência (opcional)" />
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <CampoLabel>Bairro</CampoLabel>
-                  <Input value={form.enderecoBairro} onChange={(e) => set('enderecoBairro', e.target.value)} placeholder="Centro" />
-                </div>
-                <div>
-                  <CampoLabel>Cidade</CampoLabel>
-                  <Input value={form.enderecoCidade} onChange={(e) => set('enderecoCidade', e.target.value)} placeholder="Fortaleza" />
-                </div>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-                <div>
-                  <CampoLabel>UF</CampoLabel>
-                  <Input value={form.enderecoEstado} onChange={(e) => set('enderecoEstado', e.target.value.toUpperCase().slice(0, 2))} placeholder="CE" maxLength={2} />
-                </div>
-                <div>
-                  <CampoLabel>CEP</CampoLabel>
-                  <Input value={form.cep} onChange={(e) => set('cep', e.target.value)} placeholder="00000-000" inputMode="numeric" autoComplete="postal-code" name="cep" />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <StorePinMap
-                apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
-                address={enderecoResumo}
-                lat={form.latitude}
-                lng={form.longitude}
-                onChange={setPin}
-                className="h-[240px] w-full border border-border"
-              />
-              <p className="text-[11px] text-text-subtle">Arraste o pin pra ajustar a localização exata da loja no mapa.</p>
-
-              {/* Confirmação do que foi preenchido, logo abaixo do mapa. */}
-              <div className="rounded-menuzia bg-[#024A7D] px-3.5 py-3 text-white">
-                <div className="text-[10px] font-semibold uppercase tracking-wide text-white/65">
-                  Endereço cadastrado
-                </div>
-                {enderecoResumo ? (
-                  <>
-                    <p className="mt-1 text-[13px] font-semibold leading-snug">{enderecoResumo}</p>
-                    {form.cep.trim() && (
-                      <p className="mt-0.5 text-[12px] text-white/75">CEP {form.cep.trim()}</p>
-                    )}
-                  </>
-                ) : (
-                  <p className="mt-1 text-[12px] leading-snug text-white/75">
-                    Preencha os campos ao lado para confirmar o endereço aqui.
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-        </Secao>
-
-        <Secao
-          titulo="Horário de funcionamento"
-          descricao="A loja abre e fecha sozinha nesses horários (fuso de São Paulo). Um dia pode ter mais de um turno — ex.: almoço e jantar. Dia sem marcação = fechada. Você ainda pode abrir ou fechar na hora pelo Painel de Pedidos."
-          icone={<Clock />}
-          testid="secao-horario"
-        >
-          <Field label="Turnos da semana">
-            <div className="grid gap-2.5 sm:grid-cols-2">
+          </Secao>
+          <Secao
+            titulo="Horário de funcionamento"
+            descricao="A loja abre e fecha sozinha nesses horários (fuso de São Paulo). Um dia pode ter mais de um turno — ex.: almoço e jantar. Dia sem marcação = fechada. Você ainda pode abrir ou fechar na hora pelo Painel de Pedidos."
+            icone={<PhClock weight="duotone" />}
+            cor="teal"
+            testid="secao-horario"
+          >
+            {/* 26/10/2026: uma linha por dia (interruptor, turnos com hora em 24 h, remover em vermelho),
+                "Copiar para todos os dias" e aviso de turno que passa da meia-noite. */}
+            <div className="overflow-hidden rounded-[12px] border border-[#E3E8EE]" data-testid="turnos-semana">
               {DIAS_SEMANA_LABEL.map((label, i) => {
                 const dia = String(i)
                 const turnos = horarioDias[dia]
+                const aberto = turnos.length > 0
                 const sobreposto = diasComSobreposicao.includes(i)
                 return (
-                  <div
-                    key={dia}
-                    className={[
-                      'flex gap-2.5 rounded-menuzia border bg-white p-2.5',
-                      turnos.length > 0 ? 'border-border' : 'border-border/60 bg-page/40',
-                    ].join(' ')}
-                  >
-                    <label className="flex w-[110px] flex-shrink-0 cursor-pointer items-center gap-2 pt-1 text-[12px] font-medium text-text-main">
-                      <input
-                        type="checkbox"
-                        checked={turnos.length > 0}
-                        onChange={(e) => toggleDia(dia, e.target.checked)}
-                        className="h-4 w-4 accent-primary"
-                      />
-                      {label}
-                    </label>
-                    {turnos.length === 0 ? (
-                      <span className="pt-1 text-[12px] text-text-subtle">Fechada</span>
+                  <div key={dia} className={['flex flex-col gap-3 border-b border-[#EEF1F4] px-4 py-3.5 last:border-none sm:flex-row sm:items-start', aberto ? 'bg-white' : 'bg-[#F8FAFC]'].join(' ')}>
+                    <div className="flex w-[160px] flex-shrink-0 items-center gap-3 sm:pt-1">
+                      <Interruptor ligado={aberto} onChange={(v) => toggleDia(dia, v)} rotulo={`${label}: ${aberto ? 'aberto' : 'fechado'}`} />
+                      <span className={['text-[14px] font-semibold', aberto ? 'text-[#0B2233]' : 'text-[#7A8A99]'].join(' ')}>{label}</span>
+                    </div>
+                    {!aberto ? (
+                      <span className="text-[13px] text-[#7A8A99] sm:pt-1.5">Fechado</span>
                     ) : (
-                      <div className="min-w-0 flex-1 space-y-1.5">
+                      <div className="min-w-0 flex-1 space-y-2">
                         {turnos.map((t, index) => (
-                          <div key={index} className="flex flex-wrap items-center gap-1.5">
-                            <input
-                              type="time"
-                              value={t.abre}
-                              onChange={(e) => setTurno(dia, index, { abre: e.target.value })}
-                              className="rounded-menuzia border border-border px-2 py-1 text-[12px] outline-none focus:border-primary"
-                            />
-                            <span className="text-[12px] text-text-subtle">até</span>
-                            <input
-                              type="time"
-                              value={t.fecha}
-                              onChange={(e) => setTurno(dia, index, { fecha: e.target.value })}
-                              className="rounded-menuzia border border-border px-2 py-1 text-[12px] outline-none focus:border-primary"
-                            />
+                          <div key={index} className="flex flex-wrap items-center gap-2">
+                            <SeletorHora valor={t.abre} onChange={(v) => setTurno(dia, index, { abre: v })} rotulo={`${label}, turno ${index + 1}: abre`} />
+                            <span className="text-[13px] text-[#526273]">às</span>
+                            <SeletorHora valor={t.fecha} onChange={(v) => setTurno(dia, index, { fecha: v })} rotulo={`${label}, turno ${index + 1}: fecha`} />
                             {t.fecha <= t.abre && (
-                              <span className="text-[11px] text-text-subtle">vira o dia seguinte</span>
+                              <span className="rounded-full bg-[#FFF3DC] px-2 py-0.5 text-[11.5px] font-medium text-[#8A5300]">termina no dia seguinte</span>
                             )}
                             <button
                               type="button"
                               onClick={() => removeTurno(dia, index)}
-                              title="Remover turno"
-                              className="ml-auto flex h-[26px] w-[26px] items-center justify-center rounded-menuzia border border-border text-text-subtle hover:border-danger hover:text-danger"
+                              aria-label={`Remover turno ${index + 1} de ${label}`}
+                              className="ml-auto flex h-[34px] w-[34px] items-center justify-center rounded-full text-[#7A8A99] transition-colors hover:bg-[#FCE8E8] hover:text-[#CC0101]"
                             >
-                              ✕
+                              <PhTrash size={17} aria-hidden />
                             </button>
                           </div>
                         ))}
-                        <button
-                          type="button"
-                          onClick={() => addTurno(dia)}
-                          className="text-[11px] font-semibold uppercase tracking-wide text-primary hover:text-primary-dark"
-                        >
-                          + adicionar turno
-                        </button>
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                          <button type="button" onClick={() => addTurno(dia)} className="inline-flex items-center gap-1 text-[13px] font-semibold text-[#00466F] hover:underline">
+                            <PhPlus size={14} weight="bold" aria-hidden /> Adicionar turno
+                          </button>
+                          <button type="button" onClick={() => copiarParaTodos(dia)} className="inline-flex items-center gap-1 text-[13px] font-medium text-[#526273] hover:text-[#00466F]">
+                            <PhCopy size={14} aria-hidden /> Copiar para todos os dias
+                          </button>
+                        </div>
                         {sobreposto && (
-                          <p className="text-[11px] font-medium text-danger">Os turnos deste dia se sobrepõem.</p>
+                          <p className="text-[12px] font-medium text-[#CC0101]">Os turnos deste dia se sobrepõem.</p>
                         )}
                       </div>
                     )}
@@ -1032,218 +912,416 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
                 )
               })}
             </div>
-          </Field>
-        </Secao>
+          </Secao>
+        </GrupoPerfil>
 
-        <Secao titulo="O que mostrar na vitrine" descricao="Escolha o que aparece no cabeçalho da loja, ao lado da logo. O que ficar desligado some e o resto se ajusta sozinho." icone={<Eye />} testid="secao-cabecalho-vitrine">
-          <div className="divide-y divide-border">
-            {([
-              ['status', 'Aberta / fechada', 'O status da loja com o pontinho verde (ou vermelho quando fechada).'],
-              ['tempo', 'Tempo de entrega', 'O tempo estimado de entrega.'],
-              ['avaliacao', 'Avaliação', 'Nota e quantidade de avaliações (preenchidas em Prova social).'],
-              ['endereco', 'Endereço', 'Bairro e cidade da loja.'],
-            ] as const).map(([chave, rotulo, dica]) => (
-              <ToggleRow key={chave} label={rotulo} hint={dica} checked={form.cabecalhoVitrine[chave]}
-                onChange={(v) => { setForm((prev) => ({ ...prev, cabecalhoVitrine: { ...prev.cabecalhoVitrine, [chave]: v } })); setSaved(false) }} />
-            ))}
-          </div>
-        </Secao>
-
-        <Secao titulo="Aparência da vitrine" descricao="Cor, formato da lista, tamanho da imagem e fonte do cardápio que o cliente vê." icone={<Palette />} testid="secao-aparencia">
-          <div className="grid gap-6 lg:grid-cols-2">
-            <div className="space-y-4.5">
-              <Field label="Cor da loja" hint="Botões, categorias, destaques e ícones do cardápio.">
-                <SeletorCorLoja
-                  corSelecionada={corSelecionada}
-                  corCustom={corCustom}
-                  onEscolher={({ chave, custom }) => { if (custom) setCorCustom(custom); setCorSelecionada(chave); setSaved(false) }}
-                />
-              </Field>
-              <Field label="Formato da lista">
-                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2" data-testid="formato-cardapio">
-                  {([
-                    ['categoria', 'Categorias', 'Cards grandes, 2 por linha'],
-                    ['lista', 'Lista', 'Itens em lista compacta'],
-                  ] as const).map(([valor, titulo, legenda]) => (
-                    <button
-                      key={valor}
-                      type="button"
-                      aria-pressed={form.layoutCardapio === valor}
-                      data-testid={`formato-${valor}`}
-                      onClick={() => setLayout(valor)}
-                      className={[
-                        'rounded-menuzia border px-3.5 py-3 text-left transition-colors',
-                        form.layoutCardapio === valor ? 'border-primary bg-primary/10' : 'border-border bg-white hover:border-primary/50',
-                      ].join(' ')}
-                    >
-                      <div className="text-[13px] font-semibold text-text-main">{titulo}</div>
-                      <div className="mt-0.5 text-[11px] text-text-subtle">{legenda}</div>
-                    </button>
-                  ))}
-                </div>
-              </Field>
-              {config?.vitrineNova && (
-              <Field label="Fonte da vitrine" hint="Vale para a vitrine inteira: home, itens, sacola e pedido.">
-                <div className={`${fonteVitrine.variable} grid grid-cols-2 gap-2.5`} data-testid="fonte-vitrine">
-                  {FONTES_VITRINE.map(({ valor, titulo, familia }) => (
-                    <button
-                      key={valor}
-                      type="button"
-                      aria-pressed={form.fonteVitrine === valor}
-                      data-testid={`fonte-${valor}`}
-                      onClick={() => { setForm((f) => ({ ...f, fonteVitrine: valor })); setSaved(false) }}
-                      className={[
-                        'rounded-menuzia border px-3.5 py-3 text-left transition-colors',
-                        form.fonteVitrine === valor ? 'border-primary bg-primary/10' : 'border-border bg-white hover:border-primary/50',
-                      ].join(' ')}
-                    >
-                      <div className="text-[13px] font-semibold text-text-main">{titulo}</div>
-                      <div className="mt-1 text-[15px] font-semibold text-text-main" style={{ fontFamily: familia }}>X-Burguer Duplo</div>
-                      <div className="text-[12px] text-text-subtle" style={{ fontFamily: familia }}>Pão, 2 carnes, queijo · R$ 32,90</div>
-                    </button>
-                  ))}
-                </div>
-              </Field>
-              )}
-              {config?.vitrineNova && (
-              <Field label="Design da vitrine" hint="Simples: cantos retos, sem sombras, sem degradê e sem animações.">
-                <div className="grid grid-cols-2 gap-2.5" data-testid="design-vitrine">
-                  {([
-                    ['padrao', 'Padrão', 'O visual de hoje, com efeitos.'],
-                    ['simples', 'Simples', 'Mais limpo, reto e sem efeitos.'],
-                  ] as const).map(([valor, titulo, legenda]) => (
-                    <button
-                      key={valor}
-                      type="button"
-                      aria-pressed={form.designVitrine === valor}
-                      data-testid={`design-${valor}`}
-                      onClick={() => { setForm((f) => ({ ...f, designVitrine: valor })); setSaved(false) }}
-                      className={[
-                        'rounded-menuzia border px-3.5 py-3 text-left transition-colors',
-                        form.designVitrine === valor ? 'border-primary bg-primary/10' : 'border-border bg-white hover:border-primary/50',
-                      ].join(' ')}
-                    >
-                      <div className="text-[13px] font-semibold text-text-main">{titulo}</div>
-                      <div className="mt-0.5 text-[11px] text-text-subtle">{legenda}</div>
-                    </button>
-                  ))}
-                </div>
-              </Field>
-              )}
-              {config?.vitrineNova && (
-              <Field label="Menu inferior" hint="A barra de botões no pé da vitrine, no celular.">
-                <div className="grid grid-cols-2 gap-2.5" data-testid="menu-vitrine">
-                  {([
-                    ['botoes', 'Barra com 4 botões (padrão)', 'Branca: Início, Promoções, Desconto e Pedidos.'],
-                    ['bolha', 'Bolha', 'Barra na cor da loja: Home, Pedidos, Cupons e Perfil.'],
-                  ] as const).map(([valor, titulo, legenda]) => (
-                    <button
-                      key={valor}
-                      type="button"
-                      aria-pressed={form.menuVitrine === valor}
-                      data-testid={`menu-${valor}`}
-                      onClick={() => { setForm((f) => ({ ...f, menuVitrine: valor })); setSaved(false) }}
-                      className={[
-                        'rounded-menuzia border px-3.5 py-3 text-left transition-colors',
-                        form.menuVitrine === valor ? 'border-primary bg-primary/10' : 'border-border bg-white hover:border-primary/50',
-                      ].join(' ')}
-                    >
-                      <div className="text-[13px] font-semibold text-text-main">{titulo}</div>
-                      <div className="mt-0.5 text-[11px] text-text-subtle">{legenda}</div>
-                    </button>
-                  ))}
-                </div>
-              </Field>
-              )}
-              {config?.vitrineNova && (
-              <Field label="Cor do menu inferior" hint="Acende o ícone do botão escolhido e pinta o botão Ver sacola.">
-                <div className="grid grid-cols-2 gap-2.5" data-testid="cor-rodape">
-                  {([
-                    ['loja', 'Cor da loja', 'A mesma cor do tema da loja.'],
-                    ['takeat', 'Vermelho Takeat', 'O vermelho da Takeat (#C8131B).'],
-                  ] as const).map(([valor, titulo, legenda]) => (
-                    <button
-                      key={valor}
-                      type="button"
-                      aria-pressed={form.corRodape === valor}
-                      data-testid={`cor-rodape-${valor}`}
-                      onClick={() => { setForm((f) => ({ ...f, corRodape: valor })); setSaved(false) }}
-                      className={[
-                        'rounded-menuzia border px-3.5 py-3 text-left transition-colors',
-                        form.corRodape === valor ? 'border-primary bg-primary/10' : 'border-border bg-white hover:border-primary/50',
-                      ].join(' ')}
-                    >
-                      <div className="flex items-center gap-2 text-[13px] font-semibold text-text-main">
-                        {valor === 'takeat' && <span className="h-3 w-3 rounded-full" style={{ background: VERMELHO_TAKEAT }} aria-hidden />}
-                        {titulo}
-                      </div>
-                      <div className="mt-0.5 text-[11px] text-text-subtle">{legenda}</div>
-                    </button>
-                  ))}
-                </div>
-              </Field>
-              )}
-            </div>
-            <div className="space-y-4.5">
-              {config?.vitrineNova ? (
-              <Field label="Tamanho da imagem na lista" hint="O lado da foto de cada item na visualização em lista.">
-                <div className="inline-flex rounded-[8px] border border-border bg-page p-[3px]" role="radiogroup" aria-label="Tamanho da imagem" data-testid="imagem-tamanho">
-                  {IMAGEM_TAMANHOS.map((t, i) => {
-                    const ativo = form.imagemTamanho === t
-                    return (
+        <GrupoPerfil numero={3} id="divulgacao" titulo="Divulgação no cardápio" descricao="Promoções em destaque e a avaliação da loja.">
+          <Secao titulo="Banner promocional ou aviso" descricao="Uma faixa dentro do cardápio, logo abaixo das categorias: imagens das promoções ou um aviso em texto." icone={<PhMegaphoneSimple weight="duotone" />} cor="ambar" testid="secao-promo">
+            <Field
+              label="Banner promocional"
+              hint="Aparece dentro do cardápio, logo abaixo das categorias. Escolha o formato do quadro abaixo (vídeo em pé: Stories 9:16). Suba uma ou mais imagens (com mais de uma, elas passam sozinhas) OU escreva um aviso. Deixe tudo em branco pra não mostrar nada."
+            >
+              <div className="space-y-3">
+                <div data-testid="formato-banner">
+                  <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Formato do banner</div>
+                  <div className="grid grid-cols-4 gap-2">
+                    {FORMATOS_BANNER.map((f) => (
                       <button
-                        key={t}
+                        key={f.valor}
                         type="button"
-                        role="radio"
-                        aria-checked={ativo}
-                        data-testid={`imagem-tamanho-${t}`}
-                        onClick={() => { setForm((f) => ({ ...f, imagemTamanho: t })); setSaved(false) }}
+                        aria-pressed={form.bannerPromoFormato === f.valor}
+                        data-testid={`formato-${f.legenda.replace(':', 'x')}`}
+                        onClick={() => { setForm((prev) => ({ ...prev, bannerPromoFormato: f.valor })); setSaved(false) }}
                         className={[
-                          'h-[34px] min-w-[84px] rounded-[6px] px-2.5 text-[12.5px] font-semibold transition-colors',
-                          ativo ? 'bg-white text-primary shadow-[0_1px_3px_rgba(16,24,40,0.12)]' : 'text-text-subtle hover:text-text-main',
+                          'flex flex-col items-center gap-1.5 rounded-menuzia border px-2 py-2.5 transition-colors',
+                          form.bannerPromoFormato === f.valor ? 'border-primary bg-primary/10' : 'border-border bg-white hover:border-primary/50',
                         ].join(' ')}
                       >
-                        {['Mini', 'Pequena', 'Média', 'Grande'][i]} <span className="font-normal tabular-nums opacity-75">{t}px</span>
+                        <span className="flex h-9 items-center" aria-hidden="true">
+                          <span className="block rounded-[3px] border-2 border-current text-text-subtle" style={{ height: f.ratio >= 1 ? 36 / f.ratio : 36, width: f.ratio >= 1 ? 36 : 36 * f.ratio }} />
+                        </span>
+                        <span className="text-[12px] font-semibold text-text-main">{f.titulo}</span>
+                        <span className="text-[11px] text-text-subtle">{f.legenda}</span>
                       </button>
-                    )
-                  })}
+                    ))}
+                  </div>
+                  <p className="mt-1.5 text-[11px] text-text-subtle">Tamanho ideal: {formatoBanner.ideal}. Arte ou vídeo de outro formato aparece inteiro, com o fundo desfocado.</p>
                 </div>
-                {form.imagemTamanho === null && (
-                  <p className="mt-2 text-[12px] leading-relaxed text-text-subtle" data-testid="imagem-tamanho-antigo">
-                    Sua loja usa o tamanho de antes ({config?.imagemGrande ? '140×140' : '120×120'}). Escolha um dos três para trocar.
-                  </p>
+                {imagensPromo.length > 0 && (
+                  <div className="space-y-2">
+                    {imagensPromo.map((url, i) => (
+                      <div key={url} className="flex items-center gap-2">
+                        {/* Miniatura na proporção da faixa do celular, com o foco
+                            escolhido — é assim que o cliente vai ver. */}
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={url}
+                          alt={`Banner promocional ${i + 1}`}
+                          // Prévia na proporção escolhida em "Formato do banner" (0228); a vitrine mostra a arte inteira.
+                          className="w-full min-w-0 max-w-[200px] flex-1 rounded-[10px] border border-border bg-[#111] object-contain"
+                          style={{ aspectRatio: String(formatoBanner.ratio) }}
+                        />
+                        <div className="flex flex-shrink-0 flex-col gap-1">
+                          <button
+                            type="button"
+                            onClick={() => moverImagemPromo(url, -1)}
+                            disabled={i === 0}
+                            aria-label="Mover para antes"
+                            className="grid h-8 w-8 place-items-center rounded-menuzia border border-border text-text-subtle hover:border-primary hover:text-primary disabled:opacity-30"
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moverImagemPromo(url, 1)}
+                            disabled={i === imagensPromo.length - 1}
+                            aria-label="Mover para depois"
+                            className="grid h-8 w-8 place-items-center rounded-menuzia border border-border text-text-subtle hover:border-primary hover:text-primary disabled:opacity-30"
+                          >
+                            ↓
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removerImagemPromo(url)}
+                            aria-label="Remover imagem"
+                            className="grid h-8 w-8 place-items-center rounded-menuzia border border-border text-danger hover:bg-danger-bg"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {imagensPromo.length > 1 && (
+                      <p className="text-[11px] text-text-subtle">
+                        {imagensPromo.length} imagens — no cardápio elas passam sozinhas, a cada 5 segundos, nesta ordem.
+                      </p>
+                    )}
+                  </div>
                 )}
-                <PreviaLinhaItem tamanho={form.imagemTamanho ?? (config?.imagemGrande ? 140 : 120)} fonte={form.fonteVitrine} />
-              </Field>
-              ) : (
-              <Field label="Imagem grande" hint="Na visualização em lista, mostra as imagens dos itens em 100×100 px.">
-                <label className="flex cursor-pointer items-center gap-2.5 rounded-menuzia border border-border bg-white px-3.5 py-3">
+
+                <input ref={bannerPromoInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleBannerPromoPick} />
+                <div className="flex flex-wrap items-center gap-3">
+                  <BotaoUpload onClick={() => bannerPromoInputRef.current?.click()} disabled={uploadingBannerPromo || imagensPromo.length >= BANNER_PROMO_MAX_IMAGENS}>
+                    {uploadingBannerPromo ? 'Enviando…' : imagensPromo.length > 0 ? 'Adicionar imagem' : 'Enviar imagem'}
+                  </BotaoUpload>
+                  {imagensPromo.length > 0 && (
+                    <AjustarFoco
+                      src={imagensPromo[0]!}
+                      foco={form.bannerPromoFoco}
+                      onChange={(f) => { setForm((prev) => ({ ...prev, bannerPromoFoco: f })); setSaved(false) }}
+                      // A faixa tem 139 px no celular e 169 px no desktop (10% a
+                      // mais que antes). Daí 358/139 = 2,58 no celular e
+                      // 1224/169 = 7,24 no desktop — continua um talho largo, e é
+                      // por isso que ela precisa de foco.
+                      // 2026-10-23: o banner segue a referência Brendi (3:2) no celular e no computador.
+                      proporcoes={[{ rotulo: 'Celular e computador', ratio: formatoBanner.ratio }]}
+                      titulo="Posição do banner promocional"
+                      descricao={`O banner está no formato ${formatoBanner.legenda} (ideal ${formatoBanner.ideal}). Se a sua arte for de outro formato, marque o que não pode sumir. Vale para todas as imagens.`}
+                      disabled={uploadingBannerPromo}
+                    />
+                  )}
+                  {imagensPromo.length >= BANNER_PROMO_MAX_IMAGENS && (
+                    <span className="text-[11px] text-text-subtle">Limite de {BANNER_PROMO_MAX_IMAGENS} imagens.</span>
+                  )}
+                </div>
+
+                {/* Vídeo em loop (0213): um slide a mais do carrossel, na posição escolhida. */}
+                <div className="border-t border-border pt-3">
+                  <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Vídeo no banner</div>
+                  <VideoDaVitrine destino="banner" valor={form.bannerPromoVideo} totalImagens={imagensPromo.length} rotuloPosicao="Posição no banner:"
+                    onChange={(v) => {
+                      setForm((prev) => ({ ...prev, bannerPromoVideo: v }))
+                      setSaved(false)
+                      // Primeira mídia do banner é o vídeo: sugere o formato dele (vídeo em pé → Stories).
+                      if (v && imagensPromo.length === 0) void formatoDoVideo(v.url).then((f) => f && setForm((prev) => ({ ...prev, bannerPromoFormato: f })))
+                    }} />
+                </div>
+
+                {/* Alternativa para quem não tem arte pronta. Só aparece no
+                    cardápio quando não há imagem nenhuma — as duas coisas na
+                    mesma faixa brigariam pelo mesmo espaço. */}
+                <div className="border-t border-border pt-3">
+                  <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
+                    Ou um aviso em texto
+                  </div>
+                  {/* Chrome tratava este campo como "usuário" (sem name/type e com campos de senha
+                      na mesma página) e o preenchia com o e-mail salvo (2026-10-01). */}
                   <input
-                    type="checkbox"
-                    checked={form.imagemGrande}
-                    onChange={(e) => { setForm((f) => ({ ...f, imagemGrande: e.target.checked })); setSaved(false) }}
-                    className="h-4 w-4 accent-primary"
-                    data-testid="imagem-grande"
+                    type="text"
+                    id="aviso-vitrine-texto"
+                    name="aviso-vitrine-texto"
+                    autoComplete="off"
+                    data-1p-ignore
+                    data-lpignore="true"
+                    data-form-type="other"
+                    data-testid="aviso-texto"
+                    value={form.bannerPromoTexto}
+                    onChange={(e) => { setForm((prev) => ({ ...prev, bannerPromoTexto: e.target.value.slice(0, BANNER_PROMO_MAX_TEXTO) })); setSaved(false) }}
+                    placeholder="Ex.: Hoje a pizza grande sai por R$ 49 até 22h"
+                    className="w-full rounded-menuzia border border-border px-2.5 py-2 font-sans text-[13px] text-text-main outline-none focus:border-primary"
                   />
-                  <span className="text-[13px] font-medium text-text-main">Usar imagens grandes (100×100) na lista do cardápio</span>
-                </label>
-              </Field>
-              )}
+                  <div className="mt-1 flex items-center justify-between gap-2">
+                    <p className="text-[11px] text-text-subtle">
+                      {imagensPromo.length > 0
+                        ? 'Enquanto houver imagem, o aviso em texto não aparece no cardápio.'
+                        : 'Aparece como uma faixa com a cor da sua loja.'}
+                    </p>
+                    <span className="flex-shrink-0 text-[11px] text-text-subtle">{form.bannerPromoTexto.length}/{BANNER_PROMO_MAX_TEXTO}</span>
+                  </div>
+                  <EditorAviso
+                    corLoja={paletaAtual.primaria}
+                    corLojaClara={paletaAtual.light}
+                    texto={form.bannerPromoTexto}
+                    estilo={{ corTexto: form.avisoCorTexto, corFundo: form.avisoCorFundo, pulsar: form.avisoPulsar }}
+                    onChange={(e) => { setForm((prev) => ({ ...prev, avisoCorTexto: e.corTexto, avisoCorFundo: e.corFundo, avisoPulsar: e.pulsar })); setSaved(false) }}
+                  />
+                </div>
+              </div>
+            </Field>
+          </Secao>
+          <Secao titulo="Prova social" descricao="Reforça a confiança de quem chega no cardápio pela primeira vez." icone={<PhStar weight="duotone" />} cor="ambar" testid="secao-prova">
+            <Field label="Avaliação" hint="Exibida na vitrine como prova social — preencha manualmente com base nas avaliações reais da loja (Google, iFood, etc.). Deixe em branco pra não mostrar nada.">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <CampoLabel>Nota</CampoLabel>
+                  <Input
+                    value={form.avaliacaoNota}
+                    onChange={(e) => set('avaliacaoNota', e.target.value)}
+                    placeholder="4.9"
+                    inputMode="decimal"
+                  />
+                </div>
+                <div>
+                  <CampoLabel>Quantidade de avaliações</CampoLabel>
+                  <Input
+                    value={form.avaliacaoQtd}
+                    onChange={(e) => set('avaliacaoQtd', e.target.value)}
+                    placeholder="912"
+                    inputMode="numeric"
+                  />
+                </div>
+              </div>
+            </Field>
+          </Secao>
+        </GrupoPerfil>
+
+        <GrupoPerfil numero={4} id="vendas" titulo="Pagamento e pedidos" descricao="Como o cliente paga e se pode agendar.">
+          {formasTela && (
+            <Secao titulo="Formas de pagamento aceitas" descricao="O que o cliente pode escolher em cada canal. Vale para o cardápio, o robô e o Agente de IA." icone={<PhCreditCard weight="duotone" />} cor="verde" testid="secao-formas-pagamento">
+              <FormasPagamentoPerfil valor={formasTela} onChange={(v) => { setFormas(v); setFormasMexeu(true); setSaved(false) }}
+                mesa={mesaFormas?.lista ?? null} onMesa={(l) => { setMesaFormas((m) => (m ? { ...m, lista: l } : m)); setMesaMexeu(true); setSaved(false) }}
+                conectados={conectados} temChavePix={!!form.pixChave.trim()} />
+            </Secao>
+          )}
+          <AgendamentoAjustes restauranteId={restauranteId} />
+        </GrupoPerfil>
+
+        <GrupoPerfil numero={5} id="aparencia" titulo="Aparência da vitrine" descricao="O que aparece no cabeçalho, cor, fonte e tamanho das fotos.">
+          <Secao titulo="O que mostrar na vitrine" descricao="Escolha o que aparece no cabeçalho da loja, ao lado da logo. O que ficar desligado some e o resto se ajusta sozinho." icone={<PhEye weight="duotone" />} cor="violeta" testid="secao-cabecalho-vitrine">
+            <div className="divide-y divide-border">
+              {([
+                ['status', 'Aberta / fechada', 'O status da loja com o pontinho verde (ou vermelho quando fechada).'],
+                ['tempo', 'Tempo de entrega', 'O tempo estimado de entrega.'],
+                ['avaliacao', 'Avaliação', 'Nota e quantidade de avaliações (preenchidas em Prova social).'],
+                ['endereco', 'Endereço', 'Bairro e cidade da loja.'],
+              ] as const).map(([chave, rotulo, dica]) => (
+                <ToggleRow key={chave} label={rotulo} hint={dica} checked={form.cabecalhoVitrine[chave]}
+                  onChange={(v) => { setForm((prev) => ({ ...prev, cabecalhoVitrine: { ...prev.cabecalhoVitrine, [chave]: v } })); setSaved(false) }} />
+              ))}
             </div>
-          </div>
-        </Secao>
+          </Secao>
+          <Secao titulo="Aparência da vitrine" descricao="Cor, formato da lista, tamanho da imagem e fonte do cardápio que o cliente vê." icone={<PhPalette weight="duotone" />} cor="violeta" testid="secao-aparencia">
+            <div className="grid gap-6 lg:grid-cols-2">
+              <div className="space-y-4.5">
+                <Field label="Cor da loja" hint="Botões, categorias, destaques e ícones do cardápio.">
+                  <SeletorCorLoja
+                    corSelecionada={corSelecionada}
+                    corCustom={corCustom}
+                    onEscolher={({ chave, custom }) => { if (custom) setCorCustom(custom); setCorSelecionada(chave); setSaved(false) }}
+                  />
+                </Field>
+                <Field label="Formato da lista">
+                  <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2" data-testid="formato-cardapio">
+                    {([
+                      ['categoria', 'Categorias', 'Cards grandes, 2 por linha'],
+                      ['lista', 'Lista', 'Itens em lista compacta'],
+                    ] as const).map(([valor, titulo, legenda]) => (
+                      <button
+                        key={valor}
+                        type="button"
+                        aria-pressed={form.layoutCardapio === valor}
+                        data-testid={`formato-${valor}`}
+                        onClick={() => setLayout(valor)}
+                        className={[
+                          'rounded-menuzia border px-3.5 py-3 text-left transition-colors',
+                          form.layoutCardapio === valor ? 'border-primary bg-primary/10' : 'border-border bg-white hover:border-primary/50',
+                        ].join(' ')}
+                      >
+                        <div className="text-[13px] font-semibold text-text-main">{titulo}</div>
+                        <div className="mt-0.5 text-[11px] text-text-subtle">{legenda}</div>
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+                {config?.vitrineNova && (
+                <Field label="Fonte da vitrine" hint="Vale para a vitrine inteira: home, itens, sacola e pedido.">
+                  <div className={`${fonteVitrine.variable} grid grid-cols-2 gap-2.5`} data-testid="fonte-vitrine">
+                    {FONTES_VITRINE.map(({ valor, titulo, familia }) => (
+                      <button
+                        key={valor}
+                        type="button"
+                        aria-pressed={form.fonteVitrine === valor}
+                        data-testid={`fonte-${valor}`}
+                        onClick={() => { setForm((f) => ({ ...f, fonteVitrine: valor })); setSaved(false) }}
+                        className={[
+                          'rounded-menuzia border px-3.5 py-3 text-left transition-colors',
+                          form.fonteVitrine === valor ? 'border-primary bg-primary/10' : 'border-border bg-white hover:border-primary/50',
+                        ].join(' ')}
+                      >
+                        <div className="text-[13px] font-semibold text-text-main">{titulo}</div>
+                        <div className="mt-1 text-[15px] font-semibold text-text-main" style={{ fontFamily: familia }}>X-Burguer Duplo</div>
+                        <div className="text-[12px] text-text-subtle" style={{ fontFamily: familia }}>Pão, 2 carnes, queijo · R$ 32,90</div>
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+                )}
+                {config?.vitrineNova && (
+                <Field label="Design da vitrine" hint="Simples: cantos retos, sem sombras, sem degradê e sem animações.">
+                  <div className="grid grid-cols-2 gap-2.5" data-testid="design-vitrine">
+                    {([
+                      ['padrao', 'Padrão', 'O visual de hoje, com efeitos.'],
+                      ['simples', 'Simples', 'Mais limpo, reto e sem efeitos.'],
+                    ] as const).map(([valor, titulo, legenda]) => (
+                      <button
+                        key={valor}
+                        type="button"
+                        aria-pressed={form.designVitrine === valor}
+                        data-testid={`design-${valor}`}
+                        onClick={() => { setForm((f) => ({ ...f, designVitrine: valor })); setSaved(false) }}
+                        className={[
+                          'rounded-menuzia border px-3.5 py-3 text-left transition-colors',
+                          form.designVitrine === valor ? 'border-primary bg-primary/10' : 'border-border bg-white hover:border-primary/50',
+                        ].join(' ')}
+                      >
+                        <div className="text-[13px] font-semibold text-text-main">{titulo}</div>
+                        <div className="mt-0.5 text-[11px] text-text-subtle">{legenda}</div>
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+                )}
+                {config?.vitrineNova && (
+                <Field label="Menu inferior" hint="A barra de botões no pé da vitrine, no celular.">
+                  <div className="grid grid-cols-2 gap-2.5" data-testid="menu-vitrine">
+                    {([
+                      ['botoes', 'Barra com 4 botões (padrão)', 'Branca: Início, Promoções, Desconto e Pedidos.'],
+                      ['bolha', 'Bolha', 'Barra na cor da loja: Home, Pedidos, Cupons e Perfil.'],
+                    ] as const).map(([valor, titulo, legenda]) => (
+                      <button
+                        key={valor}
+                        type="button"
+                        aria-pressed={form.menuVitrine === valor}
+                        data-testid={`menu-${valor}`}
+                        onClick={() => { setForm((f) => ({ ...f, menuVitrine: valor })); setSaved(false) }}
+                        className={[
+                          'rounded-menuzia border px-3.5 py-3 text-left transition-colors',
+                          form.menuVitrine === valor ? 'border-primary bg-primary/10' : 'border-border bg-white hover:border-primary/50',
+                        ].join(' ')}
+                      >
+                        <div className="text-[13px] font-semibold text-text-main">{titulo}</div>
+                        <div className="mt-0.5 text-[11px] text-text-subtle">{legenda}</div>
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+                )}
+                {config?.vitrineNova && (
+                <Field label="Cor do menu inferior" hint="Acende o ícone do botão escolhido e pinta o botão Ver sacola.">
+                  <div className="grid grid-cols-2 gap-2.5" data-testid="cor-rodape">
+                    {([
+                      ['loja', 'Cor da loja', 'A mesma cor do tema da loja.'],
+                      ['takeat', 'Vermelho Takeat', 'O vermelho da Takeat (#C8131B).'],
+                    ] as const).map(([valor, titulo, legenda]) => (
+                      <button
+                        key={valor}
+                        type="button"
+                        aria-pressed={form.corRodape === valor}
+                        data-testid={`cor-rodape-${valor}`}
+                        onClick={() => { setForm((f) => ({ ...f, corRodape: valor })); setSaved(false) }}
+                        className={[
+                          'rounded-menuzia border px-3.5 py-3 text-left transition-colors',
+                          form.corRodape === valor ? 'border-primary bg-primary/10' : 'border-border bg-white hover:border-primary/50',
+                        ].join(' ')}
+                      >
+                        <div className="flex items-center gap-2 text-[13px] font-semibold text-text-main">
+                          {valor === 'takeat' && <span className="h-3 w-3 rounded-full" style={{ background: VERMELHO_TAKEAT }} aria-hidden />}
+                          {titulo}
+                        </div>
+                        <div className="mt-0.5 text-[11px] text-text-subtle">{legenda}</div>
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+                )}
+              </div>
+              <div className="space-y-4.5">
+                {config?.vitrineNova ? (
+                <Field label="Tamanho da imagem na lista" hint="O lado da foto de cada item na visualização em lista.">
+                  <div className="inline-flex rounded-[8px] border border-border bg-page p-[3px]" role="radiogroup" aria-label="Tamanho da imagem" data-testid="imagem-tamanho">
+                    {IMAGEM_TAMANHOS.map((t, i) => {
+                      const ativo = form.imagemTamanho === t
+                      return (
+                        <button
+                          key={t}
+                          type="button"
+                          role="radio"
+                          aria-checked={ativo}
+                          data-testid={`imagem-tamanho-${t}`}
+                          onClick={() => { setForm((f) => ({ ...f, imagemTamanho: t })); setSaved(false) }}
+                          className={[
+                            'h-[34px] min-w-[84px] rounded-[6px] px-2.5 text-[12.5px] font-semibold transition-colors',
+                            ativo ? 'bg-white text-primary shadow-[0_1px_3px_rgba(16,24,40,0.12)]' : 'text-text-subtle hover:text-text-main',
+                          ].join(' ')}
+                        >
+                          {['Mini', 'Pequena', 'Média', 'Grande'][i]} <span className="font-normal tabular-nums opacity-75">{t}px</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {form.imagemTamanho === null && (
+                    <p className="mt-2 text-[12px] leading-relaxed text-text-subtle" data-testid="imagem-tamanho-antigo">
+                      Sua loja usa o tamanho de antes ({config?.imagemGrande ? '140×140' : '120×120'}). Escolha um dos três para trocar.
+                    </p>
+                  )}
+                  <PreviaLinhaItem tamanho={form.imagemTamanho ?? (config?.imagemGrande ? 140 : 120)} fonte={form.fonteVitrine} />
+                </Field>
+                ) : (
+                <Field label="Imagem grande" hint="Na visualização em lista, mostra as imagens dos itens em 100×100 px.">
+                  <label className="flex cursor-pointer items-center gap-2.5 rounded-menuzia border border-border bg-white px-3.5 py-3">
+                    <input
+                      type="checkbox"
+                      checked={form.imagemGrande}
+                      onChange={(e) => { setForm((f) => ({ ...f, imagemGrande: e.target.checked })); setSaved(false) }}
+                      className="h-4 w-4 accent-primary"
+                      data-testid="imagem-grande"
+                    />
+                    <span className="text-[13px] font-medium text-text-main">Usar imagens grandes (100×100) na lista do cardápio</span>
+                  </label>
+                </Field>
+                )}
+              </div>
+            </div>
+          </Secao>
+        </GrupoPerfil>
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <AgendamentoAjustes restauranteId={restauranteId} />
-
-        {/* Links para divulgar: todas as lojas, menu antigo e novo (12/10). */}
         {config?.slug && (
-          <Secao titulo="Links para divulgar" descricao="O link do seu cardápio marcado para cada canal. Use estes links e veja no Dashboard de onde vêm as vendas." icone={<Link2 />} testid="secao-links-divulgar">
+        <GrupoPerfil numero={6} id="links" titulo="Links para divulgar" descricao="O link do cardápio marcado para cada canal.">
+          <Secao titulo="Links para divulgar" descricao="O link do seu cardápio marcado para cada canal. Use estes links e veja no Dashboard de onde vêm as vendas." icone={<PhLinkSimple weight="duotone" />} cor="azul" testid="secao-links-divulgar">
             <CartaoLinksDivulgar baseCardapio={`${typeof window !== 'undefined' ? window.location.origin : 'https://app.menuzia.com.br'}/loja/${config.slug}`} slug={config.slug} />
           </Secao>
+        </GrupoPerfil>
         )}
-
-        </div>
 
         {error && (
           <p className="rounded-menuzia border border-danger bg-danger/10 px-3 py-2 text-[13px] text-danger">
@@ -1252,7 +1330,7 @@ function TabLoja({ restauranteId, active }: { restauranteId: string; active: boo
         )}
         </div>
       </div>
-      <SaveBar saved={saved} saving={saving} onSave={save} />
+      <div data-perfil-loja><SaveBar saved={saved} saving={saving} onSave={save} /></div>
     </div>
   )
 }

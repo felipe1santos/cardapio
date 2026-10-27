@@ -805,6 +805,37 @@ html:has(.vitrine-sem-zoom) {
 .secao-destaque {
   animation: secao-destaque 2s ease-out both;
 }
+
+/* Ajustes › Perfil da loja (26/10/2026, pedido do dono): azul #00466F como principal e vermelho #CC0101 como
+   cor oposta (remover/alertas), só dentro desta aba — o resto do painel segue a paleta da Menuzia.
+   Rótulos em frase (sem caixa alta) e campos mais macios. */
+[data-perfil-loja] {
+  --cor-primary: 0 70 111;
+  --cor-primary-dark: 0 52 84;
+  --cor-danger: 204 1 1;
+}
+[data-perfil-loja] [data-rotulo-campo] {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 13px;
+  color: #0B2233;
+}
+[data-perfil-loja] [data-ajuda-campo] {
+  font-size: 12px;
+  line-height: 17px;
+  color: #617284;
+}
+[data-perfil-loja] :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea) {
+  border-radius: 9px;
+  border-color: #D5DFE7;
+}
+[data-perfil-loja] :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea):focus {
+  border-color: #00466F;
+  box-shadow: 0 0 0 3px rgba(0, 70, 111, 0.14);
+}
+[data-perfil-loja] input:is([type="checkbox"], [type="radio"]) {
+  accent-color: #00466F;
+}
 @media (prefers-reduced-motion: reduce) {
   .animate-indicador-entrada,
   .animate-indicador-check {
