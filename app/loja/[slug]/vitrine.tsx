@@ -2675,6 +2675,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   const metodosEntrega = idsPagamento.filter((m) => !metodosOnline.includes(m))
   const escolheModo = metodosOnline.length > 0 && metodosEntrega.length > 0
   const [modoPagamento, setModoPagamento] = useState<'online' | 'entrega' | null>(null)
+  const etapaEscolhaPagamento = escolheModo && modoPagamento === null
   function escolherModo(m: 'online' | 'entrega') {
     setModoPagamento(m)
     const lista = m === 'online' ? metodosOnline : metodosEntrega
@@ -5509,14 +5510,27 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
           {checkoutOpen && (checkoutStep === 1 || checkoutStep === 3) && (
             <div className="px-[16px] pb-[20px]" data-testid="etapa-pagamento">
-              {escolheModo && (
-                <section className="mb-[20px]" data-testid="modo-pagamento">
-                  <TituloSecao>Como prefere pagar?</TituloSecao>
-                  <div className="grid grid-cols-2 gap-[10px]">
-                    <CartaoModoPagamento tipo="online" titulo="Pagar online" texto="Pix ou cartão, agora pelo app" ativo={modoPagamento === 'online'} onClick={() => escolherModo('online')} testid="modo-online" />
-                    <CartaoModoPagamento tipo="entrega" titulo={tipoPedido === 'retirada' ? 'Pagar na retirada' : 'Pagar na entrega'} texto={tipoPedido === 'retirada' ? 'No balcão, ao retirar' : 'Ao receber o pedido'} ativo={modoPagamento === 'entrega'} onClick={() => escolherModo('entrega')} testid="modo-entrega" />
+              {/* Etapa própria (26/10/2026): enquanto o cliente não escolhe online × na entrega, só os dois
+                  cartões grandes aparecem; escolhido, vêm as formas daquele jeito, com "Trocar" para voltar. */}
+              {etapaEscolhaPagamento ? (
+                <section className="pt-[4px]" data-testid="modo-pagamento">
+                  <h2 className="text-[20px] font-semibold leading-[26px] text-[#1F1F1F]">Como prefere pagar?</h2>
+                  <p className="mt-[4px] text-[13.5px] leading-[19px] text-[#5C5C5C]">Escolha agora e, em seguida, a forma de pagamento.</p>
+                  <div className="mt-[18px] grid grid-cols-2 gap-[12px]">
+                    <CartaoModoPagamento tipo="online" titulo="Pagar online" texto="Pix ou cartão, agora pelo app" ativo={false} onClick={() => escolherModo('online')} testid="modo-online" />
+                    <CartaoModoPagamento tipo="entrega" titulo={tipoPedido === 'retirada' ? 'Pagar na retirada' : 'Pagar na entrega'} texto={tipoPedido === 'retirada' ? 'No balcão, ao retirar' : 'Ao receber o pedido'} ativo={false} onClick={() => escolherModo('entrega')} testid="modo-entrega" />
                   </div>
                 </section>
+              ) : escolheModo && (
+                <div className="mb-[16px] flex items-center gap-[12px] rounded-[12px] border border-[#E5E7EB] bg-white p-[10px]" data-testid="modo-escolhido">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={modoPagamento === 'online' ? '/vitrine/ilustracoes/pagar-online.svg' : '/vitrine/ilustracoes/pagar-entrega.svg'} alt="" className="h-[48px] w-[48px] flex-shrink-0 rounded-[10px] object-contain" style={{ background: modoPagamento === 'online' ? '#EEF4FF' : '#F2F9E6' }} />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[14.5px] font-semibold text-[#1F1F1F]">{modoPagamento === 'online' ? 'Pagar online' : tipoPedido === 'retirada' ? 'Pagar na retirada' : 'Pagar na entrega'}</div>
+                    <div className="text-[12px] text-[#5C5C5C]">{modoPagamento === 'online' ? 'Pix ou cartão, agora pelo app' : 'Você paga quando receber'}</div>
+                  </div>
+                  <button type="button" onClick={() => { setModoPagamento(null); setCheckoutError(null) }} className="flex-shrink-0 px-[6px] text-[14px] font-semibold text-[var(--tema-primaria)]" data-testid="trocar-modo">Trocar</button>
+                </div>
               )}
               {(pixAgora || cartaoAgora) && (!escolheModo || modoPagamento === 'online') && (
                 <section className="mb-[20px]" data-testid="pagar-agora">
@@ -5601,6 +5615,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
               </section>
               )}
               {/* Cupom ou prêmio de fidelidade */}
+              {!etapaEscolhaPagamento && (<>
               <div className="mb-[20px] rounded-[8px] border border-[#E5E5E5] bg-white p-[14px]" data-testid="cupom-codigo">
                 <h3 className="mb-[10px] text-[16px] font-semibold leading-[20px] text-[#1F1F1F]">Cupom</h3>
                 {recompensaSelecionada || cupomAplicado ? (
@@ -5662,6 +5677,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
 
               {resumoValores}
+              </>)}
             </div>
           )}
 
@@ -5678,9 +5694,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 total={brl(total)}
                 legenda={`${legendaTotal} · ${cartCount} ${cartCount === 1 ? 'item' : 'itens'}`}
                 economia={economia > 0 ? brl(economia) : null}
-                botao={submitting ? 'Enviando…' : checkoutStep === 1 ? 'Revisar pedido' : 'Continuar'}
+                botao={submitting ? 'Enviando…' : checkoutStep === 1 ? (etapaEscolhaPagamento ? 'Escolha acima' : 'Revisar pedido') : 'Continuar'}
                 onClick={checkoutNext}
-                desabilitado={submitting || linhasIndisponiveis.length > 0}
+                desabilitado={submitting || linhasIndisponiveis.length > 0 || (checkoutStep === 1 && etapaEscolhaPagamento)}
               />
             </div>
           )}

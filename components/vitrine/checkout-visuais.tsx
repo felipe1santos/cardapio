@@ -3,32 +3,21 @@
 import type { ReactNode } from 'react'
 import {
   CreditCard as PhCreditCard,
-  DeviceMobile as PhDeviceMobile,
   ForkKnife as PhForkKnife,
   Money as PhMoney,
-  Moped as PhMoped,
-  QrCode as PhQrCode,
   Storefront as PhStorefront,
   CheckCircle as PhCheckCircle,
 } from '@phosphor-icons/react'
 
 /**
  * Peças do checkout da vitrine (26/10/2026): a escolha "pagar online × pagar na entrega" em dois cartões grandes
- * com ilustração (ícones duotone compostos, sem imagem externa) e os ícones de cada forma de pagamento.
+ * com ilustração própria (public/vitrine/ilustracoes/pagar-*.svg) e os ícones de cada forma de pagamento.
  */
 
 const MODO = {
-  online: { fundo: 'linear-gradient(160deg,#EEF4FF 0%,#DCE8FF 100%)', cor: '#1D4ED8', borda: '#1D4ED8' },
-  entrega: { fundo: 'linear-gradient(160deg,#ECFDF3 0%,#D3F5E1 100%)', cor: '#15803D', borda: '#15803D' },
+  online: { fundo: 'linear-gradient(180deg,#F1F5FF 0%,#E3ECFF 100%)', cor: '#1D4ED8', borda: '#1D4ED8' },
+  entrega: { fundo: 'linear-gradient(180deg,#F5FBEA 0%,#E8F6D2 100%)', cor: '#4D7C0F', borda: '#65A30D' },
 } as const
-
-function Selo({ children, cor, className }: { children: ReactNode; cor: string; className: string }) {
-  return (
-    <span className={`absolute flex h-[34px] w-[34px] items-center justify-center rounded-full bg-white shadow-[0_4px_10px_rgba(16,24,40,0.12)] ${className}`} style={{ color: cor }}>
-      {children}
-    </span>
-  )
-}
 
 /** Cartão vertical grande para escolher como pagar. */
 export function CartaoModoPagamento({ tipo, titulo, texto, ativo, onClick, testid }: {
@@ -44,25 +33,15 @@ export function CartaoModoPagamento({ tipo, titulo, texto, ativo, onClick, testi
       className="relative flex flex-col overflow-hidden rounded-[14px] border-2 bg-white text-left transition-[border-color,box-shadow] active:scale-[0.99]"
       style={{ borderColor: ativo ? m.borda : '#E5E7EB', boxShadow: ativo ? `0 0 0 3px ${m.borda}22` : undefined }}
     >
-      <span className="relative flex h-[112px] items-center justify-center" style={{ background: m.fundo }} aria-hidden="true">
-        {tipo === 'online' ? (
-          <>
-            <PhDeviceMobile weight="duotone" size={64} style={{ color: m.cor }} />
-            <Selo cor="#0F766E" className="left-[22%] top-[18px]"><PhQrCode weight="bold" size={18} /></Selo>
-            <Selo cor={m.cor} className="bottom-[14px] right-[20%]"><PhCreditCard weight="fill" size={18} /></Selo>
-          </>
-        ) : (
-          <>
-            <PhMoped weight="duotone" size={66} style={{ color: m.cor }} />
-            <Selo cor="#15803D" className="left-[20%] top-[16px]"><PhMoney weight="fill" size={18} /></Selo>
-            <Selo cor="#1D4ED8" className="bottom-[14px] right-[18%]"><PhCreditCard weight="fill" size={18} /></Selo>
-          </>
-        )}
-        {ativo && <PhCheckCircle weight="fill" size={22} className="absolute right-[8px] top-[8px]" style={{ color: m.cor }} />}
+      {/* 26/10/2026: ilustração própria (public/vitrine/ilustracoes/pagar-*.svg) ocupando o alto do cartão. */}
+      <span className="relative flex h-[164px] items-center justify-center px-[8px] pt-[8px]" style={{ background: m.fundo }} aria-hidden="true">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={tipo === 'online' ? '/vitrine/ilustracoes/pagar-online.svg' : '/vitrine/ilustracoes/pagar-entrega.svg'} alt="" className="h-full w-full object-contain" />
+        {ativo && <PhCheckCircle weight="fill" size={24} className="absolute right-[8px] top-[8px]" style={{ color: m.cor }} />}
       </span>
-      <span className="block px-[12px] pb-[12px] pt-[10px]">
-        <span className="block text-[15px] font-semibold leading-[20px] text-[#1F1F1F]">{titulo}</span>
-        <span className="mt-[2px] block text-[12px] leading-[16px] text-[#5C5C5C]">{texto}</span>
+      <span className="block px-[14px] pb-[14px] pt-[12px]">
+        <span className="block text-[16px] font-semibold leading-[20px] text-[#1F1F1F]">{titulo}</span>
+        <span className="mt-[4px] block text-[12.5px] leading-[17px] text-[#5C5C5C]">{texto}</span>
       </span>
     </button>
   )
