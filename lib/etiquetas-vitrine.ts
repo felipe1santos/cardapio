@@ -1,10 +1,9 @@
 /**
  * Tags do produto na vitrine (2026-10-01, substitui as regras de 2026-09-30). Hierarquia:
  *
- * MAIS PEDIDOS (P8, 2026-10-04) — UM conceito só, com um nome só: a loja marca à mão (coluna
- * `mais_vendido`, a estrela do Gestor, ou a `tag` antiga mais_pedido/favorito). Vira o SELO sobre a
- * foto (canto superior esquerdo) e a seção "Mais Pedidos". Antes eram três nomes: "Mais vendido"
- * (pílula na linha do nome), "★ Favorito" (QR da mesa) e a seção "Mais Pedidos".
+ * MAIS PEDIDOS — selo sobre a foto (canto superior esquerdo), ligado à mão em Etiquetas › Exibição
+ * (`tag` mais_pedido). DESTAQUES — a estrela ★ do Gestor (coluna `mais_vendido`, ou a `tag` antiga
+ * favorito): só põe o item na seção "Destaques", sem selo (26/10/2026, pedido do dono).
  *
  * TOPO — na linha do nome, à direita (descem para a linha de baixo se o nome não couber),
  * no máximo 2, nesta ordem:
@@ -25,9 +24,21 @@ export const ROTULO_MAIS_PEDIDOS = 'Mais Pedidos'
 /** Selo sobre a foto: vermelho vivo com texto branco (4,7:1), o mesmo vermelho pedido pelo dono em 2026-10-01. */
 export const ESTILO_SELO_MAIS_PEDIDOS = { fundo: '#E80002', cor: '#FFFFFF' } as const
 
-/** A loja marcou o item como "Mais Pedidos" (estrela do Gestor ou a tag antiga de quem ainda não salvou o item). */
+/** Nome da seção de itens com a estrela ★ (Destaque) na vitrine. */
+export const ROTULO_DESTAQUES = 'Destaques'
+
+/**
+ * Selo "Mais Pedidos" sobre a foto: SÓ a etiqueta `mais_pedido` (Etiquetas do produto › "Mostrar como Mais Pedidos").
+ * 26/10/2026 (pedido do dono): a estrela ★ (Destaque, coluna `mais_vendido`) deixou de dar o selo — ela só põe o
+ * item na seção "Destaques".
+ */
 export function ehMaisPedidos(item: { maisVendido?: boolean; tag?: string | null }): boolean {
-  return item.maisVendido === true || item.tag === 'mais_pedido' || item.tag === 'favorito'
+  return item.tag === 'mais_pedido'
+}
+
+/** Item na seção "Destaques": estrela ★ do Gestor (ou a tag antiga 'favorito', o mesmo conceito antes da 0117). */
+export function ehDestaque(item: { maisVendido?: boolean; tag?: string | null }): boolean {
+  return item.maisVendido === true || item.tag === 'favorito'
 }
 export type EtiquetaUtil = 'serve' | 'item_promocional' | 'personalizada'
 export type CorTagPersonalizada = 'preta' | 'azul'
@@ -53,8 +64,9 @@ export const ESTILO_TOPO: Record<EtiquetaTopo, EstiloTag> = {
   combo_especial: { texto: 'Combo especial', icone: 'diamante', fundo: '#F2EAFC', cor: '#9A3AE1', corIcone: '#A135F4', peso: 600 },
   // Sem referência em imagem: rosa da mesma família.
   oferta_limitada: { texto: 'Oferta limitada', icone: 'ampulheta', fundo: '#FCE7F3', cor: '#BE185D', peso: 600 },
-  // Cores pedidas pelo dono (2026-10-01): fundo rgb(0 255 142 / 35%), texto rgb(0 45 3); ícone de selo.
-  novidade: { texto: 'Novidade', icone: 'selo', fundo: 'rgb(0 255 142 / 35%)', cor: 'rgb(0 45 3)', peso: 600 },
+  // Era o verde neon pedido em 2026-10-01 (rgb(0 255 142 / 35%)); 26/10/2026 (revisão das tags): verde sóbrio da mesma
+  // família, texto #05603A (7,9:1) e ícone #12B76A.
+  novidade: { texto: 'Novidade', icone: 'selo', fundo: '#E3F8EE', cor: '#05603A', corIcone: '#12B76A', peso: 600 },
 }
 
 export const ESTILO_UTIL = {
@@ -65,8 +77,8 @@ export const ESTILO_UTIL = {
   personalizada_preta: { fundo: '#1F1F1F', cor: '#FFFFFF' },
 } as const
 
-/** Desconto: verde da tag "R$ 5 off" da REF-CORES. Preço antigo: cinza claro. */
-export const ESTILO_DESCONTO = { fundo: '#EAFFF5', cor: '#24A96A' } as const
+/** Desconto: verde da tag "R$ 5 off" da REF-CORES; texto #15803D (4,9:1 — o #24A96A dava 2,9:1). Preço antigo: cinza claro. */
+export const ESTILO_DESCONTO = { fundo: '#EAFFF5', cor: '#15803D' } as const
 export const COR_PRECO_ANTIGO = '#A1A1AA'
 // Vitrine nova (pendência 9, só onde a loja liga a chave vitrine_nova): preço antigo #737373 (4,7:1);
 // preço atual em verde. O selo de desconto é o de sempre (ESTILO_DESCONTO) desde 2026-10-06.

@@ -17,7 +17,7 @@ import { calcularDesconto, diasSemanaTexto, premioLabelCampanha, fracaoProgresso
 import type { CupomVitrine, FidelidadeCliente, RecompensaDisponivel } from '@/lib/queries/fidelidade'
 import { itemVendavelNaVitrine } from '@/lib/vitrine-item-vendavel'
 import { EtiquetasUtilitarias, LojaEtiquetasContext, NomeComEtiquetas, PrecoVitrine, SeloMaisPedidos } from '@/components/vitrine/etiquetas'
-import { ehMaisPedidos, ROTULO_MAIS_PEDIDOS } from '@/lib/etiquetas-vitrine'
+import { ehDestaque, ehMaisPedidos, ROTULO_DESTAQUES } from '@/lib/etiquetas-vitrine'
 import { precoDeVitrine } from '@/lib/garcom-catalogo'
 import { ConviteApp } from '@/components/vitrine/convite-app'
 import { AvisoVitrine } from '@/components/vitrine/aviso-vitrine'
@@ -593,7 +593,7 @@ function ProductCard({ item, onClick, className = '', compact = false }: { item:
           de destaque. Sem borda nem sombra — o cartão é a própria foto. */}
       <div className={`relative ${compact ? 'aspect-square' : 'h-[140px]'} w-full overflow-hidden rounded-[12px]`}>
         <ProductImage item={item} className="h-full w-full transition-transform duration-300 group-hover:scale-105" />
-        {/* Seção "Mais Pedidos" (compact): sem selo — o título da seção já diz. Na grade, o selo vai na foto. */}
+        {/* Seção "Destaques" (compact): o selo "Mais Pedidos" só aparece fora dela, na lista/grade (26/10/2026). */}
         {!compact && ehMaisPedidos(item) && <SeloMaisPedidos raio={12} />}
       </div>
       <div className={compact ? 'flex flex-col gap-0.5 pt-2.5' : 'flex flex-1 flex-col pt-[12px]'}>
@@ -987,7 +987,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   // some — antes ela reaparecia com o primeiro item de cada grupo, o que fazia
   // parecer que desmarcar não tinha efeito nenhum.
   const destaques = useMemo(
-    () => allItems.filter((item) => ehMaisPedidos(item)).slice(0, 12),
+    () => allItems.filter((item) => ehDestaque(item)).slice(0, 12),
     [allItems],
   )
   /**
@@ -3536,7 +3536,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     foto quadrada do MESMO tamanho da foto da lista (120 px; 140 com "imagem
                     grande" — pedido do dono, 2026-10-01), nome em até 2 linhas e "A partir de"
                     quando o preço varia. */}
-                <h2 className="my-[16px] px-[16px] text-center text-[16px] font-semibold leading-[24px] text-[var(--v-titulo)]">{ROTULO_MAIS_PEDIDOS}</h2>
+                <h2 className="my-[16px] px-[16px] text-center text-[16px] font-semibold leading-[24px] text-[var(--v-titulo)]">{ROTULO_DESTAQUES}</h2>
                 <div className={`flex snap-x snap-mandatory scroll-px-[16px] items-start gap-[10px] overflow-x-auto scroll-smooth px-[16px] pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:grid lg:snap-none lg:gap-4 lg:overflow-visible lg:px-0 ${restaurante.imagemGrande ? 'lg:grid-cols-[repeat(auto-fill,140px)]' : 'lg:grid-cols-[repeat(auto-fill,120px)]'}`}>
                   {destaques.map((item) => (
                     <ProductCard key={item.id} item={item} onClick={() => openProduct(item)} className={`${restaurante.imagemGrande ? 'w-[140px]' : 'w-[120px]'} flex-shrink-0 snap-start`} compact />

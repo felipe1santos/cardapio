@@ -2,6 +2,7 @@
 
 import type { Dispatch, ReactNode, SetStateAction } from 'react'
 import { EtiquetasUtilitarias, NomeComEtiquetas, PrecoVitrine, SeloMaisPedidos } from '@/components/vitrine/etiquetas'
+import type { TagItem } from '@/lib/queries/cardapio'
 import { etiquetasTopoLigadas, MAX_TOPO, ROTULO_MAIS_PEDIDOS, TAG_PERSONALIZADA_MAX, textoServe } from '@/lib/etiquetas-vitrine'
 
 /** Campos do formulário do item que esta seção usa (ver app/admin/cardapio/page.tsx). */
@@ -11,6 +12,8 @@ export interface FormEtiquetas {
   preco: string
   promocaoPreco: string
   maisVendido: boolean
+  /** Etiqueta do item; 'mais_pedido' = selo "Mais Pedidos" sobre a foto (separado da estrela/Destaque). */
+  tag: TagItem | null
   novidade: boolean
   novidadeAteAtual: string | null
   novidadeDias: string
@@ -61,6 +64,7 @@ export function EtiquetasProdutoForm<T extends FormEtiquetas>({ form, setForm }:
   const serve = form.servePessoas.trim() ? Math.max(SERVE_MIN, Math.min(SERVE_MAX, Math.round(numero(form.servePessoas)))) : null
   const previa = {
     maisVendido: form.maisVendido,
+    tag: form.tag,
     novidadeAte,
     comboEspecial: form.comboEspecial,
     edicaoLimitada: form.edicaoLimitada,
@@ -80,8 +84,8 @@ export function EtiquetasProdutoForm<T extends FormEtiquetas>({ form, setForm }:
       <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Etiquetas do produto</div>
 
       <div className="mb-2">
-        <Interruptor checked={form.maisVendido} onChange={(v) => set({ maisVendido: v })} testid="etiqueta-mais-pedidos"
-          dica={<>Selo &quot;{ROTULO_MAIS_PEDIDOS}&quot; sobre a foto e o produto entra na seção &quot;{ROTULO_MAIS_PEDIDOS}&quot; da vitrine. É a mesma estrela ★ da lista do Cardápio.</>}>
+        <Interruptor checked={form.tag === 'mais_pedido'} onChange={(v) => set({ tag: v ? 'mais_pedido' : form.tag === 'mais_pedido' ? null : form.tag })} testid="etiqueta-mais-pedidos"
+          dica={<>Selo &quot;{ROTULO_MAIS_PEDIDOS}&quot; sobre a foto do produto. É diferente da estrela ★ (Destaque), que só põe o item na seção &quot;Destaques&quot; da vitrine.</>}>
           Mostrar como {ROTULO_MAIS_PEDIDOS}
         </Interruptor>
       </div>

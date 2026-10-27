@@ -25,10 +25,11 @@ describe('tagDoItem', () => {
 })
 
 describe('mostraSeloMaisPedidos', () => {
-  it('aparece para o item marcado (estrela ou tag antiga), junto com promoção ou outra etiqueta', () => {
-    expect(mostraSeloMaisPedidos({ maisVendido: true, tag: null })).toBe(true)
-    expect(mostraSeloMaisPedidos({ maisVendido: true, tag: 'novo' })).toBe(true)
-    expect(mostraSeloMaisPedidos({ tag: 'favorito' })).toBe(true)
+  it('aparece só para a etiqueta "Mais Pedidos" (26/10/2026: a estrela/Destaque não dá mais o selo)', () => {
+    expect(mostraSeloMaisPedidos({ tag: 'mais_pedido' })).toBe(true)
+    expect(mostraSeloMaisPedidos({ maisVendido: true, tag: 'mais_pedido' })).toBe(true)
+    expect(mostraSeloMaisPedidos({ maisVendido: true, tag: null })).toBe(false)
+    expect(mostraSeloMaisPedidos({ tag: 'favorito' })).toBe(false)
     expect(SELO_MAIS_PEDIDOS).toMatchObject({ label: 'Mais Pedidos', fundo: '#E80002', texto: '#FFFFFF' })
   })
   it('não aparece sem marcação', () => {

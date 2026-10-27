@@ -32,13 +32,16 @@ import { IconeTagSvg } from './icones-tags'
  * fora da foto — os dois nunca se cobrem.
  */
 export function SeloMaisPedidos({ raio = 8 }: { raio?: number }) {
+  // 26/10/2026: etiqueta flutuante (6px da borda, canto 6px, sombra leve, 11,5px) no lugar da faixa colada na quina,
+  // que ficava miúda (10,5px) e cortada pelo canto da foto. `raio` mantido na assinatura por compatibilidade.
+  void raio
   return (
     <span
       data-selo-mais-pedidos
-      className="pointer-events-none absolute left-0 top-0 z-[1] inline-flex h-[20px] items-center gap-[3px] whitespace-nowrap pl-[6px] pr-[7px] text-[10.5px] font-semibold leading-[20px]"
-      style={{ background: ESTILO_SELO_MAIS_PEDIDOS.fundo, color: ESTILO_SELO_MAIS_PEDIDOS.cor, borderRadius: `${raio}px 0 6px 0` }}
+      className="pointer-events-none absolute left-[6px] top-[6px] z-[1] inline-flex h-[22px] items-center gap-[4px] whitespace-nowrap rounded-[6px] pl-[6px] pr-[8px] text-[11.5px] font-semibold leading-[22px] shadow-[0_2px_6px_rgba(0,0,0,0.25)]"
+      style={{ background: ESTILO_SELO_MAIS_PEDIDOS.fundo, color: ESTILO_SELO_MAIS_PEDIDOS.cor }}
     >
-      <IconeTagSvg nome="fogo" tamanho={12} />
+      <IconeTagSvg nome="fogo" tamanho={13} />
       {ROTULO_MAIS_PEDIDOS}
     </span>
   )

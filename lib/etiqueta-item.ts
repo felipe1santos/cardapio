@@ -53,15 +53,16 @@ export interface ItemEtiquetavel {
  * marcava a estrela e não via nada no cardápio. Agora ele tem o selo próprio abaixo.
  */
 export function tagDoItem(item: ItemEtiquetavel): string | null {
-  if (item.tag && !ehMaisPedidos({ tag: item.tag })) return item.tag
+  // 'mais_pedido' tem selo próprio; 'favorito' (antiga estrela) é Destaque — nenhuma das duas vira etiqueta.
+  if (item.tag && !ehMaisPedidos({ tag: item.tag }) && item.tag !== 'favorito') return item.tag
   if (item.promocaoPreco !== null) return 'promocao'
   return null
 }
 
 /**
  * Selo "Mais Pedidos" (P8, 2026-10-04 — antes "★ Favorito"): o mesmo conceito e o mesmo nome da
- * vitrine (lib/etiquetas-vitrine.ts), marcado pela loja com a estrela do Gestor. Convive com a
- * etiqueta (promoção, novo…).
+ * vitrine (lib/etiquetas-vitrine.ts). Desde 26/10/2026 vem só da etiqueta "Mais Pedidos" do cadastro (a estrela
+ * do Gestor é Destaque). Convive com a etiqueta (promoção, novo…).
  */
 export const SELO_MAIS_PEDIDOS = { label: ROTULO_MAIS_PEDIDOS, fundo: ESTILO_SELO_MAIS_PEDIDOS.fundo, texto: ESTILO_SELO_MAIS_PEDIDOS.cor } as const
 

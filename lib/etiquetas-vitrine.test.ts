@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  ehDestaque,
   ehMaisPedidos,
   etiquetasTopo,
   etiquetasTopoLigadas,
@@ -35,11 +36,15 @@ describe('tags de topo: prioridade e limite', () => {
 })
 
 describe('migração das tags antigas (sem converter dado)', () => {
-  it('Favorito/Mais pedido → "Mais Pedidos" (selo); Edição limitada → Oferta limitada; novo → Novidade; promoção → Item promocional', () => {
-    expect(ehMaisPedidos({ tag: 'favorito' })).toBe(true)
+  it('Mais pedido → selo; Favorito/estrela → só Destaque; Edição limitada → Oferta limitada; novo → Novidade; promoção → Item promocional', () => {
+    // 26/10/2026 (pedido do dono): a estrela (Destaque) NÃO dá o selo "Mais Pedidos"; ele vem só da etiqueta.
     expect(ehMaisPedidos({ tag: 'mais_pedido' })).toBe(true)
-    expect(ehMaisPedidos({ maisVendido: true })).toBe(true)
+    expect(ehMaisPedidos({ maisVendido: true })).toBe(false)
+    expect(ehMaisPedidos({ tag: 'favorito' })).toBe(false)
     expect(ehMaisPedidos({ tag: 'novo', maisVendido: false })).toBe(false)
+    expect(ehDestaque({ maisVendido: true })).toBe(true)
+    expect(ehDestaque({ tag: 'favorito' })).toBe(true)
+    expect(ehDestaque({ tag: 'mais_pedido' })).toBe(false)
     expect(etiquetasTopo({ tag: 'favorito' }, 2, AGORA)).toEqual([])
     expect(etiquetasTopo({ tag: 'edicao_limitada' }, 2, AGORA)).toEqual(['oferta_limitada'])
     expect(etiquetasTopo({ edicaoLimitada: true }, 2, AGORA)).toEqual(['oferta_limitada'])

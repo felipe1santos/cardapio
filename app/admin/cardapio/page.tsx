@@ -193,7 +193,8 @@ function formFromItem(item: ItemCardapio): ItemFormState {
     edicaoLimitada: item.edicaoLimitada === true || item.tag === 'edicao_limitada',
     itemPromocional: item.itemPromocional === true || item.tag === 'promocao',
     // A estrela segue a mesma regra da vitrine (a tag antiga "Mais pedido"/"Favorito" vale).
-    maisVendido: item.maisVendido || item.tag === 'mais_pedido' || item.tag === 'favorito',
+    // Estrela = Destaque (seção da vitrine); a tag 'mais_pedido' é o selo, à parte (26/10/2026).
+    maisVendido: item.maisVendido || item.tag === 'favorito',
     entregaGratis: item.entregaGratis ?? false,
     servePessoas: item.servePessoas ? String(item.servePessoas) : '',
     comboEspecial: item.comboEspecial === true,
@@ -354,8 +355,8 @@ const PROPORCOES_FICHA = [{ rotulo: 'Celular', ratio: 1.1 }, { rotulo: 'Computad
 // ─── Item-level sub-components ───────────────────────────────────────────────
 
 /**
- * Estrela "Mais Pedidos", clicável na própria lista (e no cadastro do produto). O item marcado ganha o
- * selo "Mais Pedidos" sobre a foto e entra na seção "Mais Pedidos" da vitrine (e no QR); não muda a posição.
+ * Estrela "Destaque", clicável na própria lista (e no cadastro do produto). O item marcado entra na seção
+ * "Destaques" da vitrine; não muda a posição. O selo "Mais Pedidos" é a etiqueta do produto, à parte (26/10/2026).
  */
 function BotaoFavorito({ item, salvando, desabilitado, onAlternar }: { item: ItemCardapio; salvando: boolean; desabilitado: boolean; onAlternar: () => void }) {
   return (
@@ -364,8 +365,8 @@ function BotaoFavorito({ item, salvando, desabilitado, onAlternar }: { item: Ite
       onClick={onAlternar}
       disabled={salvando || desabilitado}
       aria-pressed={item.maisVendido}
-      aria-label={item.maisVendido ? `Tirar ${item.nome} dos Mais Pedidos` : `Mostrar ${item.nome} como Mais Pedidos`}
-      title={item.maisVendido ? 'Mais Pedidos — clique para tirar' : 'Mostrar como Mais Pedidos'}
+      aria-label={item.maisVendido ? `Tirar ${item.nome} dos Destaques` : `Colocar ${item.nome} nos Destaques`}
+      title={item.maisVendido ? 'Destaque — clique para tirar' : 'Colocar nos Destaques'}
       data-testid="favorito-item"
       className="toque-icone flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-[4px] hover:bg-[#FEF3C7] disabled:opacity-50"
     >
@@ -1010,7 +1011,7 @@ export default function CardapioPage() {
       await definirFavorito(supabase, item.id, novo)
     } catch {
       setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, maisVendido: !novo } : i)))
-      setError('Não foi possível salvar o "Mais Pedidos".')
+      setError('Não foi possível salvar o Destaque.')
     } finally {
       setFavoritoSalvandoId(null)
     }
@@ -2317,7 +2318,7 @@ export default function CardapioPage() {
                       </label>
                       <button type="button" onClick={() => setAbaProduto('etiquetas')} className="cf text-left" data-testid="produto-etiqueta-atalho">
                         <span className="cf-campo flex items-center justify-between gap-2 !text-[13px]" style={{ display: 'flex' }}>
-                          <span className="truncate">{[form.novidade && 'Novidade', form.comboEspecial && 'Combo', form.edicaoLimitada && 'Oferta limitada', form.itemPromocional && 'Promocional', form.tagPersonalizadaLigada && form.tagPersonalizada].filter(Boolean).join(', ') || 'Nenhuma'}</span>
+                          <span className="truncate">{[form.tag === 'mais_pedido' && 'Mais Pedidos', form.novidade && 'Novidade', form.comboEspecial && 'Combo', form.edicaoLimitada && 'Oferta limitada', form.itemPromocional && 'Promocional', form.tagPersonalizadaLigada && form.tagPersonalizada].filter(Boolean).join(', ') || 'Nenhuma'}</span>
                           <ChevronRight className="h-4 w-4 flex-shrink-0 text-[#9ca3af]" />
                         </span>
                         <span className="cf-rotulo" style={{ top: 0, fontSize: '11.5px', fontWeight: 600 }}>Etiqueta</span>
