@@ -94,3 +94,29 @@ Menuzia. Tela: Super Admin › Saúde do sistema. Teste: `POST /api/cron/saude` 
 - Rodada 2: `font-bold` (700) na tela nova → `font-semibold` (regra do painel: peso máx. 600).
 - Rodada 3: 3.208 ok; 1 falha por tempo (6,1 s) em `app/mesa/[token]/visualizacao.test.tsx`, que não foi mexido —
   rodado sozinho: 8/8 em 4,7 s (máquina carregada por outra sessão).
+
+## Publicado (28/10, ~20h BRT)
+- main `0a23d851` (2 deploys: 5ede23f1 e 0a23d851). 0229 e 0230 aplicadas e registradas em `schema_migrations`.
+- Depois: site 200, vitrine 200, 3 Assistentes vistos há 0–2 s, 9 crons batendo, POST do pedido 16º/min → 429.
+- Requisições: 532/min depois × 510/min antes (pico) — as correções são proteção contra pico, não corte do uso normal.
+- Vigia: 1ª foto 22:58 UTC (disco 57%, memória 69% livre, carga 0,89). Mandou 2 avisos por push (WhatsApp de alertas
+  ainda sem QR): "WhatsApp da Nossa Cozinha caído há 9 dias" e o resumo.
+- Instância `menuzia-alertas` criada no Evolution (sem QR). A da Menuzia (`824468ae…`) está `close` desde 23/10 — por isso
+  o alerta de custo antigo (`avisarSuporte`) também não chegava pelo WhatsApp.
+
+## Não feito nesta sessão
+- **Etapa 5 (vídeo):** escolher trecho/capa numa linha do tempo, checagem antes de enviar, teste de 2 compressões,
+  apagar original. Já existe: corte 15 s, 720p, 1,5 Mbps, sem áudio, capa, limite 50 MB e 20/h por loja.
+- Limpeza das tabelas da Etapa 2 (pede ok do dono).
+- Limite por minuto de envio no WhatsApp: hoje já limitado por rodada (fila 20/min, campanhas 5/min, fotos 30/min por
+  loja); um limite no envio direto poderia perder aviso de pedido — fica como proposta.
+- Limite por IP nos webhooks de parceiros (MP, 99Food, entregas): risco de recusar aviso legítimo; ficam com tamanho
+  máximo e assinatura.
+
+## Depende do dono
+1. Ler o QR da instância de alertas: `cd C:\projetos\cardapio-estab-main` → `node scripts/saude/qr-alertas.mjs`
+   (celular que vai MANDAR os alertas › Aparelhos conectados). Depois disso mando o alerta de teste.
+2. Confirmar o número que recebe: hoje é o do suporte (`lib/suporte.ts`); outro → `ALERTAS_WHATSAPP_NUMERO` no Coolify.
+3. Ok para a limpeza da Etapa 2 (só `whatsapp.conexao` > 30 d, `whatsapp_eventos` > 90 d…).
+4. Ok para remontar `/` da VPS sem `discard` e limpar 35 GB de imagens/cache do Docker.
+5. Disco C: deste PC em 98,6% — builds e testes locais podem falhar.
