@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Abas, Card, FIN_COR, Kpi } from '@/components/graficos/kit-meta'
-import { CORES_GRAFICO, GraficoFinanceiro, Medidor } from '@/components/graficos/grafico'
+import { CORES_GRAFICO, GraficoFinanceiro } from '@/components/graficos/grafico'
 import { TabelaAnalitica, type ColunaTabela } from '@/components/dashboard/tabela-analitica'
-import { MapaPedidos, type PontoMapa } from '@/components/dashboard/mapa-pedidos'
+import { CartaoAnel, ColunasHpanel } from '@/components/dashboard/estilo-hpanel'
 import { formatarDuracao } from '@/lib/dashboard-metricas'
 
 /**
@@ -35,7 +35,6 @@ export interface DadosAnalises {
   categorias: { nome: string; valor: number }[]
   bairros: LinhaBairro[]
   rankingBairros: LinhaBairro[]
-  pontos: PontoMapa[]
 }
 
 const brl = (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -62,12 +61,9 @@ function Barra({ rotulo, valor, pct, extra, testid }: { rotulo: ReactNode; valor
   )
 }
 
-export function AnalisesAbas({ dados, filtro, mapsKey, centro, lojaCoord }: {
+export function AnalisesAbas({ dados, filtro }: {
   dados: DadosAnalises
   filtro: ReactNode
-  mapsKey?: string
-  centro: string
-  lojaCoord?: { lat: number; lng: number } | null
 }) {
   const validas = useMemo(() => ABAS.map(([id]) => id), [])
   const [aba, setAba] = useState<AbaAnalise>('pedidos')
@@ -100,7 +96,7 @@ export function AnalisesAbas({ dados, filtro, mapsKey, centro, lojaCoord }: {
       <div className="p-4 sm:p-5" data-testid="dash-analises-painel" data-aba={aba}>
         {aba === 'pedidos' && <AbaPedidos d={dados} />}
         {aba === 'entrega' && <AbaEntrega d={dados} />}
-        {aba === 'bairros' && <AbaBairros d={dados} mapsKey={mapsKey} centro={centro} lojaCoord={lojaCoord ?? null} />}
+        {aba === 'bairros' && <AbaBairros d={dados} />}
         {aba === 'produtos' && <AbaProdutos d={dados} />}
       </div>
     </section>
@@ -132,12 +128,10 @@ function AbaEntrega({ d }: { d: DadosAnalises }) {
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
       <Card titulo="Entrega e retirada" subtitulo="Participação de cada canal nos pedidos">
-        <div className="flex flex-col items-center gap-3">
-          <Medidor valor={d.canais.entrega} alerta={false} rotulo={`Entrega · ${d.canais.entrega}%`} texto={`${d.canais.entrega}%`} testid="dash54-medidor-entrega" tamanho={120} />
-          <div className="w-full">
-            <Barra rotulo="Entrega" valor={`${d.canais.entrega}%`} pct={d.canais.entrega} />
-            <Barra rotulo="Retirada" valor={`Retirada · ${d.canais.retirada}%`} pct={d.canais.retirada} />
-          </div>
+        {/* Anéis no visual do hPanel (28/10). */}
+        <div className="flex flex-col gap-3">
+          <CartaoAnel rotulo="Entrega" valor={`${d.canais.entrega}%`} complemento="/ 100%" pct={d.canais.entrega} detalhe="dos pedidos" testid="dash54-medidor-entrega" />
+          <CartaoAnel rotulo="Retirada" valor={`${d.canais.retirada}%`} complemento="/ 100%" pct={d.canais.retirada} detalhe="dos pedidos" />
         </div>
       </Card>
       <Card titulo="Formas de pagamento" subtitulo="Quanto do faturamento entrou por cada forma">
@@ -163,22 +157,14 @@ const colunasBairro: ColunaTabela<LinhaBairro>[] = [
   { id: 'participacao', titulo: 'Participação', valor: (l) => l.participacao, render: (l) => `${l.participacao.toFixed(1).replace('.', ',')}%`, alinhar: 'direita' },
 ]
 
-function AbaBairros({ d, mapsKey, centro, lojaCoord }: { d: DadosAnalises; mapsKey?: string; centro: string; lojaCoord: { lat: number; lng: number } | null }) {
-  const maior = Math.max(1, ...d.rankingBairros.map((b) => b.pedidos))
+function AbaBairros({ d }: { d: DadosAnalises }) {
   return (
     <div className="flex flex-col gap-4">
-      <Card titulo="Onde estão seus pedidos" subtitulo="Cada pino é um endereço que pediu; a área azul-clara marca os bairros que mais vendem (mais forte = mais vendas).">
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_260px]">
-          {/* No celular o mapa encosta nas bordas do card (mais área útil para o dedo). */}
-          <div className="-mx-5 sm:mx-0"><MapaPedidos apiKey={mapsKey} centro={centro} lojaCoord={lojaCoord} pontos={d.pontos} bairros={d.bairros} className="h-[360px] w-full sm:h-[380px]" /></div>
-          <div data-testid="dash54-ranking-bairros">
-            <p className="mb-3 text-[13px] font-semibold" style={{ color: FIN_COR.texto2 }}>Bairros que mais pedem</p>
-            {d.rankingBairros.length === 0 ? <p className="py-4 text-center text-[13px]" style={{ color: FIN_COR.texto2 }}>Sem pedidos com bairro.</p>
-              : d.rankingBairros.map((b, i) => (
-                <Barra key={b.id} rotulo={<><span className="mr-2 tabular-nums" style={{ color: FIN_COR.texto2 }}>{i + 1}</span>{b.bairro}</>} valor={String(b.pedidos)} extra={brl(b.receita)} pct={(b.pedidos / maior) * 100} />
-              ))}
-          </div>
-        </div>
+      {/* Sem mapa (28/10): o mapa do Google gerava requisições pagas; os bairros viram colunas. */}
+      <Card titulo="Bairros que mais pedem" subtitulo="Pedidos por bairro no período (os 10 com mais pedidos)">
+        {d.rankingBairros.length === 0 ? <p className="py-4 text-center text-[13px]" style={{ color: FIN_COR.texto2 }}>Sem pedidos com bairro.</p>
+          : <ColunasHpanel testid="dash54-ranking-bairros" formatar={inteiro}
+              itens={d.rankingBairros.map((b) => ({ id: b.id, rotulo: b.bairro, valor: b.pedidos, dica: `${b.bairro}: ${b.pedidos} pedido${b.pedidos === 1 ? '' : 's'} · ${brl(b.receita)}` }))} />}
       </Card>
       <TabelaAnalitica titulo="Análise por bairro" colunas={colunasBairro} linhas={d.bairros} ordemInicial="receita"
         busca={{ placeholder: 'Pesquise por um bairro', texto: (l) => l.bairro }} vazio="Nenhum pedido com endereço no período" />
@@ -194,12 +180,19 @@ const colunasProduto: ColunaTabela<LinhaProduto>[] = [
 ]
 
 function AbaProdutos({ d }: { d: DadosAnalises }) {
-  const maior = Math.max(1, ...d.categorias.map((c) => c.valor))
+  const total = Math.max(1, d.receita)
   return (
     <div className="flex flex-col gap-4">
-      <Card titulo="Faturamento por categoria" subtitulo="As 6 categorias que mais faturaram no período">
+      <Card titulo="Faturamento por categoria" subtitulo="As 6 categorias que mais faturaram no período · o anel é a parte do faturamento total">
         {d.categorias.length === 0 ? <p className="py-4 text-center text-[13px]" style={{ color: FIN_COR.texto2 }}>Sem dados no período.</p>
-          : d.categorias.map((c) => <Barra key={c.nome} rotulo={c.nome} valor={brl(c.valor)} pct={(c.valor / maior) * 100} testid="dash54-categoria" />)}
+          : (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {d.categorias.map((c) => {
+                const pct = Math.round((c.valor / total) * 1000) / 10
+                return <CartaoAnel key={c.nome} rotulo={c.nome} valor={brl(c.valor)} pct={pct} detalhe={`${pct.toLocaleString('pt-BR')}% do faturamento`} testid="dash54-categoria" />
+              })}
+            </div>
+          )}
       </Card>
       <TabelaAnalitica titulo="Performance dos produtos" colunas={colunasProduto} linhas={d.produtos} ordemInicial="receita"
         busca={{ placeholder: 'Pesquise por um produto', texto: (l) => l.nome }} vazio="Nenhum produto vendido no período" />

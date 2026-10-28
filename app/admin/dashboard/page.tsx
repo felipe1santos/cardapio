@@ -43,8 +43,6 @@ import {
   type PresetPeriodo,
 } from '@/lib/dashboard-metricas'
 
-const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
-
 const PAY_LABEL: Record<string, string> = { pix: 'Pix', cartao: 'Cartão', dinheiro: 'Dinheiro' }
 
 /** Cor de cada indicador: fundo claro da bolha + cor do ícone. */
@@ -149,9 +147,6 @@ export default function DashboardPage() {
   const [dados, setDados] = useState<DadosDashboard>({ pedidos: [], grupoPorItem: {}, clientes: [] })
   // Desde quando os pedidos completos já carregados vão (achado #8): null = tudo; undefined = nada ainda.
   const [carregadoDesde, setCarregadoDesde] = useState<number | null | undefined>(undefined)
-  const [lojaLocal, setLojaLocal] = useState('')
-  // Onde a loja fica (Ajustes): o mapa abre nela. Sem coordenadas, não geocodifica (docs/REGRAS-DE-CUSTO.md).
-  const [lojaCoord, setLojaCoord] = useState<{ lat: number; lng: number } | null>(null)
   const [lojaSlug, setLojaSlug] = useState('')
   const [restauranteId, setRestauranteId] = useState<string | null>(null)
   // undefined = carregando; null = rastreio ainda não instalado no banco.
@@ -186,8 +181,7 @@ export default function DashboardPage() {
       carregarTemposEntrega(supabase, id).then((t) => active && setTemposEntrega(t))
       const loja = await buscarConfigLoja(supabase, id).catch(() => null)
       if (!active || !loja) return
-      setLojaLocal([loja.cep, loja.endereco].map((s) => s.trim()).filter(Boolean).join(', ')); setLojaSlug(loja.slug)
-      setLojaCoord(loja.latitude != null && loja.longitude != null ? { lat: Number(loja.latitude), lng: Number(loja.longitude) } : null)
+      setLojaSlug(loja.slug)
     })()
     return () => {
       active = false
@@ -323,29 +317,7 @@ export default function DashboardPage() {
       .sort((a, b) => b.valor - a.valor)
       .slice(0, 6)
 
-    // Mapa de calor
-    const porEndereco: Record<string, { weight: number; rua: string; bairro: string; pedidoId: string }> = {}
-    for (const p of pedidos) {
-      const partes = [p.enderecoRua.trim(), p.enderecoNumero.trim(), p.enderecoBairro.trim()].filter(Boolean)
-      if (!partes.length) continue
-      const chave = partes.join(', ')
-      porEndereco[chave] = {
-        weight: (porEndereco[chave]?.weight ?? 0) + 1,
-        // Um pedido do endereço: as coordenadas dele (gravadas no pedido, pelo servidor) servem ao endereço.
-        pedidoId: porEndereco[chave]?.pedidoId ?? p.id,
-        rua: p.enderecoRua.trim(),
-        bairro: p.enderecoBairro.trim(),
-      }
-    }
-    const heatPoints = Object.entries(porEndereco).map(([address, v]) => ({
-      address,
-      pedidoId: v.pedidoId,
-      weight: v.weight,
-      rua: v.rua,
-      bairro: v.bairro,
-    }))
-
-    const rankingBairros = [...bairros].sort((a, b) => b.pedidos - a.pedidos || b.receita - a.receita).slice(0, 6)
+    const rankingBairros = [...bairros].sort((a, b) => b.pedidos - a.pedidos || b.receita - a.receita).slice(0, 10)
 
     return {
       pedidos,
@@ -366,7 +338,6 @@ export default function DashboardPage() {
       pagamentos,
       canais,
       categorias,
-      heatPoints,
       temAnterior: Boolean(anteriorIntervalo),
       deltaReceita: variacao(receita, receitaAnterior),
       deltaTicket: variacao(ticket, ticketAnterior),
@@ -631,12 +602,8 @@ export default function DashboardPage() {
             categorias: m.categorias,
             bairros: m.bairros,
             rankingBairros: m.rankingBairros,
-            pontos: m.heatPoints,
           }}
           filtro={filtroPeriodo}
-          mapsKey={MAPS_KEY}
-          centro={lojaLocal}
-          lojaCoord={lojaCoord}
         />
       </div>
     </>
