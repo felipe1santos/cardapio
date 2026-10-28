@@ -18,6 +18,10 @@ import { statusDoProvedor } from './campanhas'
 import { ehSaidaNossa } from './historico'
 import { COLUNAS_CONFIG_AUTO, processarMensagemAuto, type ConfigAuto } from '@/lib/robo-auto/motor'
 import { aplicarEventoConexao } from '@/lib/whatsapp-monitor'
+import { eventoConexaoRepetido } from './conexao-repetida'
+
+/** Últimos eventos de conexão vistos (por segredo + estado + motivo), em memória do processo. */
+const conexoesVistas = new Map<string, number>()
 
 export const SEGREDO_VALIDO = /^[0-9a-f]{48}$/
 
@@ -99,6 +103,13 @@ async function processarEntradaInterna(admin: SupabaseClient, segredo: string, c
   const r: ResumoInterno = { status: 200, processadas: 0, ignoradas: {}, respostas: 0 }
   if (!SEGREDO_VALIDO.test(segredo)) return { ...r, status: 404 }
 
+  const evento = provedorAtual().interpretarWebhook(corpo)
+  // Instância oscilando (27/10): o mesmo evento de conexão em 60 s sai antes de qualquer consulta ao banco.
+  if (evento.conexao && eventoConexaoRepetido(conexoesVistas, segredo, evento.conexao, Date.now())) {
+    contar(r, 'conexao_repetida')
+    return r
+  }
+
   const { data: cfg } = await admin
     .from('whatsapp_robo_config')
     .select(`boas_vindas, ${COLUNAS_CONFIG_AUTO}`)
@@ -114,7 +125,6 @@ async function processarEntradaInterna(admin: SupabaseClient, segredo: string, c
   if (!lojaRow) return { ...r, status: 404 }
   r.restauranteId = lojaRow.id as string
 
-  const evento = provedorAtual().interpretarWebhook(corpo)
   if (evento.instancia && lojaRow.evolution_instance && evento.instancia !== lojaRow.evolution_instance) {
     contar(r, 'instancia_de_outra_loja')
     return r

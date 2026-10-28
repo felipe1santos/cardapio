@@ -24,12 +24,28 @@ function supabaseFalso() {
   return { from, rpc: vi.fn() } as unknown as SupabaseClient
 }
 
-describe('webhook da loja: evento de conexão', () => {
+// Import de ./entrada é pesado (robô, IA, fila): com a máquina carregada passava dos 5 s padrão.
+describe('webhook da loja: evento de conexão', { timeout: 20_000 }, () => {
   it('aciona o monitor da loja com estado e motivo, e não vira mensagem', async () => {
     const { processarEntrada } = await import('./entrada')
     const r = await processarEntrada(supabaseFalso(), SEGREDO, { event: 'connection.update', instance: 'inst-1', data: { state: 'close', statusReason: 401 } })
     expect(r.status).toBe(200)
     expect(aplicarEventoConexao).toHaveBeenCalledWith(expect.anything(), 'loja-1', { estado: 'close', motivo: 401 })
     expect(r.processadas).toBe(0)
+  })
+
+  it('27/10: o mesmo evento repetido em 60 s (Evolution oscilando) sai sem nenhuma consulta ao banco', async () => {
+    const { processarEntrada } = await import('./entrada')
+    aplicarEventoConexao.mockClear()
+    const db = supabaseFalso()
+    const corpo = { event: 'connection.update', instance: 'inst-1', data: { state: 'connecting', statusReason: 200 } }
+    await processarEntrada(db, SEGREDO, corpo)
+    const consultas = (db.from as unknown as { mock: { calls: unknown[] } }).mock.calls.length
+    for (let i = 0; i < 50; i++) await processarEntrada(db, SEGREDO, corpo)
+    expect(aplicarEventoConexao).toHaveBeenCalledTimes(1)
+    expect((db.from as unknown as { mock: { calls: unknown[] } }).mock.calls.length).toBe(consultas)
+    // Estado diferente passa na hora.
+    await processarEntrada(db, SEGREDO, { ...corpo, data: { state: 'open', statusReason: 200 } })
+    expect(aplicarEventoConexao).toHaveBeenCalledTimes(2)
   })
 })

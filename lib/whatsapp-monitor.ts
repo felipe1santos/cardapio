@@ -4,6 +4,7 @@ import { enviarWhatsapp } from '@/lib/whatsapp'
 import { criarAlerta } from '@/lib/financeiro/alertas'
 import { avisarPainelPedidoNovo } from '@/lib/push/painel-pedidos'
 import { registrarAuditoria } from '@/lib/auditoria'
+import { podeReconectarSozinho } from '@/lib/mensageria/conexao-repetida'
 
 /**
  * Monitor do WhatsApp (Etapa 3, 20/10). Checagem LEVE (1 GET connectionState por loja, API da Evolution, gratuita), com
@@ -51,6 +52,9 @@ export function caiuParaPainel(estado: string | null, caiuEm: string | null, ago
   return true
 }
 
+/** Reconexões automáticas por loja na última hora (em memória do processo). */
+const reconexoes = new Map<string, number[]>()
+
 /** Tenta retomar a sessão sem QR. Devolve o estado depois da tentativa (ou null se a Evolution não respondeu). */
 async function tentarReconectar(instance: string): Promise<EstadoConexao | null> {
   try {
@@ -77,7 +81,7 @@ async function reenviarAvisosFalhados(admin: SupabaseClient, loja: Loja, desde: 
 }
 
 /** Checa UMA loja (com throttle). `forcar` ignora o throttle (botão/manual). */
-export async function monitorarLoja(admin: SupabaseClient, loja: Loja, opcoes: { forcar?: boolean; agora?: number } = {}): Promise<ResultadoMonitor> {
+export async function monitorarLoja(admin: SupabaseClient, loja: Loja, opcoes: { forcar?: boolean; agora?: number; motivo?: number | string | null } = {}): Promise<ResultadoMonitor> {
   const agora = opcoes.agora ?? Date.now()
   if (!loja.evolution_instance) {
     if (loja.whatsapp_estado !== 'sem_instancia') await admin.from('restaurantes').update({ whatsapp_estado: 'sem_instancia', whatsapp_estado_em: new Date(agora).toISOString(), whatsapp_caiu_em: null }).eq('id', loja.id)
@@ -97,7 +101,10 @@ export async function monitorarLoja(admin: SupabaseClient, loja: Loja, opcoes: {
   // instância saudável com resposta lenta, poderia derrubar a sessão.
   if (novo === 'close' && !loja.whatsapp_caiu_em) {
     const manual = !!loja.whatsapp_desconexao_manual_em && agora - Date.parse(loja.whatsapp_desconexao_manual_em) < 30 * 60_000
-    if (!manual) {
+    // 440/401 e mais de 3 por hora: não reconecta (27/10, Ponto 400 — reconectar brigava com a outra sessão).
+    const tentativas = reconexoes.get(loja.id) ?? []
+    if (!manual && podeReconectarSozinho(opcoes.motivo, tentativas, agora)) {
+      reconexoes.set(loja.id, [...tentativas.filter((t) => agora - t < 3600_000), agora])
       const depois = await tentarReconectar(loja.evolution_instance)
       if (depois === 'open') { novo = 'open'; reconectou = true }
     }
@@ -153,7 +160,7 @@ export async function aplicarEventoConexao(admin: SupabaseClient, restauranteId:
   if (loja.whatsapp_desconexao_manual_em && Date.now() - Date.parse(loja.whatsapp_desconexao_manual_em) < 30 * 60_000) return 'caiu_manual'
   // Mesmo estado já gravado: instância oscilando não vira uma conferência na Evolution por evento.
   if (conexao.estado === loja.whatsapp_estado) return 'pulou'
-  return monitorarLoja(admin, loja, { forcar: true })
+  return monitorarLoja(admin, loja, { forcar: true, motivo: conexao.motivo })
 }
 
 /** Cron: todas as lojas com instância. */

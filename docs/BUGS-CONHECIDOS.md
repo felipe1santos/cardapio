@@ -165,3 +165,17 @@ checagem B-n** no script.
 - **Como evitar:** "manual" compara a hora da QUEDA com a da desconexão pelo painel (não com agora). Alerta na queda +
   um lembrete depois de 24 h; queda com mais de 48 h não lembra mais (a faixa vermelha do painel continua).
 - **Teste:** `lib/whatsapp-monitor.test.ts`.
+
+## Enxurrada de eventos de conexão do WhatsApp (75 mil em 2 h) · 28/10/2026 · teste
+
+- **Onde:** webhook da loja (`processarEntrada` em `lib/mensageria/entrada.ts`) e monitor (`monitorarLoja` em
+  `lib/whatsapp-monitor.ts`).
+- **Causa:** em 27/10, 16h–18h, a instância da Ponto 400 mandou ~75 mil CONNECTION_UPDATE ("connecting", "close" 440/503).
+  Cada evento fazia ~5 consultas (config, loja, monitor, auditoria, registro) e, no "close", o monitor chamava
+  `/instance/connect` — com motivo 440 (sessão aberta em outro lugar) a reconexão derrubava a outra sessão, que derrubava
+  esta: 1.245 "reconectado" e 3.043 "caiu" em 7 dias. ~375 mil requisições em 2 h, no dia em que o Supabase bloqueou o
+  projeto por egress (19h38).
+- **Como evitar:** o mesmo evento (loja + estado + motivo) em 60 s sai antes de qualquer consulta; sem reconexão
+  automática em 440/401; no máximo 3 reconexões automáticas por loja por hora (`lib/mensageria/conexao-repetida.ts`).
+  O vigia (`lib/saude/vigia.ts`) avisa no WhatsApp do dono se as requisições passarem de 2× a média.
+- **Teste:** `lib/mensageria/conexao-repetida.test.ts`, `lib/mensageria/entrada-conexao.test.ts`.
