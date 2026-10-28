@@ -13,7 +13,7 @@ function CampoFlutuante({ id, rotulo, extra, className = '', ...props }: Compone
       <input
         id={id}
         placeholder=" "
-        className={`peer h-[54px] w-full rounded-[4px] border border-[#C4C9D0] bg-white px-[14px] text-[16px] text-[#1F2937] transition-[border-color,box-shadow] hover:border-[#1F2937] focus:border-[#0165AD] focus:shadow-[inset_0_0_0_1px_#0165AD] focus:outline-none [&:-webkit-autofill]:[-webkit-box-shadow:inset_0_0_0_1000px_#fff] ${className}`}
+        className={`peer h-[44px] w-full rounded-[4px] border border-[#C4C9D0] bg-white px-[14px] text-[16px] text-[#1F2937] transition-[border-color,box-shadow] hover:border-[#1F2937] focus:border-[#0165AD] focus:shadow-[inset_0_0_0_1px_#0165AD] focus:outline-none [&:-webkit-autofill]:[-webkit-box-shadow:inset_0_0_0_1000px_#fff] ${className}`}
         {...props}
       />
       <label
@@ -46,7 +46,7 @@ export function OlhoSenha({ visivel, alternar }: { visivel: boolean; alternar: (
       onClick={alternar}
       aria-label={visivel ? 'Esconder senha' : 'Mostrar senha'}
       aria-pressed={visivel}
-      className="flex h-[40px] w-[40px] items-center justify-center rounded-full text-[#3B3F4A] hover:bg-[#F3F4F6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F0F14]"
+      className="flex h-[36px] w-[36px] items-center justify-center rounded-full text-[#3B3F4A] hover:bg-[#F3F4F6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F0F14]"
     >
       <svg viewBox="0 0 24 24" className="h-[22px] w-[22px]" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" />
