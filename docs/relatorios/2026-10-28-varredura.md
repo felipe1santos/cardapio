@@ -87,3 +87,10 @@ bloqueio do Supabase (402). Amarelo 70% / 2×; vermelho 90% / 4×. Mesmo assunto
 amarelo→vermelho sai na hora. Resumo às 09:00. Envio: `ALERTAS_WHATSAPP_INSTANCIA` (senão a instância da Menuzia) →
 `ALERTAS_WHATSAPP_NUMERO` (senão o número do suporte, o mesmo do alerta de custo de 10/10); falhou → push no painel da
 Menuzia. Tela: Super Admin › Saúde do sistema. Teste: `POST /api/cron/saude` com `x-cron-secret`.
+
+## Checagem antes do deploy (`npm run checar`)
+- Rodada 1: guarda B2 pegou `baterCron`/`umaPorVez`/`rodarVigia` em vários crons → batida/trava viraram ajudantes da
+  guarda; a rota `/api/cron/saude` ficou só com o alerta de teste (o vigia roda só no cron do WhatsApp).
+- Rodada 2: `font-bold` (700) na tela nova → `font-semibold` (regra do painel: peso máx. 600).
+- Rodada 3: 3.208 ok; 1 falha por tempo (6,1 s) em `app/mesa/[token]/visualizacao.test.tsx`, que não foi mexido —
+  rodado sozinho: 8/8 em 4,7 s (máquina carregada por outra sessão).
