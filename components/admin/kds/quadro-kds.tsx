@@ -108,7 +108,7 @@ export function QuadroKds({
 
   return (
     <div className="fixed inset-0 z-[80] flex flex-col font-sans text-[#1F2937]" style={{ fontSize: prefs.grande ? 18 : 15, backgroundColor: e ? NAVY : '#E9ECF2' }} data-testid="kds">
-      {/* ── Barra de ferramentas (azul-marinho → azul, texto branco) ── */}
+      {/* ── Barra de ferramentas (azul-marinho → azul, texto branco). Campos com ! vencem o estilo global de campo do painel. ── */}
       <header className="relative z-[2] flex h-[60px] flex-shrink-0 items-center gap-2 px-3 text-white shadow-[0_2px_10px_rgba(2,6,23,0.35)] sm:gap-3 sm:px-4"
         style={{ background: 'linear-gradient(90deg, #0F172A 0%, #1E3A8A 55%, #1D4ED8 100%)' }}>
         <button type="button" onClick={onSair} aria-label="Voltar ao painel" title="Voltar ao painel"
@@ -129,14 +129,14 @@ export function QuadroKds({
             <span className="sr-only">Buscar pedido ou item</span>
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#BFDBFE]" aria-hidden />
             <input type="search" value={busca} onChange={(ev) => setBusca(ev.target.value)} placeholder="Buscar pedido ou item" data-testid="kds-busca"
-              className="h-[40px] w-[220px] rounded-full border border-white/25 bg-white/10 pl-9 pr-3 text-[14px] text-white outline-none placeholder:text-[#CBD5E1] focus:border-white/60 focus:bg-white/15 lg:w-[260px]" />
+              className="h-[40px] w-[220px] !rounded-full !border !border-white/25 !bg-white/10 pl-9 pr-3 !text-[14px] !text-white outline-none placeholder:text-[#CBD5E1] focus:!border-white/60 focus:!bg-white/15 focus:!shadow-none lg:w-[260px]" />
           </label>
           {setores.length > 1 && (
             <label className="relative hidden items-center lg:flex">
               <span className="sr-only">Setor</span>
               <LayoutGrid className="pointer-events-none absolute left-2.5 h-4 w-4 text-[#BFDBFE]" aria-hidden />
               <select value={setor ?? ''} onChange={(ev) => onSetor(ev.target.value || null)} data-testid="kds-setor"
-                className="h-[40px] cursor-pointer appearance-none rounded-[6px] bg-transparent pl-8 pr-7 text-[14px] font-medium text-white hover:bg-white/10 [&>option]:text-[#1F2937]">
+                className="h-[40px] cursor-pointer appearance-none !rounded-[6px] !border-0 !bg-transparent pl-8 pr-7 !text-[14px] font-medium !text-white hover:!bg-white/10 focus:!shadow-none [&>option]:text-[#1F2937]">
                 <option value="">Todos os setores</option>
                 {setores.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
