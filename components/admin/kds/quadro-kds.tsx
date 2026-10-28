@@ -3,7 +3,7 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import { resumoCurto } from '@/lib/pedido-edicao-regras'
 import {
-  Bell, Check, ChefHat, ChevronDown, Clock3, LayoutGrid, LogOut, Maximize2, Menu, Minimize2, Moon, Play, Search, Settings2, Sun,
+  Bell, Check, ChefHat, ChevronDown, Clock3, LayoutGrid, LogOut, Maximize2, Menu, Minimize2, Play, Search, Settings2,
   Timer, Type, Undo2, Utensils, X,
 } from 'lucide-react'
 import { corDoTempo, minutosDesde, totalDeItens, type LimitesTempo } from '@/lib/kds'
@@ -23,6 +23,7 @@ type Etapa = 'fila' | 'preparo' | 'prontos'
 type Tipo = 'todos' | 'entrega' | 'retirada' | 'salao'
 
 // Cores da imagem-modelo, um tom mais fundo para o texto branco em negrito ler de longe.
+// Fundo sempre azul-marinho, como na imagem-modelo (sem modo claro).
 const NAVY = '#34405A'
 const ETAPA: Record<Etapa, { cor: string; rotulo: string }> = {
   fila: { cor: '#D94848', rotulo: 'Na fila' },
@@ -88,7 +89,6 @@ export function QuadroKds({
     if (document.fullscreenElement) void document.exitFullscreen().catch(() => {})
     else void document.documentElement.requestFullscreen?.().catch(() => {})
   }
-  const e = prefs.escuro
   const termo = busca.trim().toLowerCase()
   const filtrar = (lista: Pedido[]) => lista.filter((p) =>
     (tipo === 'todos' || tipoDo(p) === tipo)
@@ -107,7 +107,7 @@ export function QuadroKds({
   ]
 
   return (
-    <div className="fixed inset-0 z-[80] flex flex-col font-sans text-[#1F2937]" style={{ fontSize: prefs.grande ? 18 : 15, backgroundColor: e ? NAVY : '#E9ECF2' }} data-testid="kds">
+    <div className="fixed inset-0 z-[80] flex flex-col font-sans text-[#1F2937]" style={{ fontSize: prefs.grande ? 18 : 15, backgroundColor: NAVY }} data-testid="kds">
       {/* ── Barra de ferramentas (azul-marinho → azul, texto branco). Campos com ! vencem o estilo global de campo do painel. ── */}
       <header className="relative z-[2] flex h-[60px] flex-shrink-0 items-center gap-2 px-3 text-white shadow-[0_2px_10px_rgba(2,6,23,0.35)] sm:gap-3 sm:px-4"
         style={{ background: 'linear-gradient(90deg, #0F172A 0%, #1E3A8A 55%, #1D4ED8 100%)' }}>
@@ -162,7 +162,6 @@ export function QuadroKds({
             </button>
             {menu && (
               <div role="menu" className="absolute right-0 top-[50px] w-[240px] overflow-hidden rounded-[6px] border border-[#E5E7EB] bg-white py-1 text-[#1F2937] shadow-[0_8px_24px_rgba(16,24,40,0.18)]">
-                <ItemMenu icone={e ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />} onClick={() => onPrefs({ ...prefs, escuro: !e })}>{e ? 'Fundo claro' : 'Fundo escuro'}</ItemMenu>
                 <ItemMenu icone={<Type className="h-4 w-4" />} onClick={() => onPrefs({ ...prefs, grande: !prefs.grande })}>{prefs.grande ? 'Letra normal' : 'Letra grande'}</ItemMenu>
                 <ItemMenu icone={<Settings2 className="h-4 w-4" />} onClick={() => { setConfig((v) => !v); setMenu(false) }}>Tempos do cronômetro</ItemMenu>
                 <ItemMenu icone={cheia ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />} onClick={() => { telaCheia(); setMenu(false) }}>{cheia ? 'Sair da tela cheia' : 'Tela cheia'}</ItemMenu>
@@ -200,7 +199,7 @@ export function QuadroKds({
             const ativo = tipo === x.chave
             return (
               <button key={x.chave} type="button" onClick={() => setTipo(x.chave)} aria-pressed={ativo} data-testid={`kds-tipo-${x.chave}`}
-                className={`h-[44px] rounded-full px-5 text-[14px] font-semibold transition-colors ${ativo ? 'bg-[#2563EB] text-white shadow-[0_2px_6px_rgba(37,99,235,0.45)]' : e ? 'bg-[#4A5671] text-white hover:bg-[#56637F]' : 'bg-white text-[#374151] hover:bg-[#F3F4F6]'}`}>
+                className={`h-[44px] rounded-full px-5 text-[14px] font-semibold transition-colors ${ativo ? 'bg-[#2563EB] text-white shadow-[0_2px_6px_rgba(37,99,235,0.45)]' : 'bg-[#4A5671] text-white hover:bg-[#56637F]'}`}>
                 {x.rotulo}
               </button>
             )
@@ -211,9 +210,9 @@ export function QuadroKds({
             const ativo = !!x.chave && etapa === x.chave
             const bolinha = (
               <>
-                {n > 0 && <span className={`absolute right-1/2 top-[19px] h-[2px] w-full ${e ? 'bg-white/60' : 'bg-[#9CA3AF]'}`} aria-hidden />}
+                {n > 0 && <span className={`absolute right-1/2 top-[19px] h-[2px] w-full bg-white/60`} aria-hidden />}
                 <span className={`relative z-[1] grid h-[40px] min-w-[40px] place-items-center rounded-full border-[3px] px-1 text-[16px] font-semibold tabular-nums text-white transition-colors ${ativo ? 'border-white bg-[#2563EB]' : 'border-white/80 bg-[#1E3A8A]'}`}>{x.qtd}</span>
-                <span className={`mt-1 text-[12px] font-semibold leading-tight ${e ? 'text-white' : 'text-[#1F2937]'}`}>{x.rotulo}</span>
+                <span className={`mt-1 text-[12px] font-semibold leading-tight text-white`}>{x.rotulo}</span>
               </>
             )
             return (
@@ -226,7 +225,7 @@ export function QuadroKds({
             )
           })}
         </ol>
-        <p className={`hidden text-right text-[13px] font-medium lg:block ${e ? 'text-white/85' : 'text-[#374151]'}`} data-testid="kds-contagem">
+        <p className={`hidden text-right text-[13px] font-medium lg:block text-white/85`} data-testid="kds-contagem">
           {ativos.length} na cozinha{atrasados > 0 ? ` · ${atrasados} atrasado${atrasados > 1 ? 's' : ''}` : ''}
         </p>
       </div>
@@ -234,7 +233,7 @@ export function QuadroKds({
       <main className="flex min-h-0 flex-1 gap-3 px-3 pb-3 sm:px-4">
         <section className="min-h-0 flex-1 overflow-y-auto pr-1" aria-label="Pedidos" data-testid="kds-quadro">
           {totalVisivel === 0 ? (
-            <div className={`mt-16 text-center ${e ? 'text-white/85' : 'text-[#6B7280]'}`}>
+            <div className={"mt-16 text-center text-white/85"}>
               <ChefHat className="mx-auto mb-2 h-10 w-10 opacity-70" aria-hidden />
               <p className="text-[1em] font-semibold">{carregando ? 'Carregando…' : termo || tipo !== 'todos' || etapa ? 'Nenhum pedido com esse filtro.' : 'Nada na cozinha agora.'}</p>
               {!carregando && !termo && tipo === 'todos' && !etapa && <p className="mt-1 text-[0.85em]">Pedidos aceitos no Painel aparecem aqui.</p>}
