@@ -230,7 +230,8 @@ export function QuadroKds({
         </p>
       </div>
 
-      <main className="flex min-h-0 flex-1 gap-3 px-3 pb-3 sm:px-4">
+      {/* div, não <main>: a regra global "[data-admin-shell] main" pintaria esta área de branco. */}
+      <div className="flex min-h-0 flex-1 gap-3 px-3 pb-3 sm:px-4">
         <section className="min-h-0 flex-1 overflow-y-auto pr-1" aria-label="Pedidos" data-testid="kds-quadro">
           {totalVisivel === 0 ? (
             <div className={"mt-16 text-center text-white/85"}>
@@ -276,7 +277,7 @@ export function QuadroKds({
             ))}
           </ul>
         </aside>
-      </main>
+      </div>
 
       {destaque && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 p-3" onMouseDown={onFecharDestaque} data-testid="kds-destaque">
