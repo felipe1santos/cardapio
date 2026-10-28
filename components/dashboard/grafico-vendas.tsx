@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { marcasX, marcasY } from '@/components/graficos/grafico'
 import { Abas } from '@/components/graficos/kit-meta'
 import { escolherAgrupamento, montarBaldes, resumir, type Balde, type PedidoGrafico } from '@/lib/dashboard-grafico'
@@ -13,7 +13,8 @@ import { comparacaoGrafico, type Intervalo } from '@/lib/dashboard-metricas'
  * Lucro e margem só para dono e gerente (custo gravado na venda: ficha técnica ou preço de custo do cardápio).
  */
 type Aba = 'faturamento' | 'pedidos' | 'ticket'
-const COR = { azul: '#1877F2', area: '#E7F0FD', verde: '#0A8F4E', cinza: '#9AA4AE', texto: '#1C2B33', eixo: '#465A69', grade: '#EEEEEE', hover: '#BABDC2', pdv: '#32CDCD', mesa: '#F5A623', media: '#007A80' }
+// Roxo e área em degradê no estilo dos gráficos de uso do hPanel (28/10).
+const COR = { azul: '#673DE6', verde: '#0A8F4E', cinza: '#9AA4AE', texto: '#1C2B33', eixo: '#465A69', grade: '#EEEEEE', hover: '#BABDC2', pdv: '#32CDCD', mesa: '#F5A623', media: '#007A80' }
 const brl = (c: number) => (c / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const brlEixo = (c: number) => { const r = c / 100; return r >= 1000 ? `R$ ${(r / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mil` : `R$ ${Math.round(r)}` }
 const pct = (v: number) => `${v.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`
@@ -83,6 +84,7 @@ type Serie = { chave: string; nome: string; valores: number[]; cor: string; tipo
 
 function Desenho({ aba, baldes, ant, temLucro, ocultas, alternar }: { aba: Aba; baldes: Balde[]; ant: Balde[]; temLucro: boolean; ocultas: Set<string>; alternar: (k: string) => void }) {
   const caixa = useRef<HTMLDivElement>(null)
+  const idArea = `gv-area-${useId().replace(/:/g, '')}`
   const [largura, setLargura] = useState(640)
   const [foco, setFoco] = useState<number | null>(null)
   useEffect(() => {
@@ -144,6 +146,12 @@ function Desenho({ aba, baldes, ant, temLucro, ocultas, alternar }: { aba: Aba; 
       <div ref={caixa} className="relative touch-pan-y select-none" data-testid="grafico-desenho"
         onPointerMove={(e) => setFoco(indiceDe(e.clientX))} onPointerDown={(e) => setFoco(indiceDe(e.clientX))} onPointerLeave={(e) => { if (e.pointerType === 'mouse') setFoco(null) }}>
         <svg width={largura} height={altura} role="img" aria-label={`Gráfico de ${aba}`} className="block max-w-full">
+          <defs>
+            <linearGradient id={idArea} x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0" stopColor={COR.azul} stopOpacity="0.2" />
+              <stop offset="1" stopColor={COR.azul} stopOpacity="0" />
+            </linearGradient>
+          </defs>
           {ticks.map((t) => <g key={t}><line x1={esq} x2={largura - dir} y1={y(t)} y2={y(t)} stroke={COR.grade} /><text x={esq - 6} y={y(t) + 4} textAnchor="end" fontSize="11" fill={COR.eixo}>{fmtEixo(t)}</text></g>)}
           {marcas.map((i) => {
             // Primeiro e último rótulo encostados na borda: alinham para dentro (não cortam "9 out").
@@ -158,12 +166,12 @@ function Desenho({ aba, baldes, ant, temLucro, ocultas, alternar }: { aba: Aba; 
           })}
           {!empilhado && visiveis.filter((s) => s.tipo === 'area').map((s) => (
             <g key={s.chave}>
-              <path d={`${caminho(s.valores)} L${x(n - 1)},${y(Math.max(0, yMin))} L${x(0)},${y(Math.max(0, yMin))} Z`} fill={COR.area} />
-              <path d={caminho(s.valores)} fill="none" stroke={s.cor} strokeWidth="2" />
+              <path d={`${caminho(s.valores)} L${x(n - 1)},${y(Math.max(0, yMin))} L${x(0)},${y(Math.max(0, yMin))} Z`} fill={`url(#${idArea})`} />
+              <path d={caminho(s.valores)} fill="none" stroke={s.cor} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
             </g>
           ))}
           {media !== null && <line x1={esq} x2={largura - dir} y1={y(media)} y2={y(media)} stroke={COR.media} strokeDasharray="6 4" data-testid="grafico-media" />}
-          {!empilhado && visiveis.filter((s) => s.tipo === 'linha').map((s) => <path key={s.chave} d={caminho(s.valores)} fill="none" stroke={s.cor} strokeWidth="2" strokeDasharray={s.traco} />)}
+          {!empilhado && visiveis.filter((s) => s.tipo === 'linha').map((s) => <path key={s.chave} d={caminho(s.valores)} fill="none" stroke={s.cor} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" strokeDasharray={s.traco} />)}
           {foco !== null && !empilhado && visiveis.map((s) => <circle key={s.chave} cx={x(foco)} cy={y(s.valores[foco])} r="4" fill="#fff" stroke={s.cor} strokeWidth="2" />)}
         </svg>
         {b && foco !== null && (

@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
 import { ICONES } from '@/lib/icones-painel'
 import { textoVariacao, type EtapaFunilVitrine } from '@/lib/dashboard-metricas'
 import { MiniGrafico } from '@/components/dashboard/mini-grafico'
@@ -13,6 +14,9 @@ import { MiniGrafico } from '@/components/dashboard/mini-grafico'
  * ver onde o cliente desiste sem ler número nenhum.
  *
  * A cor é a mesma em todos de propósito: o que diferencia é a altura.
+ *
+ * O bloco é um líquido (28/10): ao abrir, chacoalha e vai assentando até
+ * parar na rampa. Com "reduzir movimento" do sistema, já aparece parado.
  */
 const ALTURA_BLOCO = 112
 // Piso para a última etapa continuar visível quando a conversão é baixa.
@@ -60,17 +64,7 @@ export function CartaoFunil({ etapa }: { etapa: EtapaFunilVitrine }) {
       </div>
 
       <div className="relative mt-3" style={{ height: ALTURA_BLOCO }}>
-        <svg
-          viewBox={`0 0 100 ${ALTURA_BLOCO}`}
-          preserveAspectRatio="none"
-          className="absolute inset-0 h-full w-full"
-          aria-hidden="true"
-        >
-          <polygon
-            points={`0,${esquerda} 100,${direita} 100,${ALTURA_BLOCO} 0,${ALTURA_BLOCO}`}
-            fill="var(--adm-funil)"
-          />
-        </svg>
+        <Liquido esquerda={esquerda} direita={direita} />
         <div className="absolute inset-x-0 bottom-0 px-4 pb-3 text-white">
           <p className="text-[15px] font-semibold leading-none">{etapa.pct}%</p>
           <p className="mt-1 text-[11px] font-medium text-white/90">
@@ -79,5 +73,62 @@ export function CartaoFunil({ etapa }: { etapa: EtapaFunilVitrine }) {
         </div>
       </div>
     </div>
+  )
+}
+
+const DURACAO = 4200
+// A superfície nunca desce até o texto branco do rodapé (fica legível durante o balanço).
+const LIMITE = ALTURA_BLOCO - 44
+
+function superficie(esquerda: number, direita: number, t: number, fase: number): string {
+  const s = t / 1000
+  const amorte = Math.exp(-s * 1.15)
+  let d = ''
+  for (let x = 0; x <= 100; x += 4) {
+    const u = x / 100
+    const base = esquerda + (direita - esquerda) * u
+    // Balanço de um lado para o outro + duas ondas cruzadas = turbulência que amortece.
+    const balanco = Math.cos(s * 4.2 + fase) * (u - 0.5) * 26
+    const ondas = Math.sin(u * 9 - s * 7 + fase) * 5 + Math.sin(u * 17 + s * 5.3 + fase * 2) * 2.5
+    const y = Math.min(LIMITE, base + (amorte ? (balanco + ondas) * amorte : 0))
+    d += `${x ? 'L' : 'M'}${x},${y.toFixed(2)} `
+  }
+  return `${d}L100,${ALTURA_BLOCO} L0,${ALTURA_BLOCO} Z`
+}
+
+function Liquido({ esquerda, direita }: { esquerda: number; direita: number }) {
+  const frente = useRef<SVGPathElement>(null)
+  const fundo = useRef<SVGPathElement>(null)
+
+  useEffect(() => {
+    const parar = () => {
+      frente.current?.setAttribute('d', superficie(esquerda, direita, Infinity, 0))
+      fundo.current?.setAttribute('d', superficie(esquerda, direita, Infinity, 0))
+    }
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return parar()
+    let quadro = 0
+    const inicio = performance.now()
+    const passo = (agora: number) => {
+      const t = agora - inicio
+      if (t >= DURACAO) return parar()
+      frente.current?.setAttribute('d', superficie(esquerda, direita, t, 0))
+      fundo.current?.setAttribute('d', superficie(esquerda, direita, t, 2.1))
+      quadro = requestAnimationFrame(passo)
+    }
+    quadro = requestAnimationFrame(passo)
+    return () => cancelAnimationFrame(quadro)
+  }, [esquerda, direita])
+
+  const repouso = superficie(esquerda, direita, Infinity, 0)
+  return (
+    <svg
+      viewBox={`0 0 100 ${ALTURA_BLOCO}`}
+      preserveAspectRatio="none"
+      className="absolute inset-0 h-full w-full"
+      aria-hidden="true"
+    >
+      <path ref={fundo} d={repouso} fill="var(--adm-funil)" opacity="0.35" />
+      <path ref={frente} d={repouso} fill="var(--adm-funil)" />
+    </svg>
   )
 }
