@@ -64,6 +64,19 @@ export function filtrarPorSetor(lista: Pedido[], setorDoItem: Map<string, string
     .filter((p) => p.itens.length > 0)
 }
 
+/** Painel "Status dos itens": quanto de cada item (mesmo nome + tamanho/sabor) há nos pedidos, maior quantidade primeiro. */
+export function totalDeItens(lista: Pedido[]): { nome: string; detalhe: string; quantidade: number }[] {
+  const mapa = new Map<string, { nome: string; detalhe: string; quantidade: number }>()
+  for (const p of lista) for (const i of p.itens) {
+    const detalhe = [i.tamanhoNome, i.saborNome].filter(Boolean).join(' · ')
+    const chave = `${i.nome}|${detalhe}`
+    const atual = mapa.get(chave)
+    if (atual) atual.quantidade += i.quantidade
+    else mapa.set(chave, { nome: i.nome, detalhe, quantidade: i.quantidade })
+  }
+  return [...mapa.values()].sort((a, b) => b.quantidade - a.quantidade)
+}
+
 // ── Demonstração: pedidos fictícios para os prints (não lê nem grava nada) ─────────────────────────────────────────
 export type CenarioDemo = 'novo' | 'atrasado' | 'varios'
 export const SETORES_DEMO = new Map([['d-burger', 'Lanches'], ['d-batata', 'Porções'], ['d-coca', 'Bebidas'], ['d-pizza', 'Pizzas'], ['d-acai', 'Açaí']])

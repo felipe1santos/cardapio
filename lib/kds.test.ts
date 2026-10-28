@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { colunasKds, corDoTempo, filtrarPorSetor, lerLimites, minutosDesde, pedidosDaCozinha, pedidosDemo, setoresDosPedidos } from './kds'
+import { colunasKds, corDoTempo, filtrarPorSetor, lerLimites, minutosDesde, pedidosDaCozinha, pedidosDemo, setoresDosPedidos, totalDeItens } from './kds'
 import type { Pedido } from './queries/pedidos'
 
 const ped = (x: Partial<Pedido>): Pedido => ({ id: 'p', numero: 1, tipo: 'entrega', status: 'recebido', criadoEm: '2026-10-12T15:00:00Z', agendadoPara: null, itens: [], ...x } as Pedido)
@@ -85,5 +85,19 @@ describe('KDS único (12/10): Na fila → Em preparo → Prontos', () => {
   it('prontos: no máximo 8', () => {
     const muitos = Array.from({ length: 12 }, (_, i) => ped({ id: `p${i}`, status: 'pronto', atualizadoEm: `2026-10-12T15:${String(10 + i).padStart(2, '0')}:00Z` }))
     expect(colunasKds(muitos, agora, 30).prontos).toHaveLength(8)
+  })
+})
+
+describe('KDS — total de itens (painel lateral)', () => {
+  it('soma a quantidade do mesmo item (com o mesmo tamanho/sabor) entre pedidos, maior primeiro', () => {
+    const a = { ...item('a1', 'x'), nome: 'X-Bacon', quantidade: 2 }
+    const b = { ...item('b1', 'x'), nome: 'X-Bacon', quantidade: 1 }
+    const c = { ...item('c1', 'p'), nome: 'Pizza', tamanhoNome: 'Grande', quantidade: 1 }
+    const d = { ...item('d1', 'p'), nome: 'Pizza', tamanhoNome: 'Média', quantidade: 1 }
+    expect(totalDeItens([ped({ id: 'A', itens: [a, c] }), ped({ id: 'B', itens: [b, d] })])).toEqual([
+      { nome: 'X-Bacon', detalhe: '', quantidade: 3 },
+      { nome: 'Pizza', detalhe: 'Grande', quantidade: 1 },
+      { nome: 'Pizza', detalhe: 'Média', quantidade: 1 },
+    ])
   })
 })
