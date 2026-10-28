@@ -1,5 +1,7 @@
 import { AuthShell, authLink } from '@/components/auth/auth-shell'
 import { LoginCartao } from '@/components/auth/login-cartao'
+import Link from 'next/link'
+import { SUPORTE_MENUZIA } from '@/lib/suporte'
 import { signIn } from './actions'
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -28,15 +30,22 @@ export default async function LoginPage({
   // Sem o botão do Google na tela (pedido do dono, 26/10).
   return (
     <AuthShell
-      heading={
-        <>
-          Bem-vindo de volta. <span className="font-normal text-[#6B7280]">Acesse o painel do seu restaurante.</span>
-        </>
-      }
-      subtitulo="Pedidos, cardápio e entregas em um só lugar."
+      heading="Acesse sua conta"
       rodape={
         <>
-          Ainda não tem uma conta? <a href="https://menuzia.com.br" className={authLink}>Conheça o Menuzia</a>
+          <p>
+            <Link href="/recuperar-senha" className={`text-[16px] ${authLink}`}>Esqueci minha senha</Link>
+          </p>
+          <p className="pt-[8px] text-[14px]">
+            Precisa de ajuda?{' '}
+            <a href={`https://wa.me/${SUPORTE_MENUZIA.whatsapp}`} target="_blank" rel="noopener noreferrer" className={authLink}>
+              Fale com nosso suporte
+            </a>
+          </p>
+          <p className="text-[14px]">
+            Ainda não tem uma conta?{' '}
+            <a href="https://menuzia.com.br" className={authLink}>Conheça o Menuzia</a>
+          </p>
         </>
       }
     >
