@@ -1,11 +1,19 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 import { useFormStatus } from 'react-dom'
 import Link from 'next/link'
-import { authAviso, authButton, authCampo, authEntrada, authLabel } from './auth-shell'
+import { authAviso, authButton, authCampo, authEntrada, authLink } from './auth-shell'
 
 /** Formulário de login; a moldura é o AuthShell. */
+
+function IconeCampo({ children }: { children: ReactNode }) {
+  return (
+    <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0 text-[#94A3B8]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {children}
+    </svg>
+  )
+}
 
 // "Lembrar de mim": guarda só o usuário/e-mail neste aparelho para vir preenchido (nunca a senha).
 const CHAVE_LEMBRAR = 'menuzia:login-usuario'
@@ -82,8 +90,12 @@ export function LoginCartao({
       <form action={signIn} onSubmit={aoEnviar}>
         {voltar && <input type="hidden" name="next" value={voltar} />}
 
-        <label htmlFor="login-usuario" className={authLabel}>E-mail ou usuário</label>
+        <label htmlFor="login-usuario" className="sr-only">E-mail ou usuário</label>
         <div className={authCampo}>
+          <IconeCampo>
+            <path d="M20 21a8 8 0 0 0-16 0" />
+            <circle cx="12" cy="8" r="4" />
+          </IconeCampo>
           <input
             id="login-usuario"
             name="email"
@@ -94,41 +106,49 @@ export function LoginCartao({
             required
             value={usuario}
             onChange={e => setUsuario(e.target.value)}
-            placeholder="seu@email.com"
+            placeholder="E-mail ou usuário"
+            aria-describedby="login-usuario-dica"
             className={authEntrada}
           />
         </div>
+        <p id="login-usuario-dica" className="mt-[6px] text-[12px] leading-[16px] text-[#6B7280]">
+          O mesmo e-mail ou usuário cadastrado na sua loja.
+        </p>
 
-        <label htmlFor="login-senha" className={`mt-[20px] ${authLabel}`}>Senha</label>
-        <div className={authCampo}>
+        <label htmlFor="login-senha" className="sr-only">Senha</label>
+        <div className={`mt-[16px] ${authCampo}`}>
+          <IconeCampo>
+            <rect x="4" y="11" width="16" height="10" rx="2" />
+            <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+          </IconeCampo>
           <input
             id="login-senha"
             name="password"
             type={verSenha ? 'text' : 'password'}
             autoComplete="current-password"
             required
-            placeholder="••••••••"
+            placeholder="Senha"
             className={authEntrada}
           />
           <OlhoSenha visivel={verSenha} alternar={() => setVerSenha(v => !v)} />
         </div>
 
-        <div className="mt-[16px] flex items-center justify-between gap-[12px]">
-          <label className="flex cursor-pointer items-center gap-[10px] text-[15px] text-[#3B3F4A]">
+        <div className="mt-[16px] flex min-h-[44px] items-center justify-between gap-[12px]">
+          <label className="flex cursor-pointer items-center gap-[8px] text-[14px] text-[#4B5563]">
             <input
               type="checkbox"
               checked={lembrar}
               onChange={e => setLembrar(e.target.checked)}
-              className="h-[20px] w-[20px] cursor-pointer rounded-[4px] border-[#C5CAD3] accent-[#0F0F14]"
+              className="h-[18px] w-[18px] cursor-pointer rounded-[4px] border-[#C5CAD3] accent-[#0165AD]"
             />
             Lembrar de mim
           </label>
-          <Link href="/recuperar-senha" className="text-[15px] font-medium text-[#0F0F14] underline underline-offset-[3px] hover:text-[#3B3F4A]">
+          <Link href="/recuperar-senha" className={`text-[14px] ${authLink}`}>
             Esqueci minha senha
           </Link>
         </div>
 
-        <div className="mt-[28px]">
+        <div className="mt-[20px]">
           <BotaoEntrar />
         </div>
       </form>

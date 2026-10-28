@@ -25,16 +25,18 @@ export default async function LoginPage({
   const errorMessage = error ? ERROR_MESSAGES[error] ?? error : null
   const noticeMessage = notice ? NOTICE_MESSAGES[notice] ?? null : null
 
-  // Layout da imagem-modelo do dono (26/10): sem o botão do Google na tela.
+  // Sem o botão do Google na tela (pedido do dono, 26/10).
   return (
     <AuthShell
-      heading="Bem-vindo de volta!"
-      subtitulo="Acesse sua conta para continuar."
+      heading={
+        <>
+          Bem-vindo de volta. <span className="font-normal text-[#6B7280]">Acesse o painel do seu restaurante.</span>
+        </>
+      }
+      subtitulo="Pedidos, cardápio e entregas em um só lugar."
       rodape={
         <>
-          Ainda não tem uma conta?
-          <br />
-          <a href="https://menuzia.com.br" className={authLink}>Conheça o Menuzia</a>
+          Ainda não tem uma conta? <a href="https://menuzia.com.br" className={authLink}>Conheça o Menuzia</a>
         </>
       }
     >
