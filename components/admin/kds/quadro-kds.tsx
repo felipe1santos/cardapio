@@ -3,7 +3,7 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import { resumoCurto } from '@/lib/pedido-edicao-regras'
 import {
-  Bell, CalendarDays, Check, ChefHat, ChevronDown, Clock3, LayoutGrid, LogOut, Maximize2, Menu, Minimize2, Moon, Search, Settings2, Sun,
+  Bell, Check, ChefHat, ChevronDown, Clock3, LayoutGrid, LogOut, Maximize2, Menu, Minimize2, Moon, Play, Search, Settings2, Sun,
   Timer, Type, Undo2, Utensils, X,
 } from 'lucide-react'
 import { corDoTempo, minutosDesde, totalDeItens, type LimitesTempo } from '@/lib/kds'
@@ -33,7 +33,6 @@ const ABAS_ITENS: { chave: Etapa; rotulo: string }[] = [{ chave: 'fila', rotulo:
 const TIPOS: { chave: Tipo; rotulo: string }[] = [{ chave: 'todos', rotulo: 'Todos' }, { chave: 'entrega', rotulo: 'Entrega' }, { chave: 'retirada', rotulo: 'Retirada' }, { chave: 'salao', rotulo: 'Salão' }]
 
 const hora = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })
-const dia = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: 'short' })
 
 function rotuloTipo(p: Pedido): string {
   if (p.canal === 'mesa') return p.mesa ? `Mesa ${p.mesa}` : 'Mesa'
@@ -54,11 +53,11 @@ function cronometro(min: number): string {
 export interface ColunasKds { fila: Pedido[]; preparo: Pedido[]; prontos: Pedido[]; aguardandoAceite: number }
 
 export function QuadroKds({
-  colunas, agora, prefs, setores, setor, riscados, fichas, destaque, carregando, demo, ocupado,
+  colunas, agora, prefs, setores, setor, riscados, fichas, fotos = {}, destaque, carregando, demo, ocupado,
   onSetor, onRiscar, onComecar, onAbrir, onFecharDestaque, onPronto, onVoltar, onPrefs, onSair, onLogout,
 }: {
   colunas: ColunasKds; agora: number; prefs: PreferenciasKds; setores: string[]; setor: string | null; riscados: Record<string, string[]>
-  fichas: Record<string, FichaKds>; destaque: Pedido | null; carregando?: boolean; demo?: boolean; ocupado?: string | null
+  fichas: Record<string, FichaKds>; fotos?: Record<string, string>; destaque: Pedido | null; carregando?: boolean; demo?: boolean; ocupado?: string | null
   onSetor: (s: string | null) => void; onRiscar: (pedidoId: string, itemId: string) => void
   onComecar: (p: Pedido) => void; onAbrir: (p: Pedido) => void; onFecharDestaque: () => void
   onPronto: (p: Pedido) => void; onVoltar: (p: Pedido) => void
@@ -109,17 +108,18 @@ export function QuadroKds({
 
   return (
     <div className="fixed inset-0 z-[80] flex flex-col font-sans text-[#1F2937]" style={{ fontSize: prefs.grande ? 18 : 15, backgroundColor: e ? NAVY : '#E9ECF2' }} data-testid="kds">
-      {/* ── Barra de ferramentas (branca, como na imagem) ── */}
-      <header className="relative z-[2] flex h-[60px] flex-shrink-0 items-center gap-2 bg-white px-3 shadow-[0_1px_4px_rgba(16,24,40,0.18)] sm:gap-3 sm:px-4">
+      {/* ── Barra de ferramentas (azul-marinho → azul, texto branco) ── */}
+      <header className="relative z-[2] flex h-[60px] flex-shrink-0 items-center gap-2 px-3 text-white shadow-[0_2px_10px_rgba(2,6,23,0.35)] sm:gap-3 sm:px-4"
+        style={{ background: 'linear-gradient(90deg, #0F172A 0%, #1E3A8A 55%, #1D4ED8 100%)' }}>
         <button type="button" onClick={onSair} aria-label="Voltar ao painel" title="Voltar ao painel"
-          className="grid h-[44px] w-[44px] flex-shrink-0 place-items-center rounded-[4px] text-[#374151] hover:bg-[#F3F4F6]">
+          className="grid h-[44px] w-[44px] flex-shrink-0 place-items-center rounded-[6px] text-white hover:bg-white/10">
           <Menu className="h-6 w-6" aria-hidden />
         </button>
         <p className="flex flex-shrink-0 items-center gap-2">
-          <span className="grid h-[36px] w-[36px] place-items-center rounded-full bg-[#2563EB] text-white"><ChefHat className="h-5 w-5" aria-hidden /></span>
+          <span className="grid h-[36px] w-[36px] place-items-center rounded-full bg-white text-[#1D4ED8] shadow-[0_0_0_3px_rgba(255,255,255,0.18)]"><ChefHat className="h-5 w-5" aria-hidden /></span>
           <span className="leading-none">
-            <span className="block text-[11px] font-medium text-[#6B7280]">Menuzia</span>
-            <span className="block text-[18px] font-semibold tracking-tight text-[#1E3A8A]">KDS Cozinha</span>
+            <span className="block text-[11px] font-medium text-[#BFDBFE]">Menuzia</span>
+            <span className="block text-[18px] font-semibold tracking-tight text-white">KDS Cozinha</span>
           </span>
         </p>
         {demo && <span className="hidden rounded-[4px] bg-[#FEF3C7] px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-[#92400E] sm:inline">Demonstração</span>}
@@ -127,41 +127,41 @@ export function QuadroKds({
         <div className="ml-auto flex min-w-0 items-center gap-2 sm:gap-3">
           <label className="relative hidden md:block">
             <span className="sr-only">Buscar pedido ou item</span>
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9CA3AF]" aria-hidden />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#BFDBFE]" aria-hidden />
             <input type="search" value={busca} onChange={(ev) => setBusca(ev.target.value)} placeholder="Buscar pedido ou item" data-testid="kds-busca"
-              className="h-[40px] w-[220px] rounded-full border border-[#D1D5DB] bg-[#F9FAFB] pl-9 pr-3 text-[14px] outline-none focus:border-[#2563EB] focus:bg-white lg:w-[260px]" />
+              className="h-[40px] w-[220px] rounded-full border border-white/25 bg-white/10 pl-9 pr-3 text-[14px] text-white outline-none placeholder:text-[#CBD5E1] focus:border-white/60 focus:bg-white/15 lg:w-[260px]" />
           </label>
           {setores.length > 1 && (
             <label className="relative hidden items-center lg:flex">
               <span className="sr-only">Setor</span>
-              <LayoutGrid className="pointer-events-none absolute left-2.5 h-4 w-4 text-[#2563EB]" aria-hidden />
+              <LayoutGrid className="pointer-events-none absolute left-2.5 h-4 w-4 text-[#BFDBFE]" aria-hidden />
               <select value={setor ?? ''} onChange={(ev) => onSetor(ev.target.value || null)} data-testid="kds-setor"
-                className="h-[40px] cursor-pointer appearance-none rounded-[4px] bg-transparent pl-8 pr-7 text-[14px] font-medium text-[#374151] hover:bg-[#F3F4F6]">
+                className="h-[40px] cursor-pointer appearance-none rounded-[6px] bg-transparent pl-8 pr-7 text-[14px] font-medium text-white hover:bg-white/10 [&>option]:text-[#1F2937]">
                 <option value="">Todos os setores</option>
                 {setores.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
-              <ChevronDown className="pointer-events-none absolute right-2 h-4 w-4 text-[#6B7280]" aria-hidden />
+              <ChevronDown className="pointer-events-none absolute right-2 h-4 w-4 text-[#BFDBFE]" aria-hidden />
             </label>
           )}
-          <span className="hidden items-center gap-1.5 text-[14px] font-medium tabular-nums text-[#374151] sm:flex" data-testid="kds-relogio">
-            <Clock3 className="h-4 w-4 text-[#2563EB]" aria-hidden />{hora.format(new Date(agora))}
+          <span className="hidden items-center gap-1.5 text-[14px] font-medium tabular-nums text-white sm:flex" data-testid="kds-relogio">
+            <Clock3 className="h-4 w-4 text-[#BFDBFE]" aria-hidden />{hora.format(new Date(agora))}
           </span>
           <button type="button" onClick={onSair} data-testid="kds-sino"
             aria-label={colunas.aguardandoAceite > 0 ? `${colunas.aguardandoAceite} pedido(s) esperando aceite no Painel` : 'Nenhum pedido esperando aceite'}
             title={colunas.aguardandoAceite > 0 ? `${colunas.aguardandoAceite} esperando aceite no Painel` : 'Nenhum pedido esperando aceite'}
-            className="relative grid h-[44px] w-[44px] flex-shrink-0 place-items-center rounded-[4px] text-[#374151] hover:bg-[#F3F4F6]">
+            className="relative grid h-[44px] w-[44px] flex-shrink-0 place-items-center rounded-[6px] text-white hover:bg-white/10">
             <Bell className="h-5 w-5" aria-hidden />
-            {colunas.aguardandoAceite > 0 && <span className="absolute right-1.5 top-1.5 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-[#DC2626] px-1 text-[11px] font-semibold text-white">{colunas.aguardandoAceite}</span>}
+            {colunas.aguardandoAceite > 0 && <span className="absolute right-1.5 top-1.5 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-[#EF4444] px-1 text-[11px] ring-2 ring-[#1E3A8A] font-semibold text-white">{colunas.aguardandoAceite}</span>}
           </button>
           <div className="relative" ref={menuRef}>
             <button type="button" onClick={() => setMenu((v) => !v)} aria-haspopup="menu" aria-expanded={menu} data-testid="kds-perfil"
-              className="flex h-[44px] items-center gap-2 rounded-[4px] pl-1 pr-2 hover:bg-[#F3F4F6]">
-              <span className="grid h-[34px] w-[34px] place-items-center rounded-full bg-[#1E3A8A] text-[13px] font-semibold text-white">K</span>
+              className="flex h-[44px] items-center gap-2 rounded-[6px] pl-1 pr-2 hover:bg-white/10">
+              <span className="grid h-[34px] w-[34px] place-items-center rounded-full bg-white text-[13px] font-semibold text-[#1E3A8A]">K</span>
               <span className="hidden text-[14px] font-semibold sm:inline">KDS</span>
-              <ChevronDown className="h-4 w-4 text-[#6B7280]" aria-hidden />
+              <ChevronDown className="h-4 w-4 text-[#BFDBFE]" aria-hidden />
             </button>
             {menu && (
-              <div role="menu" className="absolute right-0 top-[50px] w-[240px] overflow-hidden rounded-[6px] border border-[#E5E7EB] bg-white py-1 shadow-[0_8px_24px_rgba(16,24,40,0.18)]">
+              <div role="menu" className="absolute right-0 top-[50px] w-[240px] overflow-hidden rounded-[6px] border border-[#E5E7EB] bg-white py-1 text-[#1F2937] shadow-[0_8px_24px_rgba(16,24,40,0.18)]">
                 <ItemMenu icone={e ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />} onClick={() => onPrefs({ ...prefs, escuro: !e })}>{e ? 'Fundo claro' : 'Fundo escuro'}</ItemMenu>
                 <ItemMenu icone={<Type className="h-4 w-4" />} onClick={() => onPrefs({ ...prefs, grande: !prefs.grande })}>{prefs.grande ? 'Letra normal' : 'Letra grande'}</ItemMenu>
                 <ItemMenu icone={<Settings2 className="h-4 w-4" />} onClick={() => { setConfig((v) => !v); setMenu(false) }}>Tempos do cronômetro</ItemMenu>
@@ -242,14 +242,14 @@ export function QuadroKds({
           ) : (
             <div className="columns-1 gap-3 sm:columns-[250px]">
               {mostrar('fila') && vis.fila.map((p) => (
-                <CardKds key={p.id} p={p} etapa="fila" agora={agora} prefs={prefs} fichas={fichas} ocupado={ocupado === p.id} onAcao={() => onComecar(p)} />
+                <CardKds key={p.id} p={p} etapa="fila" agora={agora} prefs={prefs} fichas={fichas} fotos={fotos} ocupado={ocupado === p.id} onAcao={() => onComecar(p)} />
               ))}
               {mostrar('preparo') && vis.preparo.map((p) => (
-                <CardKds key={p.id} p={p} etapa="preparo" agora={agora} prefs={prefs} riscados={riscados[p.id]} fichas={fichas} ocupado={ocupado === p.id}
+                <CardKds key={p.id} p={p} etapa="preparo" agora={agora} prefs={prefs} riscados={riscados[p.id]} fichas={fichas} fotos={fotos} ocupado={ocupado === p.id}
                   onRiscar={onRiscar} onAcao={() => onPronto(p)} onAbrir={() => onAbrir(p)} />
               ))}
               {mostrar('prontos') && vis.prontos.map((p) => (
-                <CardKds key={p.id} p={p} etapa="prontos" agora={agora} prefs={prefs} fichas={fichas} ocupado={ocupado === p.id} onAcao={() => onVoltar(p)} />
+                <CardKds key={p.id} p={p} etapa="prontos" agora={agora} prefs={prefs} fichas={fichas} fotos={fotos} ocupado={ocupado === p.id} onAcao={() => onVoltar(p)} />
               ))}
             </div>
           )}
@@ -290,7 +290,7 @@ export function QuadroKds({
             <ul className="min-h-0 flex-1 divide-y divide-[#E5E7EB] overflow-y-auto px-4">
               {destaque.itens.map((i) => (
                 <li key={i.id}>
-                  <ItemKds i={i} feito={(riscados[destaque.id] ?? []).includes(i.id)} onClick={() => onRiscar(destaque.id, i.id)} />
+                  <ItemKds i={i} foto={i.itemId ? fotos[i.itemId] : undefined} feito={(riscados[destaque.id] ?? []).includes(i.id)} onClick={() => onRiscar(destaque.id, i.id)} />
                   <FichaDoItem f={i.itemId ? fichas[i.itemId] : undefined} />
                 </li>
               ))}
@@ -320,12 +320,12 @@ function ItemMenu({ icone, onClick, perigo, testid, children }: { icone: React.R
 }
 
 /**
- * Cartão da imagem-modelo: cabeçalho colorido pela etapa com tipo, número, data/hora e cronômetro; itens com o
- * quadradinho à esquerda (vermelho = a fazer, verde = feito) e botão contornado embaixo. Fila: Iniciar preparo.
- * Preparo: riscar itens, Marcar pronto. Prontos: Voltar ao preparo (engano). Cronômetro atrasado vira selo branco.
+ * Cartão da imagem-modelo: cabeçalho colorido pela etapa (2 linhas: número + etapa / tipo, hora e cronômetro); itens com a
+ * foto à esquerda e o selo no canto (vermelho = a fazer, verde = feito); botão cheio embaixo. Fila: Iniciar preparo.
+ * Preparo: riscar itens, Marcar como pronto. Prontos: Voltar ao preparo (engano). Cronômetro atrasado vira selo branco.
  */
-const CardKds = memo(function CardKds({ p, etapa, agora, prefs, riscados, fichas, ocupado, onRiscar, onAcao, onAbrir }: {
-  p: Pedido; etapa: Etapa; agora: number; prefs: PreferenciasKds; riscados?: string[]; fichas: Record<string, FichaKds>; ocupado: boolean
+const CardKds = memo(function CardKds({ p, etapa, agora, prefs, riscados, fichas, fotos, ocupado, onRiscar, onAcao, onAbrir }: {
+  p: Pedido; etapa: Etapa; agora: number; prefs: PreferenciasKds; riscados?: string[]; fichas: Record<string, FichaKds>; fotos: Record<string, string>; ocupado: boolean
   onRiscar?: (pedidoId: string, itemId: string) => void; onAcao: () => void; onAbrir?: () => void
 }) {
   const min = minutosDesde(p.criadoEm, agora)
@@ -336,54 +336,52 @@ const CardKds = memo(function CardKds({ p, etapa, agora, prefs, riscados, fichas
   const cabecalho = (
     <>
       <span className="flex items-center justify-between gap-2">
-        <span className="flex min-w-0 items-center gap-1.5 text-[0.95em] font-semibold"><Utensils className="h-4 w-4 flex-shrink-0" aria-hidden /><span className="truncate">{rotuloTipo(p)}</span></span>
-        <span className="flex-shrink-0 rounded-full bg-white/20 px-2 py-0.5 text-[0.72em] font-semibold uppercase tracking-wide">{ETAPA[etapa].rotulo}</span>
+        <span className="min-w-0 truncate text-[1.05em] font-semibold leading-tight">Pedido Nº {p.numero}</span>
+        <span className="flex-shrink-0 rounded-full bg-white/20 px-2 py-[1px] text-[0.68em] font-semibold uppercase tracking-wide">{ETAPA[etapa].rotulo}</span>
       </span>
-      <span className="mt-1 block text-[1.2em] font-semibold leading-tight">Pedido Nº {p.numero}</span>
-      <span className="mt-1 flex items-center justify-between gap-2 text-[0.82em] font-medium">
-        <span className="flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" aria-hidden />{dia.format(new Date(p.criadoEm))} · {hora.format(new Date(p.criadoEm))}</span>
+      <span className="mt-0.5 flex items-center justify-between gap-2 text-[0.8em] font-medium">
+        <span className="flex min-w-0 items-center gap-1 truncate"><Utensils className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />{rotuloTipo(p)} · {hora.format(new Date(p.criadoEm))}{p.preparandoPor && etapa === 'preparo' ? ` · ${p.preparandoPor}` : ''}</span>
         {etapa !== 'prontos' && (
-          <span className={`flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold tabular-nums ${atrasado ? 'bg-white text-[#B91C1C]' : 'bg-black/15'}`} data-testid="kds-tempo"
+          <span className={`flex flex-shrink-0 items-center gap-1 rounded-full px-2 py-[1px] font-semibold tabular-nums ${atrasado ? 'bg-white text-[#B91C1C]' : 'bg-black/15'}`} data-testid="kds-tempo"
             title={atrasado ? 'Atrasado' : undefined}>
             <Timer className="h-3.5 w-3.5" aria-hidden />{cronometro(min)}{atrasado && <span className="sr-only"> atrasado</span>}
           </span>
         )}
       </span>
-      {p.preparandoPor && etapa === 'preparo' && <span className="mt-0.5 block text-[0.78em] font-medium opacity-95">{p.preparandoPor}</span>}
     </>
   )
   const estiloCab = { backgroundColor: ETAPA[etapa].cor }
   return (
-    <article className="mb-3 flex break-inside-avoid flex-col overflow-hidden rounded-[6px] bg-white shadow-[0_2px_6px_rgba(0,0,0,0.25)]" data-testid={testid} data-cor={cor}>
+    <article className="mb-3 flex break-inside-avoid flex-col overflow-hidden rounded-[8px] bg-white shadow-[0_4px_12px_rgba(2,6,23,0.28)]" data-testid={testid} data-cor={cor}>
       {onAbrir ? (
-        <button type="button" onClick={onAbrir} className="block w-full px-3 py-2.5 text-left text-white" style={estiloCab} aria-label={`Abrir o pedido ${p.numero} em destaque`}>{cabecalho}</button>
+        <button type="button" onClick={onAbrir} className="block w-full px-3 py-2 text-left text-white" style={estiloCab} aria-label={`Abrir o pedido ${p.numero} em destaque`}>{cabecalho}</button>
       ) : (
-        <div className="px-3 py-2.5 text-white" style={estiloCab}>{cabecalho}</div>
+        <div className="px-3 py-2 text-white" style={estiloCab}>{cabecalho}</div>
       )}
       <ul className="divide-y divide-[#EEF0F3] px-3">
         {p.itens.map((i) => (
           <li key={i.id}>
-            <ItemKds i={i} feito={feitos.has(i.id)} onClick={onRiscar ? () => onRiscar(p.id, i.id) : undefined} />
+            <ItemKds i={i} foto={i.itemId ? fotos[i.itemId] : undefined} feito={feitos.has(i.id)} onClick={onRiscar ? () => onRiscar(p.id, i.id) : undefined} />
             {etapa === 'preparo' && <FichaDoItem f={i.itemId ? fichas[i.itemId] : undefined} curta />}
           </li>
         ))}
       </ul>
       {/* Edição de pedido (Bloco A, 19/10): faixa curta gerada do histórico ("− 1× fsd · + 1× coca lata"); a observação do cliente fica só dele. */}
       {p.editadoEm && <p className="mx-3 mb-1 rounded-[4px] bg-[#B45309] px-2 py-1 text-center text-[0.85em] font-semibold text-white" data-testid="kds-alterado"><span className="uppercase tracking-wide">⚠ Alterado</span>{resumoCurto(p.edicoes) ? `: ${resumoCurto(p.edicoes)}` : ''}</p>}
-      {p.observacao && <p className="mx-3 mb-1 text-[0.85em] text-[#374151]" data-testid="kds-obs-pedido"><span className="font-semibold">Obs.:</span> {p.observacao}</p>}
+      {p.observacao && <p className="mx-3 mb-1 rounded-[4px] bg-[#FEF3C7] px-2 py-1 text-[0.85em] text-[#92400E]" data-testid="kds-obs-pedido"><span className="font-semibold">Obs.:</span> {p.observacao}</p>}
       <div className="px-3 pb-3 pt-2">
         {etapa === 'fila' && (
-          <BotaoCard onClick={onAcao} disabled={ocupado} testid="kds-comecar" icone={<ChefHat className="h-4 w-4 text-[#D94848]" aria-hidden />}>
+          <BotaoCard onClick={onAcao} disabled={ocupado} testid="kds-comecar" tom="azul" icone={<Play className="h-4 w-4 fill-current" aria-hidden />}>
             {ocupado ? 'Iniciando…' : 'Iniciar preparo'}
           </BotaoCard>
         )}
         {etapa === 'preparo' && (
-          <BotaoCard onClick={onAcao} disabled={ocupado} testid="kds-pronto" icone={<Check className="h-4 w-4 text-[#1E9E5E]" aria-hidden />}>
+          <BotaoCard onClick={onAcao} disabled={ocupado} testid="kds-pronto" tom="verde" icone={<Check className="h-5 w-5" aria-hidden />}>
             {ocupado ? 'Salvando…' : 'Marcar como pronto'}
           </BotaoCard>
         )}
         {etapa === 'prontos' && (
-          <BotaoCard onClick={onAcao} disabled={ocupado} testid="kds-voltar" rotulo={`Voltar o pedido ${p.numero} para o preparo`} icone={<Undo2 className="h-4 w-4 text-[#DE8A12]" aria-hidden />}>
+          <BotaoCard onClick={onAcao} disabled={ocupado} testid="kds-voltar" tom="ambar" rotulo={`Voltar o pedido ${p.numero} para o preparo`} icone={<Undo2 className="h-4 w-4" aria-hidden />}>
             Voltar ao preparo
           </BotaoCard>
         )}
@@ -392,27 +390,41 @@ const CardKds = memo(function CardKds({ p, etapa, agora, prefs, riscados, fichas
   )
 })
 
-/** Botão contornado da imagem-modelo ("Back to New Order"), na altura de toque. */
-function BotaoCard({ onClick, disabled, testid, rotulo, icone, children }: { onClick: () => void; disabled: boolean; testid: string; rotulo?: string; icone: React.ReactNode; children: React.ReactNode }) {
+const TOM_BOTAO = {
+  azul: 'bg-[linear-gradient(180deg,#3B82F6_0%,#1D4ED8_100%)] text-white shadow-[0_4px_10px_rgba(29,78,216,0.4)] hover:brightness-110',
+  verde: 'bg-[linear-gradient(180deg,#16A34A_0%,#15803D_100%)] text-white shadow-[0_4px_10px_rgba(21,128,61,0.4)] hover:brightness-110',
+  ambar: 'border border-[#FCD34D] bg-[#FEF3C7] text-[#92400E] hover:bg-[#FDE68A]',
+}
+
+/** Botão do cartão: cheio, com a cor da ação, na altura de toque; afunda um pouco ao tocar. */
+function BotaoCard({ onClick, disabled, testid, rotulo, tom, icone, children }: {
+  onClick: () => void; disabled: boolean; testid: string; rotulo?: string; tom: keyof typeof TOM_BOTAO; icone: React.ReactNode; children: React.ReactNode
+}) {
   return (
     <button type="button" onClick={onClick} disabled={disabled} aria-label={rotulo} data-testid={testid}
-      className="flex h-[44px] w-full items-center justify-center gap-2 rounded-[4px] border border-[#9CA3AF] bg-white text-[0.88em] font-semibold text-[#1F2937] transition-colors hover:bg-[#F3F4F6] active:bg-[#E5E7EB] disabled:cursor-wait disabled:opacity-50">
+      className={`flex h-[46px] w-full items-center justify-center gap-2 rounded-[8px] text-[0.92em] font-semibold tracking-wide transition-[transform,filter] duration-100 active:scale-[0.98] disabled:cursor-wait disabled:opacity-60 ${TOM_BOTAO[tom]}`}>
       {icone}{children}
     </button>
   )
 }
 
-function ItemKds({ i, feito, onClick }: { i: PedidoItem; feito: boolean; onClick?: () => void }) {
+function ItemKds({ i, foto, feito, onClick }: { i: PedidoItem; foto?: string; feito: boolean; onClick?: () => void }) {
   const detalhes = [i.tamanhoNome, i.saborNome, i.bordaNome && `Borda ${i.bordaNome}`, i.massaNome && `Massa ${i.massaNome}`].filter(Boolean) as string[]
   const conteudo = (
     <span className="flex items-start gap-2.5">
-      {/* Quadradinho da imagem-modelo: vermelho = a fazer, verde = feito. */}
-      <span className={`mt-[3px] grid h-[14px] w-[14px] flex-shrink-0 place-items-center border-2 ${feito ? 'border-[#1E9E5E]' : 'border-[#D94848]'}`} aria-hidden>
-        <span className={`h-[6px] w-[6px] rounded-full ${feito ? 'bg-[#1E9E5E]' : 'bg-[#D94848]'}`} />
+      {/* Foto do item (miniatura WebP) com o selo da imagem-modelo no canto: vermelho = a fazer, verde = feito. */}
+      <span className="relative h-[48px] w-[48px] flex-shrink-0">
+        {foto
+          // eslint-disable-next-line @next/next/no-img-element
+          ? <img src={foto} alt="" width={48} height={48} loading="lazy" decoding="async" className={`h-[48px] w-[48px] rounded-[6px] object-cover ${feito ? 'grayscale' : ''}`} />
+          : <span className="grid h-[48px] w-[48px] place-items-center rounded-[6px] bg-[#F1F5F9] text-[#94A3B8]"><Utensils className="h-5 w-5" aria-hidden /></span>}
+        <span className={`absolute -bottom-1 -right-1 grid h-[16px] w-[16px] place-items-center border-2 bg-white ${feito ? 'border-[#1E9E5E]' : 'border-[#D94848]'}`} aria-hidden>
+          {feito ? <Check className="h-2.5 w-2.5 text-[#1E9E5E]" strokeWidth={4} /> : <span className="h-[6px] w-[6px] rounded-full bg-[#D94848]" />}
+        </span>
       </span>
-      <span className="min-w-0 flex-1">
+      <span className="min-w-0 flex-1 pt-0.5">
         <span className={`flex items-baseline justify-between gap-2 text-[0.95em] font-semibold leading-snug ${feito ? 'line-through' : ''}`}>
-          <span>{i.nome}</span><span className="flex-shrink-0 tabular-nums">× {i.quantidade}</span>
+          <span>{i.nome}</span><span className="flex-shrink-0 rounded-[4px] bg-[#EEF2FF] px-1.5 text-[#1E3A8A] tabular-nums">× {i.quantidade}</span>
         </span>
         {detalhes.length > 0 && <span className="block text-[0.82em] text-[#6B7280]">{detalhes.join(' · ')}</span>}
         {i.complementos.length > 0 && <span className="block text-[0.82em] font-medium text-[#1D4ED8]">{i.complementos.map((c) => `+ ${c.nome}`).join('  ')}</span>}
@@ -423,7 +435,7 @@ function ItemKds({ i, feito, onClick }: { i: PedidoItem; feito: boolean; onClick
   if (!onClick) return <div className="py-2.5" data-testid="kds-item">{conteudo}</div>
   return (
     <button type="button" onClick={onClick} aria-pressed={feito} title={feito ? 'Desmarcar item' : 'Marcar item como feito'}
-      className={`block min-h-[44px] w-full py-2.5 text-left ${feito ? 'opacity-50' : ''}`} data-testid="kds-item">
+      className={`block min-h-[44px] w-full py-2.5 text-left ${feito ? 'opacity-55' : ''}`} data-testid="kds-item">
       {conteudo}
     </button>
   )

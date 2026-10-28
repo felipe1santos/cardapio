@@ -56,6 +56,7 @@ function Kds() {
   const [setor, setSetor] = useState<string | null>(null)
   const [setorDoItem, setSetorDoItem] = useState<Map<string, string>>(() => new Map())
   const [fichas, setFichas] = useState<Record<string, FichaKds>>({})
+  const [fotos, setFotos] = useState<Record<string, string>>({})
   const fichasPedidas = useRef(new Set<string>())
   const [destaqueId, setDestaqueId] = useState<string | null>(null)
   const [ocupado, setOcupado] = useState<string | null>(null)
@@ -132,8 +133,17 @@ function Kds() {
     if (!faltam.length) return
     for (const id of faltam) fichasPedidas.current.add(id)
     let vivo = true
-    void supabase.from('itens_cardapio').select('id, grupos_cardapio(nome)').in('id', faltam).then(({ data }) => {
+    void supabase.from('itens_cardapio').select('id, imagem_thumb_url, imagem_url, grupos_cardapio(nome)').in('id', faltam).then(({ data }) => {
       if (!vivo || !data) return
+      // Foto do item no cartão: a miniatura (400 px WebP); sem miniatura, a principal.
+      setFotos((antes) => {
+        const novo = { ...antes }
+        for (const r of data as { id: string; imagem_thumb_url: string | null; imagem_url: string | null }[]) {
+          const url = r.imagem_thumb_url || r.imagem_url
+          if (url) novo[r.id] = url
+        }
+        return novo
+      })
       setSetorDoItem((antes) => {
         const novo = new Map(antes)
         for (const r of data as { id: string; grupos_cardapio: { nome: string } | { nome: string }[] | null }[]) {
@@ -193,7 +203,7 @@ function Kds() {
   return (
     <>
       <QuadroKds
-        colunas={colunas} agora={agora} prefs={prefs} setores={setores} setor={filtro} riscados={riscados} fichas={fichas}
+        colunas={colunas} agora={agora} prefs={prefs} setores={setores} setor={filtro} riscados={riscados} fichas={fichas} fotos={fotos}
         destaque={destaque} carregando={!demo && carregando} demo={!!demo} ocupado={ocupado}
         onSetor={mudarSetor} onRiscar={riscar}
         onComecar={(p) => { void acao(p, 'comecar').then((ok) => { if (ok) setDestaqueId(p.id) }) }}
