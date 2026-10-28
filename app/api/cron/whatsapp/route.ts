@@ -9,6 +9,8 @@ import { monitorarTodas } from '@/lib/whatsapp-monitor'
 import { devolverConversasAbandonadas } from '@/lib/mensageria/abandono'
 import { expirarCashbackVencidos } from '@/lib/queries/cashback'
 import { criarPortaoHorario } from '@/lib/manutencao-horaria'
+import { baterCron } from '@/lib/saude/cron'
+import { rodarVigia } from '@/lib/saude/vigia'
 
 const manutencao = criarPortaoHorario(60 * 60_000)
 
@@ -22,6 +24,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
   const admin = getAdminSupabase()
+  void baterCron('whatsapp')
   // Pediu atendente pela IA e ninguém respondeu em 10 min: avisa o cliente uma vez (12/10). Antes da fila: sai nesta mesma rodada.
   await avisarAtendentesPendentes(admin).catch((e) => console.error('[whatsapp] aviso de atendente:', (e as Error).message))
   // Solicitação de alteração/cancelamento do cliente sem resposta da loja há 5 min (18/10): vai para o atendente.
@@ -48,5 +51,7 @@ export async function POST(request: Request) {
   for (const l of (lojas ?? []) as { id: string }[]) await garantirWebhookDeTempoEmTempo(admin, l.id, 30 * 60_000).catch(() => null)
   // Monitor da conexão (Etapa 3, 20/10): 1 GET connectionState por loja a cada 2 min (throttle interno); caiu sozinha → faixa, push e alerta; voltou → reenvia avisos que falharam.
   const monitor = await monitorarTodas(admin).catch((e) => { console.error('[whatsapp] monitor:', (e as Error).message); return null })
-  return NextResponse.json({ enviados: fila.enviados, falhas: fila.falhas, limpeza: limpeza ?? null, monitor })
+  // Vigia da saúde do sistema (28/10, Etapa 7): no máximo a cada 5 min, sem API paga; alerta no WhatsApp do dono.
+  const saude = await rodarVigia(admin).catch((e) => { console.error('[whatsapp] vigia:', (e as Error).message); return null })
+  return NextResponse.json({ enviados: fila.enviados, falhas: fila.falhas, limpeza: limpeza ?? null, monitor, saude })
 }

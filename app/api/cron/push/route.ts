@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { cicloPush } from '@/lib/push/ciclo'
+import { baterCron } from '@/lib/saude/cron'
 
 /**
  * Cron das notificações push (0127) — mesma proteção do cron de campanhas (`x-cron-secret`).
@@ -10,6 +11,7 @@ import { cicloPush } from '@/lib/push/ciclo'
 export async function POST(request: Request) {
   const secret = process.env.CRON_SECRET
   if (!secret || request.headers.get('x-cron-secret') !== secret) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+  void baterCron('push')
   try {
     return NextResponse.json(await cicloPush(getAdminSupabase(), { forcar: new URL(request.url).searchParams.get('forcar') === '1' }))
   } catch (err) {

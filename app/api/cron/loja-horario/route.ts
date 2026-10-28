@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { lojaEstaAberta } from '@/lib/timezone'
 import { registrarAuditoria } from '@/lib/auditoria'
+import { baterCron } from '@/lib/saude/cron'
 
 // Cron (Coolify), a cada minuto: POST /api/cron/loja-horario com header "x-cron-secret: <CRON_SECRET>".
 // Lojas no modo automático abrem e fecham pela grade de horário — isso não é uma gravação no banco,
@@ -16,6 +17,7 @@ export async function POST(request: Request) {
   if (!secret || request.headers.get('x-cron-secret') !== secret) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
+  void baterCron('loja-horario')
   const admin = getAdminSupabase()
   const { data: lojas } = await admin.from('restaurantes').select('id, horario_funcionamento').eq('status_loja', 'automatico')
   let registrados = 0

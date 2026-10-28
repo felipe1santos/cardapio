@@ -37,7 +37,8 @@ export function verificarB1(base) {
 }
 
 // B2 — função de trabalho importada por mais de uma rota de cron. Ajudantes (listas, relógio) são permitidos.
-const AJUDANTES = new Set(['lojasComFinanceiro', 'lojaEstaAberta', 'provedorAtual'])
+// baterCron/umaPorVez (lib/saude/cron.ts, 28/10): batida e trava de cada cron — infraestrutura, não trabalho.
+const AJUDANTES = new Set(['lojasComFinanceiro', 'lojaEstaAberta', 'provedorAtual', 'baterCron', 'umaPorVez'])
 export function verificarB2(base) {
   const pasta = join(base, 'app/api/cron')
   let rotas = []

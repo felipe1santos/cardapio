@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { lojasComFinanceiro } from '@/lib/financeiro/nivel'
 import { varrerLoja } from '@/lib/financeiro/vigia'
+import { baterCron } from '@/lib/saude/cron'
 
 // Cron (Coolify), a cada 15 min: POST /api/cron/financeiro-vigia com header "x-cron-secret: <CRON_SECRET>".
 // Só lojas com o financeiro ligado: alertas que dependem de tempo (caixa esquecido, caixa sem abrir, motoboy com
@@ -12,6 +13,7 @@ export async function POST(request: Request) {
   if (!secret || request.headers.get('x-cron-secret') !== secret) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
+  void baterCron('financeiro-vigia')
   // Relógio adiantado SÓ no servidor local de teste (VIGIA_RELOGIO_TESTE=1): testa alertas de 'há X horas'.
   const relogio = process.env.VIGIA_RELOGIO_TESTE === '1' ? Date.parse(request.headers.get('x-vigia-agora') ?? '') : NaN
   const agora = Number.isFinite(relogio) ? relogio : Date.now()

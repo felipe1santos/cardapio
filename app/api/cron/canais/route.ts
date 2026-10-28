@@ -3,6 +3,7 @@ import { getAdminSupabase } from '@/lib/supabase/admin'
 import { sincronizarCanais } from '@/lib/canais/sincronizar'
 import { sincronizarCorridasAtivas } from '@/lib/entregas/provedores'
 import { vencerPixParceiros } from '@/lib/entregas/parceiro-pix-servidor'
+import { baterCron } from '@/lib/saude/cron'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,6 +16,7 @@ export const dynamic = 'force-dynamic'
 export async function POST(request: Request) {
   const segredo = process.env.CRON_SECRET
   if (!segredo || request.headers.get('x-cron-secret') !== segredo) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+  void baterCron('canais')
   try {
     const admin = getAdminSupabase()
     const r = await sincronizarCanais(admin)

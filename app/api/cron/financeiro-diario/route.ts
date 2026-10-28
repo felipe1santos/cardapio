@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { lojasComFinanceiro } from '@/lib/financeiro/nivel'
 import { alertasDeVencimento, gerarRecorrencias } from '@/lib/financeiro/contas'
+import { baterCron } from '@/lib/saude/cron'
 
 // Cron (Coolify), de hora em hora: POST /api/cron/financeiro-diario com header "x-cron-secret: <CRON_SECRET>".
 // Só lojas com o financeiro ligado: gera as próximas contas recorrentes e avisa vencimentos no painel.
@@ -10,6 +11,7 @@ export async function POST(request: Request) {
   if (!secret || request.headers.get('x-cron-secret') !== secret) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
+  void baterCron('financeiro-diario')
   const admin = getAdminSupabase()
   // Só com o módulo Financeiro liberado no Super Admin (16/10).
   const lojas = (await lojasComFinanceiro(admin)).map((id) => ({ id }))

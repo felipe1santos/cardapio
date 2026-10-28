@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { gravarAncoras } from '@/lib/financeiro/ancora'
+import { baterCron } from '@/lib/saude/cron'
 
 // Cron diário (Coolify): POST /api/cron/ancora-integridade com header "x-cron-secret: <CRON_SECRET>".
 // Grava fora do banco o último hash do livro-caixa e da auditoria de cada loja (0141).
@@ -9,6 +10,7 @@ export async function POST(request: Request) {
   if (!secret || request.headers.get('x-cron-secret') !== secret) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
+  void baterCron('ancora-integridade')
   try {
     const r = await gravarAncoras(getAdminSupabase())
     console.log(`[ancora-integridade] ${r.lojas} loja(s) em ${r.arquivo}`)
