@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { _zerarGuarda, chamarApiPaga, DISPARO_MAX, limiteDiario, nivelDoUso, registrarDisparo } from './guarda'
+import { _zerarGuarda, chamarApiPaga, DISPARO_MAX, limiteDaLoja, limiteDiario, nivelDoUso, registrarDisparo } from './guarda'
 import { decidirFrete } from '@/lib/frete'
 import { cacheValido, chaveEndereco, geocodificar } from '@/lib/geocode/geocodificar'
 
@@ -45,6 +45,28 @@ describe('guarda de custo: limite diário', () => {
     expect(limiteDiario('geocoding', {})).toBe(300)
     expect(limiteDiario('directions', { LIMITE_DIRECTIONS_DIA: '50' })).toBe(50)
     expect(limiteDiario('geocoding', { LIMITE_GEOCODING_DIA: 'abc' })).toBe(300)
+  })
+  it('Maps por loja: teto de 60% do limite do sistema (uma loja em loop não gasta a cota de todas); IA/entregas sem teto aqui', async () => {
+    const b = bancoFalso(1000)
+    const fn = vi.fn(async () => 'ok')
+    await chamarApiPaga(b.admin, { api: 'geocoding', chave: 'a', loja: 'loja-1' }, fn)
+    await chamarApiPaga(b.admin, { api: 'directions', chave: 'b', loja: 'loja-1' }, fn)
+    await chamarApiPaga(b.admin, { api: 'geocoding', chave: 'c' }, fn)
+    await chamarApiPaga(b.admin, { api: 'lalamove', chave: 'd', loja: 'loja-1' }, fn)
+    const lim = (b.admin as unknown as { rpc: { mock: { calls: [string, { p_limite_loja: number | null }][] } } }).rpc.mock.calls.map((c) => c[1].p_limite_loja)
+    expect(lim).toEqual([180, 180, null, null])
+    expect(limiteDaLoja('geocoding', { LIMITE_GEOCODING_DIA: '100' })).toBe(60)
+  })
+  it('loja passou do teto dela: bloqueia com alerta que diz a loja', async () => {
+    const admin = {
+      rpc: async () => ({ data: { permitido: false, chamadas: 180, limite: 180, loja: true }, error: null }),
+      from: () => ({ insert: async (v: { mensagem: string }) => { msgs.push(v.mensagem); return {} } }),
+    } as never
+    const msgs: string[] = []
+    const fn = vi.fn(async () => 'ok')
+    expect(await chamarApiPaga(admin, { api: 'geocoding', chave: 'x', loja: 'loja-1' }, fn)).toEqual({ ok: false, motivo: 'limite' })
+    expect(fn).not.toHaveBeenCalled()
+    expect(msgs.some((m) => /desta loja/.test(m))).toBe(true)
   })
   it('banco fora do ar: NÃO chama a API', async () => {
     const admin = { rpc: async () => ({ data: null, error: { message: 'fora' } }), from: () => ({ insert: async () => ({}) }) } as never

@@ -30,6 +30,15 @@ export function limiteDiario(api: ApiPaga, env: Record<string, string | undefine
   const v = Number(env[ENV[api]])
   return Number.isInteger(v) && v >= 0 ? v : PADRAO[api]
 }
+/**
+ * Teto POR LOJA do Maps (28/10, varredura Etapa 6): 60% do limite do sistema. Sem ele, uma loja com uma tela em loop
+ * (endereços diferentes escapam da trava de disparo) gasta a cota do dia de todas e o frete das outras cai na reserva.
+ * IA e transcrição já têm teto por loja em dólar (lib/custo/ia.ts); entregas são corridas reais, sem teto por loja.
+ */
+const APIS_COM_TETO_LOJA: ApiPaga[] = ['geocoding', 'directions', 'places']
+export function limiteDaLoja(api: ApiPaga, env: Record<string, string | undefined> = process.env): number | null {
+  return APIS_COM_TETO_LOJA.includes(api) ? Math.ceil(limiteDiario(api, env) * 0.6) : null
+}
 export function limiteCustoIaCentavos(env: Record<string, string | undefined> = process.env): number {
   const v = Number(env.LIMITE_IA_CENTAVOS_DIA)
   return Number.isInteger(v) && v >= 0 ? v : 500
@@ -89,12 +98,18 @@ export async function chamarApiPaga<T>(
   const { data, error } = await admin.rpc('api_uso_contar', {
     p_api: p.api, p_loja: loja, p_limite: limite, p_custo_centavos: p.custoCentavos ?? 0,
     p_limite_custo_centavos: p.api === 'ia' ? limiteCustoIaCentavos() : null,
+    p_limite_loja: loja ? limiteDaLoja(p.api) : null,
   })
   if (error || !data) {
     await alertar(admin, p.api, 'erro', `Sem contagem no banco (${error?.message?.slice(0, 120) ?? 'vazio'}) — chamada NÃO feita.`, loja, `banco:${p.api}`)
     return { ok: false, motivo: 'banco' }
   }
-  const r = data as { permitido: boolean; chamadas: number; limite: number }
+  const r = data as { permitido: boolean; chamadas: number; limite: number; loja?: boolean }
+  if (!r.permitido && r.loja) {
+    await alertar(admin, p.api, 'bloqueio', `Limite diário desta loja atingido (${r.limite}). As chamadas dela param até amanhã; as outras lojas seguem.`, loja, `bloqueio-loja:${p.api}:${loja}:${new Date().toDateString()}`)
+    void contarSemTrava(admin, `${p.api}:bloqueada`, loja)
+    return { ok: false, motivo: 'limite' }
+  }
   if (!r.permitido) {
     await alertar(admin, p.api, 'bloqueio', `Limite diário atingido (${r.limite}). Chamadas paradas até amanhã; o sistema usa a reserva.`, loja, `bloqueio:${p.api}:${new Date().toDateString()}`)
     void contarSemTrava(admin, `${p.api}:bloqueada`, loja)
