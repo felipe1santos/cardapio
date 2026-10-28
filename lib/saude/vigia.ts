@@ -4,7 +4,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { limiteDiario, type ApiPaga } from '@/lib/custo/guarda'
 import { limitesIa } from '@/lib/custo/ia'
 import { diaSP, limiteDoPainel } from '@/lib/custo/uso'
-import { avaliar, cronsAtrasados, horaDoResumo, JANELA_ALERTA_MS, medidasVazias, podeEnviar, textoResumo, type Alerta, type Medidas } from './avaliar'
+import { avaliar, cronsAtrasados, horaDoResumo, JANELA_ALERTA_MS, medidasVazias, podeEnviar, textoResumo, type Alerta, type Medidas, type Oficial } from './avaliar'
+import { derivarProm, lerHostingerOficial, lerPromOficial, lerSupabaseGestao } from './oficial'
 import { enviarAlertaSistema } from './enviar'
 
 /**
@@ -50,8 +51,32 @@ function vps(): Pick<Medidas, 'cpuCarga' | 'memLivrePct' | 'discoUsadoPct'> {
   return out
 }
 
-export async function coletar(admin: SupabaseClient, agora: Date, anterior: { em: string; req_postgrest: number | null } | null): Promise<{ m: Medidas; req: number | null; consultas: number | null }> {
+/** Fontes oficiais desta rodada. Prometheus (430 KB) só a cada 15 min; nas outras rodadas repete a última leitura. */
+async function coletarOficial(agora: Date, antes: Oficial | undefined): Promise<Oficial> {
+  const o: Oficial = {}
+  const erros: Record<string, string> = {}
+  const emIso = agora.toISOString()
+  const promAntes = antes?.prom
+  if (promAntes && agora.getTime() - Date.parse(promAntes.em) < PROM_INTERVALO_MS) o.prom = { ...promAntes, txDelta: null }
+  else {
+    try {
+      const p = await lerPromOficial()
+      if (p) o.prom = { em: emIso, ...p, ...derivarProm(p, promAntes ?? null, promAntes ? (agora.getTime() - Date.parse(promAntes.em)) / 1000 : 0) }
+    } catch (e) { erros.prom = (e as Error).message.slice(0, 120); if (promAntes) o.prom = { ...promAntes, txDelta: null } }
+  }
+  try { const s = await lerSupabaseGestao(); if (s) o.supabase = { em: emIso, ...s } } catch (e) { erros.supabase = (e as Error).message.slice(0, 120) }
+  try { const h = await lerHostingerOficial(agora); if (h) o.hostinger = { em: emIso, ...h } } catch (e) { erros.hostinger = (e as Error).message.slice(0, 120) }
+  // Fonte que falhou agora: mostra a última leitura boa (o card diz há quanto tempo).
+  if (!o.supabase && antes?.supabase && erros.supabase) o.supabase = antes.supabase
+  if (!o.hostinger && antes?.hostinger && erros.hostinger) o.hostinger = antes.hostinger
+  if (Object.keys(erros).length) o.erros = erros
+  return o
+}
+const PROM_INTERVALO_MS = 15 * 60_000 - 15_000
+
+export async function coletar(admin: SupabaseClient, agora: Date, anterior: { em: string; req_postgrest: number | null; dados?: { oficial?: Oficial } | null } | null): Promise<{ m: Medidas; req: number | null; consultas: number | null }> {
   const m: Medidas = { ...medidasVazias(agora.toISOString()), ...vps() }
+  m.oficial = await coletarOficial(agora, anterior?.dados?.oficial)
   const hoje = diaSP(agora)
   const [cont, usos, ia, crons, lojasWa] = await Promise.all([
     admin.rpc('sistema_saude_contadores'),
@@ -61,9 +86,10 @@ export async function coletar(admin: SupabaseClient, agora: Date, anterior: { em
     admin.from('restaurantes').select('nome, whatsapp_caiu_em').not('whatsapp_caiu_em', 'is', null).is('whatsapp_desconexao_manual_em', null).limit(200),
   ])
   m.bancoRestrito = restrito(cont.error?.message) ?? restrito(usos.error?.message)
-  const c = cont.data as { req_postgrest?: number; consultas?: number; db_bytes?: number } | null
+  const c = cont.data as { req_postgrest?: number; consultas?: number; db_bytes?: number; storage_bytes?: number } | null
   const req = c?.req_postgrest != null ? Number(c.req_postgrest) : null
   if (c?.db_bytes != null) m.dbBytes = Number(c.db_bytes)
+  if (c?.storage_bytes != null) m.storageBytes = Number(c.storage_bytes)
   if (req !== null && anterior?.req_postgrest != null) {
     const min = (agora.getTime() - Date.parse(anterior.em)) / 60_000
     // Contador zerado (reset das estatísticas) dá delta negativo: sem número nesta rodada.
@@ -109,7 +135,7 @@ async function mandar(admin: SupabaseClient, a: { assunto: string; nivel: Alerta
 }
 
 export async function rodarVigia(admin: SupabaseClient, agora = new Date()): Promise<{ rodou: boolean; alertas?: string[]; enviados?: number; erro?: string }> {
-  const { data: ult, error: eUlt } = await admin.from('sistema_saude_fotos').select('em, req_postgrest').order('em', { ascending: false }).limit(1).maybeSingle()
+  const { data: ult, error: eUlt } = await admin.from('sistema_saude_fotos').select('em, req_postgrest, oficial:dados->oficial').order('em', { ascending: false }).limit(1).maybeSingle()
   const bloqueio = restrito(eUlt?.message)
   if (bloqueio) {
     // Banco recusando: avisa pelo WhatsApp (Evolution não depende do Supabase) com a trava em memória.
@@ -120,7 +146,8 @@ export async function rodarVigia(admin: SupabaseClient, agora = new Date()): Pro
     await mandar(admin, a, false)
     return { rodou: true, alertas: [a.assunto], enviados: 1 }
   }
-  const anterior = ult as { em: string; req_postgrest: number | null } | null
+  const ultima = ult as { em: string; req_postgrest: number | null; oficial: Oficial | null } | null
+  const anterior = ultima ? { em: ultima.em, req_postgrest: ultima.req_postgrest, dados: { oficial: ultima.oficial ?? undefined } } : null
   if (anterior && agora.getTime() - Date.parse(anterior.em) < INTERVALO_MS - 15_000) return { rodou: false }
 
   const { m, req, consultas } = await coletar(admin, agora, anterior)
@@ -141,6 +168,9 @@ export async function rodarVigia(admin: SupabaseClient, agora = new Date()): Pro
     // Limpeza das próprias tabelas, 1×/dia junto com o resumo: fotos 30 dias, alertas 180 dias.
     await admin.from('sistema_saude_fotos').delete().lt('em', new Date(agora.getTime() - 30 * 86400_000).toISOString())
     await admin.from('sistema_alertas').delete().lt('criado_em', new Date(agora.getTime() - 180 * 86400_000).toISOString())
+    // Retenção das tabelas que crescem sem limite (0231, aprovada pelo dono em 28/10).
+    const { error: eRet } = await admin.rpc('sistema_limpar_retencao')
+    if (eRet) console.error('[saude] retenção falhou:', eRet.message)
   }
   return { rodou: true, alertas: alertas.map((a) => `${a.assunto}:${a.nivel}`), enviados }
 }

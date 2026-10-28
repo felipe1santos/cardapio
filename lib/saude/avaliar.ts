@@ -28,6 +28,17 @@ export interface Medidas {
   discoUsadoPct: number | null
   cronsAtrasados: { nome: string; minutos: number }[]
   whatsappCaido: { loja: string; minutos: number }[]
+  /** Soma exata dos arquivos do Storage (storage.objects). */
+  storageBytes?: number | null
+  /** Números das fontes oficiais (lib/saude/oficial.ts); cada um com a hora em que foi lido. */
+  oficial?: Oficial
+}
+
+export interface Oficial {
+  prom?: { em: string; cpuTotal: number; cpuIdle: number; memTotal: number; memDisp: number; discoTotal: number; discoLivre: number; ops: number; ioBytes: number; tx: number; dbBytes: number; cpuPct: number | null; iops: number | null; ioMBs: number | null; txDelta: number | null }
+  supabase?: { em: string; req24h: { rest: number; auth: number; storage: number; realtime: number; total: number } | null; disco: { usado: number; total: number } | null }
+  hostinger?: { em: string; cpuPct: number | null; ramBytes: number | null; discoBytes: number | null; saidaBytes: number | null; entradaBytes: number | null; amostraEm: string | null; ramTotal: number | null; discoTotal: number | null }
+  erros?: Record<string, string>
 }
 
 export function medidasVazias(em: string): Medidas {
