@@ -10,6 +10,7 @@ import { buscarConfigLoja } from '@/lib/queries/ajustes'
 import { FiltroPeriodo } from '@/components/dashboard/filtro-periodo'
 import { DicaInfo } from '@/components/dashboard/dica-info'
 import { CartaoFunil } from '@/components/dashboard/cartao-funil'
+import { FunilEtapas } from '@/components/dashboard/funil-etapas'
 import { AnalisesAbas, type LinhaBairro, type LinhaProduto } from '@/components/dashboard/analises-abas'
 import { LOJAS_DE_TESTE } from '@/lib/dashboard-limpeza'
 import { resumoPorOrigem } from '@/lib/dashboard-origem'
@@ -156,6 +157,19 @@ export default function DashboardPage() {
   // undefined = carregando; null = rastreio ainda não instalado no banco.
   const [vitrine, setVitrine] = useState<AnalyticsVitrine | null | undefined>(undefined)
   const [temposEntrega, setTemposEntrega] = useState<TempoEntrega[] | null>(null)
+  // Funil em cartões roxos ou em trapézios (28/10); a escolha fica salva neste navegador.
+  const [visaoFunil, setVisaoFunil] = useState<'cartoes' | 'funil'>('cartoes')
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('dashboard-visao-funil') === 'funil') setVisaoFunil('funil')
+    } catch {}
+  }, [])
+  const escolherVisaoFunil = (v: 'cartoes' | 'funil') => {
+    setVisaoFunil(v)
+    try {
+      localStorage.setItem('dashboard-visao-funil', v)
+    } catch {}
+  }
 
   useEffect(() => {
     let active = true
@@ -433,14 +447,6 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <div className="flex items-center gap-2">
-          <div className="min-w-0 flex-1 sm:flex-none">{filtroPeriodo}</div>
-          {/* O aviso do rastreio da vitrine virou um ⓘ discreto (passar o mouse ou tocar). */}
-          {vitrine !== null && (
-            <DicaInfo texto="Visitas, visualizações, sacola e checkout são contadas a partir da ativação do rastreio da vitrine (23/09/2026). Cada visitante conta uma vez por etapa." />
-          )}
-        </div>
-
         {!m.temAnterior && (
           <p className="text-[11px] text-[var(--adm-texto-suave)]">
             Em “Tudo” não há período anterior para comparar — por isso as variações não aparecem.
@@ -448,7 +454,16 @@ export default function DashboardPage() {
         )}
 
         <GraficoVendas pedidos={grafico.pedidos} anteriores={grafico.anteriores} intervalo={intervalo} intervaloAnterior={grafico.anterior}
-          custos={podeLucro ? custos : null} podeLucro={podeLucro} carregando={false} erro={error} />
+          custos={podeLucro ? custos : null} podeLucro={podeLucro} carregando={false} erro={error}
+          acoes={
+            // Filtro e ⓘ dentro do cartão do gráfico, depois das abas (28/10).
+            <>
+              <div className="min-w-0 flex-1 sm:flex-none">{filtroPeriodo}</div>
+              {vitrine !== null && (
+                <DicaInfo texto="Visitas, visualizações, sacola e checkout são contadas a partir da ativação do rastreio da vitrine (23/09/2026). Cada visitante conta uma vez por etapa." />
+              )}
+            </>
+          } />
 
         {/* Funil da vitrine: do visitante ao pedido fechado. */}
         {vitrine === null ? (
@@ -456,6 +471,34 @@ export default function DashboardPage() {
             O rastreio da vitrine ainda não foi ativado no banco — as métricas de visitas aparecem assim que ele for ligado.
           </p>
         ) : null}
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-[14px] font-semibold text-[var(--adm-texto-forte)]">Funil da vitrine</h3>
+          <div role="radiogroup" aria-label="Forma de ver o funil" className="flex rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white p-0.5">
+            {([['cartoes', 'Cartões'], ['funil', 'Funil']] as const).map(([v, r]) => (
+              <button key={v} type="button" role="radio" aria-checked={visaoFunil === v} onClick={() => escolherVisaoFunil(v)} data-testid={`visao-funil-${v}`}
+                className={`min-h-[30px] rounded-[4px] px-3 text-[12.5px] font-semibold transition-colors ${visaoFunil === v ? 'bg-[#EEF0F3] text-[var(--adm-texto-forte)]' : 'text-[var(--adm-texto-suave)] hover:text-[var(--adm-texto)]'}`}>
+                {r}
+              </button>
+            ))}
+          </div>
+        </div>
+        {visaoFunil === 'funil' && funil ? (
+          <FunilEtapas
+            etapas={funil}
+            tempos={[
+              null,
+              vitrine?.tempos.visita_visualizacao ?? null,
+              vitrine?.tempos.visualizacao_sacola ?? null,
+              vitrine?.tempos.sacola_checkout ?? null,
+              vitrine?.tempos.checkout_pedido ?? null,
+            ].map((t) => (t === null ? null : formatarDuracao(t)))}
+            tempoTotal={(() => {
+              const t = vitrine?.tempos
+              if (!t || [t.visita_visualizacao, t.visualizacao_sacola, t.sacola_checkout, t.checkout_pedido].some((v) => v === null || v === undefined)) return null
+              return formatarDuracao(t.visita_visualizacao! + t.visualizacao_sacola! + t.sacola_checkout! + t.checkout_pedido!)
+            })()}
+          />
+        ) : (
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
           {funil
             ? funil.map((etapa) => <CartaoFunil key={etapa.id} etapa={etapa} />)
@@ -463,6 +506,7 @@ export default function DashboardPage() {
                 <div key={i} className="h-[236px] animate-pulse rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white" />
               ))}
         </div>
+        )}
 
         {/* Quanto o cliente demora entre uma etapa e a seguinte. */}
         <Cartao className="p-4">

@@ -296,39 +296,38 @@ export function Sidebar({
             </Link>
           )
         })}
+
+        {/* "Ver meu cardápio" e "Sair" dentro do menu, como os outros itens, com um respiro antes (28/10). */}
+        {(storeSlug || onSignOut) && <div className="mt-3 flex-shrink-0" aria-hidden="true" />}
+        {storeSlug && (
+          <div className="flex items-center gap-0.5">
+            <a
+              href={`/loja/${storeSlug}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={['min-w-0 flex-1', ITEM_MENU, ITEM_INATIVO].join(' ')}
+              title={recolhido ? 'Ver meu cardápio' : undefined}
+            >
+              <svg viewBox="0 0 24 24" className={`h-[18px] w-[18px] flex-shrink-0 fill-current ${v.icone}`} aria-hidden="true">
+                {ICONES.abrirFora.map((d) => (<path key={d} d={d} />))}
+              </svg>
+              <span className="rotulo-menu truncate">Ver meu cardápio</span>
+            </a>
+            {/* O "copiar link" saiu do topo junto com a faixa da marca e mora aqui. */}
+            <span className="extra-menu flex-shrink-0">
+              <CopiarLinkCardapio slug={storeSlug} />
+            </span>
+          </div>
+        )}
+        {onSignOut && (
+          <button type="button" onClick={onSignOut} title="Sair" className={['w-full', ITEM_MENU, ITEM_INATIVO].join(' ')}>
+            <svg viewBox="0 0 24 24" className={`h-[18px] w-[18px] flex-shrink-0 fill-current ${v.icone}`} aria-hidden="true">
+              {ICONES.sair.map((d) => (<path key={d} d={d} />))}
+            </svg>
+            <span className="rotulo-menu truncate">Sair</span>
+          </button>
+        )}
       </nav>
-
-      {storeSlug && (
-        <div style={FONTE_MENU} className={`mb-1 mt-1 flex items-center gap-0.5 border-t border-[var(--adm-borda)] px-2 pt-2 ${recolhido ? 'lg:[&_a]:justify-center lg:[&_a]:px-0 lg:[&_.rotulo-menu]:hidden lg:[&>*:not(a)]:hidden' : ''}`}>
-        <a
-          href={`/loja/${storeSlug}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={['min-w-0 flex-1', ITEM_MENU, ITEM_INATIVO].join(' ')}
-        >
-          <svg viewBox="0 0 24 24" className={`h-[20px] w-[20px] flex-shrink-0 fill-current ${v.icone}`} aria-hidden="true">
-            {ICONES.abrirFora.map((d) => (<path key={d} d={d} />))}
-          </svg>
-          <span className="rotulo-menu truncate">Ver meu cardápio</span>
-        </a>
-        {/* O "copiar link" saiu do topo junto com a faixa da marca e mora aqui. */}
-        <CopiarLinkCardapio slug={storeSlug} />
-        </div>
-      )}
-
-      {onSignOut && (
-        <button
-          type="button"
-          onClick={onSignOut}
-          title="Sair"
-          className={`mb-3 flex items-center justify-center gap-2 rounded-[3px] border border-[var(--adm-borda)] py-2 text-[12px] font-semibold text-[var(--adm-texto-suave)] transition-colors hover:border-[var(--adm-borda-forte)] hover:bg-[var(--adm-superficie-2)] hover:text-[var(--adm-texto)] ${recolhido ? 'mx-3 px-3 lg:mx-2 lg:px-0 lg:[&>span]:hidden' : 'mx-3 px-3'}`}
-        >
-          <svg viewBox="0 0 24 24" className="h-[14px] w-[14px] fill-current">
-            {ICONES.sair.map((d) => (<path key={d} d={d} />))}
-          </svg>
-          <span>Sair</span>
-        </button>
-      )}
       </aside>
     </>
   )

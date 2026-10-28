@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { marcasX, marcasY } from '@/components/graficos/grafico'
 import { Abas } from '@/components/graficos/kit-meta'
 import { escolherAgrupamento, montarBaldes, resumir, type Balde, type PedidoGrafico } from '@/lib/dashboard-grafico'
@@ -19,11 +19,13 @@ const brl = (c: number) => (c / 100).toLocaleString('pt-BR', { style: 'currency'
 const brlEixo = (c: number) => { const r = c / 100; return r >= 1000 ? `R$ ${(r / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mil` : `R$ ${Math.round(r)}` }
 const pct = (v: number) => `${v.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`
 
-export function GraficoVendas({ pedidos, anteriores, intervalo, intervaloAnterior, custos, podeLucro, carregando, erro }: {
+export function GraficoVendas({ pedidos, anteriores, intervalo, intervaloAnterior, custos, podeLucro, carregando, erro, acoes }: {
   pedidos: (PedidoGrafico & { id: string })[]; anteriores: (PedidoGrafico & { id: string })[]
   intervalo: Intervalo; intervaloAnterior: Intervalo | null
   /** null = ainda carregando ou sem permissão; Map vazio = nenhuma venda com custo. */
   custos: Map<string, number> | null; podeLucro: boolean; carregando: boolean; erro: string | null
+  /** Filtro de período e ⓘ, logo depois das abas (28/10). */
+  acoes?: ReactNode
 }) {
   const [aba, setAba] = useState<Aba>('faturamento')
   const [ocultas, setOcultas] = useState<Set<string>>(new Set())
@@ -43,8 +45,11 @@ export function GraficoVendas({ pedidos, anteriores, intervalo, intervaloAnterio
 
   return (
     <section className="fin-meta rounded-[8px] border border-[#E4E7EA] bg-white" data-testid="grafico-vendas">
-      <div className="px-3 pt-3 [&_[role=tab]]:flex-1 sm:[&_[role=tab]]:flex-none">
-        <Abas<Aba> itens={[['faturamento', 'Faturamento'], ['pedidos', 'Pedidos'], ['ticket', 'Ticket médio']]} ativo={aba} onSelecionar={setAba} testidPrefixo="grafico-aba" />
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 pt-3">
+        <div className="min-w-0 max-sm:w-full [&_[role=tab]]:flex-1 sm:[&_[role=tab]]:flex-none">
+          <Abas<Aba> itens={[['faturamento', 'Faturamento'], ['pedidos', 'Pedidos'], ['ticket', 'Ticket médio']]} ativo={aba} onSelecionar={setAba} testidPrefixo="grafico-aba" />
+        </div>
+        {acoes && <div className="flex min-w-0 items-center gap-1 max-sm:w-full">{acoes}</div>}
       </div>
       <div className="px-4 pb-4 pt-3 sm:px-5">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -118,8 +123,11 @@ function Desenho({ aba, baldes, ant, temLucro, ocultas, alternar }: { aba: Aba; 
     ? Math.max(1, ...baldes.map((_, i) => visiveis.reduce((s, x) => s + x.valores[i], 0)))
     : Math.max(1, ...visiveis.flatMap((s) => s.valores), media ?? 0)
   const minVal = Math.min(0, ...visiveis.flatMap((s) => s.valores))
-  const ticks = marcasY(maxVal, minVal)
-  const yMin = ticks[0], yMax = ticks[ticks.length - 1]
+  // O topo da escala fica logo acima do pico (28/10): sem a faixa vazia até a próxima marca redonda.
+  const todas = marcasY(maxVal, minVal)
+  const yMin = todas[0]
+  const yMax = Math.max(maxVal * 1.08, todas.filter((t) => t <= maxVal).pop() ?? todas[1])
+  const ticks = todas.filter((t) => t <= yMax)
   const altura = largura < 500 ? 220 : 280
   const esq = aba === 'pedidos' ? 34 : 64, dir = 10, topo = 10, baixo = 26
   const w = largura - esq - dir, h = altura - topo - baixo
@@ -128,7 +136,7 @@ function Desenho({ aba, baldes, ant, temLucro, ocultas, alternar }: { aba: Aba; 
   const passo = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(w / 64))))
   const marcas = marcasX(n, passo, x)
   const fmtEixo = aba === 'pedidos' ? (v: number) => String(Math.round(v)) : brlEixo
-  const caminho = (vals: number[]) => vals.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ')
+  const caminho = (vals: number[]) => curva(vals.map((v, i) => [x(i), y(v)]))
   const larguraBarra = Math.max(3, Math.min(28, (w / Math.max(1, n)) * 0.62))
 
   const indiceDe = (clientX: number) => {
@@ -198,4 +206,26 @@ function Desenho({ aba, baldes, ant, temLucro, ocultas, alternar }: { aba: Aba; 
       </div>
     </div>
   )
+}
+
+/**
+ * Linha suave que passa por todos os pontos sem inventar pico nem vale (cúbica monótona, Fritsch–Carlson):
+ * o arredondado dos gráficos do hPanel sem a curva "passar" do valor real.
+ */
+function curva(p: [number, number][]): string {
+  const n = p.length
+  if (n < 3) return p.map(([px, py], i) => `${i ? 'L' : 'M'}${px.toFixed(1)},${py.toFixed(1)}`).join(' ')
+  const d = p.slice(0, -1).map(([x0, y0], i) => (p[i + 1][1] - y0) / (p[i + 1][0] - x0 || 1))
+  const m = p.map((_, i) => (i === 0 ? d[0] : i === n - 1 ? d[n - 2] : d[i - 1] * d[i] <= 0 ? 0 : (d[i - 1] + d[i]) / 2))
+  for (let i = 0; i < n - 1; i++) {
+    if (d[i] === 0) { m[i] = 0; m[i + 1] = 0; continue }
+    const a = m[i] / d[i], b = m[i + 1] / d[i], h = a * a + b * b
+    if (h > 9) { const t = 3 / Math.sqrt(h); m[i] = t * a * d[i]; m[i + 1] = t * b * d[i] }
+  }
+  let s = `M${p[0][0].toFixed(1)},${p[0][1].toFixed(1)}`
+  for (let i = 0; i < n - 1; i++) {
+    const [x0, y0] = p[i], [x1, y1] = p[i + 1], dx = (x1 - x0) / 3
+    s += ` C${(x0 + dx).toFixed(1)},${(y0 + m[i] * dx).toFixed(1)} ${(x1 - dx).toFixed(1)},${(y1 - m[i + 1] * dx).toFixed(1)} ${x1.toFixed(1)},${y1.toFixed(1)}`
+  }
+  return s
 }
