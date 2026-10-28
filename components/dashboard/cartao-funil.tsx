@@ -76,13 +76,13 @@ export function CartaoFunil({ etapa }: { etapa: EtapaFunilVitrine }) {
   )
 }
 
-const DURACAO = 4200
+const DURACAO = 5500
 // A superfície nunca desce até o texto branco do rodapé (fica legível durante o balanço).
 const LIMITE = ALTURA_BLOCO - 44
 
 function superficie(esquerda: number, direita: number, t: number, fase: number): string {
   const s = t / 1000
-  const amorte = Math.exp(-s * 1.15)
+  const amorte = Math.exp(-s * 0.85)
   let d = ''
   for (let x = 0; x <= 100; x += 4) {
     const u = x / 100
@@ -107,16 +107,28 @@ function Liquido({ esquerda, direita }: { esquerda: number; direita: number }) {
     }
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return parar()
     let quadro = 0
-    const inicio = performance.now()
+    let inicio = 0
     const passo = (agora: number) => {
+      inicio ||= agora
       const t = agora - inicio
       if (t >= DURACAO) return parar()
       frente.current?.setAttribute('d', superficie(esquerda, direita, t, 0))
       fundo.current?.setAttribute('d', superficie(esquerda, direita, t, 2.1))
       quadro = requestAnimationFrame(passo)
     }
-    quadro = requestAnimationFrame(passo)
-    return () => cancelAnimationFrame(quadro)
+    // Só começa quando o cartão aparece na tela (no computador o funil fica abaixo do gráfico).
+    const svg = frente.current?.ownerSVGElement
+    if (!svg) return
+    const olho = new IntersectionObserver(([e]) => {
+      if (!e.isIntersecting) return
+      olho.disconnect()
+      quadro = requestAnimationFrame(passo)
+    }, { threshold: 0.6 })
+    olho.observe(svg)
+    return () => {
+      olho.disconnect()
+      cancelAnimationFrame(quadro)
+    }
   }, [esquerda, direita])
 
   const repouso = superficie(esquerda, direita, Infinity, 0)
