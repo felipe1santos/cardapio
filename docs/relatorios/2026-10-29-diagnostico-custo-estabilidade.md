@@ -163,3 +163,16 @@ deploys vão ocupar (alerta só em 70% do disco); (8) Hostinger (precisa do `HOS
 - **Deploy falhou:** a versão anterior continua no ar (o Coolify só troca se o build passar). Me mande o horário.
 - **Disco cheio / build falhando por espaço:** Coolify → Servers → o servidor → **Docker Cleanup**.
 - **Pedidos do iFood/99 não entram:** aceitar pelo app do iFood/99 enquanto isso; ver Integrações → iFood/99 (estado).
+
+## Aplicado em 29/10 (madrugada, aprovado pelo dono) — pendências em [PENDENCIAS.md](../PENDENCIAS.md)
+| # | Feito | Conferido | Plano de volta |
+|---|---|---|---|
+| 2 | Limpeza do Docker: já rodava a cada 6 h (forçada); app agora guarda **3** imagens (era 2) | disco 55% → 33% depois da limpeza das 06h UTC | `docker_images_to_keep` = 2 |
+| 3 | Healthcheck `/api/vivo` (sem banco), 30 s, 3 tentativas | container **healthy**; curl existe no container | `health_check_enabled` = false |
+| 4 | Limite 1,5 GB (sem swap extra) + `NODE_OPTIONS=--max-old-space-size=1200` (só execução) | heap 1.224 MB; uso 233 MB; healthy | `limits_memory` = 0 e remover a variável |
+| 5 | Alerta "Assistente desligado com a loja aberta" (7 dias de uso, 15 min sem sinal) | testes; 0 hoje (lojas fechadas) | reverter commit `5dd938d1` |
+| 6 | Tetos de entrega 600 → 3.000/dia (1.800 por loja) | sem variável sobrescrevendo em produção | `LIMITE_*_DIA` no Coolify |
+| 10 | Vitrine: banco fora não vira "loja não encontrada"; error.tsx "Voltamos já" (tenta a cada 20 s) | loja inexistente segue 404; vitrine 200 | reverter `223e6360` |
+| 13 | `umaPorVez` nos crons de canais e WhatsApp; prazo nas 3 chamadas da Evolution | crons batendo depois do deploy | reverter `788caa3e` |
+| 14 | Tela do Pix e vitrine clássica pausam com a aba escondida e leem ao voltar | testes | reverter `1a18e59c` |
+| — | `/` da VPS sem `discard` (agendado 03h30) | log ok=1; fstrim.timer ativo | `cp /root/fstab.antes-nodiscard /etc/fstab && mount -o remount,discard /` |
