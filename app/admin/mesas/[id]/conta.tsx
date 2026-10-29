@@ -109,7 +109,7 @@ export function useConta(mesaId: string) {
 
   // Outro garçom pode receber pagamento ou cancelar item na mesma mesa. Só com a tela visível; ao voltar, lê na hora
   // (revisão de escala 26/10).
-  useLeituraPeriodica(() => void recarregar(), 5000)
+  useLeituraPeriodica(() => void recarregar(), 10_000)
 
   const agir = useCallback(
     async (acao: string, corpo: Record<string, unknown> = {}) => {

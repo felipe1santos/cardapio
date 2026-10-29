@@ -466,7 +466,7 @@ export default function PedidosPage() {
     const rodar = () => fetch('/api/admin/despacho/automatico', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ acao: 'rodar' }) })
       .then((r) => (r.ok ? r.json() : null)).then((j) => { if (vivo && j) { setSemMotoboy(Number(j.semMotoboy ?? 0)); setMotoboysCadastrados(Number(j.cadastrados ?? 0)) } }).catch(() => {})
     void rodar()
-    const t = setInterval(rodar, 30_000)
+    const t = setInterval(() => { if (document.visibilityState === 'visible') void rodar() }, 30_000)
     return () => { vivo = false; clearInterval(t) }
   }, [despachoAuto, prontosSemMotoboy])
 
@@ -735,7 +735,8 @@ export default function PedidosPage() {
   // concluídos do dia (a maior parte do peso), o relógio só baixa o que mudou.
   useEffect(() => {
     if (!restauranteId) return
-    const interval = setInterval(() => refetch(restauranteId, { concluidosDelta: true }), intervaloMs)
+    // Escondida não lê; ao voltar, o listener de visibilitychange logo abaixo já busca na hora.
+    const interval = setInterval(() => { if (document.visibilityState === 'visible') refetch(restauranteId, { concluidosDelta: true }) }, intervaloMs)
     return () => clearInterval(interval)
   }, [restauranteId, refetch, intervaloMs])
 

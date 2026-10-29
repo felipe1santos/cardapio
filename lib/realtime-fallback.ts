@@ -108,3 +108,24 @@ export function useRealtimeComFallback({ supabase, canal, tabelas, aoEvento, aoS
   const saudavel = !aguarda && (usaCompartilhado || temProprio) && (!usaCompartilhado || compartilhadoOk) && (!temProprio || proprioOk)
   return { saudavel, intervaloMs: saudavel ? INTERVALO_REALTIME_OK : INTERVALO_FALLBACK }
 }
+
+/**
+ * Relógio de segurança das telas que já têm Realtime: só roda com a aba visível e, ao voltar a ficar visível, lê na
+ * hora (o que passou escondida não se perde). Não lê ao montar — a tela já carrega sozinha. `fn` fica numa ref:
+ * trocar a função não reinicia o relógio; trocar `intervaloMs` (60 s ↔ 8 s) reinicia.
+ */
+export function useHeartbeatVisivel(fn: () => void, intervaloMs: number): void {
+  const fnRef = useRef(fn)
+  fnRef.current = fn
+
+  useEffect(() => {
+    const visivel = () => document.visibilityState === 'visible'
+    const t = setInterval(() => { if (visivel()) fnRef.current() }, intervaloMs)
+    const aoVoltar = () => { if (visivel()) fnRef.current() }
+    document.addEventListener('visibilitychange', aoVoltar)
+    return () => {
+      clearInterval(t)
+      document.removeEventListener('visibilitychange', aoVoltar)
+    }
+  }, [intervaloMs])
+}

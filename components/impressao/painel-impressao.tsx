@@ -140,7 +140,7 @@ export function PainelImpressao({ semTopo = false }: { semTopo?: boolean } = {})
   useEffect(() => {
     void carregar()
     // Só com a tela visível (revisão de escala 26/10).
-    const t = setInterval(() => { if (document.visibilityState === 'visible') void carregar() }, rapido ? 2000 : 5000)
+    const t = setInterval(() => { if (document.visibilityState === 'visible') void carregar() }, rapido ? 2000 : 15_000)
     return () => clearInterval(t)
   }, [carregar, rapido])
 
@@ -211,8 +211,11 @@ export function PainelImpressao({ semTopo = false }: { semTopo?: boolean } = {})
   useEffect(() => {
     if (soNova) return
     void checarAntigo()
-    const t = setInterval(() => void checarAntigo(), 8000)
-    return () => clearInterval(t)
+    // 30 s e só com a aba visível; ao voltar, lê na hora.
+    const t = setInterval(() => { if (document.visibilityState === 'visible') void checarAntigo() }, 30_000)
+    const aoVoltar = () => { if (document.visibilityState === 'visible') void checarAntigo() }
+    document.addEventListener('visibilitychange', aoVoltar)
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', aoVoltar) }
   }, [checarAntigo, soNova])
 
   useEffect(() => {

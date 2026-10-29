@@ -5,7 +5,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { ShoppingBag } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Capacete } from '@/components/icones/capacete'
-import { useRealtimeComFallback } from '@/lib/realtime-fallback'
+import { useHeartbeatVisivel, useRealtimeComFallback } from '@/lib/realtime-fallback'
 import { contaAAcertar, resumirDimensoes, situacaoFinanceira, telefoneParcial } from '@/lib/pdv-v2'
 import type { LinhaCentral } from '@/lib/servicos/conta-presencial'
 import { chamar, formatBRL, horaCurta, mascararTelefone, novaChave, tempoCurto } from './util'
@@ -97,10 +97,7 @@ export function CentralBalcao({
     },
     aoSincronizar: () => void carregar(),
   })
-  useEffect(() => {
-    const t = setInterval(() => void carregar(), intervaloMs)
-    return () => clearInterval(t)
-  }, [intervaloMs, carregar])
+  useHeartbeatVisivel(() => void carregar(), intervaloMs)
 
   const aAcertar = useMemo(() => linhas.filter((l) => contaAAcertar(l)).length, [linhas])
   const visiveis = useMemo(() => {

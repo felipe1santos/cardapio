@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { TecladoPin } from '@/components/admin/teclado-pin'
 import { formatarCentavos } from '@/lib/financeiro/centavos'
+import { useLeituraPeriodica } from '@/lib/leitura-periodica'
 
 /**
  * Aprovação pelo celular (Fase 6): faixa por cima de tudo para quem pode aprovar, com os pedidos pendentes da
@@ -27,10 +28,9 @@ export function FaixaAprovacoes() {
   }, [])
   useEffect(() => {
     setMontado(true)
-    void carregar()
-    const t = setInterval(() => { if (document.visibilityState === 'visible') void carregar() }, 10_000)
-    return () => clearInterval(t)
-  }, [carregar])
+  }, [])
+  // 30 s só com a aba visível; ao voltar, lê na hora.
+  useLeituraPeriodica(() => void carregar(), 30_000)
 
   async function decidir(decisao: 'aprovar' | 'recusar', p: string) {
     if (!aberto) return

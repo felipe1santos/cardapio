@@ -35,7 +35,7 @@ import {
   type Relogio,
 } from '@/lib/garcom-catalogo'
 import { listarChamadosAbertos, type Chamado } from '@/lib/queries/chamados'
-import { useRealtimeComFallback } from '@/lib/realtime-fallback'
+import { useHeartbeatVisivel, useRealtimeComFallback } from '@/lib/realtime-fallback'
 import { PainelChamados, useRelogio } from '../chamados'
 import { Confirmacao, Historico, ModalDestino, PainelConta, useConta, type MesaOpcao } from './conta'
 import { CardProduto, ConfiguradorGarcom, PainelLancamento, SelecaoDoCliente, SemItens, brl, type DadosPizza } from './lancar'
@@ -228,11 +228,7 @@ export default function MesaDetalhePage() {
     aoSincronizar: () => void carregar(),
   })
 
-  useEffect(() => {
-    if (!restauranteId) return
-    const t = setInterval(() => void carregar(), intervaloMs)
-    return () => clearInterval(t)
-  }, [restauranteId, intervaloMs, carregar])
+  useHeartbeatVisivel(() => { if (restauranteId) void carregar() }, intervaloMs)
 
   // O cliente continua marcando itens no celular enquanto o garçom está na mesa: a lista
   // se atualiza sozinha, sem ele precisar recarregar a página. No modo só-visualização

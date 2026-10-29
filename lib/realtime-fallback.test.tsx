@@ -1,7 +1,7 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { useRealtimeComFallback, INTERVALO_REALTIME_OK, INTERVALO_FALLBACK } from './realtime-fallback'
+import { useRealtimeComFallback, useHeartbeatVisivel, INTERVALO_REALTIME_OK, INTERVALO_FALLBACK } from './realtime-fallback'
 
 /**
  * O caminho saudável foi medido em produção (60s exatos entre refetches). O que
@@ -111,5 +111,63 @@ describe('useRealtimeComFallback', () => {
       })
     )
     expect(canal.on).toHaveBeenCalledTimes(3)
+  })
+})
+
+describe('useHeartbeatVisivel', () => {
+  let visivel = true
+  const mudar = (v: boolean) => { visivel = v; act(() => { document.dispatchEvent(new Event('visibilitychange')) }) }
+  beforeEach(() => {
+    vi.useFakeTimers()
+    visivel = true
+    vi.spyOn(document, 'visibilityState', 'get').mockImplementation(() => (visivel ? 'visible' : 'hidden'))
+  })
+  afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
+
+  it('não roda ao montar; roda a cada intervalo com a aba visível', () => {
+    const fn = vi.fn()
+    renderHook(() => useHeartbeatVisivel(fn, 60_000))
+    expect(fn).not.toHaveBeenCalled()
+    act(() => { vi.advanceTimersByTime(120_000) })
+    expect(fn).toHaveBeenCalledTimes(2)
+  })
+
+  it('aba escondida: não roda no relógio; ao voltar, roda na hora', () => {
+    const fn = vi.fn()
+    renderHook(() => useHeartbeatVisivel(fn, 60_000))
+    mudar(false)
+    act(() => { vi.advanceTimersByTime(600_000) })
+    expect(fn).not.toHaveBeenCalled()
+    mudar(true)
+    expect(fn).toHaveBeenCalledTimes(1)
+  })
+
+  it('trocar o intervalo reinicia o relógio', () => {
+    const fn = vi.fn()
+    const { rerender } = renderHook(({ ms }) => useHeartbeatVisivel(fn, ms), { initialProps: { ms: 60_000 } })
+    act(() => { vi.advanceTimersByTime(50_000) })
+    rerender({ ms: 8_000 })
+    act(() => { vi.advanceTimersByTime(8_000) })
+    expect(fn).toHaveBeenCalledTimes(1)
+  })
+
+  it('trocar a função não reinicia o relógio e usa a mais nova', () => {
+    const a = vi.fn()
+    const b = vi.fn()
+    const { rerender } = renderHook(({ f }) => useHeartbeatVisivel(f, 60_000), { initialProps: { f: a } })
+    act(() => { vi.advanceTimersByTime(30_000) })
+    rerender({ f: b })
+    act(() => { vi.advanceTimersByTime(30_000) })
+    expect(a).not.toHaveBeenCalled()
+    expect(b).toHaveBeenCalledTimes(1)
+  })
+
+  it('desmontar para tudo', () => {
+    const fn = vi.fn()
+    const { unmount } = renderHook(() => useHeartbeatVisivel(fn, 60_000))
+    unmount()
+    act(() => { vi.advanceTimersByTime(300_000) })
+    mudar(true)
+    expect(fn).not.toHaveBeenCalled()
   })
 })

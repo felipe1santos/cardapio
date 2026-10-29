@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useRealtimeComFallback } from '@/lib/realtime-fallback'
+import { useHeartbeatVisivel, useRealtimeComFallback } from '@/lib/realtime-fallback'
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { aplicarEventoEntregador } from '@/lib/entregadores-evento'
 import { Bike, ChevronDown, ChevronUp } from 'lucide-react'
@@ -324,11 +324,7 @@ export default function PedidosFinalizadosPage() {
   // Refetch periódico — "motoboy online" depende do horário atual, então precisa
   // recalcular mesmo sem eventos de realtime (ex.: motoboy fechou o app). Com o
   // canal saudável vira heartbeat; se ele cair, volta ao ritmo agressivo.
-  useEffect(() => {
-    if (!restauranteId) return
-    const interval = setInterval(() => refetch(restauranteId), intervaloMs)
-    return () => clearInterval(interval)
-  }, [restauranteId, refetch, intervaloMs])
+  useHeartbeatVisivel(() => { if (restauranteId) refetch(restauranteId) }, intervaloMs)
 
   const intervalo = useMemo(() => intervaloDoPeriodo(periodo, periodoDe, periodoAte), [periodo, periodoDe, periodoAte])
   useEffect(() => {

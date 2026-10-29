@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { getBrowserSupabase } from '@/lib/supabase/client'
-import { useRealtimeComFallback } from '@/lib/realtime-fallback'
+import { useHeartbeatVisivel, useRealtimeComFallback } from '@/lib/realtime-fallback'
 import { sairDoPainel, useEstadoSessao } from '@/lib/sessao-cliente'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { corteLiberacaoAgendados, listarPedidosKanban, type Pedido } from '@/lib/queries/pedidos'
@@ -111,9 +111,8 @@ function Kds() {
   useEffect(() => {
     if (!restauranteId) return
     void recarregar(restauranteId)
-    const t = setInterval(() => void recarregar(restauranteId), intervaloMs)
-    return () => clearInterval(t)
-  }, [restauranteId, recarregar, intervaloMs])
+  }, [restauranteId, recarregar])
+  useHeartbeatVisivel(() => { if (restauranteId) void recarregar(restauranteId) }, intervaloMs)
 
   const base = useMemo(() => (demo ? paraDemo(pedidosDemo(demo, Date.now())) : pedidos), [demo, pedidos])
   const mapaSetor = demo ? SETORES_DEMO : setorDoItem

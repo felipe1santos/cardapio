@@ -1,7 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import Link from 'next/link'
+import { useLeituraPeriodica } from '@/lib/leitura-periodica'
 
 /**
  * Logística + financeiro (Fase 3, 0136).
@@ -63,7 +64,7 @@ export function DinheiroComMotoboys({ compacto = false }: { compacto?: boolean }
     const j = r?.ok ? await r.json().catch(() => null) : null
     setF(j?.financeiro ?? null)
   }, [])
-  useEffect(() => { void carregar(); const i = setInterval(() => void carregar(), 15000); return () => clearInterval(i) }, [carregar])
+  useLeituraPeriodica(() => void carregar(), 60_000)
   if (!f || (!f.veValores && f.trocos.length === 0)) return null
   return (
     <section className={`${compacto ? '' : 'mb-4 '}rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white`} data-testid="dinheiro-motoboys">

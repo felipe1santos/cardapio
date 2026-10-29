@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { Badge } from '@/components/ui/badge'
-import { useRealtimeComFallback } from '@/lib/realtime-fallback'
+import { useHeartbeatVisivel, useRealtimeComFallback } from '@/lib/realtime-fallback'
 import { ROTULO_FORMA, type FormaPagamento } from '@/lib/conta'
 import {
   atendimentoEfetivo,
@@ -152,10 +152,7 @@ export function ContaPresencialModal({
     aoEvento: () => void carregar(),
     aoSincronizar: () => void carregar(),
   })
-  useEffect(() => {
-    const t = setInterval(() => void carregar(), intervaloMs)
-    return () => clearInterval(t)
-  }, [intervaloMs, carregar])
+  useHeartbeatVisivel(() => void carregar(), intervaloMs)
 
   useEffect(() => {
     if (!aviso) return

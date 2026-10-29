@@ -26,7 +26,7 @@ import { listarChamadosAbertos, type Chamado } from '@/lib/queries/chamados'
 import { esperaTexto } from '@/lib/chamados'
 import { avisoDeComandasEsquecidas, comandaEsquecida, tempoAberta } from '@/lib/comanda-esquecida'
 import { pode } from '@/lib/auth/permissoes'
-import { useRealtimeComFallback } from '@/lib/realtime-fallback'
+import { useHeartbeatVisivel, useRealtimeComFallback } from '@/lib/realtime-fallback'
 import { ConfigConta } from './config-conta'
 import { DrawerFolhaMesas, DrawerQrMesa } from './qr'
 import { PainelChamados, useRelogio } from './chamados'
@@ -169,11 +169,7 @@ export default function MesasPage() {
     aoSincronizar: recarregar,
   })
 
-  useEffect(() => {
-    if (!restauranteId) return
-    const t = setInterval(recarregar, intervaloMs)
-    return () => clearInterval(t)
-  }, [restauranteId, intervaloMs, recarregar])
+  useHeartbeatVisivel(() => { if (restauranteId) void recarregar() }, intervaloMs)
 
   const visiveis = useMemo(() => {
     const termo = busca.trim().toLowerCase()
