@@ -247,31 +247,22 @@ export function CardapioDaMesa({ token, mesaNome, loja, grupos, itens, pizza, ca
    *
    * Intervalo folgado de propósito: é uma troca rara, e cada mesa tem vários celulares.
    */
-  useEffect(() => {
-    let vivo = true
+  // Pausa com a aba escondida e lê ao voltar (29/10, sistema mais leve).
+  useLeituraPeriodica(() => {
     const conferir = async () => {
       try {
         const r = await fetch(`/api/mesa/${token}/modo`, { cache: 'no-store' })
-        if (!r.ok || !vivo) return
+        if (!r.ok) return
         const corpo = (await r.json()) as { somenteVisualizacao?: boolean }
-        if (vivo && corpo.somenteVisualizacao !== undefined && corpo.somenteVisualizacao !== somenteVisualizacao) {
+        if (corpo.somenteVisualizacao !== undefined && corpo.somenteVisualizacao !== somenteVisualizacao) {
           window.location.reload()
         }
       } catch {
         // Sem rede: continua no modo em que está. A rota recusa o que não pode.
       }
     }
-    const t = setInterval(() => void conferir(), 60000)
-    const aoVoltar = () => {
-      if (document.visibilityState === 'visible') void conferir()
-    }
-    document.addEventListener('visibilitychange', aoVoltar)
-    return () => {
-      vivo = false
-      clearInterval(t)
-      document.removeEventListener('visibilitychange', aoVoltar)
-    }
-  }, [token, somenteVisualizacao])
+    void conferir()
+  }, 60000)
 
   /**
    * Guarda a lista no servidor para o garçom poder consultá-la de outro aparelho.
@@ -694,11 +685,22 @@ function ChamarGarcom({ token }: { token: string }) {
     }
   }, [token])
 
-  // A cada 10 s com a tela visível; escondida, pausa e lê ao voltar (revisão de escala 26/10).
-  useLeituraPeriodica(() => void ler(), 10000)
-
   const assumido = ativos.some((c) => c.status === 'assumido')
   const emEspera = ativos.length > 0
+
+  // Uma leitura ao abrir (o celular pode ter recarregado com chamado já aberto). Depois, a cada 10 s
+  // SÓ enquanto houver chamado aberto (é como o celular fica sabendo que o garçom assumiu ou encerrou);
+  // sem chamado não há relógio — ao chamar, `ler()` do envio traz o chamado e o relógio liga.
+  // Escondida, pausa e lê ao voltar (revisão de escala 26/10 e sistema mais leve 29/10).
+  useEffect(() => { void ler() }, [ler])
+  useEffect(() => {
+    if (!emEspera) return
+    const visivel = () => document.visibilityState === 'visible'
+    const t = setInterval(() => { if (visivel()) void ler() }, 10000)
+    const aoVoltar = () => { if (visivel()) void ler() }
+    document.addEventListener('visibilitychange', aoVoltar)
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', aoVoltar) }
+  }, [emEspera, ler])
 
   async function chamar(motivo: MotivoChamado) {
     if (enviando) return

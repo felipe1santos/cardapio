@@ -30,6 +30,7 @@ import { pedacosDaDescricao } from '@/lib/descricao-rica'
 import { nomeLimpo, pedacosDoNome } from '@/lib/nome-item'
 import { erroDoTroco } from '@/lib/troco'
 import { rotuloStatusPedidoCliente } from '@/lib/status-pedido-cliente'
+import { ritmoPedidos } from '@/lib/vitrine-ritmo'
 import { bannerPromocional } from '@/lib/banner-promocional'
 import { precoPizzaSabores, juntarSabores, separarSabores } from '@/lib/pizza-preco'
 import { tamanhosVendidosDaPizza } from '@/lib/pizza-tamanhos'
@@ -2561,6 +2562,12 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   const [pedidosLoading, setPedidosLoading] = useState(false)
   const detalheAberto = pedidoDetalhe !== null
   const entregaRolando = meusPedidos.some((p) => p.tipo === 'entrega' && ['recebido', 'preparando', 'pronto', 'em_rota'].includes(p.status))
+  // Pedido ativo = último status lido ainda não é final (ou o pedido recém-feito ainda não apareceu na lista).
+  // Só para de consultar depois que a leitura trouxe "Entregue"/"Cancelado" e a tela mostrou.
+  const temPedidoAtivo = meusPedidos.some((p) => pedidoEstaEmAndamento(p, agoraAcompanhamento))
+    || (ultimoPedidoId !== null && !meusPedidos.some((p) => p.id === ultimoPedidoId))
+  const abaPedidosAberta = tab === 'pedidos'
+  const ritmo = ritmoPedidos({ abaPedidosAberta, detalheAberto, temPedidoAtivo, entregaEmCurso: entregaRolando })
 
   useEffect(() => {
     // Os pedidos são carregados com a sessão, não só na aba Pedidos: a faixa de
@@ -2600,15 +2607,17 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       } catch { /* mantém lista atual (cache) */ }
       finally { if (active) setPedidosLoading(false) }
     }
-    load(tab === 'pedidos')
+    load(abaPedidosAberta)
     // Item 57: com o detalhe aberto ou uma entrega em andamento, o status (e a ilustração, e o aviso de
     // "saiu para entrega") chegam em até 15 s mesmo fora da aba Pedidos.
     // Desempenho (10/10): com a aba escondida (celular bloqueado) não consulta; ao voltar, consulta na hora.
-    const interval = setInterval(() => { if (document.visibilityState !== 'hidden') load(false) }, tab === 'pedidos' || detalheAberto ? 8000 : entregaRolando ? 15000 : 30000)
+    // Sem pedido ativo e sem a aba aberta (ritmo null): nenhum relógio; a leitura de cima já trouxe o estado.
+    if (ritmo === null) return () => { active = false }
+    const interval = setInterval(() => { if (document.visibilityState !== 'hidden') load(false) }, ritmo)
     const aoVoltar = () => { if (document.visibilityState === 'visible') load(false) }
     document.addEventListener('visibilitychange', aoVoltar)
     return () => { active = false; clearInterval(interval); document.removeEventListener('visibilitychange', aoVoltar) }
-  }, [tab, clienteSessao, slug, detalheAberto, entregaRolando])
+  }, [abaPedidosAberta, clienteSessao, slug, ritmo])
 
   // Item 57: "Seu pedido saiu para entrega!" — uma vez por pedido; espera checkout/ficha fecharem.
   const [pedidoSaiu, marcarSaiuVisto] = usePedidoSaiuParaAvisar(meusPedidos, slug, checkoutOpen || productSheet !== null)

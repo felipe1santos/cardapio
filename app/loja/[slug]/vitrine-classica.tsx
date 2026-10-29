@@ -12,6 +12,7 @@ import { pedacosDaDescricao } from '@/lib/descricao-rica'
 import { nomeLimpo, pedacosDoNome } from '@/lib/nome-item'
 import { erroDoTroco } from '@/lib/troco'
 import { rotuloStatusPedidoCliente } from '@/lib/status-pedido-cliente'
+import { ritmoPedidos } from '@/lib/vitrine-ritmo'
 import { bannerPromocional } from '@/lib/banner-promocional'
 import { precoPizzaSabores, juntarSabores, separarSabores } from '@/lib/pizza-preco'
 import { tamanhosVendidosDaPizza } from '@/lib/pizza-tamanhos'
@@ -2409,6 +2410,12 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     return () => clearInterval(t)
   }, [])
   const [pedidosLoading, setPedidosLoading] = useState(false)
+  // Pedido ativo = último status lido ainda não é final (ou o pedido recém-feito ainda não apareceu na lista).
+  const temPedidoAtivo = meusPedidos.some((p) => pedidoEstaEmAndamento(p, agoraAcompanhamento))
+    || (ultimoPedidoId !== null && !meusPedidos.some((p) => p.id === ultimoPedidoId))
+  const abaPedidosAberta = tab === 'pedidos'
+  // A vitrine clássica sempre foi 8 s (aba) / 30 s: mantém os valores, sem o 15 s de entrega nem o detalhe.
+  const ritmo = ritmoPedidos({ abaPedidosAberta, detalheAberto: false, temPedidoAtivo, entregaEmCurso: false })
 
   useEffect(() => {
     // Os pedidos são carregados com a sessão, não só na aba Pedidos: a faixa de
@@ -2448,13 +2455,15 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       } catch { /* mantém lista atual (cache) */ }
       finally { if (active) setPedidosLoading(false) }
     }
-    load(tab === 'pedidos')
+    load(abaPedidosAberta)
     // Pausa com a aba escondida e lê ao voltar (29/10) — como a vitrine nova.
-    const interval = setInterval(() => { if (document.visibilityState === 'visible') load(false) }, tab === 'pedidos' ? 8000 : 30000)
+    // Sem pedido ativo e sem a aba aberta (ritmo null): nenhum relógio.
+    if (ritmo === null) return () => { active = false }
+    const interval = setInterval(() => { if (document.visibilityState === 'visible') load(false) }, ritmo)
     const aoVoltar = () => { if (document.visibilityState === 'visible') load(false) }
     document.addEventListener('visibilitychange', aoVoltar)
     return () => { active = false; clearInterval(interval); document.removeEventListener('visibilitychange', aoVoltar) }
-  }, [tab, clienteSessao, slug])
+  }, [abaPedidosAberta, clienteSessao, slug, ritmo])
 
   // Mantém o modal de detalhe sincronizado com os dados mais recentes (status ao vivo).
   useEffect(() => {
