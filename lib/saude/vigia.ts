@@ -3,7 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { limiteDiario, type ApiPaga } from '@/lib/custo/guarda'
 import { limitesIa } from '@/lib/custo/ia'
 import { diaSP, limiteDoPainel } from '@/lib/custo/uso'
-import { assistentesFora, avaliar, CPU_ALTA_PCT, cronsAtrasados, horaDoResumo, JANELA_ALERTA_MS, medidasVazias, podeEnviar, textoResumo, type Alerta, type Medidas, type Oficial } from './avaliar'
+import { assistentesFora, avaliar, CPU_ALTA_PCT, cronsAtrasados, horaDoResumo, JANELA_ALERTA_MS, medidasVazias, podeEnviar, referenciaReq, textoResumo, type Alerta, type Medidas, type Oficial } from './avaliar'
 import { lojaEstaAberta, type HorarioFuncionamento, type StatusLoja } from '@/lib/timezone'
 import { derivarProm, lerHostingerOficial, lerPromOficial, lerSupabaseGestao } from './oficial'
 import { enviarAlertaSistema } from './enviar'
@@ -26,14 +26,14 @@ function restrito(msg: string | undefined | null): string | null {
   return msg && /restricted|exceed_|quota/i.test(msg) ? msg : null
 }
 
-/** Média de requisições/min dos últimos 7 dias — recalculada 1×/h (lê ~2 mil fotos só com o número). */
-let media: { valor: number | null; em: number } = { valor: null, em: 0 }
-async function mediaReq(admin: SupabaseClient, agora: number): Promise<number | null> {
-  if (agora - media.em < 3600_000) return media.valor
-  const { data } = await admin.from('sistema_saude_fotos').select('rpm:dados->reqPorMin').gte('em', new Date(agora - 7 * 86400_000).toISOString()).limit(2100)
-  const v = ((data ?? []) as { rpm: number | null }[]).map((r) => Number(r.rpm)).filter((n) => Number.isFinite(n) && n >= 0)
-  media = { valor: v.length >= 12 ? v.reduce((s, n) => s + n, 0) / v.length : null, em: agora }
-  return media.valor
+/** Referência de requisições/min (normal do mesmo horário; ver referenciaReq) — recalculada a cada 10 min (lê ~2 mil fotos só com o número). */
+let media: { valor: number | null; mesmoHorario: boolean; em: number } = { valor: null, mesmoHorario: false, em: 0 }
+async function mediaReq(admin: SupabaseClient, agora: number): Promise<{ valor: number | null; mesmoHorario: boolean }> {
+  if (agora - media.em < 600_000) return media
+  const { data } = await admin.from('sistema_saude_fotos').select('em, rpm:dados->reqPorMin').gte('em', new Date(agora - 7 * 86400_000).toISOString()).order('em', { ascending: false }).limit(2100)
+  const r = referenciaReq(((data ?? []) as { em: string; rpm: number | null }[]).map((x) => ({ em: x.em, rpm: Number(x.rpm) })), agora)
+  media = { ...r, em: agora }
+  return r
 }
 
 function vps(): Pick<Medidas, 'cpuStat' | 'memLivrePct' | 'discoUsadoPct'> {
@@ -122,7 +122,9 @@ export async function coletar(admin: SupabaseClient, agora: Date, anterior: { em
     // Contador zerado (reset das estatísticas) dá delta negativo: sem número nesta rodada.
     if (min > 0.5 && req >= anterior.req_postgrest) m.reqPorMin = (req - Number(anterior.req_postgrest)) / min
   }
-  m.reqMediaPorMin = await mediaReq(admin, agora.getTime()).catch(() => null)
+  const ref = await mediaReq(admin, agora.getTime()).catch(() => ({ valor: null, mesmoHorario: false }))
+  m.reqMediaPorMin = ref.valor
+  m.reqReferenciaMesmoHorario = ref.mesmoHorario
   const base = m.reqMediaPorMin ?? m.reqPorMin
   if (base !== null) m.egressMesGb = (base * 1440 * 30 * BYTES_EGRESS_POR_REQ) / 1e9
 

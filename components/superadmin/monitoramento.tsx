@@ -73,7 +73,7 @@ export function Monitoramento({ fotos, crons, alertas6h, lojasAtivas, cadastros 
         <Grupo icone={<Database className="h-[16px] w-[16px]" />} titulo="Supabase" sub="banco de dados (cobrado por uso)"
           info="O Supabase guarda os dados (pedidos, cardápio, lojas). O plano Pro inclui 250 GB de tráfego (egress) por mês; passou disso, o sistema pode ser bloqueado como em 27/10.">
           <MetricaHp rotulo="Requisições" testid="sa-req" valor={n0(m?.reqPorMin)} unidade="/min"
-            nota={m?.reqMediaPorMin != null ? `média ${n0(m.reqMediaPorMin)}/min` : undefined}
+            nota={m?.reqMediaPorMin != null ? `${m.reqReferenciaMesmoHorario ? 'normal deste horário' : 'média geral'} ${n0(m.reqMediaPorMin)}/min` : undefined}
             info="Quantas vezes por minuto o sistema consulta o banco. Cada consulta gasta tráfego (egress). O dobro da média por muito tempo pode indicar algo em repetição."
             grafico={<SparklineHp rotulo="Requisições por minuto" valores={serie.map((f) => Number(f.dados.reqPorMin))} />} />
           <MetricaHp rotulo="CPU do banco" testid="sa-cpu-banco" valor={prom?.cpuPct == null ? '—' : `${Math.round(prom.cpuPct)}%`}

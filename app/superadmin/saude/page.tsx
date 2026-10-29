@@ -137,7 +137,7 @@ export default async function SaudePage() {
                 info={`Egress é tudo que SAI do Supabase para o app e para os clientes (dados e fotos). É a cota que bloqueou o banco em 27/10. O Supabase não tem API desse número, então é uma projeção: requisições × ${BYTES_EGRESS_POR_REQ} B (calibrado em 28/10 contra a página Usage).`} />
               <Numero rotulo="Requisições (24 h)" fonte={o?.supabase?.req24h ? 'supabase' : 'estimado'}
                 valor={o?.supabase?.req24h ? n0(o.supabase.req24h.total) : `${n0(m.reqPorMin)}/min`}
-                nota={o?.supabase?.req24h ? undefined : `média 7 dias ${n0(m.reqMediaPorMin)}/min`}
+                nota={o?.supabase?.req24h ? undefined : `${m.reqReferenciaMesmoHorario ? 'normal deste horário' : 'média geral'} ${n0(m.reqMediaPorMin)}/min`}
                 info="Quantas vezes o app e as lojas pediram dados ao banco. Subida brusca sem mais pedidos = possível loop (tela ou rotina pedindo dados sem parar)." />
               <Numero rotulo="Banco de dados" fonte={o?.prom ? 'supabase' : 'exato'} valor={gb(o?.prom?.dbBytes ?? m.dbBytes)} nota={`limite ${PLANO_PRO.discoGb} GB`}
                 info="Tamanho das tabelas (pedidos, clientes, cardápios). Cresce devagar; as tabelas de registro são limpas sozinhas (retenção)." />

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { assistentesFora, avaliar, cronsAtrasados, horaDoResumo, medidasVazias, podeEnviar, textoResumo, type Medidas } from './avaliar'
+import { assistentesFora, avaliar, cronsAtrasados, horaDoResumo, medidasVazias, podeEnviar, referenciaReq, textoResumo, type Medidas } from './avaliar'
 
 const base = (p: Partial<Medidas> = {}): Medidas => ({ ...medidasVazias('2026-10-28T21:00:00Z'), ...p })
 const assuntos = (m: Medidas) => avaliar(m).map((a) => `${a.assunto}:${a.nivel}`)
@@ -17,9 +17,10 @@ describe('avaliar', () => {
   })
 
   it('requisições: 2× a média = amarelo, 4× = vermelho; madrugada com pouco volume não alerta', () => {
-    expect(assuntos(base({ reqPorMin: 500, reqMediaPorMin: 240 }))).toEqual(['requisicoes:amarelo'])
-    expect(assuntos(base({ reqPorMin: 1000, reqMediaPorMin: 240 }))).toEqual(['requisicoes:vermelho'])
-    expect(assuntos(base({ reqPorMin: 40, reqMediaPorMin: 10 }))).toEqual([])
+    const mh = { reqReferenciaMesmoHorario: true }
+    expect(assuntos(base({ reqPorMin: 500, reqMediaPorMin: 240, ...mh }))).toEqual(['requisicoes:amarelo'])
+    expect(assuntos(base({ reqPorMin: 1000, reqMediaPorMin: 240, ...mh }))).toEqual(['requisicoes:vermelho'])
+    expect(assuntos(base({ reqPorMin: 40, reqMediaPorMin: 10, ...mh }))).toEqual([])
   })
 
   it('egress projetado no mês: 70% amarelo, 90% vermelho', () => {
@@ -118,5 +119,62 @@ describe('resumo diário', () => {
   it('"tudo ok" sem alertas; lista o que precisa de atenção', () => {
     expect(textoResumo(base({ reqMediaPorMin: 240 }), [])).toMatch(/Tudo ok/)
     expect(textoResumo(base(), avaliar(base({ discoUsadoPct: 75 })))).toMatch(/Disco da VPS/)
+  })
+})
+
+describe('referenciaReq (normal do mesmo horário)', () => {
+  // Agora = 29/10 21:43Z = 18:43 em São Paulo. Fotos dos dias anteriores: jantar (18:30–19:00 SP) a 400, tarde a 130.
+  const agora = Date.parse('2026-10-29T21:43:00Z')
+  const foto = (diasAtras: number, horaMinSP: string, rpm: number) => {
+    const [h, mi] = horaMinSP.split(':').map(Number)
+    const dia = new Date(Date.parse('2026-10-29T00:00:00Z') - diasAtras * 86400_000)
+    return { em: new Date(Date.UTC(dia.getUTCFullYear(), dia.getUTCMonth(), dia.getUTCDate(), h + 3, mi)).toISOString(), rpm }
+  }
+  it('jantar de hoje com jantares anteriores → média só deles, mesmoHorario', () => {
+    const fotos = [
+      foto(1, '18:20', 380), foto(1, '18:40', 420), foto(2, '18:45', 400), foto(2, '19:00', 400), foto(3, '18:35', 400), foto(3, '19:25', 400),
+      foto(1, '15:00', 130), foto(2, '03:00', 70), foto(1, '12:00', 100),
+    ]
+    expect(referenciaReq(fotos, agora)).toEqual({ valor: 400, mesmoHorario: true })
+  })
+  it('janela atravessa a meia-noite (00:20 usa 23:20–01:20)', () => {
+    const a = Date.parse('2026-10-29T03:20:00Z') // 00:20 SP
+    const fotos = [foto(2, '23:20', 60), foto(2, '23:50', 60), foto(2, '00:10', 60), foto(2, '01:20', 60), foto(3, '00:40', 60), foto(3, '23:30', 60), foto(2, '12:00', 999), foto(3, '23:10', 999), foto(2, '01:30', 999)]
+    expect(referenciaReq(fotos, a)).toEqual({ valor: 60, mesmoHorario: true })
+  })
+  it('poucas amostras do mesmo horário → média geral (fora dos últimos 30 min)', () => {
+    const fotos = [foto(1, '18:40', 400), ...Array.from({ length: 14 }, (_, i) => foto(1 + (i % 3), `${String(2 + i).padStart(2, '0')}:00`, 100))]
+    const r = referenciaReq(fotos.filter((f) => !f.em.includes('T21:40')), agora)
+    expect(r.mesmoHorario).toBe(false)
+    expect(r.valor).not.toBeNull()
+  })
+  it('ignora rpm inválido e fotos dos últimos 30 min na média geral; vazio → null', () => {
+    expect(referenciaReq([], agora)).toEqual({ valor: null, mesmoHorario: false })
+    const recentes = Array.from({ length: 20 }, (_, i) => ({ em: new Date(agora - (i + 1) * 60_000).toISOString(), rpm: 900 })).filter((f) => agora - Date.parse(f.em) < 1800_000)
+    expect(referenciaReq([...recentes, { em: foto(2, '10:00', 1).em, rpm: NaN }, { em: foto(2, '10:05', 1).em, rpm: -5 }], agora)).toEqual({ valor: null, mesmoHorario: false })
+  })
+})
+
+describe('avaliar requisições com referência do mesmo horário', () => {
+  const mh = { reqReferenciaMesmoHorario: true }
+  it('377/min contra o normal do jantar (400) → nada', () => {
+    expect(assuntos(base({ reqPorMin: 377, reqMediaPorMin: 400, ...mh }))).toEqual([])
+  })
+  it('377/min contra média geral 181 (2,1×) → nada (limiar do fallback é 4×)', () => {
+    expect(assuntos(base({ reqPorMin: 377, reqMediaPorMin: 181 }))).toEqual([])
+  })
+  it('900 contra 400 do mesmo horário (2,25×) → amarelo', () => {
+    expect(assuntos(base({ reqPorMin: 900, reqMediaPorMin: 400, ...mh }))).toEqual(['requisicoes:amarelo'])
+  })
+  it('1700 contra 400 do mesmo horário → vermelho', () => {
+    expect(assuntos(base({ reqPorMin: 1700, reqMediaPorMin: 400, ...mh }))).toEqual(['requisicoes:vermelho'])
+  })
+  it('800 contra média geral 181 (4,4×) → amarelo; 1500 (8,3×) → vermelho', () => {
+    expect(assuntos(base({ reqPorMin: 800, reqMediaPorMin: 181 }))).toEqual(['requisicoes:amarelo'])
+    expect(assuntos(base({ reqPorMin: 1500, reqMediaPorMin: 181 }))).toEqual(['requisicoes:vermelho'])
+  })
+  it('texto diz de qual referência vem', () => {
+    expect(avaliar(base({ reqPorMin: 900, reqMediaPorMin: 400, ...mh }))[0].texto).toMatch(/normal deste horário 400\/min, 2\.3×/)
+    expect(avaliar(base({ reqPorMin: 800, reqMediaPorMin: 181 }))[0].texto).toMatch(/média geral 181\/min, 4\.4×/)
   })
 })

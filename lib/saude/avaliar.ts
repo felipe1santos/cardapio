@@ -12,6 +12,8 @@ export interface Medidas {
   /** Requisições PostgREST por minuto desde a última foto, e a média dos últimos 7 dias. */
   reqPorMin: number | null
   reqMediaPorMin: number | null
+  /** true = reqMediaPorMin é o normal do MESMO horário nos dias anteriores; false/ausente = média geral (fotos antigas). */
+  reqReferenciaMesmoHorario?: boolean
   /** Egress estimado para o mês (GB) a partir da média de requisições, e a cota do plano. */
   egressMesGb: number | null
   egressCotaGb: number
@@ -86,10 +88,12 @@ export function avaliar(m: Medidas): Alerta[] {
   }
   if (m.reqPorMin !== null && m.reqMediaPorMin && m.reqPorMin >= REQ_MIN_PARA_ALERTA) {
     const x = m.reqPorMin / m.reqMediaPorMin
-    const nivel: Nivel | null = x >= 4 ? 'vermelho' : x >= 2 ? 'amarelo' : null
+    // Normal do mesmo horário: 2×/4×. Média geral (mistura madrugada e jantar) é frouxa: 4×/8×.
+    const mh = m.reqReferenciaMesmoHorario === true
+    const nivel: Nivel | null = x >= (mh ? 4 : 8) ? 'vermelho' : x >= (mh ? 2 : 4) ? 'amarelo' : null
     if (nivel) out.push(alerta('requisicoes', nivel, 'requisições ao banco acima do normal',
-      'O banco está recebendo muito mais chamadas que a média — pode ser uma tela ou robô em repetição.',
-      `${n0(m.reqPorMin)}/min (média ${n0(m.reqMediaPorMin)}/min, ${x.toFixed(1)}×)`,
+      'O banco está recebendo muito mais chamadas que o normal — pode ser uma tela ou robô em repetição.',
+      `${n0(m.reqPorMin)}/min (${mh ? 'normal deste horário' : 'média geral'} ${n0(m.reqMediaPorMin)}/min, ${x.toFixed(1)}×)`,
       'abrir Super Admin › Saúde do sistema; se continuar por 15 min, chamar o suporte técnico para achar a origem.'))
   }
   if (m.egressMesGb !== null) {
@@ -166,6 +170,32 @@ export function avaliar(m: Medidas): Alerta[] {
   return out
 }
 
+const minutoSP = (t: number) => {
+  const p = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(t))
+  return Number(p.find((x) => x.type === 'hour')?.value) * 60 + Number(p.find((x) => x.type === 'minute')?.value)
+}
+
+/**
+ * Referência de requisições/min para o alerta (29/10): o normal do MESMO horário (±60 min, hora de São Paulo) nos dias
+ * anteriores, porque noite (~70), tarde (~130) e jantar (~400–780) misturados davam alerta falso em todo jantar.
+ * Sem 6 amostras do horário, cai na média geral dos 7 dias (sem os últimos 30 min), com limiares mais frouxos. Pura.
+ */
+export function referenciaReq(fotos: { em: string; rpm: number }[], agora: number): { valor: number | null; mesmoHorario: boolean } {
+  const validas = fotos
+    .map((f) => ({ t: Date.parse(f.em), rpm: Number(f.rpm) }))
+    .filter((f) => Number.isFinite(f.t) && Number.isFinite(f.rpm) && f.rpm >= 0 && f.t <= agora && agora - f.t <= 7 * 86400_000)
+  const media = (v: { rpm: number }[]) => v.reduce((s, f) => s + f.rpm, 0) / v.length
+  const nowMin = minutoSP(agora)
+  const mesmas = validas.filter((f) => {
+    if (agora - f.t < 12 * 3600_000) return false
+    const d = Math.abs(minutoSP(f.t) - nowMin)
+    return Math.min(d, 1440 - d) <= 60
+  })
+  if (mesmas.length >= 6) return { valor: media(mesmas), mesmoHorario: true }
+  const geral = validas.filter((f) => agora - f.t >= 30 * 60_000)
+  return { valor: geral.length >= 12 ? media(geral) : null, mesmoHorario: false }
+}
+
 /** Intervalo de cada cron em minutos (Coolify). Atrasado = sem rodar há mais de 3× isso (mínimo 10 min). */
 export const CRONS: Record<string, number> = {
   whatsapp: 1, campanhas: 1, push: 1, canais: 1, entregas: 1, 'loja-horario': 1, 'pix-online': 1,
@@ -223,7 +253,7 @@ export function textoResumo(m: Medidas, alertas: Alerta[]): string {
     for (const a of alertas) linhas.push(`${a.nivel === 'vermelho' ? '🔴' : '🟡'} ${a.titulo.charAt(0).toUpperCase()}${a.titulo.slice(1)}`)
   }
   const nums: string[] = []
-  if (m.reqMediaPorMin !== null) nums.push(`banco ${n0(m.reqMediaPorMin)} req/min (média 7 dias)`)
+  if (m.reqMediaPorMin !== null) nums.push(`banco ${n0(m.reqMediaPorMin)} req/min (${m.reqReferenciaMesmoHorario ? 'normal deste horário' : 'média geral'})`)
   if (m.egressMesGb !== null) nums.push(`egress ~${m.egressMesGb.toFixed(0)}/${m.egressCotaGb} GB no mês`)
   if (m.discoUsadoPct !== null) nums.push(`disco VPS ${Math.round(m.discoUsadoPct)}%`)
   if (nums.length) linhas.push(nums.join(' · '))
