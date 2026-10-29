@@ -424,7 +424,10 @@ export function PainelImpressao({ semTopo = false }: { semTopo?: boolean } = {})
                     {todosAtivos.map((a) => (
                       <div key={a.id} className="ti-av-linha" data-testid={`av-agente-${a.id}`}>
                         <span className="min-w-0"><b>{a.nome}</b><small>{agenteAntigo(a) ? 'pareamento antigo — pode desconectar · ' : ''}versão {a.versao ?? '—'} · {a.online ? 'conectado agora' : `sem sinal desde ${quando(a.vistoEm) || '—'}`}</small></span>
-                        <button type="button" className="ti-link" style={{ fontSize: 12, fontWeight: 400 }} onClick={() => revogar(a)} disabled={ocupado} data-testid={`revogar-${a.nome}`}>Desconectar</button>
+                        <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                          {podeEditar && !agenteAntigo(a) && <button type="button" className="ti-btn sm" style={{ height: 'auto', minHeight: 44 }} onClick={() => void agir('/api/admin/impressao/atualizar-lista', 'POST', {}, 'A lista chega em até 1 minuto')} disabled={ocupado} data-testid={`atualizar-lista-${a.id}`}>Atualizar lista de impressoras</button>}
+                          <button type="button" className="ti-link" style={{ fontSize: 12, fontWeight: 400, minHeight: 44 }} onClick={() => revogar(a)} disabled={ocupado} data-testid={`revogar-${a.nome}`}>Desconectar</button>
+                        </span>
                       </div>
                     ))}
                   </div>
