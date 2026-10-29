@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { argsConversao, comVideo, midiasDaFicha, validarArquivoVideo, videoDoBanner, videoDoItem, videoNoCard } from './video-vitrine'
+import { argsCapa, argsConversao, comVideo, midiasDaFicha, normalizarCorte, validarArquivoVideo, validarDuracaoVideo, VIDEO_ORIGEM_MAX_S, videoDoBanner, videoDoItem, videoNoCard } from './video-vitrine'
 
 const v = { url: 'https://x/v.mp4', capa: 'https://x/c.webp' }
 
@@ -37,6 +37,35 @@ describe('vídeo da vitrine', () => {
     expect(a).toContain('libx264')
     expect(a).toContain('+faststart')
     expect(a.at(-1)).toBe('out')
+  })
+
+  it('ffmpeg: começa no trecho escolhido (-ss antes do -i) e comprime por qualidade com teto (teste de 28/10)', () => {
+    const a = argsConversao('in', 'out', 12.5)
+    expect(a.indexOf('-ss')).toBeLessThan(a.indexOf('-i'))
+    expect(a[a.indexOf('-ss') + 1]).toBe('12.5')
+    expect(a.slice(a.indexOf('-crf'), a.indexOf('-crf') + 2)).toEqual(['-crf', '28'])
+    expect(a.slice(a.indexOf('-preset'), a.indexOf('-preset') + 2)).toEqual(['-preset', 'medium'])
+    expect(a.slice(a.indexOf('-maxrate'), a.indexOf('-maxrate') + 2)).toEqual(['-maxrate', '1500k'])
+    expect(argsConversao('in', 'out')).not.toContain('-ss')
+  })
+
+  it('capa: o quadro escolhido do vídeo já cortado', () => {
+    const c = argsCapa('v.mp4', 'c.jpg', 3.2)
+    expect(c[c.indexOf('-ss') + 1]).toBe('3.2')
+    expect(c.indexOf('-ss')).toBeLessThan(c.indexOf('-i'))
+  })
+
+  it('corte e capa sempre dentro do vídeo', () => {
+    expect(normalizarCorte(40, 30, 20)).toEqual({ inicio: 25, capa: 14.9 }) // trecho não passa do fim; capa antes do último quadro
+    expect(normalizarCorte(8, 5, 6)).toEqual({ inicio: 0, capa: 6 }) // vídeo curto: começa do 0
+    expect(normalizarCorte(8, -1, Number.NaN)).toEqual({ inicio: 0, capa: 0 })
+    expect(normalizarCorte(Number.NaN, 10, 2)).toEqual({ inicio: 10, capa: 2 }) // sem duração (servidor): confia, o ffmpeg corta
+  })
+
+  it('checagem antes de enviar: duração do original', () => {
+    expect(validarDuracaoVideo(90)).toBeNull()
+    expect(validarDuracaoVideo(VIDEO_ORIGEM_MAX_S + 1)).toMatch(/3 min/)
+    expect(validarDuracaoVideo(0.3)).toMatch(/curto/)
   })
 
   describe('videoNoCard (vídeo no lugar da foto na lista)', () => {

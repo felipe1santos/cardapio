@@ -28,7 +28,8 @@ function rodar(args: string[]): Promise<void> {
 
 export interface VideoConvertido { mp4: Buffer; capa: Buffer }
 
-export function converterVideo(original: Buffer): Promise<VideoConvertido> {
+/** `inicio` = onde começa o trecho no original; `capa` = segundo do quadro da capa dentro do trecho (escolhidos na tela). */
+export function converterVideo(original: Buffer, corte: { inicio?: number; capa?: number } = {}): Promise<VideoConvertido> {
   const tarefa = fila.then(async () => {
     const pasta = await mkdtemp(join(tmpdir(), 'menuzia-video-'))
     try {
@@ -36,10 +37,12 @@ export function converterVideo(original: Buffer): Promise<VideoConvertido> {
       const saida = join(pasta, 'video.mp4')
       const quadro = join(pasta, 'capa.jpg')
       await writeFile(entrada, original)
-      await rodar(argsConversao(entrada, saida))
-      await rodar(argsCapa(saida, quadro))
+      await rodar(argsConversao(entrada, saida, corte.inicio ?? 0))
+      // Quadro escolhido; se ele cair depois do fim (o ffmpeg sai sem gravar nada), a capa é o 1º quadro.
+      await rodar(argsCapa(saida, quadro, corte.capa ?? 0)).catch(() => null)
+      const jpg = await readFile(quadro).catch(async () => { await rodar(argsCapa(saida, quadro, 0)); return readFile(quadro) })
       const mp4 = await readFile(saida)
-      const capa = await sharp(await readFile(quadro)).webp({ quality: 78 }).toBuffer()
+      const capa = await sharp(jpg).webp({ quality: 78 }).toBuffer()
       return { mp4, capa }
     } finally {
       await rm(pasta, { recursive: true, force: true }).catch(() => {})

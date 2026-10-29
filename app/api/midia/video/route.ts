@@ -5,7 +5,7 @@ import { pode } from '@/lib/auth/permissoes'
 import { caminhoPermitidoCompleto, normalizarAcessos } from '@/lib/acessos'
 import { criarLimitador } from '@/lib/limite-taxa'
 import { CACHE_CONTROL_SEGUNDOS } from '@/lib/imagem'
-import { validarArquivoVideo } from '@/lib/video-vitrine'
+import { normalizarCorte, validarArquivoVideo } from '@/lib/video-vitrine'
 import { converterVideo } from '@/lib/video/converter'
 
 /**
@@ -45,7 +45,9 @@ export async function POST(request: Request) {
 
   let convertido
   try {
-    convertido = await converterVideo(Buffer.from(await arquivo.arrayBuffer()))
+    // Trecho e capa escolhidos na linha do tempo (28/10); sem eles, começo do vídeo e 1º quadro.
+    const corte = normalizarCorte(Number.NaN, Number(form?.get('inicio')), Number(form?.get('capa')))
+    convertido = await converterVideo(Buffer.from(await arquivo.arrayBuffer()), corte)
   } catch (e) {
     console.error('[video] conversão falhou:', (e as Error).message)
     return NextResponse.json({ error: 'Não foi possível converter este vídeo. Tente outro arquivo.' }, { status: 422 })

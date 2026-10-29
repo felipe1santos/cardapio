@@ -63,21 +63,48 @@ export function validarArquivoVideo(arq: { type: string; size: number }): string
   return null
 }
 
+/** Original mais longo que isso não é aceito (checado no navegador antes de enviar). */
+export const VIDEO_ORIGEM_MAX_S = 180
+
+/** null = duração aceita. Pura. */
+export function validarDuracaoVideo(segundos: number): string | null {
+  if (!Number.isFinite(segundos) || segundos < 1) return 'Vídeo curto demais (mínimo 1 s).'
+  if (segundos > VIDEO_ORIGEM_MAX_S) return 'Vídeo longo demais (máximo 3 min). Corte no celular e envie de novo.'
+  return null
+}
+
 /**
- * Argumentos do ffmpeg: corta em 15 s, tira o áudio, reduz até o lado menor ter 720 px (nunca aumenta), H.264
- * compatível com qualquer celular (yuv420p, main) e com o índice no começo (faststart: começa a tocar antes de baixar).
+ * Trecho (início) e quadro da capa (segundos DENTRO do trecho) sempre dentro do vídeo. Sem duração conhecida (no
+ * servidor), confia nos números e o ffmpeg corta no fim. Pura.
  */
-export function argsConversao(entrada: string, saida: string): string[] {
+export function normalizarCorte(duracao: number, inicio: number, capa: number): { inicio: number; capa: number } {
+  const ok = (n: number) => (Number.isFinite(n) && n > 0 ? Math.round(n * 10) / 10 : 0)
+  let i = ok(inicio)
+  let c = ok(capa)
+  if (Number.isFinite(duracao) && duracao > 0) {
+    i = Math.min(i, Math.max(0, Math.round((duracao - VIDEO_DURACAO_MAX_S) * 10) / 10))
+    c = Math.min(c, Math.max(0, Math.round((Math.min(VIDEO_DURACAO_MAX_S, duracao - i) - 0.1) * 10) / 10))
+  }
+  return { inicio: i, capa: Math.min(c, VIDEO_DURACAO_MAX_S) }
+}
+
+/**
+ * Argumentos do ffmpeg: começa no trecho escolhido, corta em 15 s, tira o áudio, reduz até o lado menor ter 720 px
+ * (nunca aumenta), H.264 compatível com qualquer celular (yuv420p, main) e com o índice no começo (faststart).
+ * Compressão (teste de 28/10 com vídeos reais da Menuzia): qualidade constante CRF 28 + preset medium, com teto de
+ * 1,5 Mbps — 8% menor que o antigo (1,5 Mbps fixo, veryfast) com SSIM 0,9836 × 0,9809; conversão ~1,9× mais lenta.
+ */
+export function argsConversao(entrada: string, saida: string, inicio = 0): string[] {
   const escala = `scale='if(gt(iw,ih),-2,min(${VIDEO_LADO_MENOR},iw))':'if(gt(iw,ih),min(${VIDEO_LADO_MENOR},ih),-2)'`
   return [
-    '-hide_banner', '-loglevel', 'error', '-y', '-i', entrada, '-t', String(VIDEO_DURACAO_MAX_S), '-an',
-    '-vf', `${escala},fps=30`, '-c:v', 'libx264', '-preset', 'veryfast', '-profile:v', 'main', '-pix_fmt', 'yuv420p',
-    '-b:v', `${VIDEO_KBPS}k`, '-maxrate', `${Math.round(VIDEO_KBPS * 1.2)}k`, '-bufsize', `${VIDEO_KBPS * 2}k`,
+    '-hide_banner', '-loglevel', 'error', '-y', ...(inicio > 0 ? ['-ss', String(inicio)] : []), '-i', entrada, '-t', String(VIDEO_DURACAO_MAX_S), '-an',
+    '-vf', `${escala},fps=30`, '-c:v', 'libx264', '-preset', 'medium', '-crf', '28', '-profile:v', 'main', '-pix_fmt', 'yuv420p',
+    '-maxrate', `${VIDEO_KBPS}k`, '-bufsize', `${VIDEO_KBPS * 2}k`,
     '-movflags', '+faststart', saida,
   ]
 }
 
-/** 1º quadro do vídeo JÁ convertido, como JPEG (o servidor passa para WebP). */
-export function argsCapa(videoConvertido: string, saida: string): string[] {
-  return ['-hide_banner', '-loglevel', 'error', '-y', '-i', videoConvertido, '-frames:v', '1', '-q:v', '3', saida]
+/** Quadro escolhido (segundos dentro do vídeo JÁ convertido), como JPEG (o servidor passa para WebP). */
+export function argsCapa(videoConvertido: string, saida: string, segundo = 0): string[] {
+  return ['-hide_banner', '-loglevel', 'error', '-y', '-ss', String(segundo), '-i', videoConvertido, '-frames:v', '1', '-q:v', '3', saida]
 }
