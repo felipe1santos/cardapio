@@ -1,5 +1,7 @@
 # Bugs conhecidos — o que já aconteceu e como não deixar voltar
 
+> Lista completa das correções (com as regras gerais que saíram delas): [CORRECOES-DE-BUGS.md](CORRECOES-DE-BUGS.md).
+
 Cada bug aqui tem **causa**, **como evitar** e, quando dá, uma **checagem automática** em
 `scripts/guardas/bugs-conhecidos.mjs`. Ela roda:
 

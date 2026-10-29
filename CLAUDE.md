@@ -23,6 +23,10 @@
 - Bugs que já aconteceram, causa e prevenção: [docs/BUGS-CONHECIDOS.md](docs/BUGS-CONHECIDOS.md). A checagem automática
   (`scripts/guardas/bugs-conhecidos.mjs`) também roda no prebuild do Coolify — se um bug conhecido voltar, o build falha
   e a versão antiga fica no ar.
+- **Ler antes de mexer em retry, cron, webhook, alerta, cota ou medição:** [docs/CORRECOES-DE-BUGS.md](docs/CORRECOES-DE-BUGS.md)
+  (correções de 28–29/10 e as 7 regras gerais: espera crescente + limite em todo retry, descartar evento repetido antes
+  do banco, recurso desligado = zero consulta, alerta com canal de reserva, teto por loja, medir com a fonte certa,
+  código de tela sem biblioteca de servidor).
 - Bug novo corrigido que pode voltar: teste que falha primeiro + entrada no BUGS-CONHECIDOS + checagem B-n se der.
 - Código com `\` (regex, caminho) **só com Edit/Write**, nunca por `node -e`/`sed`/heredoc: a barra é comida (B1/B4).
 
