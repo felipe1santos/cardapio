@@ -101,6 +101,37 @@ describe('espera longa do Assistente (despertador)', () => {
     expect(reservadas).toEqual([])
   })
 
+  it('dono muda DEPOIS da 1ª busca pós-aviso (janela de 0,4/1,2 s) → nada é reservado para o antigo', async () => {
+    let buscas = 0
+    let conferencias = 0
+    const reservadas: string[] = []
+    setTimeout(() => _avisarParaTeste('loja-16'), 50)
+    const r = await esperarComBusca('loja-16', 20, undefined,
+      // Os itens "chegam" depois da 1ª busca pós-aviso: dali em diante a busca reservaria a ficha.
+      async () => { buscas++; if (buscas >= 3) { reservadas.push('ficha'); return ['ficha'] } return [] },
+      // Dono na 1ª conferência (pós-aviso); a Cozinha muda de computador logo depois.
+      async () => ++conferencias === 1,
+      undefined, 'pedidos',
+      async () => buscas >= 2)
+    expect(r).toEqual([])
+    expect(reservadas).toEqual([])
+  })
+
+  it('re-busca sem novidade não chama aindaVale nem buscar', async () => {
+    let buscas = 0
+    let conferencias = 0
+    let novidades = 0
+    const ctl = new AbortController()
+    setTimeout(() => _avisarParaTeste('loja-17'), 50)
+    setTimeout(() => ctl.abort(), 1600)
+    const r = await esperarComBusca('loja-17', 20, ctl.signal, async () => { buscas++; return [] },
+      async () => { conferencias++; return true }, undefined, 'pedidos', async () => { novidades++; return false })
+    expect(r).toEqual([])
+    expect(buscas).toBe(2) // a primeira (antes de esperar) + a 1ª depois do aviso
+    expect(conferencias).toBe(1)
+    expect(novidades).toBe(2) // +0,4 s e +1,2 s: só a conferência barata
+  })
+
   it('aviso de pedido não acorda espera de trabalhos', async () => {
     const t = Date.now()
     setTimeout(() => _avisarParaTeste('loja-9', 'pedidos'), 50)

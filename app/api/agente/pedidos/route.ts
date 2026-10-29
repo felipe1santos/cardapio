@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
-import { buscarConfigImpressao, buscarLojaImpressao, listarImpressoras, listarPedidosParaImprimir, registrarHeartbeatAgente } from '@/lib/queries/impressao'
+import { buscarConfigImpressao, buscarLojaImpressao, haPedidoParaImprimir, listarImpressoras, listarPedidosParaImprimir, registrarHeartbeatAgente } from '@/lib/queries/impressao'
 import { lerAgenteToken } from '@/lib/agente-token'
 import { identificarAgente } from '@/lib/impressao/credenciais'
 import { destinoCozinha } from '@/lib/impressao/servico'
@@ -86,7 +86,9 @@ export async function GET(request: Request) {
       : async () => (await aguardandoAceite(admin, restauranteId).catch(() => null))?.aguardando !== alarmeSabidoN
     const pedidos = souDono && config?.impressaoAutomatica
       ? await esperarComBusca(restauranteId, esperar, request.signal, async () =>
-          aposCorteDaTransferencia(await listarPedidosParaImprimir(admin, restauranteId, instancia) as { criadoEm?: string | null }[], rota.transferidaEm), aindaDono, alarmeMudou, 'pedidos')
+          aposCorteDaTransferencia(await listarPedidosParaImprimir(admin, restauranteId, instancia) as { criadoEm?: string | null }[], rota.transferidaEm), aindaDono, alarmeMudou, 'pedidos',
+          // Re-busca logo depois do aviso: só lê; havendo pedido, confere o dono antes de reservar.
+          () => haPedidoParaImprimir(admin, restauranteId, rota.transferidaEm))
       : []
     // Modelo novo da comanda (Beta 0.2.0-beta.2+): desconto, horários, comanda, atendente
     // e o QR do fim. Só para o dono da Cozinha — a resposta do Assistente antigo não muda.

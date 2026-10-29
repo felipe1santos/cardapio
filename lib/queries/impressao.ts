@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { rotuloVale } from '@/lib/formas-pagamento'
 import { observacaoParaImpressao, type EdicaoRegistro } from '@/lib/pedido-edicao-regras'
+import { aposCorteDaTransferencia } from '@/lib/impressao/transferencia'
 
 export interface ConfigImpressao {
   mostrarNumeroItem: boolean
@@ -260,6 +261,26 @@ export interface PedidoParaImprimir {
 
 /** Por quanto tempo um pedido entregue a um Assistente fica fora da fila dos outros. */
 export const RESERVA_IMPRESSAO_SEGUNDOS = 90
+
+/**
+ * Tem pedido para imprimir na loja? Só lê (`impressao_elegiveis`, a mesma regra da fila), não reserva nada (29/10):
+ * a re-busca logo depois do aviso usa isto para só conferir o dono da Cozinha quando há o que reservar. Na janela da
+ * transferência para o Beta (`transferidaEm`), conta só os pedidos que a reserva também aceitaria.
+ */
+export async function haPedidoParaImprimir(
+  admin: SupabaseClient,
+  restauranteId: string,
+  transferidaEm: string | null = null,
+): Promise<boolean> {
+  const { data, error } = await admin.rpc('impressao_elegiveis', { p_restaurante: restauranteId })
+  if (error) throw error
+  const ids = ((data ?? []) as (string | Record<string, string>)[]).map((r) => (typeof r === 'string' ? r : Object.values(r)[0]))
+  if (ids.length === 0) return false
+  if (aposCorteDaTransferencia([{ criadoEm: null }], transferidaEm).length === 1) return true // fora da janela: vale tudo
+  const { data: linhas, error: erro2 } = await admin.from('pedidos').select('criado_em').eq('restaurante_id', restauranteId).in('id', ids)
+  if (erro2) throw erro2
+  return aposCorteDaTransferencia(((linhas ?? []) as { criado_em: string | null }[]).map((p) => ({ criadoEm: p.criado_em })), transferidaEm).length > 0
+}
 
 /**
  * Pedidos a imprimir, JÁ RESERVADOS para quem pediu (0086, `impressao_reservar`).

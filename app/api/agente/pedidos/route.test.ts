@@ -13,6 +13,7 @@ vi.mock('@/lib/impressao/servico', () => ({ destinoCozinha: async () => rota }))
 vi.mock('@/lib/queries/impressao', () => ({
   buscarConfigImpressao: async () => ({ impressaoAutomatica: true }),
   buscarLojaImpressao: async () => ({ nome: 'Loja' }),
+  haPedidoParaImprimir: async () => false,
   listarImpressoras,
   listarPedidosParaImprimir,
   registrarHeartbeatAgente: async () => undefined,

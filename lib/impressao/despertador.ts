@@ -131,8 +131,8 @@ export async function esperarComBusca<T>(
   /**
    * Conferido antes da 1ª busca depois de cada aviso/prazo: a situação que valia no começo
    * (ex.: loja em "Cozinha e Caixa" com este computador na Cozinha) ainda vale? Se não,
-   * para e devolve vazio — nada é reservado para quem deixou de ser o destino. As buscas de
-   * 0,4 s e 1,2 s logo depois não conferem de novo (29/10: eram ~3 consultas a mais por busca).
+   * para e devolve vazio — nada é reservado para quem deixou de ser o destino. Nas buscas de
+   * 0,4 s e 1,2 s logo depois, só confere de novo se `temNovidade` disser que há algo.
    */
   aindaVale: () => Promise<boolean> = async () => true,
   /**
@@ -142,6 +142,11 @@ export async function esperarComBusca<T>(
   devolverJa?: () => Promise<boolean>,
   /** Qual aviso acorda esta espera: 'pedidos' (comanda da cozinha) ou 'trabalhos' (pré-conta, teste). */
   tipo: TipoAviso = 'pedidos',
+  /**
+   * Conferência barata, sem reservar, nas buscas de 0,4 s e 1,2 s depois do aviso (29/10): só se houver algo é que
+   * confere o dono (aindaVale) e busca de verdade. Sem ela (trabalhos: não há dono), essas buscas chamam só buscar().
+   */
+  temNovidade?: () => Promise<boolean>,
 ): Promise<T[]> {
   const fim = Date.now() + Math.max(0, Math.min(segundos, 20)) * 1000
   const buscarSeVale = async () => ((await aindaVale()) ? buscar() : null)
@@ -158,7 +163,13 @@ export async function esperarComBusca<T>(
       for (const pausa of [400, 800]) {
         if (lista.length || sinal?.aborted) break
         await new Promise((ok) => setTimeout(ok, pausa))
-        lista = await buscar()
+        if (!temNovidade) lista = await buscar()
+        else if (await temNovidade()) {
+          // Algo chegou: confere o dono antes de reservar (a Cozinha pode ter mudado de computador nesse 1 s).
+          const outra = await buscarSeVale()
+          if (outra === null) return []
+          lista = outra
+        }
       }
       if (!lista.length && devolverJa && (await devolverJa())) break
     }
