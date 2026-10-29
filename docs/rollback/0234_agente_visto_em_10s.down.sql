@@ -1,3 +1,4 @@
+-- Volta da 0234: copie para fora desta pasta e descomente para aplicar.
 -- VOLTA da 0234: definição de impressao_agente_autenticar que estava em produção em 29/10/2026.
 -- Tudo comentado de propósito, para nunca rodar por acidente. Para reverter: tire o '-- ' das linhas abaixo e execute.
 --

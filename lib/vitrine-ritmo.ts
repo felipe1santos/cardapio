@@ -16,3 +16,8 @@ export function ritmoPedidos(e: {
   if (e.temPedidoAtivo) return 30000
   return null
 }
+
+/** Sem relógio (ritmo null), a vitrine ainda lê uma vez ao voltar à aba — só com cliente logado. */
+export function leAoVoltar(temSessao: boolean): boolean {
+  return temSessao
+}

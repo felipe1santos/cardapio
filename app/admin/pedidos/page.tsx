@@ -3,7 +3,7 @@
 import { Children, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRealtimeComFallback } from '@/lib/realtime-fallback'
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
-import { aplicarNoQuadro, criarColetorEventos, criarFila, idsDoEvento, mesclarConcluidos, novosSemItens, QUADRO_VAZIO, type LoteEventos, type Quadro } from '@/lib/kanban-quadro'
+import { aplicarNoQuadro, criarColetorEventos, heartbeatDoKanbanRoda, criarFila, idsDoEvento, mesclarConcluidos, novosSemItens, QUADRO_VAZIO, type LoteEventos, type Quadro } from '@/lib/kanban-quadro'
 import {
   type LucideIcon,
   Bell,
@@ -735,8 +735,9 @@ export default function PedidosPage() {
   // concluídos do dia (a maior parte do peso), o relógio só baixa o que mudou.
   useEffect(() => {
     if (!restauranteId) return
-    // Escondida não lê; ao voltar, o listener de visibilitychange logo abaixo já busca na hora.
-    const interval = setInterval(() => { if (document.visibilityState === 'visible') refetch(restauranteId, { concluidosDelta: true }) }, intervaloMs)
+    // Escondida não lê (ao voltar, o visibilitychange abaixo busca), EXCETO com aceite automático ligado:
+    // ele roda aqui no navegador, então um evento perdido deixaria o pedido parado em "recebido".
+    const interval = setInterval(() => { if (heartbeatDoKanbanRoda(document.visibilityState === 'visible', autoAceitarRef.current)) refetch(restauranteId, { concluidosDelta: true }) }, intervaloMs)
     return () => clearInterval(interval)
   }, [restauranteId, refetch, intervaloMs])
 

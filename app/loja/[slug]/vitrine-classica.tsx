@@ -12,7 +12,7 @@ import { pedacosDaDescricao } from '@/lib/descricao-rica'
 import { nomeLimpo, pedacosDoNome } from '@/lib/nome-item'
 import { erroDoTroco } from '@/lib/troco'
 import { rotuloStatusPedidoCliente } from '@/lib/status-pedido-cliente'
-import { ritmoPedidos } from '@/lib/vitrine-ritmo'
+import { leAoVoltar, ritmoPedidos } from '@/lib/vitrine-ritmo'
 import { bannerPromocional } from '@/lib/banner-promocional'
 import { precoPizzaSabores, juntarSabores, separarSabores } from '@/lib/pizza-preco'
 import { tamanhosVendidosDaPizza } from '@/lib/pizza-tamanhos'
@@ -2458,11 +2458,11 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     load(abaPedidosAberta)
     // Pausa com a aba escondida e lê ao voltar (29/10) — como a vitrine nova.
     // Sem pedido ativo e sem a aba aberta (ritmo null): nenhum relógio.
-    if (ritmo === null) return () => { active = false }
-    const interval = setInterval(() => { if (document.visibilityState === 'visible') load(false) }, ritmo)
-    const aoVoltar = () => { if (document.visibilityState === 'visible') load(false) }
+    // Ritmo null: sem relógio, mas ainda lê UMA vez ao voltar à aba (cliente que pagou o Pix no app do banco).
+    const interval = ritmo === null ? null : setInterval(() => { if (document.visibilityState === 'visible') load(false) }, ritmo)
+    const aoVoltar = () => { if (leAoVoltar(!!clienteSessao) && document.visibilityState === 'visible') load(false) }
     document.addEventListener('visibilitychange', aoVoltar)
-    return () => { active = false; clearInterval(interval); document.removeEventListener('visibilitychange', aoVoltar) }
+    return () => { active = false; if (interval) clearInterval(interval); document.removeEventListener('visibilitychange', aoVoltar) }
   }, [abaPedidosAberta, clienteSessao, slug, ritmo])
 
   // Mantém o modal de detalhe sincronizado com os dados mais recentes (status ao vivo).

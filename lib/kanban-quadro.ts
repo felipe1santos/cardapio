@@ -163,3 +163,8 @@ export function criarColetorEventos({ esperaMs, maxIds, descarregar }: { esperaM
     },
   }
 }
+
+/** Heartbeat do Kanban: roda com a aba visível ou, escondida, só se o aceite automático (feito no navegador) estiver ligado. */
+export function heartbeatDoKanbanRoda(visivel: boolean, aceiteAutomatico: boolean): boolean {
+  return visivel || aceiteAutomatico
+}

@@ -9,7 +9,7 @@ import { useLeituraPeriodica } from '@/lib/leitura-periodica'
 /**
  * Aprovação pelo celular (Fase 6): faixa por cima de tudo para quem pode aprovar, com os pedidos pendentes da
  * equipe. Aprovar/recusar pede o PIN DA PRÓPRIA pessoa; o servidor confere tudo (inclusive que ninguém aprova
- * o próprio pedido). Consulta a cada 10 s (o push do painel ainda não existe — ponto de troca no servidor).
+ * o próprio pedido). Consulta a cada 30 s, só com a aba visível (o push do painel ainda não existe — ponto de troca no servidor).
  */
 interface Pedido { id: string; acao: string; rotulo: string; valor_centavos: number | null; motivo: string | null; solicitante_nome: string; dispositivo: string | null; criado_em: string; expira_em: string }
 

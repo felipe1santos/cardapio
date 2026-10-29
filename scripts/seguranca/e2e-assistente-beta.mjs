@@ -290,7 +290,7 @@ try {
   ok('Beta não imprimiu as fichas depois da volta', !v.some((id) => BETA.fichas().includes(id)))
 
   secao('Beta desligado no meio do "Cozinha e Caixa": nada se perde')
-  await aguardar(async () => (await um(`select visto_em > now()-interval '10 seconds' v from impressao_agentes where restaurante_id=$1`, [loja]))?.v, 15000)
+  await aguardar(async () => (await um(`select visto_em > now()-interval '25 seconds' v from impressao_agentes where restaurante_id=$1`, [loja]))?.v, 15000)
   ok('volta para "Cozinha e Caixa"', (await modo('cozinha_caixa')).status === 200)
   await BETA.parar()
   const off = await lancar()

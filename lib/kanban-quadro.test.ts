@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Pedido } from './queries/pedidos'
-import { aplicarNoQuadro, criarColetorEventos, criarFila, idsDoEvento, mesclarConcluidos, novosSemItens, QUADRO_VAZIO, type Quadro } from './kanban-quadro'
+import { aplicarNoQuadro, criarColetorEventos, criarFila, heartbeatDoKanbanRoda, idsDoEvento, mesclarConcluidos, novosSemItens, QUADRO_VAZIO, type Quadro } from './kanban-quadro'
 
 describe('criarFila (recargas em fila, uma de cada vez)', () => {
   it('recargas completas pedidas enquanto outra ESPERA na fila viram uma só', async () => {
@@ -205,5 +205,13 @@ describe('criarColetorEventos (debounce)', () => {
     c.cancelar()
     vi.advanceTimersByTime(1000)
     expect(descarregar).not.toHaveBeenCalled()
+  })
+})
+
+describe('heartbeatDoKanbanRoda', () => {
+  it('visível roda; escondida só com aceite automático', () => {
+    expect(heartbeatDoKanbanRoda(true, false)).toBe(true)
+    expect(heartbeatDoKanbanRoda(false, true)).toBe(true)
+    expect(heartbeatDoKanbanRoda(false, false)).toBe(false)
   })
 })

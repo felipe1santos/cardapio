@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ritmoPedidos } from './vitrine-ritmo'
+import { leAoVoltar, ritmoPedidos } from './vitrine-ritmo'
 
 const base = { abaPedidosAberta: false, detalheAberto: false, temPedidoAtivo: false, entregaEmCurso: false }
 
@@ -25,5 +25,12 @@ describe('ritmoPedidos', () => {
   it('pedido entregue há 1 min ainda conta como ativo até o status final ser lido: segue consultando', () => {
     // O servidor ainda não devolveu "entregue" para o aparelho: o último status lido é "em_rota".
     expect(ritmoPedidos({ ...base, temPedidoAtivo: true })).not.toBeNull()
+  })
+})
+
+describe('leAoVoltar', () => {
+  it('lê ao voltar só com sessão de cliente', () => {
+    expect(leAoVoltar(true)).toBe(true)
+    expect(leAoVoltar(false)).toBe(false)
   })
 })

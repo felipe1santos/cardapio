@@ -30,7 +30,7 @@ import { pedacosDaDescricao } from '@/lib/descricao-rica'
 import { nomeLimpo, pedacosDoNome } from '@/lib/nome-item'
 import { erroDoTroco } from '@/lib/troco'
 import { rotuloStatusPedidoCliente } from '@/lib/status-pedido-cliente'
-import { ritmoPedidos } from '@/lib/vitrine-ritmo'
+import { leAoVoltar, ritmoPedidos } from '@/lib/vitrine-ritmo'
 import { bannerPromocional } from '@/lib/banner-promocional'
 import { precoPizzaSabores, juntarSabores, separarSabores } from '@/lib/pizza-preco'
 import { tamanhosVendidosDaPizza } from '@/lib/pizza-tamanhos'
@@ -2612,11 +2612,11 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     // "saiu para entrega") chegam em até 15 s mesmo fora da aba Pedidos.
     // Desempenho (10/10): com a aba escondida (celular bloqueado) não consulta; ao voltar, consulta na hora.
     // Sem pedido ativo e sem a aba aberta (ritmo null): nenhum relógio; a leitura de cima já trouxe o estado.
-    if (ritmo === null) return () => { active = false }
-    const interval = setInterval(() => { if (document.visibilityState !== 'hidden') load(false) }, ritmo)
-    const aoVoltar = () => { if (document.visibilityState === 'visible') load(false) }
+    // Ritmo null: sem relógio, mas ainda lê UMA vez ao voltar à aba (cliente que pagou o Pix no app do banco).
+    const interval = ritmo === null ? null : setInterval(() => { if (document.visibilityState !== 'hidden') load(false) }, ritmo)
+    const aoVoltar = () => { if (leAoVoltar(!!clienteSessao) && document.visibilityState === 'visible') load(false) }
     document.addEventListener('visibilitychange', aoVoltar)
-    return () => { active = false; clearInterval(interval); document.removeEventListener('visibilitychange', aoVoltar) }
+    return () => { active = false; if (interval) clearInterval(interval); document.removeEventListener('visibilitychange', aoVoltar) }
   }, [abaPedidosAberta, clienteSessao, slug, ritmo])
 
   // Item 57: "Seu pedido saiu para entrega!" — uma vez por pedido; espera checkout/ficha fecharem.
