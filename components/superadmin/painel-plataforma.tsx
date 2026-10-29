@@ -268,7 +268,7 @@ export function PainelPlataforma({ lojas, resumo, usoApis, usoIa, modulos }: { l
 
         {/* Computador/tablet: tabela com cabeçalho fixo e a loja fixa à esquerda. */}
         <div className="hidden overflow-hidden rounded-[16px] border-[0.8px] border-[rgba(0,0,0,0.1)] bg-white md:block">
-          <div className="max-h-[calc(100dvh-330px)] min-h-[260px] overflow-auto" data-testid="tabela-rolagem">
+          <div className="relative max-h-[calc(100dvh-330px)] min-h-[260px] overflow-auto" data-testid="tabela-rolagem">
             <table className="w-full min-w-[1500px] border-separate border-spacing-0 text-[13px]" data-testid="tabela-lojas">
               <thead className="sticky top-0 z-[2] bg-white text-[12px] font-semibold text-text-subtle">
                 <tr className="[&>th]:border-b [&>th]:border-border">

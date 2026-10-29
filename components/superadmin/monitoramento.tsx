@@ -62,7 +62,7 @@ export function Monitoramento({ fotos, crons, alertas6h, lojasAtivas, cadastros 
           <MetricaHp rotulo="Uso de memória (VPS)" href="/superadmin/saude" testid="sa-mem"
             valor={memUsada == null ? '—' : `${Math.round(memUsada)}%`}
             grafico={<SparklineHp rotulo="Memória da VPS" valores={serie.map((f) => f.dados.memLivrePct == null ? NaN : 100 - f.dados.memLivrePct)} />} />
-          <MetricaHp rotulo="CPU do banco (Supabase)" href="/superadmin/saude" testid="sa-cpu-banco"
+          <MetricaHp rotulo="CPU do banco" href="/superadmin/saude" testid="sa-cpu-banco"
             valor={prom?.cpuPct == null ? '—' : `${Math.round(prom.cpuPct)}%`}
             nota={prom?.iops != null ? `disk IO ${prom.iops} op/s` : undefined}
             grafico={<SparklineHp rotulo="CPU do banco" valores={serie.map((f) => Number(f.dados.oficial?.prom?.cpuPct))} />} />

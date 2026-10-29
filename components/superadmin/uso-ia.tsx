@@ -54,7 +54,7 @@ function Grafico7({ dias }: { dias: UsoIa['ultimos7'] }) {
         const h = ((H - pe - topo) * d.custoMicroUsd) / max
         return (
           <g key={d.dia}>
-            <rect x={i * passo + passo / 2 - 9} y={H - pe - h} width={18} height={Math.max(h, d.custoMicroUsd > 0 ? 2 : 0)} rx={2} fill="#A855F7"><title>{`${d.dia.slice(8, 10)}/${d.dia.slice(5, 7)} · ${usd(d.custoMicroUsd)} · ${num(d.chamadas)} respostas`}</title></rect>
+            <rect x={i * passo + passo / 2 - 9} y={H - pe - h} width={18} height={Math.max(h, d.custoMicroUsd > 0 ? 2 : 0)} rx={2} fill="#673DE6"><title>{`${d.dia.slice(8, 10)}/${d.dia.slice(5, 7)} · ${usd(d.custoMicroUsd)} · ${num(d.chamadas)} respostas`}</title></rect>
             <text x={i * passo + passo / 2} y={H - 5} textAnchor="middle" fontSize={10} fill="#58585E">{`${d.dia.slice(8, 10)}/${d.dia.slice(5, 7)}`}</text>
           </g>
         )
@@ -71,7 +71,7 @@ export function UsoIaResumo({ ia }: { ia: UsoIa }) {
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 text-[16px] font-semibold leading-[24px] text-text-main">
           IA de atendimento (Claude)
-          <span className={`rounded-[3px] px-1.5 py-0.5 text-[10.5px] font-semibold uppercase ${ia.ligada ? 'bg-[#DCFCE7] text-[#16A34A]' : 'bg-[#FEF3C7] text-[#92400E]'}`} data-testid="ia-status">
+          <span className={`rounded-[8px] px-[8px] py-[2px] text-[12px] font-semibold leading-[20px] ${ia.ligada ? 'bg-[#DEF4F0] text-[#008361]' : 'bg-[#FFF8E2] text-[#8A6100]'}`} data-testid="ia-status">
             {ia.ligada ? 'Ligada' : 'Ainda não ligada'}
           </span>
         </h2>
@@ -120,8 +120,8 @@ export function IaDaLoja({ uso, limites, restauranteId, teto }: { uso: UsoIa['po
   const { cor } = corDoUso(hoje, tetoEfetivo * 1e6)
   return (
     <div className="flex w-[170px] flex-col gap-0.5 text-[11.5px]" data-testid="ia-loja" data-cor={cor}>
-      <span className="tabular-nums text-text-main"><span className="font-semibold uppercase text-text-subtle">Hoje </span>{usd(hoje)} / {usd(tetoEfetivo * 1e6)}</span>
-      <span className="tabular-nums text-text-main"><span className="font-semibold uppercase text-text-subtle">Mês </span>{usd(mes.custoMicroUsd)} · {brl(mes.custoMicroUsd, limites.cotacao)}</span>
+      <span className="tabular-nums text-text-main"><span className="font-semibold text-text-subtle">Hoje </span>{usd(hoje)} / {usd(tetoEfetivo * 1e6)}</span>
+      <span className="tabular-nums text-text-main"><span className="font-semibold text-text-subtle">Mês </span>{usd(mes.custoMicroUsd)} · {brl(mes.custoMicroUsd, limites.cotacao)}</span>
       <span className="tabular-nums text-text-subtle">{num(mes.chamadas)} respostas</span>
       <TetoIaLoja restauranteId={restauranteId} teto={teto} padrao={limites.usdDiaLoja} />
     </div>
@@ -147,10 +147,10 @@ export function TetoIaLoja({ restauranteId, teto, padrao }: { restauranteId: str
         value={valor}
         placeholder={padrao.toFixed(2)}
         onChange={(e) => { setValor(e.target.value); setMsg(null) }}
-        className="h-[26px] w-[56px] rounded-[3px] border border-border px-1.5 text-[12px] tabular-nums"
+        className="h-[26px] w-[56px] rounded-[8px] border border-border px-1.5 text-[12px] tabular-nums"
       />
-      <button type="submit" disabled={pendente} className="h-[26px] rounded-[3px] border border-border px-1.5 text-[11px] font-semibold uppercase text-text-main hover:border-primary disabled:opacity-50">OK</button>
-      {msg && <span className={msg === 'Salvo' ? 'text-[#16A34A]' : 'text-[#E73A47]'} role="status">{msg}</span>}
+      <button type="submit" disabled={pendente} className="h-[26px] rounded-[8px] border border-[rgba(103,61,230,0.45)] px-[8px] text-[12px] font-bold text-text-main hover:bg-[#EBE4FF] disabled:opacity-50">OK</button>
+      {msg && <span className={msg === 'Salvo' ? 'text-[#008361]' : 'text-[#E73A47]'} role="status">{msg}</span>}
     </form>
   )
 }

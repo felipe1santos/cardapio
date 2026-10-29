@@ -26,7 +26,7 @@ export function BarraUsoLoja({ uso, limites }: { uso: Record<ApiPainel, number> 
     <div className="flex w-[190px] flex-col gap-1" data-testid="uso-loja">
       {APIS_PAINEL.map((api) => (
         <div key={api} className="flex items-center gap-1.5">
-          <span className="w-[54px] flex-shrink-0 truncate text-[10.5px] font-semibold uppercase text-text-subtle" title={ROTULO_API[api]}>{api === 'maps_js' ? 'Mapas' : api === 'geocoding' ? 'Geocod.' : 'Rotas'}</span>
+          <span className="w-[54px] flex-shrink-0 truncate text-[10.5px] font-semibold text-text-subtle" title={ROTULO_API[api]}>{api === 'maps_js' ? 'Mapas' : api === 'geocoding' ? 'Geocod.' : 'Rotas'}</span>
           <Barra chamadas={uso?.[api] ?? 0} limite={limites[api]} compacta testid={`uso-loja-${api}`} />
         </div>
       ))}
