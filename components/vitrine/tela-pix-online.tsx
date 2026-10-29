@@ -48,7 +48,8 @@ export function TelaPixOnline({ slug, pix, onPago, onRefazer, onFechar }: {
       } catch { /* rede do celular: tenta de novo em 3 s */ }
     }
     void ler()
-    const t = setInterval(() => void ler(), 3000)
+    // Só com a aba visível (29/10): o cliente vai ao app do banco pagar e a aba fica escondida; ao voltar, lê na hora.
+    const t = setInterval(() => { if (document.visibilityState === 'visible') void ler() }, 3000)
     const voltou = () => { if (document.visibilityState === 'visible') void ler() }
     document.addEventListener('visibilitychange', voltou)
     return () => { vivo = false; clearInterval(t); document.removeEventListener('visibilitychange', voltou) }

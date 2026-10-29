@@ -2449,8 +2449,11 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       finally { if (active) setPedidosLoading(false) }
     }
     load(tab === 'pedidos')
-    const interval = setInterval(() => load(false), tab === 'pedidos' ? 8000 : 30000)
-    return () => { active = false; clearInterval(interval) }
+    // Pausa com a aba escondida e lê ao voltar (29/10) — como a vitrine nova.
+    const interval = setInterval(() => { if (document.visibilityState === 'visible') load(false) }, tab === 'pedidos' ? 8000 : 30000)
+    const aoVoltar = () => { if (document.visibilityState === 'visible') load(false) }
+    document.addEventListener('visibilitychange', aoVoltar)
+    return () => { active = false; clearInterval(interval); document.removeEventListener('visibilitychange', aoVoltar) }
   }, [tab, clienteSessao, slug])
 
   // Mantém o modal de detalhe sincronizado com os dados mais recentes (status ao vivo).
