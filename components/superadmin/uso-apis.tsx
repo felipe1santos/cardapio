@@ -35,10 +35,10 @@ export function BarraUsoLoja({ uso, limites }: { uso: Record<ApiPainel, number> 
 }
 
 function Grafico7Dias({ dias }: { dias: UsoApis['ultimos7'] }) {
-  const W = 560, H = 150, pe = 22, esq = 34, topo = 8
+  const W = 560, H = 230, pe = 26, esq = 40, topo = 10
   const max = Math.max(10, ...dias.flatMap((d) => APIS_PAINEL.map((a) => d[a])))
   const passo = (W - esq) / dias.length
-  const larg = Math.min(14, (passo - 10) / APIS_PAINEL.length)
+  const larg = Math.min(20, (passo - 12) / APIS_PAINEL.length)
   const y = (v: number) => topo + (H - pe - topo) * (1 - v / max)
   const fmtDia = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`
   return (
@@ -46,7 +46,7 @@ function Grafico7Dias({ dias }: { dias: UsoApis['ultimos7'] }) {
       {[0, 0.5, 1].map((f) => (
         <g key={f}>
           <line x1={esq} x2={W} y1={y(max * f)} y2={y(max * f)} stroke="rgba(0,0,0,0.08)" strokeWidth={1} />
-          <text x={esq - 4} y={y(max * f) + 3} textAnchor="end" fontSize={9} fill="#58585E">{num(Math.round(max * f))}</text>
+          <text x={esq - 4} y={y(max * f) + 3} textAnchor="end" fontSize={12} fill="#58585E">{num(Math.round(max * f))}</text>
         </g>
       ))}
       {dias.map((d, i) => (
@@ -55,7 +55,7 @@ function Grafico7Dias({ dias }: { dias: UsoApis['ultimos7'] }) {
             const x = esq + i * passo + (passo - larg * APIS_PAINEL.length) / 2 + j * larg
             return <rect key={a} x={x} y={y(d[a])} width={Math.max(2, larg - 2)} height={H - pe - y(d[a])} rx={2} fill={COR_API[a]}><title>{`${fmtDia(d.dia)} · ${ROTULO_API[a]}: ${num(d[a])}`}</title></rect>
           })}
-          <text x={esq + i * passo + passo / 2} y={H - 6} textAnchor="middle" fontSize={10} fill="#58585E">{fmtDia(d.dia)}</text>
+          <text x={esq + i * passo + passo / 2} y={H - 7} textAnchor="middle" fontSize={12} fill="#58585E">{fmtDia(d.dia)}</text>
         </g>
       ))}
     </svg>
@@ -64,12 +64,12 @@ function Grafico7Dias({ dias }: { dias: UsoApis['ultimos7'] }) {
 
 export function UsoApisResumo({ uso }: { uso: UsoApis }) {
   return (
-    <section className="rounded-[24px] border-[0.8px] border-[rgba(0,0,0,0.1)] bg-white p-[24px]" data-testid="uso-apis">
+    <section className="rounded-[20px] border-[0.8px] border-[rgba(0,0,0,0.1)] bg-white p-[16px] sm:rounded-[24px] sm:p-[24px]" data-testid="uso-apis">
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-[16px] font-semibold leading-[24px] text-text-main">APIs pagas hoje</h2>
         <p className="text-[12px] text-text-subtle">Limite diário da guarda de custo · {uso.dia.split('-').reverse().join('/')}</p>
       </div>
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
+      <div className="grid gap-[16px] lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.7fr)]">
         <div className="flex flex-col gap-3">
           {APIS_PAINEL.map((api) => (
             <div key={api}>

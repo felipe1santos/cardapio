@@ -44,7 +44,7 @@ function Caixa({ titulo, valor, sub, testid }: { titulo: string; valor: string; 
 }
 
 function Grafico7({ dias }: { dias: UsoIa['ultimos7'] }) {
-  const W = 360, H = 110, pe = 20, topo = 6
+  const W = 360, H = 150, pe = 22, topo = 8
   const max = Math.max(1, ...dias.map((d) => d.custoMicroUsd))
   const passo = W / dias.length
   return (
@@ -67,7 +67,7 @@ export function UsoIaResumo({ ia }: { ia: UsoIa }) {
   const { limites: L } = ia
   const modelos = Object.entries(ia.porModeloMes).sort((a, b) => b[1].custoMicroUsd - a[1].custoMicroUsd)
   return (
-    <section className="rounded-[24px] border-[0.8px] border-[rgba(0,0,0,0.1)] bg-white p-[24px]" data-testid="uso-ia">
+    <section className="rounded-[20px] border-[0.8px] border-[rgba(0,0,0,0.1)] bg-white p-[16px] sm:rounded-[24px] sm:p-[24px]" data-testid="uso-ia">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 text-[16px] font-semibold leading-[24px] text-text-main">
           IA de atendimento (Claude)
@@ -77,7 +77,7 @@ export function UsoIaResumo({ ia }: { ia: UsoIa }) {
         </h2>
         <p className="text-[12px] text-text-subtle">Teto diário: {usd(L.usdDia * 1e6)} no sistema · {usd(L.usdDiaLoja * 1e6)} por loja · cotação R$ {L.cotacao.toLocaleString('pt-BR')}</p>
       </div>
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
+      <div className="grid gap-[16px] lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.7fr)]">
         <div className="flex flex-col gap-3">
           <div>
             <p className="mb-1 text-[12.5px] font-semibold text-text-main">Gasto hoje</p>

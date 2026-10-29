@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { getServerSupabase } from '@/lib/supabase/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { listarLojasPlataforma } from '@/lib/queries/plataforma'
@@ -10,11 +9,7 @@ import { ShellHp } from '@/components/superadmin/hp'
 import { Monitoramento, type FotoSaude } from '@/components/superadmin/monitoramento'
 import { UsoApisResumo } from '@/components/superadmin/uso-apis'
 import { UsoIaResumo } from '@/components/superadmin/uso-ia'
-
-/** 1ª linha do alerta sem o emoji e o "Menuzia — " (ex.: "custo de API", "banco fora do ar"). */
-function tituloDoAlerta(texto: string): string {
-  return texto.split('\n')[0].replace(/^\S+ Menuzia — /, '')
-}
+import { AlertasFaixa, type AlertaTela } from '@/components/superadmin/alertas-faixa'
 
 // Dados sempre frescos: é o painel de quem libera e bloqueia contas.
 export const dynamic = 'force-dynamic'
@@ -33,7 +28,7 @@ export default async function SuperadminPage() {
     listarLojasPlataforma(admin), lerUsoApis(admin).catch(() => null), lerUsoIa(admin).catch(() => null),
     admin.from('loja_modulos').select('restaurante_id, modulo, liberado'),
     // Alertas do vigia e da guarda de custo nas últimas 6 h (28/10).
-    admin.from('sistema_alertas').select('nivel, texto, criado_em').in('nivel', ['amarelo', 'vermelho']).gte('criado_em', new Date(Date.now() - 6 * 3600_000).toISOString()).order('criado_em', { ascending: false }).limit(20),
+    admin.from('sistema_alertas').select('id, nivel, texto, criado_em, canal, enviado, erro').in('nivel', ['amarelo', 'vermelho']).gte('criado_em', new Date(Date.now() - 6 * 3600_000).toISOString()).order('criado_em', { ascending: false }).limit(20),
     // Últimas 3 h de fotos do vigia (a cada 5 min) para os minigráficos.
     admin.from('sistema_saude_fotos').select('em, dados').order('em', { ascending: false }).limit(36),
     admin.from('sistema_cron_batidas').select('nome, ultima_em'),
@@ -44,17 +39,10 @@ export default async function SuperadminPage() {
   for (const m of (mods ?? []) as { restaurante_id: string; modulo: string; liberado: boolean }[]) {
     if ((MODULOS as readonly string[]).includes(m.modulo)) (modulos[m.restaurante_id] ??= nenhumLiberado())[m.modulo as keyof ModulosDaLoja] = m.liberado === true
   }
-  const recentes = (alertas ?? []) as { nivel: string; texto: string; criado_em: string }[]
-  const vermelho = recentes.some((a) => a.nivel === 'vermelho')
+  const recentes = (alertas ?? []) as AlertaTela[]
   return (
     <ShellHp aba="visao" titulo="Visão geral" email={data.user?.email ?? ''}>
-      {recentes.length > 0 && (
-        <Link href="/superadmin/saude" data-testid="faixa-alertas"
-          className={`flex items-center justify-between gap-[12px] rounded-[16px] border-[0.8px] px-[16px] py-[12px] text-[14px] font-semibold leading-[20px] ${vermelho ? 'border-[rgba(231,58,71,0.3)] bg-[#FFE8EF] text-[#D63163]' : 'border-[rgba(138,97,0,0.25)] bg-[#FFF8E2] text-[#8A6100]'}`}>
-          <span className="min-w-0 truncate">{recentes.length} alerta(s) nas últimas 6 h — {tituloDoAlerta(recentes[0].texto)}</span>
-          <span className="flex-shrink-0 text-[#673DE6]">Ver Saúde do sistema</span>
-        </Link>
-      )}
+      <AlertasFaixa alertas={recentes} />
 
       <Monitoramento fotos={(fotos ?? []) as FotoSaude[]} crons={(crons ?? []) as { nome: string; ultima_em: string }[]}
         alertas6h={recentes.length} lojasAtivas={resumo.ativos} cadastros={resumo.cadastros} />

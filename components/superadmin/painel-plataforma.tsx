@@ -202,7 +202,7 @@ export function PainelPlataforma({ lojas, resumo, usoApis, usoIa, modulos }: { l
 
   const BotaoMenu = ({ l }: { l: LojaPlataforma }) => (
     <button type="button" aria-label={`Ações de ${l.loja || l.email}`} aria-haspopup="menu" aria-expanded={menu === l.chave}
-      onClick={(e) => { ancoraMenu.current = e.currentTarget; setMenu((m) => (m === l.chave ? null : l.chave)) }}
+      onClick={(e) => { e.stopPropagation(); ancoraMenu.current = e.currentTarget; setMenu((m) => (m === l.chave ? null : l.chave)) }}
       className="flex h-[36px] w-[36px] items-center justify-center rounded-[12px] text-text-subtle hover:bg-page hover:text-text-main" data-testid="loja-menu">
       <MoreVertical className="h-5 w-5" />
     </button>
@@ -211,6 +211,31 @@ export function PainelPlataforma({ lojas, resumo, usoApis, usoIa, modulos }: { l
   const lojaDoMenu = lojas.find((l) => l.chave === menu) ?? null
   const ITEM = 'flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] font-medium text-text-main hover:bg-page'
   const abrir = (m: ModalAberto) => { setMenu(null); setModal(m) }
+
+  /** Ações de uma loja (as mesmas no menu ⋮ e na ficha). Nada mudou nelas — só o lugar onde aparecem. */
+  const acoesDaLoja = (l: LojaPlataforma, cls: string, comoMenu: boolean) => {
+    const ativo = l.situacao === 'ativo' || l.situacao === 'ativo_temporario'
+    const semAcesso = l.situacao === 'revogado' || l.situacao === 'expirado'
+    const r = comoMenu ? { role: 'menuitem' as const } : {}
+    return (
+      <>
+        {l.slug && <a {...r} href={`/loja/${l.slug}`} target="_blank" rel="noreferrer" className={cls} onClick={() => setMenu(null)}>Abrir vitrine <ExternalLink className="ml-auto h-3.5 w-3.5" /></a>}
+        {l.restauranteId && <button {...r} type="button" className={cls} onClick={() => abrir({ tipo: 'sublogins', loja: l })}>Ver sublogins ({l.sublogins.length})</button>}
+        {l.restauranteId && <button {...r} type="button" className={cls} onClick={() => abrir({ tipo: 'resetar', usuarioId: l.contaId, nome: l.responsavel || 'Dono', login: l.email, loja: l.loja })} data-testid="acao-resetar-senha">Resetar senha do dono</button>}
+        {(ativo || l.situacao === 'pendente') && <button {...r} type="button" className={`${cls} border-t border-border`} onClick={() => abrir({ tipo: 'validade', loja: l })} data-testid="acao-validade">{l.acessoExpiraEm ? 'Renovar / alterar validade' : 'Definir validade'}</button>}
+        {ativo && <button {...r} type="button" className={`${cls} text-[#B3122D]`} onClick={() => abrir({ tipo: 'confirmar', loja: l, acao: 'bloquear' })} data-testid="acao-bloquear">Bloquear acesso</button>}
+        {semAcesso && <button {...r} type="button" className={`${cls} border-t border-border text-[#008361]`} onClick={() => abrir({ tipo: 'desbloquear', loja: l })} data-testid="acao-desbloquear">Desbloquear acesso</button>}
+        {l.restauranteId && (
+          <button {...r} type="button" className={`${cls} border-t border-border`} onClick={() => abrir({ tipo: 'confirmar', loja: l, acao: l.betaLiberado ? 'beta_retirar' : 'beta_liberar' })} data-testid="acao-beta">
+            {l.betaLiberado ? 'Retirar do piloto de Impressão Alfa 1' : 'Liberar Impressão Alfa 1'}
+          </button>
+        )}
+        {l.situacao === 'pendente' && <button {...r} type="button" className={`${cls} border-t border-border`} onClick={() => { setMenu(null); executar(() => novoLinkConviteAction(l.contaId)) }} data-testid="acao-novo-link-convite">Novo link do convite</button>}
+        {l.situacao === 'pendente' && <button {...r} type="button" className={`${cls} border-t border-border text-[#B3122D]`} onClick={() => abrir({ tipo: 'confirmar', loja: l, acao: 'remover' })} data-testid="acao-remover">Remover pré-cadastro</button>}
+        {semAcesso && <button {...r} type="button" className={`${cls} text-[#B3122D]`} onClick={() => abrir({ tipo: 'excluir', loja: l })} data-testid="acao-excluir">Excluir dados…</button>}
+      </>
+    )
+  }
 
   return (
     <section id="clientes" className="scroll-mt-[16px] overflow-hidden rounded-[24px] border-[0.8px] border-[rgba(0,0,0,0.1)] bg-white" data-testid="topo-plataforma">
@@ -266,53 +291,38 @@ export function PainelPlataforma({ lojas, resumo, usoApis, usoIa, modulos }: { l
           </button>
         </div>
 
-        {/* Computador/tablet: tabela com cabeçalho fixo e a loja fixa à esquerda. */}
+        {/* 29/10 (2ª rodada): lista SIMPLES — loja, situação, faturamento, pedidos e último acesso. Tocar abre a ficha completa. */}
         <div className="hidden overflow-hidden rounded-[16px] border-[0.8px] border-[rgba(0,0,0,0.1)] bg-white md:block">
-          <div className="relative max-h-[calc(100dvh-330px)] min-h-[260px] overflow-auto" data-testid="tabela-rolagem">
-            <table className="w-full min-w-[1500px] border-separate border-spacing-0 text-[13px]" data-testid="tabela-lojas">
+          <div className="relative max-h-[calc(100dvh-330px)] min-h-[200px] overflow-auto" data-testid="tabela-rolagem">
+            <table className="w-full min-w-[720px] border-separate border-spacing-0 text-[14px]" data-testid="tabela-lojas">
               <thead className="sticky top-0 z-[2] bg-white text-[12px] font-semibold text-text-subtle">
                 <tr className="[&>th]:border-b [&>th]:border-border">
-                  <Th coluna="loja" className="sticky left-0 z-[3] min-w-[220px] bg-white shadow-[1px_0_0_rgba(0,0,0,0.06)]">Loja</Th>
-                  <Th coluna="situacao">Status</Th>
-                  <th className="px-3 py-2.5 text-left uppercase">Responsável</th>
-                  <th className="px-3 py-2.5 text-left uppercase">E-mail / login</th>
-                  <Th coluna="sublogins">Sublogins</Th>
+                  <Th coluna="loja" className="min-w-[240px]">Loja</Th>
+                  <Th coluna="situacao">Situação</Th>
                   <Th coluna="faturamento" direita>Faturamento</Th>
                   <Th coluna="pedidos" direita>Pedidos</Th>
-                  <Th coluna="ticket" direita>Ticket</Th>
-                  <Th coluna="criadoEm">Cadastro</Th>
                   <Th coluna="ultimoLoginEm">Último acesso</Th>
-                  <th className="px-3 py-2.5 text-left uppercase">APIs hoje</th>
-                  <th className="px-3 py-2.5 text-left uppercase">IA (Claude)</th>
-                  <th className="px-3 py-2.5 text-left uppercase">Módulos</th>
-                  <th className="px-3 py-2.5 text-left uppercase">Impressão Alfa 1</th>
-                  <th className="px-3 py-2.5"><span className="sr-only">Ações</span></th>
+                  <th className="w-[56px] px-3 py-2.5"><span className="sr-only">Ações</span></th>
                 </tr>
               </thead>
               <tbody>
                 {visiveis.length === 0 && (
-                  <tr><td colSpan={15} className="px-5 py-10 text-center text-text-subtle" data-testid="lista-vazia">Nenhuma loja encontrada.</td></tr>
+                  <tr><td colSpan={6} className="px-5 py-10 text-center text-text-subtle" data-testid="lista-vazia">Nenhuma loja encontrada.</td></tr>
                 )}
                 {visiveis.map((l) => (
-                  <tr key={l.chave} className="group align-middle [&>td]:border-b [&>td]:border-border hover:[&>td]:bg-[#F7F5FF]" data-testid="linha-loja" data-chave={l.chave}>
-                    <td className="sticky left-0 z-[1] max-w-[260px] bg-white px-3 py-2.5 shadow-[1px_0_0_rgba(0,0,0,0.06)] group-hover:bg-[#F7F5FF]">
-                      <p className="truncate font-semibold text-text-main" data-testid="linha-loja-nome">{l.loja || <span className="font-normal italic text-text-subtle">Loja ainda sem nome</span>}</p>
-                      {l.slug && <a href={`/loja/${l.slug}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[11.5px] text-primary hover:underline"><ExternalLink className="h-3 w-3" />/{l.slug}</a>}
+                  <tr key={l.chave} onClick={() => setModal({ tipo: 'detalhes', loja: l })}
+                    className="group cursor-pointer align-middle [&>td]:border-b [&>td]:border-border hover:[&>td]:bg-[#F7F5FF]" data-testid="linha-loja" data-chave={l.chave}>
+                    <td className="max-w-[320px] px-3 py-[10px]">
+                      <button type="button" onClick={(e) => { e.stopPropagation(); setModal({ tipo: 'detalhes', loja: l }) }} className="block max-w-full truncate text-left font-semibold text-text-main hover:text-[#673DE6]" data-testid="linha-loja-nome">
+                        {l.loja || <span className="font-normal italic text-text-subtle">Loja ainda sem nome</span>}
+                      </button>
+                      <p className="truncate text-[12px] text-text-subtle">{l.responsavel || l.email}</p>
                     </td>
-                    <td className="px-3 py-2.5"><SeloSituacao l={l} />{l.whatsappCaiuEm && <p className="mt-1 whitespace-nowrap text-[12px] font-semibold text-[#D63163]" data-testid="linha-whatsapp-caiu" title={`WhatsApp da loja caiu sozinho em ${new Date(l.whatsappCaiuEm).toLocaleString('pt-BR')}`}>WhatsApp desconectado</p>}</td>
-                    <td className="max-w-[180px] px-3 py-2.5"><p className="truncate">{l.responsavel || '—'}</p><p className="truncate text-[11.5px] text-text-subtle">{l.telefone || ''}</p></td>
-                    <td className="max-w-[220px] px-3 py-2.5"><p className="truncate">{l.email}</p><p className="truncate text-[11.5px] font-medium text-text-subtle">{l.login ? `@${l.login}` : ''}</p></td>
-                    <td className="px-3 py-2.5"><BotaoSublogins l={l} /></td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-right font-semibold text-[#008361]">{l.restauranteId ? brl(l.faturamento) : '—'}</td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-right font-semibold">{l.restauranteId ? num(l.pedidos) : '—'}</td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-right">{l.restauranteId ? brl(l.ticket) : '—'}</td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-[12px] text-text-subtle">{dataCurta(l.criadoEm)}</td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-[12px]">{dataHora(l.ultimoLoginEm)}{l.loginsTotal > 0 && <span className="ml-1 text-[11px] text-text-subtle">({num(l.loginsTotal)}×)</span>}</td>
-                    <td className="px-3 py-2.5">{l.restauranteId && usoApis ? <BarraUsoLoja uso={usoApis.porLoja[l.restauranteId]} limites={usoApis.limites} /> : '—'}</td>
-                    <td className="px-3 py-2.5">{l.restauranteId && usoIa ? <IaDaLoja uso={usoIa.porLoja[l.restauranteId]} limites={usoIa.limites} restauranteId={l.restauranteId} teto={usoIa.tetosLoja[l.restauranteId]} /> : '—'}</td>
-                    <td className="px-3 py-2.5">{l.restauranteId && modulos?.[l.restauranteId] ? <ModulosLoja restauranteId={l.restauranteId} loja={l.loja || ''} inicial={modulos[l.restauranteId]} /> : '—'}</td>
-                    <td className="px-3 py-2.5">{l.restauranteId ? (l.betaLiberado ? <span className="rounded-[8px] bg-[#EBE4FF] px-[8px] py-[2px] text-[12px] font-semibold text-[#673DE6]">Piloto</span> : <span className="text-[12px] text-text-subtle">Não</span>) : '—'}</td>
-                    <td className="px-2 py-2.5 text-right"><BotaoMenu l={l} /></td>
+                    <td className="px-3 py-[10px]"><div className="flex flex-wrap items-center gap-[6px]"><SeloSituacao l={l} />{l.whatsappCaiuEm && <span className="rounded-[8px] bg-[#FFE8EF] px-[8px] py-[2px] text-[12px] font-semibold text-[#B3122D]" data-testid="linha-whatsapp-caiu">WhatsApp off</span>}</div></td>
+                    <td className="whitespace-nowrap px-3 py-[10px] text-right font-semibold tabular-nums text-[#008361]">{l.restauranteId ? brl(l.faturamento) : '—'}</td>
+                    <td className="whitespace-nowrap px-3 py-[10px] text-right font-semibold tabular-nums">{l.restauranteId ? num(l.pedidos) : '—'}</td>
+                    <td className="whitespace-nowrap px-3 py-[10px] text-[13px] text-text-subtle">{dataHora(l.ultimoLoginEm)}</td>
+                    <td className="px-2 py-[10px] text-right" onClick={(e) => e.stopPropagation()}><BotaoMenu l={l} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -320,29 +330,25 @@ export function PainelPlataforma({ lojas, resumo, usoApis, usoIa, modulos }: { l
           </div>
         </div>
 
-        {/* Celular: um cartão por loja. */}
-        <div className="flex flex-col gap-2.5 md:hidden" data-testid="cartoes-lojas">
+        {/* Celular: cartão compacto; tocar abre a ficha completa. */}
+        <div className="flex flex-col gap-[8px] md:hidden" data-testid="cartoes-lojas">
           {visiveis.length === 0 && <p className="rounded-[16px] border-[0.8px] border-[rgba(0,0,0,0.1)] bg-white px-4 py-8 text-center text-text-subtle" data-testid="lista-vazia">Nenhuma loja encontrada.</p>}
           {visiveis.map((l) => (
-            <div key={l.chave} className="rounded-[16px] border-[0.8px] border-[rgba(0,0,0,0.1)] bg-white p-[16px]" data-testid="cartao-loja" data-chave={l.chave}>
-              <div className="flex items-start gap-2">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[15px] font-semibold text-text-main" data-testid="linha-loja-nome">{l.loja || <span className="font-normal italic text-text-subtle">Loja ainda sem nome</span>}</p>
-                  <div className="mt-1"><SeloSituacao l={l} /></div>
+            <button key={l.chave} type="button" onClick={() => setModal({ tipo: 'detalhes', loja: l })}
+              className="flex min-h-[64px] w-full items-center gap-[10px] rounded-[16px] border-[0.8px] border-[rgba(0,0,0,0.1)] bg-white px-[14px] py-[10px] text-left active:bg-[#F7F5FF]" data-testid="cartao-loja" data-chave={l.chave}>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[15px] font-semibold leading-[20px] text-text-main" data-testid="linha-loja-nome">{l.loja || <span className="font-normal italic text-text-subtle">Loja ainda sem nome</span>}</p>
+                <div className="mt-[4px] flex flex-wrap items-center gap-[6px]">
+                  <SeloSituacao l={l} />
+                  {l.whatsappCaiuEm && <span className="rounded-[8px] bg-[#FFE8EF] px-[8px] py-[2px] text-[12px] font-semibold text-[#B3122D]">WhatsApp off</span>}
                 </div>
-                <BotaoMenu l={l} />
               </div>
-              <p className="mt-2 truncate text-[13px] text-text-main">{l.responsavel || '—'}{l.telefone ? <span className="text-text-subtle"> · {l.telefone}</span> : null}</p>
-              <p className="truncate text-[12px] text-text-subtle">{l.email}{l.login ? ` · @${l.login}` : ''}</p>
-              <div className="mt-2.5 flex items-center gap-3 border-t border-border pt-2.5 text-[13px]">
-                <div className="min-w-0 flex-1"><p className="text-[11px] text-text-subtle">Faturamento</p><p className="font-semibold text-[#008361]">{l.restauranteId ? brl(l.faturamento) : '—'}</p></div>
-                <div><p className="text-[11px] text-text-subtle">Pedidos</p><p className="font-semibold">{l.restauranteId ? num(l.pedidos) : '—'}</p></div>
-                <div><p className="text-[11px] text-text-subtle">Sublogins</p><BotaoSublogins l={l} /></div>
+              <div className="flex-shrink-0 text-right">
+                <p className="text-[14px] font-semibold tabular-nums text-[#008361]">{l.restauranteId ? brl(l.faturamento) : '—'}</p>
+                <p className="text-[12px] text-text-subtle">{l.restauranteId ? `${num(l.pedidos)} pedidos` : ''}</p>
               </div>
-              {l.restauranteId && usoApis && <div className="mt-2.5 border-t border-border pt-2.5"><p className="mb-1 text-[11px] text-text-subtle">APIs pagas hoje</p><BarraUsoLoja uso={usoApis.porLoja[l.restauranteId]} limites={usoApis.limites} /></div>}
-              {l.restauranteId && usoIa && <div className="mt-2.5 border-t border-border pt-2.5"><p className="mb-1 text-[11px] text-text-subtle">IA (Claude)</p><IaDaLoja uso={usoIa.porLoja[l.restauranteId]} limites={usoIa.limites} restauranteId={l.restauranteId} teto={usoIa.tetosLoja[l.restauranteId]} /></div>}
-              {l.restauranteId && modulos?.[l.restauranteId] && <div className="mt-2.5 border-t border-border pt-2.5"><p className="mb-1 text-[11px] text-text-subtle">Módulos</p><ModulosLoja restauranteId={l.restauranteId} loja={l.loja || ''} inicial={modulos[l.restauranteId]} /></div>}
-            </div>
+              <ChevronRight className="h-[18px] w-[18px] flex-shrink-0 text-text-subtle" aria-hidden />
+            </button>
           ))}
         </div>
 
@@ -360,25 +366,10 @@ export function PainelPlataforma({ lojas, resumo, usoApis, usoIa, modulos }: { l
       <Flutuante ancora={ancoraMenu} aberto={!!lojaDoMenu} onFechar={fecharMenu} largura={250} testid="loja-menu-lista" rotulo="Ações da loja" className="py-1">
         {lojaDoMenu && (() => {
           const l = lojaDoMenu
-          const ativo = l.situacao === 'ativo' || l.situacao === 'ativo_temporario'
-          const semAcesso = l.situacao === 'revogado' || l.situacao === 'expirado'
           return (
             <div role="menu">
-              <button role="menuitem" type="button" className={ITEM} onClick={() => abrir({ tipo: 'detalhes', loja: l })} data-testid="acao-detalhes">Ver detalhes</button>
-              {l.slug && <a role="menuitem" href={`/loja/${l.slug}`} target="_blank" rel="noreferrer" className={ITEM} onClick={() => setMenu(null)}>Abrir vitrine <ExternalLink className="ml-auto h-3.5 w-3.5" /></a>}
-              {l.restauranteId && <button role="menuitem" type="button" className={ITEM} onClick={() => abrir({ tipo: 'sublogins', loja: l })}>Ver sublogins ({l.sublogins.length})</button>}
-              {l.restauranteId && <button role="menuitem" type="button" className={ITEM} onClick={() => abrir({ tipo: 'resetar', usuarioId: l.contaId, nome: l.responsavel || 'Dono', login: l.email, loja: l.loja })} data-testid="acao-resetar-senha">Resetar senha do dono</button>}
-              {(ativo || l.situacao === 'pendente') && <button role="menuitem" type="button" className={`${ITEM} border-t border-border`} onClick={() => abrir({ tipo: 'validade', loja: l })} data-testid="acao-validade">{l.acessoExpiraEm ? 'Renovar / alterar validade' : 'Definir validade'}</button>}
-              {ativo && <button role="menuitem" type="button" className={`${ITEM} text-[#D63163]`} onClick={() => abrir({ tipo: 'confirmar', loja: l, acao: 'bloquear' })} data-testid="acao-bloquear">Bloquear acesso</button>}
-              {semAcesso && <button role="menuitem" type="button" className={`${ITEM} border-t border-border text-[#008361]`} onClick={() => abrir({ tipo: 'desbloquear', loja: l })} data-testid="acao-desbloquear">Desbloquear acesso</button>}
-              {l.restauranteId && (
-                <button role="menuitem" type="button" className={`${ITEM} border-t border-border`} onClick={() => abrir({ tipo: 'confirmar', loja: l, acao: l.betaLiberado ? 'beta_retirar' : 'beta_liberar' })} data-testid="acao-beta">
-                  {l.betaLiberado ? 'Retirar do piloto de Impressão Alfa 1' : 'Liberar Impressão Alfa 1'}
-                </button>
-              )}
-              {l.situacao === 'pendente' && <button role="menuitem" type="button" className={`${ITEM} border-t border-border`} onClick={() => { setMenu(null); executar(() => novoLinkConviteAction(l.contaId)) }} data-testid="acao-novo-link-convite">Novo link do convite</button>}
-              {l.situacao === 'pendente' && <button role="menuitem" type="button" className={`${ITEM} border-t border-border text-[#D63163]`} onClick={() => abrir({ tipo: 'confirmar', loja: l, acao: 'remover' })} data-testid="acao-remover">Remover pré-cadastro</button>}
-              {semAcesso && <button role="menuitem" type="button" className={`${ITEM} text-[#D63163]`} onClick={() => abrir({ tipo: 'excluir', loja: l })} data-testid="acao-excluir">Excluir dados…</button>}
+              <button role="menuitem" type="button" className={ITEM} onClick={() => abrir({ tipo: 'detalhes', loja: l })} data-testid="acao-detalhes">Ver ficha completa</button>
+              {acoesDaLoja(l, ITEM, true)}
             </div>
           )
         })()}
@@ -388,7 +379,8 @@ export function PainelPlataforma({ lojas, resumo, usoApis, usoIa, modulos }: { l
       {modal?.tipo === 'sublogins' && <ModalSublogins loja={modal.loja} onFechar={fecharModal}
         onResetar={(s) => setModal({ tipo: 'resetar', usuarioId: s.id, nome: s.nome, login: s.login ? `@${s.login}` : s.nome, loja: modal.loja.loja, voltar: modal.loja })} />}
       {modal?.tipo === 'resetar' && <ModalResetarSenha alvo={modal} onFechar={() => setModal(modal.voltar ? { tipo: 'sublogins', loja: modal.voltar } : null)} />}
-      {modal?.tipo === 'detalhes' && <ModalDetalhes loja={modal.loja} onFechar={fecharModal} />}
+      {modal?.tipo === 'detalhes' && <ModalDetalhes loja={modal.loja} onFechar={fecharModal} usoApis={usoApis} usoIa={usoIa} modulos={modulos}
+        acoes={acoesDaLoja(modal.loja, 'flex min-h-[44px] w-full items-center gap-2 px-[12px] text-left text-[14px] font-medium text-text-main hover:bg-[#F7F5FF]', false)} />}
       {modal?.tipo === 'validade' && <ModalValidade loja={modal.loja} ocupado={pendente} onFechar={fecharModal} onEnviar={(v) => executar(() => alterarValidadeAction(modal.loja.contaId, v))} />}
       {modal?.tipo === 'desbloquear' && <ModalValidade loja={modal.loja} desbloquear ocupado={pendente} onFechar={fecharModal} onEnviar={(v) => executar(() => desbloquearAction(modal.loja.contaId, v))} />}
       {modal?.tipo === 'confirmar' && <ModalConfirmar modal={modal} ocupado={pendente} onFechar={fecharModal} onConfirmar={() => {
@@ -476,28 +468,57 @@ function ModalSublogins({ loja, onFechar, onResetar }: { loja: LojaPlataforma; o
   )
 }
 
-function ModalDetalhes({ loja, onFechar }: { loja: LojaPlataforma; onFechar: () => void }) {
-  const linhas: [string, React.ReactNode][] = [
-    ['Loja', loja.loja || '—'],
-    ['Status', <SeloSituacao key="s" l={loja} />],
-    ['Responsável', loja.responsavel || '—'],
-    ['Telefone', loja.telefone || '—'],
-    ['E-mail', loja.email],
-    ['Login', loja.login ? `@${loja.login}` : '—'],
-    ['Vitrine', loja.slug ? <a key="v" href={`/loja/${loja.slug}`} target="_blank" rel="noreferrer" className="text-primary hover:underline">/loja/{loja.slug}</a> : '—'],
-    ['Sublogins', String(loja.sublogins.length)],
-    ['Faturamento (entregue)', loja.restauranteId ? brl(loja.faturamento) : '—'],
-    ['Pedidos entregues', loja.restauranteId ? num(loja.pedidos) : '—'],
-    ['Ticket médio', loja.restauranteId ? brl(loja.ticket) : '—'],
-    ['Cadastro', dataHora(loja.criadoEm)],
-    ['Último acesso', `${dataHora(loja.ultimoLoginEm)}${loja.loginsTotal ? ` (${num(loja.loginsTotal)}×)` : ''}`],
-    ['Impressão Alfa 1', loja.restauranteId ? (loja.betaLiberado ? 'Piloto liberado' : 'Não') : '—'],
-  ]
+/** Ficha completa da loja (29/10): tudo o que saiu da lista, em blocos, e as ações no fim. */
+function ModalDetalhes({ loja, onFechar, usoApis, usoIa, modulos, acoes }: { loja: LojaPlataforma; onFechar: () => void; usoApis?: UsoApis | null; usoIa?: UsoIa | null; modulos?: Record<string, ModulosDaLoja>; acoes: React.ReactNode }) {
+  const Bloco = ({ titulo, children }: { titulo: string; children: React.ReactNode }) => (
+    <section className="rounded-[16px] border-[0.8px] border-[rgba(0,0,0,0.1)] bg-white p-[14px]">
+      <h3 className="mb-[8px] text-[14px] font-semibold leading-[20px] text-text-main">{titulo}</h3>
+      {children}
+    </section>
+  )
+  const Linhas = ({ itens }: { itens: [string, React.ReactNode][] }) => (
+    <dl className="grid grid-cols-[minmax(110px,40%)_1fr] gap-x-3 gap-y-[6px] text-[14px] leading-[20px]">
+      {itens.map(([k, v]) => (<Fragment key={k}><dt className="text-text-subtle">{k}</dt><dd className="min-w-0 break-words font-medium text-text-main">{v}</dd></Fragment>))}
+    </dl>
+  )
+  const r = loja.restauranteId
   return (
-    <Modal titulo={loja.loja || loja.email} testid="modal-detalhes" onFechar={onFechar}>
-      <dl className="grid grid-cols-[minmax(120px,40%)_1fr] gap-x-3 gap-y-2 text-[13.5px]">
-        {linhas.map(([k, v]) => (<Fragment key={k}><dt className="text-text-subtle">{k}</dt><dd className="min-w-0 break-words font-medium text-text-main">{v}</dd></Fragment>))}
-      </dl>
+    <Modal titulo={loja.loja || loja.email} testid="modal-detalhes" onFechar={onFechar} largura={640}>
+      <div className="flex flex-col gap-[10px]">
+        <div className="flex flex-wrap items-center gap-[8px]">
+          <SeloSituacao l={loja} />
+          {loja.whatsappCaiuEm && <span className="rounded-[8px] bg-[#FFE8EF] px-[8px] py-[2px] text-[12px] font-semibold text-[#B3122D]">WhatsApp desconectado</span>}
+          {loja.slug && <a href={`/loja/${loja.slug}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[13px] font-semibold text-[#673DE6] hover:underline"><ExternalLink className="h-3.5 w-3.5" />/loja/{loja.slug}</a>}
+        </div>
+        <Bloco titulo="Contato">
+          <Linhas itens={[['Responsável', loja.responsavel || '—'], ['Telefone', loja.telefone || '—'], ['E-mail', loja.email], ['Login', loja.login ? `@${loja.login}` : '—']]} />
+        </Bloco>
+        <Bloco titulo="Números">
+          <Linhas itens={[
+            ['Faturamento (entregue)', r ? <span key="f" className="text-[#008361]">{brl(loja.faturamento)}</span> : '—'],
+            ['Pedidos entregues', r ? num(loja.pedidos) : '—'], ['Ticket médio', r ? brl(loja.ticket) : '—'],
+            ['Cadastro', dataHora(loja.criadoEm)], ['Último acesso', `${dataHora(loja.ultimoLoginEm)}${loja.loginsTotal ? ` (${num(loja.loginsTotal)}×)` : ''}`],
+          ]} />
+        </Bloco>
+        {r && (
+          <Bloco titulo="Uso hoje">
+            <div className="flex flex-col gap-[12px]">
+              {usoApis && <div><p className="mb-[4px] text-[12px] font-semibold text-text-subtle">APIs pagas</p><BarraUsoLoja uso={usoApis.porLoja[r]} limites={usoApis.limites} /></div>}
+              {usoIa && <div><p className="mb-[4px] text-[12px] font-semibold text-text-subtle">IA (Claude)</p><IaDaLoja uso={usoIa.porLoja[r]} limites={usoIa.limites} restauranteId={r} teto={usoIa.tetosLoja[r]} /></div>}
+            </div>
+          </Bloco>
+        )}
+        {r && modulos?.[r] && <Bloco titulo="Módulos liberados"><ModulosLoja restauranteId={r} loja={loja.loja || ''} inicial={modulos[r]} /></Bloco>}
+        {r && (
+          <Bloco titulo="Impressão e equipe">
+            <Linhas itens={[['Impressão Alfa 1', loja.betaLiberado ? 'Piloto liberado' : 'Não'], ['Sublogins', String(loja.sublogins.length)]]} />
+          </Bloco>
+        )}
+        <section className="overflow-hidden rounded-[16px] border-[0.8px] border-[rgba(0,0,0,0.1)] bg-white">
+          <h3 className="px-[14px] pb-[4px] pt-[14px] text-[14px] font-semibold leading-[20px] text-text-main">Ações</h3>
+          <div className="flex flex-col pb-[6px]">{acoes}</div>
+        </section>
+      </div>
     </Modal>
   )
 }
