@@ -54,8 +54,9 @@ describe('guarda de custo: limite diário', () => {
     await chamarApiPaga(b.admin, { api: 'geocoding', chave: 'c' }, fn)
     await chamarApiPaga(b.admin, { api: 'lalamove', chave: 'd', loja: 'loja-1' }, fn)
     const lim = (b.admin as unknown as { rpc: { mock: { calls: [string, { p_limite_loja: number | null }][] } } }).rpc.mock.calls.map((c) => c[1].p_limite_loja)
-    expect(lim).toEqual([180, 180, null, 360])
-    for (const api of ['uber', 'foody', 'machine', 'ifood_entrega'] as const) expect(limiteDaLoja(api, {})).toBe(360)
+    // Entregadores (29/10): 3.000/dia no sistema (≈200 corridas), 1.800 por loja — chamadas grátis, o teto é só anti-laço.
+    expect(lim).toEqual([180, 180, null, 1800])
+    for (const api of ['uber', 'foody', 'machine', 'ifood_entrega', 'lalamove'] as const) { expect(limiteDiario(api, {})).toBe(3000); expect(limiteDaLoja(api, {})).toBe(1800) }
     expect(limiteDaLoja('ia', {})).toBeNull()
     expect(limiteDaLoja('geocoding', { LIMITE_GEOCODING_DIA: '100' })).toBe(60)
   })

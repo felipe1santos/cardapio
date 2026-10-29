@@ -17,13 +17,15 @@ import { avisarSuporte } from './alerta-whatsapp'
  * LIMITE_IA_CENTAVOS_DIA (500 = R$ 5/dia).
  */
 // 'lalamove' (18/10): a corrida é paga pela LOJA (conta dela), mas a chamada segue a mesma guarda — loop aqui criaria
-// corridas de verdade. Limite de chamadas/dia em LIMITE_LALAMOVE_DIA (padrão 600 ≈ 100 corridas × 6 chamadas).
+// corridas de verdade. Limite de chamadas/dia em LIMITE_LALAMOVE_DIA (padrão 3.000 desde 29/10; era 600).
 // 'ifood_entrega' e 'foody' (19/10, Etapa 3): entregador do iFood (Sob Demanda) e Foody (Open Delivery Logistics), mesma regra.
 // 'audio' (20/10, aprovado pelo dono): transcrição de áudio do WhatsApp (OpenAI) — LIMITE_AUDIO_DIA por loja (padrão 200), além do
 // teto em US$ da IA (lib/custo/ia.ts). 'machine' (20/10): Machine/Gaudium como logística Open Delivery, mesma regra da Foody.
 export type ApiPaga = 'geocoding' | 'directions' | 'places' | 'ia' | 'lalamove' | 'ifood_entrega' | 'foody' | 'audio' | 'machine' | 'uber'
 
-const PADRAO: Record<ApiPaga, number> = { geocoding: 300, directions: 300, places: 100, ia: 2000, lalamove: 600, ifood_entrega: 600, foody: 600, audio: 200, machine: 600, uber: 600 }
+// Entregadores 600 → 3.000/dia (29/10, aprovado pelo dono): as chamadas são grátis (a corrida é paga pela loja) e o teto
+// é só anti-laço; 600 = ~40 corridas/dia no sistema todo travaria com ~15–20 lojas. Por loja: 60% (1.800).
+const PADRAO: Record<ApiPaga, number> = { geocoding: 300, directions: 300, places: 100, ia: 2000, lalamove: 3000, ifood_entrega: 3000, foody: 3000, audio: 200, machine: 3000, uber: 3000 }
 const ENV: Record<ApiPaga, string> = { geocoding: 'LIMITE_GEOCODING_DIA', directions: 'LIMITE_DIRECTIONS_DIA', places: 'LIMITE_PLACES_DIA', ia: 'LIMITE_IA_CHAMADAS_DIA', lalamove: 'LIMITE_LALAMOVE_DIA', ifood_entrega: 'LIMITE_IFOOD_ENTREGA_DIA', foody: 'LIMITE_FOODY_DIA', audio: 'LIMITE_AUDIO_DIA', machine: 'LIMITE_MACHINE_DIA', uber: 'LIMITE_UBER_DIA' }
 
 export function limiteDiario(api: ApiPaga, env: Record<string, string | undefined> = process.env): number {
