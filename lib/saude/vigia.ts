@@ -3,7 +3,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { limiteDiario, type ApiPaga } from '@/lib/custo/guarda'
 import { limitesIa } from '@/lib/custo/ia'
 import { diaSP, limiteDoPainel } from '@/lib/custo/uso'
-import { avaliar, CPU_ALTA_PCT, cronsAtrasados, horaDoResumo, JANELA_ALERTA_MS, medidasVazias, podeEnviar, textoResumo, type Alerta, type Medidas, type Oficial } from './avaliar'
+import { assistentesFora, avaliar, CPU_ALTA_PCT, cronsAtrasados, horaDoResumo, JANELA_ALERTA_MS, medidasVazias, podeEnviar, textoResumo, type Alerta, type Medidas, type Oficial } from './avaliar'
+import { lojaEstaAberta, type HorarioFuncionamento, type StatusLoja } from '@/lib/timezone'
 import { derivarProm, lerHostingerOficial, lerPromOficial, lerSupabaseGestao } from './oficial'
 import { enviarAlertaSistema } from './enviar'
 
@@ -89,13 +90,28 @@ export async function coletar(admin: SupabaseClient, agora: Date, anterior: { em
     m.cpuAltaSeguidas = m.cpuPct >= CPU_ALTA_PCT ? (anterior?.dados?.cpuAltaSeguidas ?? 0) + 1 : 0
   }
   const hoje = diaSP(agora)
-  const [cont, usos, ia, crons, lojasWa] = await Promise.all([
+  const seteDias = new Date(agora.getTime() - 7 * 86400_000).toISOString()
+  const [cont, usos, ia, crons, lojasWa, lojasImp, agentes] = await Promise.all([
     admin.rpc('sistema_saude_contadores'),
     admin.from('api_uso_dia').select('api, escopo, chamadas').eq('dia', hoje).limit(2000),
     admin.from('ia_uso_dia').select('custo_micro_usd').eq('dia', hoje).eq('escopo', 'total').limit(100),
     admin.from('sistema_cron_batidas').select('nome, ultima_em'),
     admin.from('restaurantes').select('nome, whatsapp_caiu_em').not('whatsapp_caiu_em', 'is', null).is('whatsapp_desconexao_manual_em', null).limit(200),
+    // Assistente de impressão (29/10): lojas e sinais dos últimos 7 dias (antigo: restaurantes; novo: impressao_agentes).
+    admin.from('restaurantes').select('id, nome, status_loja, horario_funcionamento, impressao_agente_visto_em').limit(1000),
+    admin.from('impressao_agentes').select('restaurante_id, visto_em').is('revogado_em', null).gte('visto_em', seteDias).limit(2000),
   ])
+  {
+    const ultimo = new Map<string, string>()
+    const marcar = (id: string, em: string | null | undefined) => { if (em && em >= seteDias && (!ultimo.has(id) || em > (ultimo.get(id) as string))) ultimo.set(id, em) }
+    for (const a of (agentes.data ?? []) as { restaurante_id: string; visto_em: string }[]) marcar(a.restaurante_id, a.visto_em)
+    const lojas = (lojasImp.data ?? []) as { id: string; nome: string; status_loja: StatusLoja | null; horario_funcionamento: HorarioFuncionamento | null; impressao_agente_visto_em: string | null }[]
+    for (const l of lojas) marcar(l.id, l.impressao_agente_visto_em)
+    m.assistentesFora = assistentesFora(lojas.map((l) => ({
+      nome: l.nome, ultimoSinal: ultimo.get(l.id) ?? null,
+      aberta: lojaEstaAberta({ statusLoja: l.status_loja ?? 'automatico', horarioFuncionamento: l.horario_funcionamento ?? null }),
+    })), agora.getTime())
+  }
   m.bancoRestrito = restrito(cont.error?.message) ?? restrito(usos.error?.message)
   const c = cont.data as { req_postgrest?: number; consultas?: number; db_bytes?: number; storage_bytes?: number } | null
   const req = c?.req_postgrest != null ? Number(c.req_postgrest) : null

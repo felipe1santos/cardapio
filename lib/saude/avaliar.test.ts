@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { avaliar, cronsAtrasados, horaDoResumo, medidasVazias, podeEnviar, textoResumo, type Medidas } from './avaliar'
+import { assistentesFora, avaliar, cronsAtrasados, horaDoResumo, medidasVazias, podeEnviar, textoResumo, type Medidas } from './avaliar'
 
 const base = (p: Partial<Medidas> = {}): Medidas => ({ ...medidasVazias('2026-10-28T21:00:00Z'), ...p })
 const assuntos = (m: Medidas) => avaliar(m).map((a) => `${a.assunto}:${a.nivel}`)
@@ -55,6 +55,31 @@ describe('avaliar', () => {
     const m = base({ cronsAtrasados: [{ nome: 'pix-online', minutos: 25 }], whatsappCaido: [{ loja: 'Ponto 400', minutos: 30 }] })
     // WhatsApp de loja caído NÃO vira alerta do vigia (28/10): o aviso é único e sai do monitor quando ela cai.
     expect(assuntos(m)).toEqual(['cron-pix-online:vermelho'])
+  })
+})
+
+describe('Assistente de impressão desligado com a loja aberta (29/10)', () => {
+  it('vira alerta vermelho por loja, com os minutos', () => {
+    const a = avaliar(base({ assistentesFora: [{ loja: 'Villa', minutos: 42 }] }))
+    expect(a.map((x) => `${x.assunto}:${x.nivel}`)).toEqual(['assistente-Villa:vermelho'])
+    expect(a[0].texto).toMatch(/42 min/)
+    expect(a[0].texto).toMatch(/impressora/)
+  })
+})
+
+describe('assistentesFora (quem entra no alerta)', () => {
+  const agora = Date.parse('2026-10-29T23:00:00Z')
+  const min = (m: number) => new Date(agora - m * 60_000).toISOString()
+  it('só loja ABERTA, que usou o Assistente nos últimos 7 dias, sem sinal há 15 min ou mais', () => {
+    const r = assistentesFora([
+      { nome: 'Aberta sem sinal', aberta: true, ultimoSinal: min(40) },
+      { nome: 'Aberta com sinal', aberta: true, ultimoSinal: min(1) },
+      { nome: 'Fechada', aberta: false, ultimoSinal: min(300) },
+      { nome: 'Nunca usou', aberta: true, ultimoSinal: null },
+      { nome: 'Abandonou há 10 dias', aberta: true, ultimoSinal: min(10 * 24 * 60) },
+      { nome: 'Quase', aberta: true, ultimoSinal: min(14) },
+    ], agora)
+    expect(r).toEqual([{ loja: 'Aberta sem sinal', minutos: 40 }])
   })
 })
 

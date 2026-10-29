@@ -32,6 +32,8 @@ export interface Medidas {
   discoUsadoPct: number | null
   cronsAtrasados: { nome: string; minutos: number }[]
   whatsappCaido: { loja: string; minutos: number }[]
+  /** Lojas abertas com o Assistente de impressão sem sinal (29/10). */
+  assistentesFora?: { loja: string; minutos: number }[]
   /** Soma exata dos arquivos do Storage (storage.objects). */
   storageBytes?: number | null
   /** Números das fontes oficiais (lib/saude/oficial.ts); cada um com a hora em que foi lido. */
@@ -153,6 +155,12 @@ export function avaliar(m: Medidas): Alerta[] {
       `sem rodar há ${n0(c.minutos)} min`,
       'abrir Coolify › app › Scheduled Tasks e ver o último resultado dela.'))
   }
+  for (const a of m.assistentesFora ?? []) {
+    out.push(alerta(`assistente-${a.loja}`, 'vermelho', `impressão parada na loja ${a.loja}`,
+      `A loja ${a.loja} está aberta e o Assistente de impressão está desligado: os pedidos não estão saindo na impressora.`,
+      `sem sinal há ${n0(a.minutos)} min`,
+      'ligar para a loja: abrir o Assistente no computador da cozinha (ícone perto do relógio) ou imprimir pelo painel.'))
+  }
   // WhatsApp de loja desconectado: NÃO alerta aqui (28/10, regra do dono — é opcional). O aviso único sai do monitor
   // (lib/whatsapp-monitor.ts) quando uma loja em uso cai sozinha; a lista só aparece na tela.
   return out
@@ -171,6 +179,20 @@ export function cronsAtrasados(batidas: { nome: string; ultima_em: string }[], a
     if (!intervalo) continue
     const minutos = Math.floor((agora - Date.parse(b.ultima_em)) / 60_000)
     if (minutos > Math.max(10, intervalo * 3)) out.push({ nome: b.nome, minutos })
+  }
+  return out
+}
+
+/**
+ * Assistente de impressão desligado com a loja ABERTA (29/10, pedido do dono): só lojas que usaram o Assistente nos
+ * últimos 7 dias (quem nunca usou ou abandonou não entra) e sem sinal há 15 min ou mais. Pura.
+ */
+export function assistentesFora(lojas: { nome: string; aberta: boolean; ultimoSinal: string | null }[], agora: number): { loja: string; minutos: number }[] {
+  const out: { loja: string; minutos: number }[] = []
+  for (const l of lojas) {
+    if (!l.aberta || !l.ultimoSinal) continue
+    const minutos = Math.floor((agora - Date.parse(l.ultimoSinal)) / 60_000)
+    if (minutos >= 15 && minutos <= 7 * 24 * 60) out.push({ loja: l.nome, minutos })
   }
   return out
 }
