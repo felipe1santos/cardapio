@@ -26,14 +26,23 @@ function restrito(msg: string | undefined | null): string | null {
   return msg && /restricted|exceed_|quota/i.test(msg) ? msg : null
 }
 
-/** Referência de requisições/min (normal do mesmo horário; ver referenciaReq) — recalculada a cada 10 min (lê ~2 mil fotos só com o número). */
-let media: { valor: number | null; mesmoHorario: boolean; em: number } = { valor: null, mesmoHorario: false, em: 0 }
-async function mediaReq(admin: SupabaseClient, agora: number): Promise<{ valor: number | null; mesmoHorario: boolean }> {
-  if (agora - media.em < 600_000) return media
-  const { data } = await admin.from('sistema_saude_fotos').select('em, rpm:dados->reqPorMin').gte('em', new Date(agora - 7 * 86400_000).toISOString()).order('em', { ascending: false }).limit(2100)
-  const r = referenciaReq(((data ?? []) as { em: string; rpm: number | null }[]).map((x) => ({ em: x.em, rpm: Number(x.rpm) })), agora)
-  media = { ...r, em: agora }
-  return r
+/**
+ * Fotos dos 7 dias (só em + número): relidas 1×/h; a referência (referenciaReq, pura) é recalculada a cada chamada para a hora do dia
+ * ficar certa. PostgREST limita a 1000 linhas por resposta (max_rows), então busca em 2 páginas.
+ */
+let fotos: { rows: { em: string; rpm: number }[]; em: number } = { rows: [], em: 0 }
+async function mediaReq(admin: SupabaseClient, agora: number): Promise<ReturnType<typeof referenciaReq>> {
+  if (agora - fotos.em >= 3600_000) {
+    const rows: { em: string; rpm: number }[] = []
+    for (const [de, ate] of [[0, 999], [1000, 2099]]) {
+      const { data } = await admin.from('sistema_saude_fotos').select('em, rpm:dados->reqPorMin').gte('em', new Date(agora - 7 * 86400_000).toISOString()).order('em', { ascending: false }).range(de, ate)
+      const pag = (data ?? []) as { em: string; rpm: number | null }[]
+      for (const x of pag) rows.push({ em: x.em, rpm: Number(x.rpm) })
+      if (pag.length < 1000) break
+    }
+    fotos = { rows, em: agora }
+  }
+  return referenciaReq(fotos.rows, agora)
 }
 
 function vps(): Pick<Medidas, 'cpuStat' | 'memLivrePct' | 'discoUsadoPct'> {
@@ -122,10 +131,11 @@ export async function coletar(admin: SupabaseClient, agora: Date, anterior: { em
     // Contador zerado (reset das estatísticas) dá delta negativo: sem número nesta rodada.
     if (min > 0.5 && req >= anterior.req_postgrest) m.reqPorMin = (req - Number(anterior.req_postgrest)) / min
   }
-  const ref = await mediaReq(admin, agora.getTime()).catch(() => ({ valor: null, mesmoHorario: false }))
+  const ref = await mediaReq(admin, agora.getTime()).catch(() => ({ valor: null, mesmoHorario: false, geral: null }))
   m.reqMediaPorMin = ref.valor
   m.reqReferenciaMesmoHorario = ref.mesmoHorario
-  const base = m.reqMediaPorMin ?? m.reqPorMin
+  m.reqMediaGeralPorMin = ref.geral
+  const base = ref.geral ?? m.reqMediaPorMin ?? m.reqPorMin
   if (base !== null) m.egressMesGb = (base * 1440 * 30 * BYTES_EGRESS_POR_REQ) / 1e9
 
   const linhas = ((usos.data ?? []) as { api: string; escopo: string; chamadas: number }[]).filter((l) => !l.api.includes(':'))

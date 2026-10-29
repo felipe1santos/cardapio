@@ -135,12 +135,12 @@ describe('referenciaReq (normal do mesmo horário)', () => {
       foto(1, '18:20', 380), foto(1, '18:40', 420), foto(2, '18:45', 400), foto(2, '19:00', 400), foto(3, '18:35', 400), foto(3, '19:25', 400),
       foto(1, '15:00', 130), foto(2, '03:00', 70), foto(1, '12:00', 100),
     ]
-    expect(referenciaReq(fotos, agora)).toEqual({ valor: 400, mesmoHorario: true })
+    expect(referenciaReq(fotos, agora)).toMatchObject({ valor: 400, mesmoHorario: true })
   })
   it('janela atravessa a meia-noite (00:20 usa 23:20–01:20)', () => {
     const a = Date.parse('2026-10-29T03:20:00Z') // 00:20 SP
     const fotos = [foto(2, '23:20', 60), foto(2, '23:50', 60), foto(2, '00:10', 60), foto(2, '01:20', 60), foto(3, '00:40', 60), foto(3, '23:30', 60), foto(2, '12:00', 999), foto(3, '23:10', 999), foto(2, '01:30', 999)]
-    expect(referenciaReq(fotos, a)).toEqual({ valor: 60, mesmoHorario: true })
+    expect(referenciaReq(fotos, a)).toMatchObject({ valor: 60, mesmoHorario: true })
   })
   it('poucas amostras do mesmo horário → média geral (fora dos últimos 30 min)', () => {
     const fotos = [foto(1, '18:40', 400), ...Array.from({ length: 14 }, (_, i) => foto(1 + (i % 3), `${String(2 + i).padStart(2, '0')}:00`, 100))]
@@ -149,9 +149,19 @@ describe('referenciaReq (normal do mesmo horário)', () => {
     expect(r.valor).not.toBeNull()
   })
   it('ignora rpm inválido e fotos dos últimos 30 min na média geral; vazio → null', () => {
-    expect(referenciaReq([], agora)).toEqual({ valor: null, mesmoHorario: false })
+    expect(referenciaReq([], agora)).toMatchObject({ valor: null, mesmoHorario: false })
     const recentes = Array.from({ length: 20 }, (_, i) => ({ em: new Date(agora - (i + 1) * 60_000).toISOString(), rpm: 900 })).filter((f) => agora - Date.parse(f.em) < 1800_000)
-    expect(referenciaReq([...recentes, { em: foto(2, '10:00', 1).em, rpm: NaN }, { em: foto(2, '10:05', 1).em, rpm: -5 }], agora)).toEqual({ valor: null, mesmoHorario: false })
+    expect(referenciaReq([...recentes, { em: foto(2, '10:00', 1).em, rpm: NaN }, { em: foto(2, '10:05', 1).em, rpm: -5 }], agora)).toMatchObject({ valor: null, mesmoHorario: false })
+  })
+})
+
+describe('referenciaReq.geral (base do egress)', () => {
+  it('não muda entre jantar e madrugada com as mesmas fotos', () => {
+    const fotos = Array.from({ length: 20 }, (_, i) => ({ em: new Date(Date.parse('2026-10-26T12:00:00Z') + i * 3 * 3600_000).toISOString(), rpm: 50 + (i % 8) * 60 }))
+    const jantar = referenciaReq(fotos, Date.parse('2026-10-29T21:43:00Z'))
+    const noite = referenciaReq(fotos, Date.parse('2026-10-29T05:10:00Z'))
+    expect(jantar.geral).not.toBeNull()
+    expect(jantar.geral).toBeCloseTo(noite.geral as number, 6)
   })
 })
 

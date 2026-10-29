@@ -14,6 +14,8 @@ export interface Medidas {
   reqMediaPorMin: number | null
   /** true = reqMediaPorMin é o normal do MESMO horário nos dias anteriores; false/ausente = média geral (fotos antigas). */
   reqReferenciaMesmoHorario?: boolean
+  /** Média simples de 7 dias (base da projeção de egress; não muda com a hora). */
+  reqMediaGeralPorMin?: number | null
   /** Egress estimado para o mês (GB) a partir da média de requisições, e a cota do plano. */
   egressMesGb: number | null
   egressCotaGb: number
@@ -170,8 +172,9 @@ export function avaliar(m: Medidas): Alerta[] {
   return out
 }
 
+const fmtSP = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
 const minutoSP = (t: number) => {
-  const p = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(t))
+  const p = fmtSP.formatToParts(new Date(t))
   return Number(p.find((x) => x.type === 'hour')?.value) * 60 + Number(p.find((x) => x.type === 'minute')?.value)
 }
 
@@ -179,21 +182,24 @@ const minutoSP = (t: number) => {
  * Referência de requisições/min para o alerta (29/10): o normal do MESMO horário (±60 min, hora de São Paulo) nos dias
  * anteriores, porque noite (~70), tarde (~130) e jantar (~400–780) misturados davam alerta falso em todo jantar.
  * Sem 6 amostras do horário, cai na média geral dos 7 dias (sem os últimos 30 min), com limiares mais frouxos. Pura.
+ * `geral` = média simples de todas as fotos válidas dos 7 dias (≥12), base da projeção de egress (não oscila com a hora).
+ * Um loop que dure mais de 12 h entra na referência do dia seguinte (o primeiro alerta já saiu).
  */
-export function referenciaReq(fotos: { em: string; rpm: number }[], agora: number): { valor: number | null; mesmoHorario: boolean } {
+export function referenciaReq(fotos: { em: string; rpm: number }[], agora: number): { valor: number | null; mesmoHorario: boolean; geral: number | null } {
   const validas = fotos
     .map((f) => ({ t: Date.parse(f.em), rpm: Number(f.rpm) }))
     .filter((f) => Number.isFinite(f.t) && Number.isFinite(f.rpm) && f.rpm >= 0 && f.t <= agora && agora - f.t <= 7 * 86400_000)
   const media = (v: { rpm: number }[]) => v.reduce((s, f) => s + f.rpm, 0) / v.length
+  const geralTodas = validas.length >= 12 ? media(validas) : null
   const nowMin = minutoSP(agora)
   const mesmas = validas.filter((f) => {
     if (agora - f.t < 12 * 3600_000) return false
     const d = Math.abs(minutoSP(f.t) - nowMin)
     return Math.min(d, 1440 - d) <= 60
   })
-  if (mesmas.length >= 6) return { valor: media(mesmas), mesmoHorario: true }
-  const geral = validas.filter((f) => agora - f.t >= 30 * 60_000)
-  return { valor: geral.length >= 12 ? media(geral) : null, mesmoHorario: false }
+  if (mesmas.length >= 6) return { valor: media(mesmas), mesmoHorario: true, geral: geralTodas }
+  const semRecentes = validas.filter((f) => agora - f.t >= 30 * 60_000)
+  return { valor: semRecentes.length >= 12 ? media(semRecentes) : null, mesmoHorario: false, geral: geralTodas }
 }
 
 /** Intervalo de cada cron em minutos (Coolify). Atrasado = sem rodar há mais de 3× isso (mínimo 10 min). */
