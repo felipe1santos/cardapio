@@ -2,6 +2,10 @@
 
 import { TelaPixOnline, type PixAguardando } from '@/components/vitrine/tela-pix-online'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { criarCacheFrete, enderecoCompletoParaFrete, ESPERA_FRETE_MS } from '@/lib/frete-vitrine'
+
+/** Frete por endereço nesta aba (29/10): o mesmo endereço não consulta o servidor de novo. */
+const cacheFrete = criarCacheFrete<{ taxa: number; entregavel: boolean; fonte: 'bairro' | 'raio' | 'padrao'; distanciaKm: number | null; motivo?: string }>()
 import { UtensilsCrossed, HandPlatter, CreditCard, Banknote, Pencil, Truck, MapPin, Phone, ChevronDown, ChevronRight, Clock, Gift, Ticket, Percent, Check, RotateCcw } from 'lucide-react'
 import { normalizarBairro } from '@/lib/frete'
 import { pedacosDaDescricao } from '@/lib/descricao-rica'
@@ -1258,8 +1262,11 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   useEffect(() => {
     if (!slug || tipoPedido !== 'entrega') { setFreteCalc(null); setFreteStatus('idle'); return }
     const cep = endereco.cep.replace(/\D/g, '')
-    const temBase = cep.length === 8 || endereco.bairro.trim() !== ''
-    if (!temBase) { setFreteCalc(null); setFreteStatus('idle'); return }
+    // Só com rua + número + bairro, 800 ms depois de parar de digitar, e o mesmo endereço não consulta de novo (29/10).
+    const alvo = { cep, rua: endereco.rua, numero: endereco.numero, bairro: endereco.bairro, cidade: endereco.cidade }
+    if (!enderecoCompletoParaFrete(alvo)) { setFreteCalc(null); setFreteStatus('idle'); return }
+    const guardado = cacheFrete.ler(slug, alvo)
+    if (guardado) { setFreteCalc(guardado); setFreteStatus('ok'); return }
     let cancel = false
     setFreteStatus('calculando')
     const t = setTimeout(async () => {
@@ -1267,15 +1274,16 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         const res = await fetch(`/api/loja/${slug}/frete`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cep, rua: endereco.rua, numero: endereco.numero, bairro: endereco.bairro, cidade: endereco.cidade }),
+          body: JSON.stringify(alvo),
         })
         if (!res.ok) { if (!cancel) { setFreteCalc(null); setFreteStatus('erro') } return }
         const data = await res.json()
+        cacheFrete.guardar(slug, alvo, data)
         if (!cancel) { setFreteCalc(data); setFreteStatus('ok') }
       } catch {
         if (!cancel) { setFreteCalc(null); setFreteStatus('erro') }
       }
-    }, 600)
+    }, ESPERA_FRETE_MS)
     return () => { cancel = true; clearTimeout(t) }
   }, [slug, tipoPedido, endereco.cep, endereco.bairro, endereco.rua, endereco.numero, endereco.cidade])
 
