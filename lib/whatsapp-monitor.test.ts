@@ -1,71 +1,58 @@
 import { describe, expect, it } from 'vitest'
-import { caiuParaPainel, decidirMonitor, THROTTLE_MS } from './whatsapp-monitor'
-
-/** Etapa 3 (20/10): alerta só quando a conexão cai sozinha; desconexão pelo painel fica em silêncio; lembrete único depois de 24 h (27/10). */
-const agora = Date.parse('2026-10-20T01:00:00Z')
-const iso = (min: number) => new Date(agora - min * 60_000).toISOString()
-
-describe('monitor do WhatsApp: decisão', () => {
-  it('caiu sozinho pela primeira vez → alerta e marca a hora da queda', () => {
-    const d = decidirMonitor({ anterior: 'open', novo: 'close', caiuEm: null, manualEm: null, alertadoEm: null, agora })
-    expect(d).toMatchObject({ estado: 'close', alertar: true, voltou: false, manual: false })
-    expect(d.caiuEm).toBe(new Date(agora).toISOString())
-  })
-  it('continua caído e já alertou há 1 h → não repete o alerta; mantém a hora original da queda', () => {
-    const d = decidirMonitor({ anterior: 'close', novo: 'close', caiuEm: iso(90), manualEm: null, alertadoEm: iso(60), agora })
-    expect(d.alertar).toBe(false)
-    expect(d.caiuEm).toBe(iso(90))
-  })
-  it('alertou há 7 h e segue caído → ainda não repete (lembrete só depois de 24 h)', () => {
-    expect(decidirMonitor({ anterior: 'close', novo: 'close', caiuEm: iso(420), manualEm: null, alertadoEm: iso(420), agora }).alertar).toBe(false)
-  })
-  it('caído há 25 h e alertou há 25 h → UM lembrete', () => {
-    expect(decidirMonitor({ anterior: 'close', novo: 'close', caiuEm: iso(25 * 60), manualEm: null, alertadoEm: iso(25 * 60), agora }).alertar).toBe(true)
-  })
-  it('caído há 3 dias → não lembra mais (a faixa vermelha do painel continua)', () => {
-    expect(decidirMonitor({ anterior: 'close', novo: 'close', caiuEm: iso(72 * 60), manualEm: null, alertadoEm: iso(25 * 60), agora }).alertar).toBe(false)
-  })
-  it('desconectou pelo painel e o close chegou 2 min depois → continua manual mesmo dias depois (Menuzia, 23/10)', () => {
-    const d = decidirMonitor({ anterior: 'close', novo: 'close', caiuEm: iso(3 * 24 * 60 - 2), manualEm: iso(3 * 24 * 60), alertadoEm: null, agora })
-    expect(d).toMatchObject({ alertar: false, manual: true })
-  })
-  it('o dono desconectou pelo painel há 5 min → sem alerta (manual)', () => {
-    const d = decidirMonitor({ anterior: 'open', novo: 'close', caiuEm: null, manualEm: iso(5), alertadoEm: null, agora })
-    expect(d).toMatchObject({ alertar: false, manual: true })
-  })
-  it('desconexão manual antiga (2 h) não blinda uma queda nova', () => {
-    expect(decidirMonitor({ anterior: 'open', novo: 'close', caiuEm: null, manualEm: iso(120), alertadoEm: null, agora }).alertar).toBe(true)
-  })
-  it('voltou (open depois de caído) → limpa a queda e marca "voltou" para reenviar avisos', () => {
-    const d = decidirMonitor({ anterior: 'close', novo: 'open', caiuEm: iso(10), manualEm: null, alertadoEm: iso(10), agora })
-    expect(d).toMatchObject({ estado: 'open', caiuEm: null, alertar: false, voltou: true })
-  })
-  it('Evolution sem resposta (null) com estado anterior desconhecido → trata como close, sem reabrir nada', () => {
-    expect(decidirMonitor({ anterior: null, novo: null, caiuEm: null, manualEm: null, alertadoEm: null, agora }).estado).toBe('close')
-  })
-  it('throttle de 2 min por loja', () => { expect(THROTTLE_MS).toBe(120_000) })
-})
+import { decidirMonitor, deveVigiar, MAX_TENTATIVAS, THROTTLE_MS } from './whatsapp-monitor'
 
 /**
- * Achado #14 da auditoria (25/10): "connecting" era tratado como queda — uma reconexão curta da Evolution acendia faixa
- * vermelha, push e alerta grave. Agora "conectando" tem 3 min de tolerância; depois disso, é queda como as outras.
+ * Regra do dono (28/10/2026): WhatsApp é OPCIONAL. Loja desconectada (manual, 401 deslogou no celular, 440 sessão aberta
+ * em outro lugar, ou queda que não voltou em 3 tentativas) fica DESCONECTADA em silêncio — sem reconectar, sem conferir,
+ * sem aviso repetido — até o dono ler o QR de novo. Super Admin: 1 aviso só, quando uma loja que estava em uso cai sozinha.
  */
-describe('monitor do WhatsApp: "conectando"', () => {
-  it('acabou de entrar em conectando → marca a hora, mas não alerta', () => {
-    const d = decidirMonitor({ anterior: 'open', novo: 'connecting', caiuEm: null, manualEm: null, alertadoEm: null, agora })
-    expect(d).toMatchObject({ estado: 'connecting', alertar: false })
+const agora = Date.parse('2026-10-28T20:00:00Z')
+const iso = (min: number) => new Date(agora - min * 60_000).toISOString()
+const base = { anterior: 'open' as string | null, novo: 'close' as 'close' | 'open' | 'connecting' | null, caiuEm: null as string | null, manualEm: null as string | null, motivo: null as number | string | null, tentativas: 0, agora }
+
+describe('monitor do WhatsApp: decisão', () => {
+  it('queda momentânea de loja em uso: tenta reconectar (1ª de 3), sem aviso ainda', () => {
+    const d = decidirMonitor({ ...base, novo: 'close', motivo: 503 })
+    expect(d).toMatchObject({ estado: 'connecting', reconectar: true, avisarSuperadmin: false, voltou: false })
     expect(d.caiuEm).toBe(new Date(agora).toISOString())
   })
-  it('conectando há 2 min → ainda não alerta', () => {
-    expect(decidirMonitor({ anterior: 'connecting', novo: 'connecting', caiuEm: iso(2), manualEm: null, alertadoEm: null, agora }).alertar).toBe(false)
+  it(`${MAX_TENTATIVAS} tentativas sem voltar: desconectada em silêncio + 1 aviso ao Super Admin`, () => {
+    const d = decidirMonitor({ ...base, anterior: 'connecting', novo: 'connecting', caiuEm: iso(6), tentativas: MAX_TENTATIVAS })
+    expect(d).toMatchObject({ estado: 'close', reconectar: false, avisarSuperadmin: true, caiuEm: iso(6) })
   })
-  it('conectando há 4 min → é queda: alerta', () => {
-    expect(decidirMonitor({ anterior: 'connecting', novo: 'connecting', caiuEm: iso(4), manualEm: null, alertadoEm: null, agora }).alertar).toBe(true)
+  it('401 (deslogou no celular) e 440 (aberta em outro lugar): desconectada na hora, SEM reconectar; 1 aviso', () => {
+    for (const motivo of [401, 440, '440']) {
+      expect(decidirMonitor({ ...base, motivo })).toMatchObject({ estado: 'close', reconectar: false, avisarSuperadmin: true })
+    }
   })
-  it('faixa vermelha: some em conectando recente, aparece em conectando longo e em close', () => {
-    expect(caiuParaPainel('connecting', iso(1), agora)).toBe(false)
-    expect(caiuParaPainel('connecting', iso(5), agora)).toBe(true)
-    expect(caiuParaPainel('close', iso(0), agora)).toBe(true)
-    expect(caiuParaPainel('open', null, agora)).toBe(false)
+  it('desconexão pelo painel (manual): desconectada, sem reconectar e SEM aviso', () => {
+    expect(decidirMonitor({ ...base, manualEm: iso(1) })).toMatchObject({ estado: 'close', reconectar: false, avisarSuperadmin: false })
+    // O close do logout pode chegar minutos depois do clique.
+    expect(decidirMonitor({ ...base, manualEm: iso(20), motivo: 401 })).toMatchObject({ estado: 'close', avisarSuperadmin: false })
   })
+  it('loja que já estava desconectada: nada muda (sem reconectar, sem aviso de novo)', () => {
+    expect(decidirMonitor({ ...base, anterior: 'close', novo: 'close', caiuEm: iso(9000) })).toMatchObject({ estado: 'close', reconectar: false, avisarSuperadmin: false, mudou: false })
+    expect(decidirMonitor({ ...base, anterior: 'close', novo: 'connecting', caiuEm: iso(9000) })).toMatchObject({ estado: 'close', reconectar: false, avisarSuperadmin: false, mudou: false })
+  })
+  it('voltou (o dono leu o QR, ou a reconexão deu certo): conectada, limpa a queda, reenvia avisos', () => {
+    expect(decidirMonitor({ ...base, anterior: 'close', novo: 'open', caiuEm: iso(30) })).toMatchObject({ estado: 'open', caiuEm: null, voltou: true, mudou: true })
+    expect(decidirMonitor({ ...base, anterior: 'open', novo: 'open' })).toMatchObject({ estado: 'open', voltou: false, mudou: false })
+  })
+  it('loja que nunca esteve conectada e responde close: desconectada em silêncio (sem tentar, sem aviso)', () => {
+    expect(decidirMonitor({ ...base, anterior: null, novo: 'close' })).toMatchObject({ estado: 'close', reconectar: false, avisarSuperadmin: false })
+  })
+  it('Evolution sem resposta (null): não muda nada', () => {
+    expect(decidirMonitor({ ...base, novo: null })).toMatchObject({ estado: 'open', reconectar: false, mudou: false })
+  })
+})
+
+describe('quem o cron confere', () => {
+  it('só loja conectada, em reconexão ou nunca conferida — desconectada e sem instância ficam de fora', () => {
+    expect(deveVigiar('open')).toBe(true)
+    expect(deveVigiar('connecting')).toBe(true)
+    expect(deveVigiar(null)).toBe(true)
+    expect(deveVigiar('close')).toBe(false)
+    expect(deveVigiar('sem_instancia')).toBe(false)
+  })
+  it('throttle de 2 min por loja', () => { expect(THROTTLE_MS).toBe(120_000) })
 })

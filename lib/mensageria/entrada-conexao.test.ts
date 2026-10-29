@@ -48,4 +48,18 @@ describe('webhook da loja: evento de conexão', { timeout: 20_000 }, () => {
     await processarEntrada(db, SEGREDO, { ...corpo, data: { state: 'open', statusReason: 200 } })
     expect(aplicarEventoConexao).toHaveBeenCalledTimes(2)
   })
+
+  it('28/10: loja desconectada — eventos dela (qualquer estado e motivo) não consultam o banco; só o "open" passa', async () => {
+    const { processarEntrada } = await import('./entrada')
+    const S2 = 'b'.repeat(48)
+    aplicarEventoConexao.mockClear().mockResolvedValueOnce('parado')
+    const db = supabaseFalso()
+    await processarEntrada(db, S2, { event: 'connection.update', instance: 'inst-1', data: { state: 'close', statusReason: 401 } })
+    const consultas = (db.from as unknown as { mock: { calls: unknown[] } }).mock.calls.length
+    for (let i = 0; i < 100; i++) await processarEntrada(db, S2, { event: 'connection.update', instance: 'inst-1', data: { state: i % 2 ? 'close' : 'connecting', statusReason: 400 + i } })
+    expect((db.from as unknown as { mock: { calls: unknown[] } }).mock.calls.length).toBe(consultas)
+    expect(aplicarEventoConexao).toHaveBeenCalledTimes(1)
+    await processarEntrada(db, S2, { event: 'connection.update', instance: 'inst-1', data: { state: 'open', statusReason: 200 } })
+    expect(aplicarEventoConexao).toHaveBeenCalledTimes(2)
+  })
 })

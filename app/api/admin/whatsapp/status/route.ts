@@ -4,6 +4,7 @@ import { getAdminSupabase } from '@/lib/supabase/admin'
 import { restauranteDaSessao } from '@/lib/auth/session'
 import { estadoConexao, evolutionConfigurado, formatarNumeroWhatsapp, numeroConectado } from '@/lib/evolution'
 import { garantirWebhookDeTempoEmTempo } from '@/lib/mensageria/webhook-loja'
+import { marcarConectadaPeloPainel } from '@/lib/whatsapp-monitor'
 
 /** Status da conexão WhatsApp (Evolution) do restaurante logado. */
 export async function GET() {
@@ -33,5 +34,7 @@ export async function GET() {
   // Conectado (inclusive reconectado pelo celular, sem passar pelo QR): confere o webhook.
   // Sem esperar: registrar o webhook não pode atrasar a resposta da tela.
   if (state === 'open') void garantirWebhookDeTempoEmTempo(admin, restauranteId).catch(() => null)
+  // Leu o QR (ou reconectou pelo celular): a loja volta a ser vigiada (28/10 — desconectada fica parada até aqui).
+  if (state === 'open') void marcarConectadaPeloPainel(admin, restauranteId).catch(() => null)
   return NextResponse.json({ configurado: true, connected: state === 'open', state, numero })
 }

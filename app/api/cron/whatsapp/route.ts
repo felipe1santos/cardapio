@@ -9,7 +9,7 @@ import { monitorarTodas } from '@/lib/whatsapp-monitor'
 import { devolverConversasAbandonadas } from '@/lib/mensageria/abandono'
 import { expirarCashbackVencidos } from '@/lib/queries/cashback'
 import { criarPortaoHorario } from '@/lib/manutencao-horaria'
-import { baterCron } from '@/lib/saude/cron'
+import { baterCron, umaPorVez } from '@/lib/saude/cron'
 import { rodarVigia } from '@/lib/saude/vigia'
 
 const manutencao = criarPortaoHorario(60 * 60_000)
@@ -47,11 +47,13 @@ export async function POST(request: Request) {
   await sugerirComIaUmaLoja(admin).catch((e) => console.error('[whatsapp] sugestão IA:', (e as Error).message))
   // Webhook de toda loja com WhatsApp (a cada 30 min por loja): reconectar pelo celular,
   // sem passar pelo painel, também deixa o SAIR e a central funcionando.
-  const { data: lojas } = await admin.from('restaurantes').select('id').not('evolution_instance', 'is', null)
+  // Loja com o WhatsApp desconectado fica de fora (28/10): ao ler o QR em Integrações o webhook é refeito na hora.
+  const { data: lojas } = await admin.from('restaurantes').select('id').not('evolution_instance', 'is', null).or('whatsapp_estado.is.null,whatsapp_estado.neq.close')
   for (const l of (lojas ?? []) as { id: string }[]) await garantirWebhookDeTempoEmTempo(admin, l.id, 30 * 60_000).catch(() => null)
   // Monitor da conexão (Etapa 3, 20/10): 1 GET connectionState por loja a cada 2 min (throttle interno); caiu sozinha → faixa, push e alerta; voltou → reenvia avisos que falharam.
   const monitor = await monitorarTodas(admin).catch((e) => { console.error('[whatsapp] monitor:', (e as Error).message); return null })
   // Vigia da saúde do sistema (28/10, Etapa 7): no máximo a cada 5 min, sem API paga; alerta no WhatsApp do dono.
-  const saude = await rodarVigia(admin).catch((e) => { console.error('[whatsapp] vigia:', (e as Error).message); return null })
+  // Uma rodada por vez: duas chamadas juntas passariam as duas pela trava da última foto (auditoria 28/10).
+  const saude = await umaPorVez('vigia', () => rodarVigia(admin)).catch((e) => { console.error('[whatsapp] vigia:', (e as Error).message); return null })
   return NextResponse.json({ enviados: fila.enviados, falhas: fila.falhas, limpeza: limpeza ?? null, monitor, saude })
 }

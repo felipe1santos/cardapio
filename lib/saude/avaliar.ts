@@ -153,12 +153,8 @@ export function avaliar(m: Medidas): Alerta[] {
       `sem rodar há ${n0(c.minutos)} min`,
       'abrir Coolify › app › Scheduled Tasks e ver o último resultado dela.'))
   }
-  for (const w of m.whatsappCaido) {
-    out.push(alerta(`whatsapp-${w.loja}`, 'amarelo', `WhatsApp da loja ${w.loja} desconectado`,
-      'O WhatsApp da loja caiu sozinho e não voltou: avisos de pedido e robô não saem.',
-      `fora há ${n0(w.minutos)} min`,
-      'pedir à loja para abrir Ajustes › WhatsApp e ler o QR Code de novo.'))
-  }
+  // WhatsApp de loja desconectado: NÃO alerta aqui (28/10, regra do dono — é opcional). O aviso único sai do monitor
+  // (lib/whatsapp-monitor.ts) quando uma loja em uso cai sozinha; a lista só aparece na tela.
   return out
 }
 
@@ -181,13 +177,9 @@ export function cronsAtrasados(batidas: { nome: string; ultima_em: string }[], a
 
 export const JANELA_ALERTA_MS = 6 * 3600_000
 
-/**
- * Sem spam: no máximo 1 alerta do mesmo assunto a cada 6 h; amarelo que vira vermelho sai na hora. WhatsApp de loja caído
- * (a loja é quem resolve, e pode ficar dias fora) repete só a cada 24 h.
- */
+/** Sem spam: no máximo 1 alerta do mesmo assunto a cada 6 h; amarelo que vira vermelho sai na hora. */
 export function podeEnviar(historico: { assunto: string; nivel: string; criado_em: string }[], a: { assunto: string; nivel: Nivel }, agora: number): boolean {
-  const janela = a.assunto.startsWith('whatsapp-') ? 24 * 3600_000 : JANELA_ALERTA_MS
-  const recentes = historico.filter((h) => h.assunto === a.assunto && agora - Date.parse(h.criado_em) < janela)
+  const recentes = historico.filter((h) => h.assunto === a.assunto && agora - Date.parse(h.criado_em) < JANELA_ALERTA_MS)
   if (!recentes.length) return true
   return a.nivel === 'vermelho' && !recentes.some((h) => h.nivel === 'vermelho')
 }

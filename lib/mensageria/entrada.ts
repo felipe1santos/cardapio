@@ -22,6 +22,16 @@ import { eventoConexaoRepetido } from './conexao-repetida'
 
 /** Últimos eventos de conexão vistos (por segredo + estado + motivo), em memória do processo. */
 const conexoesVistas = new Map<string, number>()
+/** Lojas com o WhatsApp desconectado (por segredo do webhook): eventos delas não consultam o banco. Revalida a cada 1 h. */
+const lojasParadas = new Map<string, number>()
+const PARADA_VALIDADE_MS = 3600_000
+function lojaParada(segredo: string, agora: number): boolean {
+  const em = lojasParadas.get(segredo)
+  if (em === undefined) return false
+  if (agora - em < PARADA_VALIDADE_MS) return true
+  lojasParadas.delete(segredo)
+  return false
+}
 
 export const SEGREDO_VALIDO = /^[0-9a-f]{48}$/
 
@@ -104,10 +114,15 @@ async function processarEntradaInterna(admin: SupabaseClient, segredo: string, c
   if (!SEGREDO_VALIDO.test(segredo)) return { ...r, status: 404 }
 
   const evento = provedorAtual().interpretarWebhook(corpo)
-  // Instância oscilando (27/10): o mesmo evento de conexão em 60 s sai antes de qualquer consulta ao banco.
-  if (evento.conexao && eventoConexaoRepetido(conexoesVistas, segredo, evento.conexao, Date.now())) {
-    contar(r, 'conexao_repetida')
-    return r
+  if (evento.conexao) {
+    // Loja desconectada (28/10): só o "open" (o dono leu o QR) passa; o resto sai sem nenhuma consulta.
+    if (evento.conexao.estado === 'open') lojasParadas.delete(segredo)
+    else if (lojaParada(segredo, Date.now())) { contar(r, 'conexao_loja_parada'); return r }
+    // Instância oscilando (27/10): o mesmo evento de conexão em 60 s sai antes de qualquer consulta ao banco.
+    if (eventoConexaoRepetido(conexoesVistas, segredo, evento.conexao, Date.now())) {
+      contar(r, 'conexao_repetida')
+      return r
+    }
   }
 
   const { data: cfg } = await admin
@@ -131,7 +146,8 @@ async function processarEntradaInterna(admin: SupabaseClient, segredo: string, c
   }
   // Conexão (achado #10, 26/10): a queda chega na hora, com o motivo — o monitor confere e aplica as regras de alerta.
   if (evento.conexao) {
-    await aplicarEventoConexao(admin, lojaRow.id as string, evento.conexao).catch((e) => console.error('[whatsapp] conexão:', (e as Error).message?.slice(0, 120)))
+    const res = await aplicarEventoConexao(admin, lojaRow.id as string, evento.conexao).catch((e) => { console.error('[whatsapp] conexão:', (e as Error).message?.slice(0, 120)); return null })
+    if (res === 'parado' || res === 'desconectada' || res === 'caiu_manual') lojasParadas.set(segredo, Date.now())
     contar(r, `conexao_${evento.conexao.estado}`)
     return r
   }

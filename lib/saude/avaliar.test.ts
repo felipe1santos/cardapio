@@ -53,7 +53,8 @@ describe('avaliar', () => {
 
   it('cron parado e WhatsApp de loja caído', () => {
     const m = base({ cronsAtrasados: [{ nome: 'pix-online', minutos: 25 }], whatsappCaido: [{ loja: 'Ponto 400', minutos: 30 }] })
-    expect(assuntos(m)).toEqual(['cron-pix-online:vermelho', 'whatsapp-Ponto 400:amarelo'])
+    // WhatsApp de loja caído NÃO vira alerta do vigia (28/10): o aviso é único e sai do monitor quando ela cai.
+    expect(assuntos(m)).toEqual(['cron-pix-online:vermelho'])
   })
 })
 
@@ -75,11 +76,6 @@ describe('podeEnviar (no máximo 1 do mesmo assunto a cada 6 h)', () => {
   it('repetido em 6 h não sai; passou de 6 h sai', () => {
     expect(podeEnviar([{ assunto: 'egress', nivel: 'amarelo', criado_em: '2026-10-28T17:00:00Z' }], { assunto: 'egress', nivel: 'amarelo' }, agora)).toBe(false)
     expect(podeEnviar([{ assunto: 'egress', nivel: 'amarelo', criado_em: '2026-10-28T14:00:00Z' }], { assunto: 'egress', nivel: 'amarelo' }, agora)).toBe(true)
-  })
-  it('WhatsApp de loja caído repete só a cada 24 h', () => {
-    const h = [{ assunto: 'whatsapp-Nossa Cozinha', nivel: 'amarelo', criado_em: '2026-10-28T10:00:00Z' }]
-    expect(podeEnviar(h, { assunto: 'whatsapp-Nossa Cozinha', nivel: 'amarelo' }, agora)).toBe(false)
-    expect(podeEnviar(h, { assunto: 'whatsapp-Nossa Cozinha', nivel: 'amarelo' }, Date.parse('2026-10-29T10:01:00Z'))).toBe(true)
   })
   it('amarelo que vira vermelho sai na hora (uma vez)', () => {
     expect(podeEnviar([{ assunto: 'egress', nivel: 'amarelo', criado_em: '2026-10-28T20:00:00Z' }], { assunto: 'egress', nivel: 'vermelho' }, agora)).toBe(true)
