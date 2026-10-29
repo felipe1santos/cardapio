@@ -26,6 +26,16 @@ export const dynamic = 'force-dynamic'
  * recebe lista vazia — a cozinha continua no Assistente antigo e nada imprime em dobro.
  */
 
+/**
+ * Lista de impressoras (largura/fonte/cópias): o Assistente só a usa quando há pedido para imprimir (egress, 29/10).
+ * Sem pedido nem é lida; a chave `impressoras` segue sempre na resposta. Com pedido, 60 s de cache por loja
+ * (é enfeite do papel, não decide quem imprime).
+ */
+async function impressorasSePedido(admin: ReturnType<typeof getAdminSupabase>, restauranteId: string, pedidos: unknown[]) {
+  if (pedidos.length === 0) return []
+  return comCacheDaLoja('impressoras', restauranteId, () => listarImpressoras(admin, restauranteId))
+}
+
 export async function GET(request: Request) {
   if (!lerAgenteToken(request)) return NextResponse.json({ error: 'Token ausente' }, { status: 400 })
 
@@ -45,9 +55,8 @@ export async function GET(request: Request) {
     instancia = /^[A-Za-z0-9-]{8,64}$/.test(bruto) ? bruto : null
   }
 
-  const [config, impressoras, loja, rota] = await Promise.all([
+  const [config, loja, rota] = await Promise.all([
     buscarConfigImpressao(admin, restauranteId),
-    listarImpressoras(admin, restauranteId),
     // Nome e logo do recibo: 60 s de cache por loja (egress, 26/10). Quem imprime e como continua lido na hora.
     comCacheDaLoja('loja-recibo', restauranteId, () => buscarLojaImpressao(admin, restauranteId)),
     destinoCozinha(admin, restauranteId),
@@ -105,6 +114,7 @@ export async function GET(request: Request) {
       }
       beta = { extras, qr: null, qrPorPedido, loja: dadosLoja }
     }
+    const impressoras = await impressorasSePedido(admin, restauranteId, pedidos as unknown[])
     // Item 61: só dois modelos (Cozinha e Pré-conta) — sem "Comanda de entrega" a mais e sem a
     // "Via da cozinha" (o Assistente lê essas chaves; aqui vão sempre desligadas).
     return NextResponse.json({
@@ -126,11 +136,12 @@ export async function GET(request: Request) {
 
   // Computador pareado (Assistente Beta) fora do modo "Cozinha e Caixa": não consome a
   // cozinha. Sem isso, Beta e Assistente antigo imprimiriam a mesma ficha.
-  if (quem.tipo === 'agente') return NextResponse.json({ config, impressoras, pedidos: [], loja })
+  if (quem.tipo === 'agente') return NextResponse.json({ config, impressoras: [], pedidos: [], loja })
 
   // Impressão automática desligada: o Assistente não imprime nada, então nada é
   // reservado — senão a fila ficaria presa em reservas de quem não vai imprimir.
   const pedidos = config?.impressaoAutomatica ? await listarPedidosParaImprimir(admin, restauranteId, instancia) : []
 
+  const impressoras = await impressorasSePedido(admin, restauranteId, pedidos as unknown[])
   return NextResponse.json({ config, impressoras, pedidos, loja })
 }
