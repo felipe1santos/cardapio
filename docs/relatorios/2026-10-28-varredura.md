@@ -120,3 +120,39 @@ Menuzia. Tela: Super Admin › Saúde do sistema. Teste: `POST /api/cron/saude` 
 3. Ok para a limpeza da Etapa 2 (só `whatsapp.conexao` > 30 d, `whatsapp_eventos` > 90 d…).
 4. Ok para remontar `/` da VPS sem `discard` e limpar 35 GB de imagens/cache do Docker.
 5. Disco C: deste PC em 98,6% — builds e testes locais podem falhar.
+
+## 2ª rodada (28/10 noite, aprovada pelo dono)
+
+### Limpeza das tabelas (0231)
+Backup antes: `~/menuzia-backups/retencao-2026-10-28/` (7 tabelas, 11,5 MB gz). Função `sistema_limpar_retencao()` 1×/dia
+pelo vigia (máx. 20 mil linhas por tabela por rodada). Hoje: 0 linhas no prazo (sistema novo; os 70 mil
+`whatsapp.conexao` de 27/10 saem em 26/11). push_envios: só os que não viraram pedido; fin_alertas: só os lidos.
+
+### VPS
+- Docker: apagadas versões antigas (mantidas as 3 últimas do Menuzia e a última de cada outro app) e cache de build
+  acima de 5 GB. Disco 61% → **35%** (−24 GB). 29 containers de pé, site 200. (O 1º build depois ficou ~15 min.)
+- `discard`: `/root/menuzia-nodiscard.sh` agendado para 29/10 03:30 BRT (timer `menuzia-nodiscard`, transitório — some
+  se a VPS reiniciar antes). Faz backup do fstab, `remount,nodiscard`, confere o site 3× e volta sozinho se falhar.
+  Log: `/root/menuzia-nodiscard.log`. O TRIM continua pelo `fstrim.timer` semanal (já ativo).
+  Volta manual: `cp /root/fstab.antes-nodiscard /etc/fstab && mount -o remount,discard /`.
+
+### Vídeo (Etapa 5)
+- Tela: ao escolher o arquivo confere tipo, 50 MB e 3 min no navegador; abre linha do tempo com prévia em loop do
+  trecho de 15 s (arrasta o início) e barra do quadro da capa (prévia parada); "Usar este trecho" envia.
+- Compressão (3 vídeos reais, 20 s no total): A atual 1,5 Mbps veryfast = 3.447 KB, SSIM 0,9809, 1,7 s;
+  C CRF 28 slow = 3.167 KB, 0,9834, 4,2 s; **D CRF 28 medium (teto 1,5 Mbps) = 3.168 KB (−8%), 0,9836, 3,1 s → escolhida**.
+- Original: nunca vai ao bucket (pasta temporária apagada no fim) — já era assim.
+
+### Números reais na Saúde do sistema
+| Número | Fonte | Endpoint |
+|---|---|---|
+| CPU, memória, disco, disk IO, rede e tamanho do banco | Supabase oficial (Prometheus, chave de serviço existente) | `/customer/v1/privileged/metrics` a cada 15 min |
+| Requisições 24 h por tipo, uso do disco | Supabase oficial (precisa `SUPABASE_ACCESS_TOKEN`) | `usage.api-counts`, `config/disk/util` |
+| Egress do ciclo, log ingestion, MAU | **sem endpoint** (OpenAPI de 28/10) | estimado / "ver Usage" |
+| Storage | exato (`storage.objects`) | — |
+| VPS | Hostinger (precisa `HOSTINGER_API_TOKEN`) ou /proc no servidor | `/api/vps/v1/virtual-machines/{id}/metrics` |
+
+Conferência pelo Chrome (28/10 ~21h): Storage 586 MiB = 586 "MB" do gráfico oficial ✔; disco do banco 2,08 GB = "2 GB
+provisionados" ✔; memória VPS 67% livre × 33% usado na Hostinger ✔; disco VPS 34% × 33/100 GB ✔ (GB×GiB);
+**egress estimado dava o dobro** (32 × ~16 GB/mês) → recalibrado para 700 B/req; **CPU não batia** (carga média 3× ×
+26% da Hostinger) → trocado por % de CPU do /proc/stat, alerta só com 90%+ por 15 min.
