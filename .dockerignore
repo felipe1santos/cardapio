@@ -1,0 +1,19 @@
+# Fora do contexto do build da imagem (Dockerfile). NÃO tirar scripts/, supabase/, printer-agent/src nem
+# next.config.ts: as guardas do prebuild leem esses arquivos.
+node_modules
+.next
+.git
+.superpowers
+.claude
+.medidas
+.shots
+.env*
+docs
+referencias
+coverage
+*.tsbuildinfo
+npm-debug.log*
+printer-agent/node_modules
+printer-agent/dist
+printer-agent/release
+printer-agent/out
