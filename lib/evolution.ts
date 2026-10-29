@@ -39,6 +39,8 @@ export async function obterQrCode(instance: string): Promise<QrCode> {
     method: 'POST',
     headers: evolutionHeaders(),
     body: JSON.stringify({ instanceName: instance, qrcode: true, integration: 'WHATSAPP-BAILEYS' }),
+    // Com prazo (29/10): sem ele, uma Evolution travada segurava a tela de Integrações para sempre.
+    signal: AbortSignal.timeout(15_000),
   })
 
   if (createRes.ok) {
@@ -48,7 +50,7 @@ export async function obterQrCode(instance: string): Promise<QrCode> {
   }
 
   // Instância já existe (ou create não devolveu QR direto) — busca QR pra (re)conectar.
-  const connectRes = await fetch(evolutionUrl(`/instance/connect/${instance}`), { headers: evolutionHeaders() })
+  const connectRes = await fetch(evolutionUrl(`/instance/connect/${instance}`), { headers: evolutionHeaders(), signal: AbortSignal.timeout(15_000) })
   if (!connectRes.ok) throw new Error(`Evolution API respondeu ${connectRes.status} ao conectar instância`)
   const data = await connectRes.json()
   return { base64: data?.base64 ?? null, pairingCode: data?.pairingCode ?? null }
@@ -71,7 +73,7 @@ export async function estadoConexao(instance: string): Promise<EstadoConexao | n
 
 /** Desconecta o WhatsApp da instância (mantém a instância para reconectar depois). */
 export async function desconectarInstancia(instance: string): Promise<void> {
-  await fetch(evolutionUrl(`/instance/logout/${instance}`), { method: 'DELETE', headers: evolutionHeaders() })
+  await fetch(evolutionUrl(`/instance/logout/${instance}`), { method: 'DELETE', headers: evolutionHeaders(), signal: AbortSignal.timeout(10_000) })
 }
 
 /**

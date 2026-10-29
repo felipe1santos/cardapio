@@ -25,6 +25,11 @@ export async function POST(request: Request) {
   }
   const admin = getAdminSupabase()
   void baterCron('whatsapp')
+  // Uma rodada por vez (29/10): rodada lenta (Evolution devagar) + a seguinte repetiriam avisos, retorno do robô e monitor.
+  return NextResponse.json(await umaPorVez('whatsapp', () => rodada(admin)))
+}
+
+async function rodada(admin: ReturnType<typeof getAdminSupabase>) {
   // Pediu atendente pela IA e ninguém respondeu em 10 min: avisa o cliente uma vez (12/10). Antes da fila: sai nesta mesma rodada.
   await avisarAtendentesPendentes(admin).catch((e) => console.error('[whatsapp] aviso de atendente:', (e as Error).message))
   // Solicitação de alteração/cancelamento do cliente sem resposta da loja há 5 min (18/10): vai para o atendente.
@@ -55,5 +60,5 @@ export async function POST(request: Request) {
   // Vigia da saúde do sistema (28/10, Etapa 7): no máximo a cada 5 min, sem API paga; alerta no WhatsApp do dono.
   // Uma rodada por vez: duas chamadas juntas passariam as duas pela trava da última foto (auditoria 28/10).
   const saude = await umaPorVez('vigia', () => rodarVigia(admin)).catch((e) => { console.error('[whatsapp] vigia:', (e as Error).message); return null })
-  return NextResponse.json({ enviados: fila.enviados, falhas: fila.falhas, limpeza: limpeza ?? null, monitor, saude })
+  return { enviados: fila.enviados, falhas: fila.falhas, limpeza: limpeza ?? null, monitor, saude }
 }
