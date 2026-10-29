@@ -13,6 +13,7 @@ import { conferirAprovacao, type Aprovacao } from '@/lib/financeiro/caixa'
 import { avisarPixExpiradoIa } from '@/lib/agente-ia/avisos'
 import { textoPixParceiroPago } from '@/lib/entregas/parceiro-pix'
 import { acaoDaPendencia } from './pendencias'
+import { proximaVerificacaoPix } from '@/lib/espera-tentativas'
 
 /**
  * Pix online (Mercado Pago) — núcleo. Plano: docs/pix-online/plano.md (aprovado em 2026-10-04).
@@ -510,8 +511,11 @@ export async function cancelarCobrancaPendente(admin: SupabaseClient, restaurant
 export async function verificarPendentes(admin: SupabaseClient, opcoes: { limite?: number } = {}) {
   const resumo = { consultadas: 0, confirmadas: 0, expiradas: 0, a_devolver: 0, erros: 0, renovadas: 0 }
   const agora = Date.now()
+  // Só os que estão na vez (0233): quem deu erro no MP espera mais a cada hora (antes: todo minuto, para sempre). Os mais
+  // novos primeiro — 200 registros presos não tampam mais a fila dos Pix de agora.
   const { data: pend } = await admin.from('pagamentos_online').select('id, mp_payment_id, restaurante_id, pedido_id, expira_em, status, metodo')
-    .in('status', ['pendente', 'verificacao_pendente']).order('criado_em').limit(opcoes.limite ?? 200)
+    .in('status', ['pendente', 'verificacao_pendente']).or(`proxima_verificacao_em.is.null,proxima_verificacao_em.lte.${new Date(agora).toISOString()}`)
+    .order('criado_em', { ascending: false }).limit(opcoes.limite ?? 200)
   for (const reg of pend ?? []) {
     // Cartão online sem nenhuma tentativa (cliente fechou a tela): só o prazo vale.
     if (!reg.mp_payment_id) {
@@ -526,7 +530,11 @@ export async function verificarPendentes(admin: SupabaseClient, opcoes: { limite
     const r = await conferirPagamento(admin, reg.mp_payment_id, 'verificacao')
     if (r === 'confirmado') resumo.confirmadas++
     else if (r === 'a_devolver') resumo.a_devolver++
-    else if (r === 'erro_api' || r === 'sem_conta') resumo.erros++
+    else if (r === 'erro_api' || r === 'sem_conta') {
+      resumo.erros++
+      // Só espaça a próxima consulta; o status não muda (o webhook do MP confirma a qualquer hora).
+      await admin.from('pagamentos_online').update({ proxima_verificacao_em: new Date(proximaVerificacaoPix(Date.parse(reg.expira_em), agora)).toISOString() }).eq('id', reg.id)
+    }
     else if (acaoDaPendencia(r, reg.expira_em, agora) === 'expirar') {
       // Cartão recusado e prazo vencido (26/10): recusado já é final no MP — só expira aqui, sem cancelar lá.
       const { data: ped } = await admin.from('pedidos').select('id, status').eq('id', reg.pedido_id).single()

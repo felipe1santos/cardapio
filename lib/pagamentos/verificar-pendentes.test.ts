@@ -38,7 +38,7 @@ function bancoEmMemoria(tabelas: Record<string, Linha[]>) {
       return achadas
     }
     const q = {
-      select: () => q, order: () => q,
+      select: () => q, order: () => q, or: () => q,
       limit: (n: number) => { limite = n; return q },
       eq: (c: string, v: unknown) => { filtros.push((l) => l[c] === v); return q },
       in: (c: string, v: unknown[]) => { filtros.push((l) => v.includes(l[c])); return q },

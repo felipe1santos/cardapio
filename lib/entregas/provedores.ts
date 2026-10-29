@@ -13,6 +13,7 @@ import { buscarEntregaUber, cancelarEntregaUber, cotarUber, criarEntregaUber, st
 import { STATUS_FIM_SEM_ENTREGA, corridaAtiva, type RespostaCotacao } from './lalamove-regras'
 import { ENTREGA_PROVEDOR_SELECT, mapEntregaProvedor, type EntregaProvedorLinha } from './lalamove-status'
 import { EntregaError, pedidoDaLoja, sincronizarCorrida } from './lalamove-servidor'
+import { deveConsultarCorrida } from '@/lib/espera-tentativas'
 import { apagarCorrida, atualizarCorrida, buscarConfig, corridaAtivaDoPedido, criarCorrida, marcosDaCorrida, PROVEDOR_DISPONIVEL, registrarEventoCorrida, type ConfigProvedor, type ProvedorEntrega } from './queries'
 
 /**
@@ -230,10 +231,15 @@ export async function atualizarCorridaUber(admin: SupabaseClient, restauranteId:
  */
 export async function sincronizarCorridasAtivas(admin: SupabaseClient): Promise<{ consultadas: number; mudaram: number; erros: string[] }> {
   const out = { consultadas: 0, mudaram: 0, erros: [] as string[] }
-  const { data, error } = await admin.from('entregas_provedor').select(ENTREGA_PROVEDOR_SELECT).in('provedor', ['uber', 'lalamove', 'foody', 'machine']).in('status', ['ASSIGNING_DRIVER', 'ON_GOING', 'PICKED_UP']).lt('atualizado_em', new Date(Date.now() - 50_000).toISOString()).limit(40)
+  const { data, error } = await admin.from('entregas_provedor').select(`${ENTREGA_PROVEDOR_SELECT}, consultado_em`).in('provedor', ['uber', 'lalamove', 'foody', 'machine']).in('status', ['ASSIGNING_DRIVER', 'ON_GOING', 'PICKED_UP']).lt('atualizado_em', new Date(Date.now() - 50_000).toISOString()).limit(40)
   if (error) { out.erros.push(error.message); return out }
+  const agora = Date.now()
   for (const linha of data ?? []) {
     const corrida = mapEntregaProvedor(linha as Record<string, unknown>)
+    // Intervalo cresce com a idade da corrida (28/10, 0233): 1 min nos primeiros 30, 3 até 90, 10 depois.
+    if (!deveConsultarCorrida(corrida.criadoEm, corrida.atualizadoEm, (linha as { consultado_em?: string | null }).consultado_em ?? null, agora)) continue
+    // Marca a consulta antes (mesmo se der erro ou a guarda bloquear): sem isso, tentava de novo no minuto seguinte.
+    await admin.from('entregas_provedor').update({ consultado_em: new Date(agora).toISOString() }).eq('id', corrida.id)
     try {
       let r: { status: string; mudou: boolean }
       if (corrida.provedor === 'uber') r = await atualizarCorridaUber(admin, corrida.restauranteId, corrida)

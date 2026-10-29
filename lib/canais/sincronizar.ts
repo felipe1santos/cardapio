@@ -10,6 +10,7 @@ import { app99, detalheDoPedido99, enviarStatus99 } from './noventaenove/cliente
 import { mapearPedido99 } from './noventaenove/mapear'
 import { buscarCorridaPorExterno } from '@/lib/entregas/queries'
 import { aplicarEventoCorrida, statusDeEventoIfood } from '@/lib/entregas/provedores'
+import { esperaEnvioCanal, MAX_TENTATIVAS_CANAL } from '@/lib/espera-tentativas'
 
 /**
  * O que o cron `/api/cron/canais` faz a cada minuto, por loja com canal ligado E módulo liberado:
@@ -135,9 +136,14 @@ export async function pollingDaLoja(admin: SupabaseClient, c: ConfigCanal, resum
 /** Status do Kanban → app, para os pedidos externos ainda abertos desta loja/canal. */
 export async function sincronizarStatusDaLoja(admin: SupabaseClient, c: ConfigCanal, resumo: ResumoSincronizacao): Promise<void> {
   const desde = new Date(Date.now() - 12 * 3600_000).toISOString()
-  const { data: exts } = await admin.from('pedidos_externos').select('id, externo_id, status_enviado, pedidos!inner ( id, status, tipo, cancelado_observacao, cancelado_motivo, origem_detalhe )')
+  const { data: exts } = await admin.from('pedidos_externos').select('id, externo_id, status_enviado, envio_tentativas, envio_proxima_em, pedidos!inner ( id, status, tipo, cancelado_observacao, cancelado_motivo, origem_detalhe )')
     .eq('restaurante_id', c.restauranteId).eq('canal', c.canal).gte('criado_em', desde).not('pedido_id', 'is', null).limit(200)
+  const agora = Date.now()
   for (const ext of exts ?? []) {
+    // Erro anterior (28/10, 0233): espera crescente e desiste depois de 8 erros (antes: todo minuto, sem limite).
+    const tentativas = Number(ext.envio_tentativas) || 0
+    if (tentativas >= MAX_TENTATIVAS_CANAL) continue
+    if (ext.envio_proxima_em && Date.parse(ext.envio_proxima_em as string) > agora) continue
     const ped = (Array.isArray(ext.pedidos) ? ext.pedidos[0] : ext.pedidos) as { id: string; status: string; tipo: 'entrega' | 'retirada'; cancelado_observacao: string | null; cancelado_motivo: string | null; origem_detalhe: { entregaPor?: string } | null } | null
     if (!ped) continue
     const alvo = statusParaApp(ped.status, ped.tipo)
@@ -152,11 +158,14 @@ export async function sincronizarStatusDaLoja(admin: SupabaseClient, c: ConfigCa
           : c.canal === '99food'
             ? await enviarStatus99(admin, c, ext.externo_id as string, etapa, { entregaPelaLoja: ped.origem_detalhe?.entregaPor === 'loja', motivo: ped.cancelado_motivo, texto: ped.cancelado_observacao })
             : await enviarStatusOd(admin, c, ext.externo_id as string, etapa, { motivoCancelamento: ped.cancelado_observacao ?? undefined })
-        await admin.from('pedidos_externos').update({ status_enviado: etapa, status_enviado_em: new Date().toISOString(), erro_envio: null, atualizado_em: new Date().toISOString() }).eq('id', ext.id)
+        await admin.from('pedidos_externos').update({ status_enviado: etapa, status_enviado_em: new Date().toISOString(), erro_envio: null, envio_tentativas: 0, envio_proxima_em: null, atualizado_em: new Date().toISOString() }).eq('id', ext.id)
         if (r === 'ok') resumo.statusEnviados++
       } catch (err) {
         const m = (err as Error).message?.slice(0, 200) ?? 'erro'
-        await admin.from('pedidos_externos').update({ erro_envio: m, atualizado_em: new Date().toISOString() }).eq('id', ext.id)
+        const espera = esperaEnvioCanal(tentativas + 1)
+        await admin.from('pedidos_externos').update({
+          erro_envio: m, envio_tentativas: tentativas + 1, envio_proxima_em: espera ? new Date(agora + espera).toISOString() : null, atualizado_em: new Date().toISOString(),
+        }).eq('id', ext.id)
         resumo.erros.push(`${c.canal}/${ext.externo_id} ${etapa}: ${m}`)
         break
       }
