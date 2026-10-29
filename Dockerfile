@@ -60,6 +60,8 @@ RUN npm run build
 
 FROM node:22.11.0-bookworm-slim AS runner
 WORKDIR /app
+# curl para o healthcheck do Coolify (/api/vivo roda dentro do container; a imagem slim não tem curl nem wget).
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && rm -rf /var/lib/apt/lists/*
 # HOSTNAME é só o endereço em que o servidor escuta; não entra nos redirecionamentos (testado 29/10: /admin sem
 # sessão devolve "Location: /login", relativo, com qualquer Host — ver memória "next start sem -H").
 ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0 NEXT_TELEMETRY_DISABLED=1
