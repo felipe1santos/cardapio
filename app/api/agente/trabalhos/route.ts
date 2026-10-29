@@ -30,7 +30,7 @@ export async function GET(request: Request) {
       const r = await reservarTrabalhos(admin, quem.agenteId)
       if (!r.ok) throw new FalhaReserva(r.erro, r.status)
       return r.valor
-    })
+    }, undefined, undefined, 'trabalhos')
     return NextResponse.json({ trabalhos }, { headers: { 'Cache-Control': 'no-store', 'X-Menuzia-Espera': '20' } })
   } catch (e) {
     if (e instanceof FalhaReserva) return NextResponse.json({ error: e.erro }, { status: e.status })

@@ -5,13 +5,18 @@
  * as esperas deste processo:
  *   • impressao_trabalhos INSERT → pré-conta, teste, teste de largura;
  *   • pedidos INSERT/UPDATE     → comanda da cozinha (novo pedido, reimprimir).
+ * Cada tabela acorda só a sua espera (29/10): antes, um pedido acordava também a espera de
+ * trabalhos (e vice-versa), e cada acordada à toa fazia as consultas da busca.
  * O pedido entra no banco antes dos itens: a espera confere de novo logo depois do aviso.
  * Sem Realtime (caiu, reconectando), a espera vira uma checagem no banco a cada 2 s.
  */
 import { createClient, type RealtimeChannel, type SupabaseClient } from '@supabase/supabase-js'
 
 type Ouvinte = () => void
+/** Qual espera o aviso acorda (29/10): mudança de pedido não acorda a espera de trabalhos e vice-versa. */
+export type TipoAviso = 'pedidos' | 'trabalhos'
 interface Estado {
+  /** Chave `${tipo}:${restauranteId}`. */
   ouvintes: Map<string, Set<Ouvinte>>
   canal: RealtimeChannel | null
   /** Um cliente por processo, reaproveitado nas reconexões (antes: um createClient novo por queda). */
@@ -42,9 +47,9 @@ export function acordaAEspera(p: { eventType?: string; new?: unknown }): boolean
   return linha.status !== 'em_rota' && linha.status !== 'entregue'
 }
 
-function avisar(restauranteId: unknown) {
+function avisar(restauranteId: unknown, tipo: TipoAviso) {
   if (typeof restauranteId !== 'string') return
-  const lista = estado().ouvintes.get(restauranteId)
+  const lista = estado().ouvintes.get(`${tipo}:${restauranteId}`)
   if (lista) for (const f of [...lista]) f()
 }
 
@@ -59,8 +64,8 @@ function garantirCanal() {
   const cliente = (e.cliente ??= createClient(url, chave, { auth: { persistSession: false, autoRefreshToken: false } }))
   const canal: RealtimeChannel = cliente
     .channel('menuzia-impressao-despertador')
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'impressao_trabalhos' }, (p) => avisar((p.new as { restaurante_id?: unknown }).restaurante_id))
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, (p) => { if (acordaAEspera(p)) avisar(((p.new ?? p.old) as { restaurante_id?: unknown }).restaurante_id) })
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'impressao_trabalhos' }, (p) => avisar((p.new as { restaurante_id?: unknown }).restaurante_id, 'trabalhos'))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, (p) => { if (acordaAEspera(p)) avisar(((p.new ?? p.old) as { restaurante_id?: unknown }).restaurante_id, 'pedidos') })
   e.canal = canal
   canal.subscribe((status) => {
     // Aviso de um canal que já foi trocado (ex.: o CLOSED que a própria saída dele dispara): não mexe no atual.
@@ -87,9 +92,10 @@ export function despertadorConectado(): boolean {
  * Espera um aviso da loja (ou `ms`, ou o cliente desistir). Sem Realtime conectado, no
  * máximo 2 s por vez — quem chama confere o banco e espera de novo.
  */
-export function esperarNovidade(restauranteId: string, ms: number, sinal?: AbortSignal): Promise<'aviso' | 'prazo'> {
+export function esperarNovidade(restauranteId: string, ms: number, sinal?: AbortSignal, tipo: TipoAviso = 'pedidos'): Promise<'aviso' | 'prazo'> {
   garantirCanal()
   const e = estado()
+  const chave = `${tipo}:${restauranteId}`
   const limite = e.conectado ? ms : Math.min(ms, 2000)
   return new Promise((resolve) => {
     let feito = false
@@ -98,15 +104,15 @@ export function esperarNovidade(restauranteId: string, ms: number, sinal?: Abort
       feito = true
       clearTimeout(t)
       lista.delete(ouvir)
-      if (lista.size === 0) e.ouvintes.delete(restauranteId)
+      if (lista.size === 0) e.ouvintes.delete(chave)
       sinal?.removeEventListener('abort', desistiu)
       resolve(r)
     }
     const ouvir = () => fim('aviso')
     const desistiu = () => fim('prazo')
-    const lista = e.ouvintes.get(restauranteId) ?? new Set<Ouvinte>()
+    const lista = e.ouvintes.get(chave) ?? new Set<Ouvinte>()
     lista.add(ouvir)
-    e.ouvintes.set(restauranteId, lista)
+    e.ouvintes.set(chave, lista)
     const t = setTimeout(() => fim('prazo'), Math.max(0, limite))
     sinal?.addEventListener('abort', desistiu)
   })
@@ -133,6 +139,8 @@ export async function esperarComBusca<T>(
    * mudou (aceitaram/recusaram)? Então devolve já (vazio) para o Assistente parar o som na hora.
    */
   devolverJa?: () => Promise<boolean>,
+  /** Qual aviso acorda esta espera: 'pedidos' (comanda da cozinha) ou 'trabalhos' (pré-conta, teste). */
+  tipo: TipoAviso = 'pedidos',
 ): Promise<T[]> {
   const fim = Date.now() + Math.max(0, Math.min(segundos, 20)) * 1000
   const buscarSeVale = async () => ((await aindaVale()) ? buscar() : null)
@@ -140,7 +148,7 @@ export async function esperarComBusca<T>(
   // Aceitaram enquanto o Assistente imprimia: a contagem já chega diferente (teste real #292, o som parou 21 s depois).
   if (!lista.length && devolverJa && (await devolverJa())) return lista
   while (lista.length === 0 && Date.now() < fim && !sinal?.aborted) {
-    const r = await esperarNovidade(restauranteId, fim - Date.now(), sinal)
+    const r = await esperarNovidade(restauranteId, fim - Date.now(), sinal, tipo)
     if (sinal?.aborted) break
     const nova = await buscarSeVale()
     if (nova === null) return []
@@ -160,6 +168,6 @@ export async function esperarComBusca<T>(
 }
 
 /** Só para testes. */
-export function _avisarParaTeste(restauranteId: string) {
-  avisar(restauranteId)
+export function _avisarParaTeste(restauranteId: string, tipo: TipoAviso = 'pedidos') {
+  avisar(restauranteId, tipo)
 }

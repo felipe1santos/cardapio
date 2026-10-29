@@ -86,7 +86,7 @@ export async function GET(request: Request) {
       : async () => (await aguardandoAceite(admin, restauranteId).catch(() => null))?.aguardando !== alarmeSabidoN
     const pedidos = souDono && config?.impressaoAutomatica
       ? await esperarComBusca(restauranteId, esperar, request.signal, async () =>
-          aposCorteDaTransferencia(await listarPedidosParaImprimir(admin, restauranteId, instancia) as { criadoEm?: string | null }[], rota.transferidaEm), aindaDono, alarmeMudou)
+          aposCorteDaTransferencia(await listarPedidosParaImprimir(admin, restauranteId, instancia) as { criadoEm?: string | null }[], rota.transferidaEm), aindaDono, alarmeMudou, 'pedidos')
       : []
     // Modelo novo da comanda (Beta 0.2.0-beta.2+): desconto, horários, comanda, atendente
     // e o QR do fim. Só para o dono da Cozinha — a resposta do Assistente antigo não muda.

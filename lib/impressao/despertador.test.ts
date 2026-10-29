@@ -68,6 +68,39 @@ describe('espera longa do Assistente (despertador)', () => {
     expect(buscas).toBe(1)
   })
 
+  it('aviso de pedido não acorda espera de trabalhos', async () => {
+    const t = Date.now()
+    setTimeout(() => _avisarParaTeste('loja-9', 'pedidos'), 50)
+    const r = await esperarNovidade('loja-9', 300, undefined, 'trabalhos')
+    expect(r).toBe('prazo')
+    expect(Date.now() - t).toBeGreaterThanOrEqual(280)
+  })
+
+  it('INSERT de trabalho não acorda espera de pedidos', async () => {
+    const t = Date.now()
+    setTimeout(() => _avisarParaTeste('loja-10', 'trabalhos'), 50)
+    const r = await esperarNovidade('loja-10', 300)
+    expect(r).toBe('prazo')
+    expect(Date.now() - t).toBeGreaterThanOrEqual(280)
+  })
+
+  it('aviso de trabalho acorda a espera de trabalhos (pré-conta sai na hora)', async () => {
+    let fila: string[] = []
+    const t = Date.now()
+    setTimeout(() => { fila = ['pre-conta']; _avisarParaTeste('loja-11', 'trabalhos') }, 150)
+    const r = await esperarComBusca('loja-11', 20, undefined, async () => fila, undefined, undefined, 'trabalhos')
+    expect(r).toEqual(['pre-conta'])
+    expect(Date.now() - t).toBeLessThan(1000)
+  })
+
+  it('sem Realtime, a espera de trabalhos ainda confere o banco a cada ≤2 s', async () => {
+    let n = 0
+    const t = Date.now()
+    const r = await esperarComBusca('loja-12', 20, undefined, async () => { n++; return n >= 2 ? ['teste'] : [] }, undefined, undefined, 'trabalhos')
+    expect(r).toEqual(['teste'])
+    expect(Date.now() - t).toBeLessThan(2600)
+  })
+
   it('o Assistente desistiu (conexão caiu): para de esperar', async () => {
     const ctl = new AbortController()
     setTimeout(() => ctl.abort(), 100)
