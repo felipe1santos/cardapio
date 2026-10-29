@@ -10,7 +10,7 @@ const ROTULO: Record<string, string> = {
   endereco_retirada: 'Endereço e retirada', reclamacao: 'Reclamação', atendente: 'Atendente', parar: 'Parar',
 }
 const SELO: Record<PalavraGlobal['status'], string> = {
-  sugerida: 'bg-[#FEF3C7] text-[#92400E]', aprovada: 'bg-[#DCFCE7] text-[#15803D]', recusada: 'bg-[#F1F2F4] text-[#4B5563]',
+  sugerida: 'bg-[#FEF3C7] text-[#92400E]', aprovada: 'bg-[#DCFCE7] text-[#008361]', recusada: 'bg-[#F1F2F4] text-[#4B5563]',
 }
 
 /** Palavras do robô sugeridas pelas lojas: aprovar = vale para todas; recusar = some. */
@@ -25,16 +25,12 @@ export function PalavrasGlobais({ itens }: { itens: PalavraGlobal[] }) {
   })
   const sugeridas = lista.filter((p) => p.status === 'sugerida').length
   return (
-    <div className="mx-auto max-w-[1100px] px-4 py-6">
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <a href="/superadmin" className="text-[13px] font-semibold text-primary hover:underline">← Painel da plataforma</a>
-        <h1 className="text-[19px] font-semibold text-text-main">Palavras do robô</h1>
-        <span className="text-[13px] text-text-subtle">{sugeridas} para decidir · aprovada vale para todas as lojas</span>
-      </div>
+    <div>
+      <p className="mb-[12px] text-[14px] leading-[20px] text-text-subtle">{sugeridas} para decidir · aprovada vale para todas as lojas</p>
       {msg && <p className="mb-3 text-[13px] font-semibold text-text-main" role="status">{msg}</p>}
-      <div className="overflow-x-auto rounded-[6px] border border-border bg-white">
+      <div className="overflow-x-auto rounded-[24px] border-[0.8px] border-[rgba(0,0,0,0.1)] bg-white">
         <table className="w-full text-left text-[13px]" data-testid="palavras-globais">
-          <thead className="bg-[#F9FAFB] text-[11.5px] font-semibold text-text-subtle">
+          <thead className="bg-white text-[11.5px] font-semibold text-text-subtle">
             <tr><th className="px-3 py-2.5">Palavra</th><th className="px-3 py-2.5">Assunto</th><th className="px-3 py-2.5">Loja que ensinou</th><th className="px-3 py-2.5 text-right">Vezes</th><th className="px-3 py-2.5">Situação</th><th className="px-3 py-2.5" /></tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -45,10 +41,10 @@ export function PalavrasGlobais({ itens }: { itens: PalavraGlobal[] }) {
                 <td className="px-3 py-2">{ROTULO[p.assunto] ?? p.assunto}</td>
                 <td className="px-3 py-2 text-text-subtle">{p.loja}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{p.vezes}</td>
-                <td className="px-3 py-2"><span className={`rounded-[4px] px-2 py-[2px] text-[11.5px] font-semibold ${SELO[p.status]}`}>{p.status === 'sugerida' ? 'Sugerida' : p.status === 'aprovada' ? 'Aprovada' : 'Recusada'}</span></td>
+                <td className="px-3 py-2"><span className={`rounded-[12px] px-2 py-[2px] text-[11.5px] font-semibold ${SELO[p.status]}`}>{p.status === 'sugerida' ? 'Sugerida' : p.status === 'aprovada' ? 'Aprovada' : 'Recusada'}</span></td>
                 <td className="px-3 py-2 text-right">
-                  {p.status !== 'aprovada' && <button type="button" disabled={pendente} onClick={() => decidir(p, true)} className="mr-2 h-[32px] rounded-[4px] bg-[#047857] px-3 text-[12px] font-semibold text-white hover:bg-[#065F46] disabled:opacity-50">Aprovar</button>}
-                  {p.status !== 'recusada' && <button type="button" disabled={pendente} onClick={() => decidir(p, false)} className="h-[32px] rounded-[4px] border border-border px-3 text-[12px] font-semibold text-[#B91C1C] hover:bg-[#FEF2F2] disabled:opacity-50">{p.status === 'aprovada' ? 'Tirar de todas' : 'Recusar'}</button>}
+                  {p.status !== 'aprovada' && <button type="button" disabled={pendente} onClick={() => decidir(p, true)} className="mr-2 h-[32px] rounded-[12px] bg-[#047857] px-3 text-[12px] font-semibold text-white hover:bg-[#065F46] disabled:opacity-50">Aprovar</button>}
+                  {p.status !== 'recusada' && <button type="button" disabled={pendente} onClick={() => decidir(p, false)} className="h-[32px] rounded-[12px] border border-border px-3 text-[12px] font-semibold text-[#D63163] hover:bg-[#FEF2F2] disabled:opacity-50">{p.status === 'aprovada' ? 'Tirar de todas' : 'Recusar'}</button>}
                 </td>
               </tr>
             ))}

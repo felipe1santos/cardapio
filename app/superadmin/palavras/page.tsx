@@ -1,5 +1,6 @@
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { PalavrasGlobais, type PalavraGlobal } from '@/components/superadmin/palavras-globais'
+import { ShellHp } from '@/components/superadmin/hp'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,5 +17,5 @@ export default async function PalavrasPage() {
   const nomes = Object.fromEntries(((lojas ?? []) as { id: string; nome: string }[]).map((l) => [l.id, l.nome]))
   const itens: PalavraGlobal[] = ((data ?? []) as (Omit<PalavraGlobal, 'loja'> & { origem_restaurante_id: string | null })[])
     .map((p) => ({ id: p.id, palavra: p.palavra, assunto: p.assunto, status: p.status, vezes: p.vezes, criado_em: p.criado_em, loja: p.origem_restaurante_id ? nomes[p.origem_restaurante_id] ?? '—' : '—' }))
-  return <PalavrasGlobais itens={itens} />
+  return <ShellHp aba="palavras" titulo="Palavras do robô"><PalavrasGlobais itens={itens} /></ShellHp>
 }

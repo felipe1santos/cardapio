@@ -37,7 +37,7 @@ export function ModulosLoja({ restauranteId, loja, inicial }: { restauranteId: s
             aria-label={`${INFO_MODULO[m].nome} em ${loja}`}
             disabled={pendente}
             onClick={() => alternar(m)}
-            className={`relative h-[18px] w-[32px] flex-shrink-0 rounded-full transition-colors disabled:opacity-60 ${estado[m] ? 'bg-[#16A34A]' : 'bg-[#D1D5DB]'}`}
+            className={`relative h-[18px] w-[32px] flex-shrink-0 rounded-full transition-colors disabled:opacity-60 ${estado[m] ? 'bg-[#008361]' : 'bg-[#D1D5DB]'}`}
             data-testid={`modulo-${m}`}
             data-liberado={estado[m] ? '1' : '0'}
           >
@@ -45,7 +45,7 @@ export function ModulosLoja({ restauranteId, loja, inicial }: { restauranteId: s
           </button>
         </label>
       ))}
-      {erro && <p className="text-[11px] text-[#B91C1C]" role="alert">{erro}</p>}
+      {erro && <p className="text-[11px] text-[#D63163]" role="alert">{erro}</p>}
     </div>
   )
 }

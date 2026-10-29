@@ -4,15 +4,15 @@ import { APIS_PAINEL, corDoUso, ROTULO_API, type ApiPainel, type CorUso, type Us
  * Contador das APIs pagas (Super Admin, 10/10/2026 — docs/REGRAS-DE-CUSTO.md): resumo do dia contra o limite global,
  * chamadas bloqueadas pela guarda, alertas de disparo e os últimos 7 dias. Por loja: BarraUsoLoja.
  */
-const COR: Record<CorUso, string> = { verde: '#10B981', amarela: '#F59E0B', vermelha: '#EF4444' }
-const COR_API: Record<ApiPainel, string> = { geocoding: '#0688D4', directions: '#A855F7', maps_js: '#10B981' }
+const COR: Record<CorUso, string> = { verde: '#673DE6', amarela: '#FFAB00', vermelha: '#E73A47' }
+const COR_API: Record<ApiPainel, string> = { geocoding: '#673DE6', directions: '#E73A47', maps_js: '#18181A' }
 const num = (v: number) => v.toLocaleString('pt-BR')
 
 export function Barra({ chamadas, limite, compacta = false, testid }: { chamadas: number; limite: number; compacta?: boolean; testid?: string }) {
   const { pct, cor } = corDoUso(chamadas, limite)
   return (
     <div className="flex min-w-0 items-center gap-2" data-testid={testid} data-cor={cor}>
-      <div className={`relative min-w-[56px] flex-1 overflow-hidden rounded-full bg-[#E5E7EB] ${compacta ? 'h-[6px]' : 'h-[8px]'}`} role="meter" aria-valuemin={0} aria-valuemax={limite} aria-valuenow={chamadas}>
+      <div className={`relative min-w-[56px] flex-1 overflow-hidden rounded-full bg-[#EBE4FF] ${compacta ? 'h-[6px]' : 'h-[8px]'}`} role="meter" aria-valuemin={0} aria-valuemax={limite} aria-valuenow={chamadas}>
         <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${Math.max(pct, chamadas > 0 ? 3 : 0)}%`, background: COR[cor] }} />
       </div>
       <span className={`whitespace-nowrap tabular-nums text-text-main ${compacta ? 'text-[11.5px]' : 'text-[12.5px] font-semibold'}`}>{num(chamadas)} / {num(limite)}</span>
@@ -45,8 +45,8 @@ function Grafico7Dias({ dias }: { dias: UsoApis['ultimos7'] }) {
     <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Chamadas por API nos últimos 7 dias" data-testid="uso-grafico">
       {[0, 0.5, 1].map((f) => (
         <g key={f}>
-          <line x1={esq} x2={W} y1={y(max * f)} y2={y(max * f)} stroke="#E5E7EB" strokeWidth={1} />
-          <text x={esq - 4} y={y(max * f) + 3} textAnchor="end" fontSize={9} fill="#6B7280">{num(Math.round(max * f))}</text>
+          <line x1={esq} x2={W} y1={y(max * f)} y2={y(max * f)} stroke="rgba(0,0,0,0.08)" strokeWidth={1} />
+          <text x={esq - 4} y={y(max * f) + 3} textAnchor="end" fontSize={9} fill="#58585E">{num(Math.round(max * f))}</text>
         </g>
       ))}
       {dias.map((d, i) => (
@@ -55,7 +55,7 @@ function Grafico7Dias({ dias }: { dias: UsoApis['ultimos7'] }) {
             const x = esq + i * passo + (passo - larg * APIS_PAINEL.length) / 2 + j * larg
             return <rect key={a} x={x} y={y(d[a])} width={Math.max(2, larg - 2)} height={H - pe - y(d[a])} rx={2} fill={COR_API[a]}><title>{`${fmtDia(d.dia)} · ${ROTULO_API[a]}: ${num(d[a])}`}</title></rect>
           })}
-          <text x={esq + i * passo + passo / 2} y={H - 6} textAnchor="middle" fontSize={10} fill="#6B7280">{fmtDia(d.dia)}</text>
+          <text x={esq + i * passo + passo / 2} y={H - 6} textAnchor="middle" fontSize={10} fill="#58585E">{fmtDia(d.dia)}</text>
         </g>
       ))}
     </svg>
@@ -64,9 +64,9 @@ function Grafico7Dias({ dias }: { dias: UsoApis['ultimos7'] }) {
 
 export function UsoApisResumo({ uso }: { uso: UsoApis }) {
   return (
-    <section className="mb-4 rounded-[6px] border border-border bg-white p-4" data-testid="uso-apis">
+    <section className="rounded-[24px] border-[0.8px] border-[rgba(0,0,0,0.1)] bg-white p-[24px]" data-testid="uso-apis">
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-[15px] font-semibold text-text-main">APIs pagas hoje</h2>
+        <h2 className="text-[16px] font-semibold leading-[24px] text-text-main">APIs pagas hoje</h2>
         <p className="text-[12px] text-text-subtle">Limite diário da guarda de custo · {uso.dia.split('-').reverse().join('/')}</p>
       </div>
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
@@ -78,13 +78,13 @@ export function UsoApisResumo({ uso }: { uso: UsoApis }) {
             </div>
           ))}
           <div className="mt-1 grid grid-cols-2 gap-2">
-            <div className="rounded-[4px] border border-border px-3 py-2" data-testid="uso-bloqueadas">
-              <p className="text-[11px] uppercase text-text-subtle">Bloqueadas pela guarda</p>
-              <p className={`text-[18px] font-semibold tabular-nums ${uso.bloqueadas > 0 ? 'text-[#B91C1C]' : 'text-text-main'}`}>{num(uso.bloqueadas)}</p>
+            <div className="rounded-[16px] border-[0.8px] border-[rgba(0,0,0,0.05)] px-[16px] py-[12px]" data-testid="uso-bloqueadas">
+              <p className="text-[14px] leading-[20px] text-text-main">Bloqueadas pela guarda</p>
+              <p className={`text-[20px] font-bold leading-[28px] tabular-nums ${uso.bloqueadas > 0 ? 'text-[#E73A47]' : 'text-text-main'}`}>{num(uso.bloqueadas)}</p>
             </div>
-            <div className="rounded-[4px] border border-border px-3 py-2" data-testid="uso-disparos">
-              <p className="text-[11px] uppercase text-text-subtle">Alertas de loop</p>
-              <p className={`text-[18px] font-semibold tabular-nums ${uso.disparos > 0 ? 'text-[#B91C1C]' : 'text-text-main'}`}>{num(uso.disparos)}</p>
+            <div className="rounded-[16px] border-[0.8px] border-[rgba(0,0,0,0.05)] px-[16px] py-[12px]" data-testid="uso-disparos">
+              <p className="text-[14px] leading-[20px] text-text-main">Alertas de loop</p>
+              <p className={`text-[20px] font-bold leading-[28px] tabular-nums ${uso.disparos > 0 ? 'text-[#E73A47]' : 'text-text-main'}`}>{num(uso.disparos)}</p>
             </div>
           </div>
         </div>

@@ -1646,3 +1646,35 @@ details.ti-tec[open] > summary .ti-chev { transform: rotate(180deg); }
   /* O fundo verde já diz que é novo: sem a etiqueta, o nome e o tempo cabem. */
   .card-kanban [data-testid="card-novo"] { display: none; }
 }
+
+/* ── Super Admin no visual da "Visão geral" da Hostinger (29/10/2026, pedido do dono) ─────────────────────────────
+   Só dentro de .sa-hp (app/superadmin/layout.tsx): as variáveis do Tailwind ganham a paleta de lá e a fonte é a DM Sans
+   (já servida de public/fontes). Referência medida em hpanel.hostinger.com (estilos computados): fundo #F5F5F6, cartões
+   brancos com borda rgba(0,0,0,.1), texto #18181A, secundário #58585E, roxo #673DE6, verde #008361/#DEF4F0, vermelho
+   #E73A47. O resto do sistema não muda. */
+.sa-hp {
+  --cor-page: 245 245 246;        /* #F5F5F6 */
+  --cor-border: 230 230 231;      /* ≈ rgba(0,0,0,.1) sobre branco */
+  --cor-text-main: 24 24 26;      /* #18181A */
+  --cor-text-subtle: 88 88 94;    /* #58585E */
+  --cor-primary: 103 61 230;      /* #673DE6 */
+  --cor-primary-dark: 80 37 209;  /* #5025D1 */
+  --hp-roxo: #673de6;
+  --hp-roxo-escuro: #5025d1;
+  --hp-roxo-claro: #ebe4ff;
+  --hp-verde: #008361;
+  --hp-verde-claro: #def4f0;
+  --hp-vermelho: #e73a47;
+  --hp-vermelho-claro: #ffe8ef;
+  --hp-ambar: #8a6100;
+  --hp-ambar-claro: #fff8e2;
+  --hp-cinza: #6d7081;
+  --hp-borda: rgba(0, 0, 0, 0.1);
+  --hp-borda-suave: rgba(0, 0, 0, 0.05);
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 24px;
+  color: #18181a;
+  background: #f5f5f6;
+}
+.sa-hp :where(input, select, textarea, button) { font-family: inherit; }

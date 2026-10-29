@@ -16,7 +16,12 @@ export const FORA_DA_REGRA = [
   'lib/previa-loja.ts', // imagem de compartilhamento (não é tela)
   'components/auth/auth-shell.tsx', // telas de acesso: imagem-modelo do dono (26/10/2026) usa 700/800
   ...DESPACHO_DE_ROTAS(),
+  ...SUPER_ADMIN(),
 ]
+/** Super Admin (29/10/2026, pedido do dono): visual igual à "Visão geral" da Hostinger, que usa 700 nos valores e botões. */
+function SUPER_ADMIN(): string[] {
+  return readdirSync(join(__dirname, '..', 'components', 'superadmin')).filter((n) => n.endsWith('.tsx')).map((n) => `components/superadmin/${n}`)
+}
 function DESPACHO_DE_ROTAS(): string[] {
   return ['components/pedidos/rota-panel.tsx', 'components/pedidos/rota-map.tsx', 'components/maps/route-map.tsx']
 }

@@ -10,5 +10,6 @@ export default async function SuperadminLayout({ children }: { children: React.R
     redirect('/login')
   }
 
-  return <div className="min-h-dvh bg-page">{children}</div>
+  // .sa-hp (29/10): paleta e fonte da "Visão geral" da Hostinger só no Super Admin (app/globals.css).
+  return <div className="sa-hp min-h-dvh bg-page">{children}</div>
 }

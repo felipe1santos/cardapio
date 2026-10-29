@@ -9,7 +9,7 @@ import type { SomaIa, UsoIa } from '@/lib/custo/ia'
  * Contador da IA de atendimento (Claude) no Super Admin (10/10/2026 — docs/REGRAS-DE-CUSTO.md): gasto de hoje
  * contra o teto diário, mês corrente, tokens, por modelo e 7 dias; por loja: IaDaLoja. Lê ia_uso_dia (0174).
  */
-const COR: Record<CorUso, string> = { verde: '#10B981', amarela: '#F59E0B', vermelha: '#EF4444' }
+const COR: Record<CorUso, string> = { verde: '#673DE6', amarela: '#FFAB00', vermelha: '#E73A47' }
 const num = (v: number) => v.toLocaleString('pt-BR')
 /** micro-dólares → "US$ 0,0123" (4 casas abaixo de 1 dólar: a IA custa frações de centavo). */
 export function usd(micro: number) {
@@ -25,7 +25,7 @@ function BarraValor({ atual, limite, rotulo, testid }: { atual: number; limite: 
   const { pct, cor } = corDoUso(atual, limite)
   return (
     <div className="flex min-w-0 items-center gap-2" data-testid={testid} data-cor={cor}>
-      <div className="relative h-[8px] min-w-[56px] flex-1 overflow-hidden rounded-full bg-[#E5E7EB]" role="meter" aria-valuemin={0} aria-valuemax={limite} aria-valuenow={atual}>
+      <div className="relative h-[8px] min-w-[56px] flex-1 overflow-hidden rounded-full bg-[#EBE4FF]" role="meter" aria-valuemin={0} aria-valuemax={limite} aria-valuenow={atual}>
         <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${Math.max(pct, atual > 0 ? 3 : 0)}%`, background: COR[cor] }} />
       </div>
       <span className="whitespace-nowrap text-[12.5px] font-semibold tabular-nums text-text-main">{rotulo}</span>
@@ -35,9 +35,9 @@ function BarraValor({ atual, limite, rotulo, testid }: { atual: number; limite: 
 
 function Caixa({ titulo, valor, sub, testid }: { titulo: string; valor: string; sub?: string; testid?: string }) {
   return (
-    <div className="rounded-[4px] border border-border px-3 py-2" data-testid={testid}>
-      <p className="text-[11px] uppercase text-text-subtle">{titulo}</p>
-      <p className="text-[18px] font-semibold tabular-nums text-text-main">{valor}</p>
+    <div className="rounded-[16px] border-[0.8px] border-[rgba(0,0,0,0.05)] px-[16px] py-[12px]" data-testid={testid}>
+      <p className="text-[14px] leading-[20px] text-text-main">{titulo}</p>
+      <p className="text-[20px] font-bold leading-[28px] tabular-nums text-text-main">{valor}</p>
       {sub && <p className="text-[11.5px] text-text-subtle">{sub}</p>}
     </div>
   )
@@ -49,13 +49,13 @@ function Grafico7({ dias }: { dias: UsoIa['ultimos7'] }) {
   const passo = W / dias.length
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Gasto da IA nos últimos 7 dias" data-testid="ia-grafico">
-      <line x1={0} x2={W} y1={H - pe} y2={H - pe} stroke="#E5E7EB" />
+      <line x1={0} x2={W} y1={H - pe} y2={H - pe} stroke="rgba(0,0,0,0.08)" />
       {dias.map((d, i) => {
         const h = ((H - pe - topo) * d.custoMicroUsd) / max
         return (
           <g key={d.dia}>
             <rect x={i * passo + passo / 2 - 9} y={H - pe - h} width={18} height={Math.max(h, d.custoMicroUsd > 0 ? 2 : 0)} rx={2} fill="#A855F7"><title>{`${d.dia.slice(8, 10)}/${d.dia.slice(5, 7)} · ${usd(d.custoMicroUsd)} · ${num(d.chamadas)} respostas`}</title></rect>
-            <text x={i * passo + passo / 2} y={H - 5} textAnchor="middle" fontSize={10} fill="#6B7280">{`${d.dia.slice(8, 10)}/${d.dia.slice(5, 7)}`}</text>
+            <text x={i * passo + passo / 2} y={H - 5} textAnchor="middle" fontSize={10} fill="#58585E">{`${d.dia.slice(8, 10)}/${d.dia.slice(5, 7)}`}</text>
           </g>
         )
       })}
@@ -67,9 +67,9 @@ export function UsoIaResumo({ ia }: { ia: UsoIa }) {
   const { limites: L } = ia
   const modelos = Object.entries(ia.porModeloMes).sort((a, b) => b[1].custoMicroUsd - a[1].custoMicroUsd)
   return (
-    <section className="mb-4 rounded-[6px] border border-border bg-white p-4" data-testid="uso-ia">
+    <section className="rounded-[24px] border-[0.8px] border-[rgba(0,0,0,0.1)] bg-white p-[24px]" data-testid="uso-ia">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="flex items-center gap-2 text-[15px] font-semibold text-text-main">
+        <h2 className="flex items-center gap-2 text-[16px] font-semibold leading-[24px] text-text-main">
           IA de atendimento (Claude)
           <span className={`rounded-[3px] px-1.5 py-0.5 text-[10.5px] font-semibold uppercase ${ia.ligada ? 'bg-[#DCFCE7] text-[#16A34A]' : 'bg-[#FEF3C7] text-[#92400E]'}`} data-testid="ia-status">
             {ia.ligada ? 'Ligada' : 'Ainda não ligada'}
@@ -150,7 +150,7 @@ export function TetoIaLoja({ restauranteId, teto, padrao }: { restauranteId: str
         className="h-[26px] w-[56px] rounded-[3px] border border-border px-1.5 text-[12px] tabular-nums"
       />
       <button type="submit" disabled={pendente} className="h-[26px] rounded-[3px] border border-border px-1.5 text-[11px] font-semibold uppercase text-text-main hover:border-primary disabled:opacity-50">OK</button>
-      {msg && <span className={msg === 'Salvo' ? 'text-[#16A34A]' : 'text-[#B91C1C]'} role="status">{msg}</span>}
+      {msg && <span className={msg === 'Salvo' ? 'text-[#16A34A]' : 'text-[#E73A47]'} role="status">{msg}</span>}
     </form>
   )
 }

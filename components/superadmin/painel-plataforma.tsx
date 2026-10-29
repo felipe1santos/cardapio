@@ -2,21 +2,19 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowDown, ArrowLeft, ArrowUp, ChevronLeft, ChevronRight, ExternalLink, LogOut, MoreVertical, Plus, Search, Users, X } from 'lucide-react'
-import { LinhaResumos } from '@/components/ui/topo-compacto'
+import { ArrowDown, ArrowLeft, ArrowUp, ChevronLeft, ChevronRight, ExternalLink, MoreVertical, Plus, Search, Users, X } from 'lucide-react'
 import { PilhaToasts, useToasts } from '@/components/admin/toasts'
 import { Flutuante } from '@/components/ui/flutuante'
-import { ICONES } from '@/lib/icones-painel'
 import type { LojaPlataforma, ResumoPlataforma, SituacaoLoja, Sublogin } from '@/lib/queries/plataforma'
 import type { UsoApis } from '@/lib/custo/uso'
-import { BarraUsoLoja, UsoApisResumo } from './uso-apis'
+import { BarraUsoLoja } from './uso-apis'
 import type { UsoIa } from '@/lib/custo/ia'
-import { IaDaLoja, UsoIaResumo } from './uso-ia'
+import { IaDaLoja } from './uso-ia'
 import type { ModulosDaLoja } from '@/lib/modulos'
 import { ModulosLoja } from './modulos-loja'
 import {
   alterarValidadeAction, alternarBetaImpressaoAction, bloquearAction, desbloquearAction, excluirDadosAction,
-  preCadastrarAction, removerPreCadastroAction, resetarSenhaAction, sairAction, novoLinkConviteAction, type ResultadoAcao,
+  preCadastrarAction, removerPreCadastroAction, resetarSenhaAction, novoLinkConviteAction, type ResultadoAcao,
 } from '@/app/superadmin/actions'
 import { SENHA_PADRAO, textoDoReset } from '@/lib/auth/senha-padrao'
 
@@ -67,16 +65,16 @@ function valorOrdem(l: LojaPlataforma, c: Coluna): number | string {
 
 /** Selo de status: fundo sólido vivo, texto branco (contraste ≥ 4,5:1). */
 export function SeloSituacao({ l }: { l: Pick<LojaPlataforma, 'situacao' | 'acessoExpiraEm'> }) {
-  const [texto, cor] =
-    l.situacao === 'ativo' ? ['Ativo', '#15803D']
-      : l.situacao === 'ativo_temporario' ? [`Ativo até ${dataCurta(l.acessoExpiraEm)}`, '#0369A1']
-        : l.situacao === 'pendente' ? ['Aguardando 1º acesso', '#B45309']
-          : l.situacao === 'expirado' ? [`Expirou em ${dataCurta(l.acessoExpiraEm)}`, '#B91C1C']
-            : ['Sem acesso', '#B91C1C']
-  return <span className="inline-flex whitespace-nowrap rounded-[4px] px-2 py-[3px] text-[11.5px] font-semibold text-white" style={{ backgroundColor: cor }} data-testid="selo-situacao" data-situacao={l.situacao}>{texto}</span>
+  const [texto, cor, fundo] =
+    l.situacao === 'ativo' ? ['Ativo', '#008361', '#DEF4F0']
+      : l.situacao === 'ativo_temporario' ? [`Ativo até ${dataCurta(l.acessoExpiraEm)}`, '#673DE6', '#EBE4FF']
+        : l.situacao === 'pendente' ? ['Aguardando 1º acesso', '#8A6100', '#FFF8E2']
+          : l.situacao === 'expirado' ? [`Expirou em ${dataCurta(l.acessoExpiraEm)}`, '#D63163', '#FFE8EF']
+            : ['Sem acesso', '#D63163', '#FFE8EF']
+  return <span className="inline-flex whitespace-nowrap rounded-[8px] px-[8px] py-[2px] text-[12px] font-semibold leading-[20px]" style={{ color: cor, backgroundColor: fundo }} data-testid="selo-situacao" data-situacao={l.situacao}>{texto}</span>
 }
 
-const SELO_SUB: Record<Sublogin['status'], [string, string]> = { ativo: ['Ativo', '#15803D'], pausado: ['Pausado', '#B45309'], bloqueado: ['Bloqueado', '#B91C1C'] }
+const SELO_SUB: Record<Sublogin['status'], [string, string]> = { ativo: ['Ativo', '#008361'], pausado: ['Pausado', '#8A6100'], bloqueado: ['Bloqueado', '#D63163'] }
 
 // ─── Modal: centralizado no computador, tela cheia com "← Voltar" no celular ───────────────────
 function Modal({ titulo, onFechar, children, rodape, testid, largura = 520 }: { titulo: string; onFechar: () => void; children: React.ReactNode; rodape?: React.ReactNode; testid: string; largura?: number }) {
@@ -90,13 +88,13 @@ function Modal({ titulo, onFechar, children, rodape, testid, largura = 520 }: { 
   return (
     <div className="fixed inset-0 z-[9000] flex items-stretch justify-center bg-[rgba(17,24,39,0.55)] sm:items-center sm:p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) onFechar() }}>
       <div role="dialog" aria-modal="true" aria-label={titulo} data-testid={testid}
-        className="flex h-full w-full flex-col bg-white sm:h-auto sm:max-h-[90vh] sm:rounded-[6px] sm:shadow-[0_20px_50px_rgba(15,23,42,0.3)]" style={{ maxWidth: largura }}>
+        className="flex h-full w-full flex-col bg-white sm:h-auto sm:max-h-[90vh] sm:rounded-[24px] sm:shadow-[0_24px_60px_rgba(24,24,26,0.18)]" style={{ maxWidth: largura }}>
         <div className="flex flex-shrink-0 items-center gap-2 border-b border-border px-4 py-3 sm:px-5">
-          <button type="button" onClick={onFechar} className="-ml-1 flex h-[40px] items-center gap-1 rounded-[4px] px-1.5 text-[13px] font-semibold text-primary sm:hidden" data-testid="modal-voltar">
+          <button type="button" onClick={onFechar} className="-ml-1 flex h-[40px] items-center gap-1 rounded-[12px] px-1.5 text-[13px] font-semibold text-primary sm:hidden" data-testid="modal-voltar">
             <ArrowLeft className="h-5 w-5" /> Voltar
           </button>
-          <h2 className="min-w-0 flex-1 truncate text-[15px] font-semibold text-text-main max-sm:text-center max-sm:pr-[70px]">{titulo}</h2>
-          <button type="button" onClick={onFechar} aria-label="Fechar" className="hidden h-[36px] w-[36px] items-center justify-center rounded-[4px] text-text-subtle hover:bg-page sm:flex" data-testid="modal-fechar"><X className="h-5 w-5" /></button>
+          <h2 className="min-w-0 flex-1 truncate text-[16px] font-semibold leading-[24px] text-text-main max-sm:text-center max-sm:pr-[70px]">{titulo}</h2>
+          <button type="button" onClick={onFechar} aria-label="Fechar" className="hidden h-[36px] w-[36px] items-center justify-center rounded-[12px] text-text-subtle hover:bg-page sm:flex" data-testid="modal-fechar"><X className="h-5 w-5" /></button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">{children}</div>
         {rodape && <div className="flex flex-shrink-0 flex-wrap justify-end gap-2 border-t border-border px-4 py-3 sm:px-5">{rodape}</div>}
@@ -105,12 +103,12 @@ function Modal({ titulo, onFechar, children, rodape, testid, largura = 520 }: { 
   )
 }
 
-const BTN = 'inline-flex h-[40px] items-center justify-center gap-1.5 rounded-[4px] px-4 text-[12px] font-semibold uppercase tracking-wide transition-[filter] disabled:opacity-50'
-const BTN_PRIMARIO = `${BTN} bg-[#0369A1] text-white hover:brightness-110`
-const BTN_PERIGO = `${BTN} bg-[#B91C1C] text-white hover:brightness-110`
-const BTN_NEUTRO = `${BTN} border border-border bg-white text-text-main hover:bg-page`
-const CAMPO = 'h-[42px] w-full rounded-[4px] border border-border bg-white px-3 text-[14px] text-text-main outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/30'
-const ROTULO = 'mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle'
+const BTN = 'inline-flex h-[40px] items-center justify-center gap-[6px] rounded-[12px] px-[14px] text-[14px] font-bold leading-[24px] transition-colors disabled:opacity-50'
+const BTN_PRIMARIO = `${BTN} bg-[#673DE6] text-white hover:bg-[#5025D1]`
+const BTN_PERIGO = `${BTN} bg-[#E73A47] text-white hover:bg-[#C92E3A]`
+const BTN_NEUTRO = `${BTN} border border-[rgba(103,61,230,0.45)] bg-white text-text-main hover:bg-[#EBE4FF]`
+const CAMPO = 'h-[42px] w-full rounded-[12px] border border-[rgba(0,0,0,0.15)] bg-white px-3 text-[14px] text-text-main outline-none transition-colors focus:border-[#673DE6] focus:ring-2 focus:ring-[#673DE6]/20'
+const ROTULO = 'mb-1 block text-[14px] font-semibold leading-[20px] text-text-main'
 
 /** Validade: "Sem validade" ou "Até uma data". */
 function CampoValidade({ valor, onMudar }: { valor: string; onMudar: (v: string) => void }) {
@@ -139,7 +137,7 @@ type ModalAberto =
   | { tipo: 'resetar'; usuarioId: string; nome: string; login: string; loja: string; voltar?: LojaPlataforma }
   | { tipo: 'convite'; link: string }
 
-export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis, usoIa, modulos }: { lojas: LojaPlataforma[]; resumo: ResumoPlataforma; emailSuperadmin: string; usoApis?: UsoApis | null; usoIa?: UsoIa | null; modulos?: Record<string, ModulosDaLoja> }) {
+export function PainelPlataforma({ lojas, resumo, usoApis, usoIa, modulos }: { lojas: LojaPlataforma[]; resumo: ResumoPlataforma; usoApis?: UsoApis | null; usoIa?: UsoIa | null; modulos?: Record<string, ModulosDaLoja> }) {
   const router = useRouter()
   const toasts = useToasts()
   const [pendente, startTransition] = useTransition()
@@ -187,7 +185,7 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis, usoI
   const ordenarPor = (coluna: Coluna) => setOrdem((o) => (o.coluna === coluna ? { coluna, desc: !o.desc } : { coluna, desc: coluna !== 'loja' }))
   const Th = ({ coluna, children, direita, className = '' }: { coluna: Coluna; children: React.ReactNode; direita?: boolean; className?: string }) => (
     <th className={`whitespace-nowrap px-3 py-2.5 ${direita ? 'text-right' : 'text-left'} ${className}`} aria-sort={ordem.coluna === coluna ? (ordem.desc ? 'descending' : 'ascending') : 'none'}>
-      <button type="button" onClick={() => ordenarPor(coluna)} className={`inline-flex items-center gap-1 uppercase hover:text-text-main ${ordem.coluna === coluna ? 'text-text-main' : ''}`} data-testid={`ordenar-${coluna}`}>
+      <button type="button" onClick={() => ordenarPor(coluna)} className={`inline-flex items-center gap-1 hover:text-text-main ${ordem.coluna === coluna ? 'text-[#673DE6]' : ''}`} data-testid={`ordenar-${coluna}`}>
         {children}
         {ordem.coluna === coluna && (ordem.desc ? <ArrowDown className="h-3 w-3" /> : <ArrowUp className="h-3 w-3" />)}
       </button>
@@ -196,7 +194,7 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis, usoI
 
   const BotaoSublogins = ({ l }: { l: LojaPlataforma }) =>
     l.restauranteId ? (
-      <button type="button" onClick={() => setModal({ tipo: 'sublogins', loja: l })} className="inline-flex h-[32px] min-w-[44px] items-center justify-center gap-1 rounded-[4px] border border-border bg-white px-2 text-[13px] font-semibold text-[#0369A1] hover:bg-[#E0F2FE]"
+      <button type="button" onClick={() => setModal({ tipo: 'sublogins', loja: l })} className="inline-flex h-[32px] min-w-[44px] items-center justify-center gap-1 rounded-[12px] border-[0.8px] border-[rgba(0,0,0,0.1)] bg-white px-2 text-[13px] font-semibold text-[#673DE6] hover:bg-[#EBE4FF]"
         aria-label={`Sublogins de ${l.loja}: ${l.sublogins.length}`} data-testid="sublogins-botao">
         <Users className="h-3.5 w-3.5" /> {l.sublogins.length}
       </button>
@@ -205,7 +203,7 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis, usoI
   const BotaoMenu = ({ l }: { l: LojaPlataforma }) => (
     <button type="button" aria-label={`Ações de ${l.loja || l.email}`} aria-haspopup="menu" aria-expanded={menu === l.chave}
       onClick={(e) => { ancoraMenu.current = e.currentTarget; setMenu((m) => (m === l.chave ? null : l.chave)) }}
-      className="flex h-[36px] w-[36px] items-center justify-center rounded-[4px] text-text-subtle hover:bg-page hover:text-text-main" data-testid="loja-menu">
+      className="flex h-[36px] w-[36px] items-center justify-center rounded-[12px] text-text-subtle hover:bg-page hover:text-text-main" data-testid="loja-menu">
       <MoreVertical className="h-5 w-5" />
     </button>
   )
@@ -215,43 +213,32 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis, usoI
   const abrir = (m: ModalAberto) => { setMenu(null); setModal(m) }
 
   return (
-    <div className="min-h-dvh bg-page pb-24 sm:pb-10">
-      {/* Topo: título à esquerda, sistema (conta e Sair) à direita, numa linha só. */}
-      <header className="sticky top-0 z-30 flex h-[56px] items-center gap-3 border-b border-border bg-white px-4 sm:px-6" data-testid="topo-plataforma">
+    <section id="clientes" className="scroll-mt-[16px] overflow-hidden rounded-[24px] border-[0.8px] border-[rgba(0,0,0,0.1)] bg-white" data-testid="topo-plataforma">
+      {/* 29/10 (visual Hostinger): o topo, o Sair e os blocos de uso foram para a página (ShellHp e "Níveis de uso"). */}
+      <div className="flex flex-wrap items-center gap-[16px] px-[24px] py-[20px]">
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-[17px] font-semibold text-text-main sm:text-[19px]">Painel da plataforma</h1>
+          <h2 className="text-[16px] font-semibold leading-[24px] text-text-main">Clientes</h2>
+          <p className="text-[14px] leading-[20px] text-text-subtle">Lojas da plataforma, acesso, uso e módulos</p>
         </div>
-        <a href="/superadmin/gasto" className="flex h-[40px] items-center rounded-[4px] border border-border bg-white px-3 text-[12.5px] font-semibold text-text-main hover:border-primary hover:text-primary" data-testid="link-gasto">Gasto por loja</a>
-        <a href="/superadmin/palavras" className="flex h-[40px] items-center rounded-[4px] border border-border bg-white px-3 text-[12.5px] font-semibold text-text-main hover:border-primary hover:text-primary" data-testid="link-palavras">Palavras do robô</a>
-        <a href="/superadmin/saude" className="flex h-[40px] items-center rounded-[4px] border border-border bg-white px-3 text-[12.5px] font-semibold text-text-main hover:border-primary hover:text-primary" data-testid="link-saude">Saúde do sistema</a>
-        <span className="hidden max-w-[260px] truncate text-[12.5px] text-text-subtle md:inline" title={emailSuperadmin}>{emailSuperadmin}</span>
-        <form action={sairAction}>
-          <button type="submit" className="flex h-[40px] items-center gap-1.5 rounded-[4px] border border-border bg-white px-3 text-[12.5px] font-semibold text-text-main hover:border-[#B91C1C] hover:text-[#B91C1C]" data-testid="plataforma-sair">
-            <LogOut className="h-4 w-4" /> Sair
-          </button>
-        </form>
-      </header>
+      </div>
+      {/* Resumo: só lojas (contas principais e pré-cadastros); valores somados por loja. */}
+      <div className="grid grid-cols-2 gap-y-[8px] border-y-[0.8px] border-[rgba(0,0,0,0.1)] px-[24px] py-[16px] text-[14px] leading-[20px] sm:grid-cols-3 lg:grid-cols-6" data-testid="resumo-plataforma">
+        {[
+          ['Cadastros (lojas)', <span key="c" data-testid="resumo-cadastros">{num(resumo.cadastros)}</span>],
+          ['Ativos', <span key="a" data-testid="resumo-ativos">{num(resumo.ativos)}</span>],
+          ['Aguardando 1º acesso', <span key="p" data-testid="resumo-pendentes" className={resumo.pendentes > 0 ? 'text-[#8A6100]' : ''}>{num(resumo.pendentes)}</span>],
+          ['Faturamento (entregue)', <span key="f" data-testid="resumo-faturamento">{brl(resumo.faturamento)}</span>],
+          ['Pedidos entregues', <span key="e" data-testid="resumo-pedidos">{num(resumo.pedidos)}</span>],
+          ['Ticket médio', <span key="t" data-testid="resumo-ticket">{brl(resumo.ticket)}</span>],
+        ].map(([rotulo, valor]) => (
+          <div key={rotulo as string} className="min-w-0">
+            <p className="truncate text-text-subtle">{rotulo}</p>
+            <p className="text-[16px] font-semibold leading-[24px] text-text-main">{valor}</p>
+          </div>
+        ))}
+      </div>
 
-      <main className="mx-auto max-w-[1400px] px-3 py-4 sm:px-6 sm:py-6">
-        {/* Resumo: só lojas (contas principais e pré-cadastros); valores somados por loja. */}
-        {/* Topo compacto (16/10): os 6 números numa linha só. */}
-        <div className="mb-3" data-testid="resumo-plataforma">
-          <LinhaResumos itens={[
-            { rotulo: 'Cadastros (lojas)', valor: <span data-testid="resumo-cadastros">{num(resumo.cadastros)}</span>, icone: ICONES.loja, tom: 'cinza' },
-            { rotulo: 'Ativos', valor: <span data-testid="resumo-ativos">{num(resumo.ativos)}</span>, icone: ICONES.concluido, tom: 'verde' },
-            { rotulo: 'Aguardando 1º acesso', valor: <span data-testid="resumo-pendentes">{num(resumo.pendentes)}</span>, icone: ICONES.relogio, tom: 'ambar', destaque: resumo.pendentes > 0 },
-            { rotulo: 'Faturamento (entregue)', valor: <span data-testid="resumo-faturamento">{brl(resumo.faturamento)}</span>, icone: ICONES.dinheiro, tom: 'verde' },
-            { rotulo: 'Pedidos entregues', valor: <span data-testid="resumo-pedidos">{num(resumo.pedidos)}</span>, icone: ICONES.pedidos, tom: 'azul' },
-            { rotulo: 'Ticket médio', valor: <span data-testid="resumo-ticket">{brl(resumo.ticket)}</span>, icone: ICONES.ticket, tom: 'roxo' },
-          ]} />
-        </div>
-
-        {/* APIs pagas (guarda de custo, 10/10): uso de hoje, bloqueios, loops e 7 dias. */}
-        {usoApis && <UsoApisResumo uso={usoApis} />}
-
-        {/* IA de atendimento (Claude): gasto do sistema e por loja; teto por loja editável. */}
-        {usoIa && <UsoIaResumo ia={usoIa} />}
-
+      <div className="px-[16px] py-[16px] sm:px-[24px]">
         {/* Barra da lista: busca, filtros e "+ Cadastrar cliente". */}
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <div className={`relative ${buscaAberta ? 'flex' : 'hidden'} w-full sm:flex sm:w-[340px]`}>
@@ -260,32 +247,32 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis, usoI
               className={`${CAMPO} pl-9`} data-testid="busca-plataforma" />
           </div>
           <button type="button" onClick={() => setBuscaAberta((v) => !v)} aria-label="Buscar" aria-expanded={buscaAberta}
-            className={`flex h-[40px] w-[40px] flex-shrink-0 items-center justify-center rounded-[4px] sm:hidden ${buscaAberta || busca ? 'bg-[#0369A1] text-white' : 'border border-border bg-white text-text-main'}`} data-testid="busca-lupa">
+            className={`flex h-[40px] w-[40px] flex-shrink-0 items-center justify-center rounded-[12px] sm:hidden ${buscaAberta || busca ? 'bg-[#673DE6] text-white' : 'border border-border bg-white text-text-main'}`} data-testid="busca-lupa">
             <Search className="h-5 w-5" />
           </button>
           <div className="-mx-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto px-1 py-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="group" aria-label="Filtrar por status">
             {FILTROS.map((f) => (
               <button key={f.id} type="button" onClick={() => setFiltro(f.id)} aria-pressed={filtro === f.id}
-                className={`flex h-[36px] flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-[12.5px] font-semibold transition-colors ${filtro === f.id ? 'bg-[#1F2937] text-white' : 'border border-border bg-white text-text-main hover:bg-page'}`}
+                className={`flex h-[36px] flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[12px] px-[12px] text-[14px] font-semibold transition-colors ${filtro === f.id ? 'bg-[#EBE4FF] text-[#673DE6]' : 'border-[0.8px] border-[rgba(0,0,0,0.1)] bg-white text-text-main hover:bg-[#F5F5F6]'}`}
                 data-testid={`filtro-${f.id}`}>
-                {f.rotulo} <span className={`rounded-full px-1.5 text-[11px] ${filtro === f.id ? 'bg-white/20' : 'bg-page text-text-subtle'}`}>{contagem[f.id]}</span>
+                {f.rotulo} <span className={`rounded-full px-1.5 text-[11px] ${filtro === f.id ? 'bg-white text-[#673DE6]' : 'bg-[#F5F5F6] text-text-subtle'}`}>{contagem[f.id]}</span>
               </button>
             ))}
           </div>
           <button type="button" onClick={() => setModal({ tipo: 'cadastrar' })}
-            className="fixed bottom-4 right-4 z-40 flex h-[48px] items-center gap-1.5 rounded-full bg-[#0369A1] px-5 text-[13px] font-semibold text-white shadow-[0_8px_20px_rgba(3,105,161,0.4)] hover:brightness-110 sm:static sm:h-[40px] sm:rounded-[4px] sm:px-4 sm:text-[12px] sm:uppercase sm:tracking-wide sm:shadow-none"
+            className="fixed bottom-4 right-4 z-40 flex h-[48px] items-center gap-1.5 rounded-[12px] bg-[#673DE6] px-5 text-[14px] font-bold text-white shadow-[0_8px_20px_rgba(103,61,230,0.35)] hover:bg-[#5025D1] sm:static sm:h-[40px] sm:px-[14px] sm:shadow-none"
             data-testid="cadastrar-cliente">
             <Plus className="h-4 w-4" /> Cadastrar cliente
           </button>
         </div>
 
         {/* Computador/tablet: tabela com cabeçalho fixo e a loja fixa à esquerda. */}
-        <div className="hidden overflow-hidden rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white md:block">
+        <div className="hidden overflow-hidden rounded-[16px] border-[0.8px] border-[rgba(0,0,0,0.1)] bg-white md:block">
           <div className="max-h-[calc(100dvh-330px)] min-h-[260px] overflow-auto" data-testid="tabela-rolagem">
             <table className="w-full min-w-[1500px] border-separate border-spacing-0 text-[13px]" data-testid="tabela-lojas">
-              <thead className="sticky top-0 z-[2] bg-[#F6F7F9] text-[11px] font-semibold tracking-wide text-text-subtle">
+              <thead className="sticky top-0 z-[2] bg-white text-[12px] font-semibold text-text-subtle">
                 <tr className="[&>th]:border-b [&>th]:border-border">
-                  <Th coluna="loja" className="sticky left-0 z-[3] min-w-[220px] bg-[#F6F7F9] shadow-[1px_0_0_#E5E7EB]">Loja</Th>
+                  <Th coluna="loja" className="sticky left-0 z-[3] min-w-[220px] bg-white shadow-[1px_0_0_rgba(0,0,0,0.06)]">Loja</Th>
                   <Th coluna="situacao">Status</Th>
                   <th className="px-3 py-2.5 text-left uppercase">Responsável</th>
                   <th className="px-3 py-2.5 text-left uppercase">E-mail / login</th>
@@ -307,16 +294,16 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis, usoI
                   <tr><td colSpan={15} className="px-5 py-10 text-center text-text-subtle" data-testid="lista-vazia">Nenhuma loja encontrada.</td></tr>
                 )}
                 {visiveis.map((l) => (
-                  <tr key={l.chave} className="group align-middle [&>td]:border-b [&>td]:border-border hover:[&>td]:bg-[#F9FAFB]" data-testid="linha-loja" data-chave={l.chave}>
-                    <td className="sticky left-0 z-[1] max-w-[260px] bg-white px-3 py-2.5 shadow-[1px_0_0_#E5E7EB] group-hover:bg-[#F9FAFB]">
+                  <tr key={l.chave} className="group align-middle [&>td]:border-b [&>td]:border-border hover:[&>td]:bg-[#F7F5FF]" data-testid="linha-loja" data-chave={l.chave}>
+                    <td className="sticky left-0 z-[1] max-w-[260px] bg-white px-3 py-2.5 shadow-[1px_0_0_rgba(0,0,0,0.06)] group-hover:bg-[#F7F5FF]">
                       <p className="truncate font-semibold text-text-main" data-testid="linha-loja-nome">{l.loja || <span className="font-normal italic text-text-subtle">Loja ainda sem nome</span>}</p>
                       {l.slug && <a href={`/loja/${l.slug}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[11.5px] text-primary hover:underline"><ExternalLink className="h-3 w-3" />/{l.slug}</a>}
                     </td>
-                    <td className="px-3 py-2.5"><SeloSituacao l={l} />{l.whatsappCaiuEm && <p className="mt-1 whitespace-nowrap text-[11px] font-semibold text-[#B91C1C]" data-testid="linha-whatsapp-caiu" title={`WhatsApp da loja caiu sozinho em ${new Date(l.whatsappCaiuEm).toLocaleString('pt-BR')}`}>WhatsApp desconectado</p>}</td>
+                    <td className="px-3 py-2.5"><SeloSituacao l={l} />{l.whatsappCaiuEm && <p className="mt-1 whitespace-nowrap text-[12px] font-semibold text-[#D63163]" data-testid="linha-whatsapp-caiu" title={`WhatsApp da loja caiu sozinho em ${new Date(l.whatsappCaiuEm).toLocaleString('pt-BR')}`}>WhatsApp desconectado</p>}</td>
                     <td className="max-w-[180px] px-3 py-2.5"><p className="truncate">{l.responsavel || '—'}</p><p className="truncate text-[11.5px] text-text-subtle">{l.telefone || ''}</p></td>
                     <td className="max-w-[220px] px-3 py-2.5"><p className="truncate">{l.email}</p><p className="truncate text-[11.5px] font-medium text-text-subtle">{l.login ? `@${l.login}` : ''}</p></td>
                     <td className="px-3 py-2.5"><BotaoSublogins l={l} /></td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-right font-semibold text-[#15803D]">{l.restauranteId ? brl(l.faturamento) : '—'}</td>
+                    <td className="whitespace-nowrap px-3 py-2.5 text-right font-semibold text-[#008361]">{l.restauranteId ? brl(l.faturamento) : '—'}</td>
                     <td className="whitespace-nowrap px-3 py-2.5 text-right font-semibold">{l.restauranteId ? num(l.pedidos) : '—'}</td>
                     <td className="whitespace-nowrap px-3 py-2.5 text-right">{l.restauranteId ? brl(l.ticket) : '—'}</td>
                     <td className="whitespace-nowrap px-3 py-2.5 text-[12px] text-text-subtle">{dataCurta(l.criadoEm)}</td>
@@ -324,7 +311,7 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis, usoI
                     <td className="px-3 py-2.5">{l.restauranteId && usoApis ? <BarraUsoLoja uso={usoApis.porLoja[l.restauranteId]} limites={usoApis.limites} /> : '—'}</td>
                     <td className="px-3 py-2.5">{l.restauranteId && usoIa ? <IaDaLoja uso={usoIa.porLoja[l.restauranteId]} limites={usoIa.limites} restauranteId={l.restauranteId} teto={usoIa.tetosLoja[l.restauranteId]} /> : '—'}</td>
                     <td className="px-3 py-2.5">{l.restauranteId && modulos?.[l.restauranteId] ? <ModulosLoja restauranteId={l.restauranteId} loja={l.loja || ''} inicial={modulos[l.restauranteId]} /> : '—'}</td>
-                    <td className="px-3 py-2.5">{l.restauranteId ? (l.betaLiberado ? <span className="rounded-[4px] bg-[#0369A1] px-2 py-[3px] text-[11px] font-semibold text-white">Piloto</span> : <span className="text-[12px] text-text-subtle">Não</span>) : '—'}</td>
+                    <td className="px-3 py-2.5">{l.restauranteId ? (l.betaLiberado ? <span className="rounded-[8px] bg-[#EBE4FF] px-[8px] py-[2px] text-[12px] font-semibold text-[#673DE6]">Piloto</span> : <span className="text-[12px] text-text-subtle">Não</span>) : '—'}</td>
                     <td className="px-2 py-2.5 text-right"><BotaoMenu l={l} /></td>
                   </tr>
                 ))}
@@ -335,9 +322,9 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis, usoI
 
         {/* Celular: um cartão por loja. */}
         <div className="flex flex-col gap-2.5 md:hidden" data-testid="cartoes-lojas">
-          {visiveis.length === 0 && <p className="rounded-[6px] border border-border bg-white px-4 py-8 text-center text-text-subtle" data-testid="lista-vazia">Nenhuma loja encontrada.</p>}
+          {visiveis.length === 0 && <p className="rounded-[16px] border-[0.8px] border-[rgba(0,0,0,0.1)] bg-white px-4 py-8 text-center text-text-subtle" data-testid="lista-vazia">Nenhuma loja encontrada.</p>}
           {visiveis.map((l) => (
-            <div key={l.chave} className="rounded-[6px] border-[0.8px] border-[rgba(0,0,0,0.12)] bg-white p-3" data-testid="cartao-loja" data-chave={l.chave}>
+            <div key={l.chave} className="rounded-[16px] border-[0.8px] border-[rgba(0,0,0,0.1)] bg-white p-[16px]" data-testid="cartao-loja" data-chave={l.chave}>
               <div className="flex items-start gap-2">
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[15px] font-semibold text-text-main" data-testid="linha-loja-nome">{l.loja || <span className="font-normal italic text-text-subtle">Loja ainda sem nome</span>}</p>
@@ -348,7 +335,7 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis, usoI
               <p className="mt-2 truncate text-[13px] text-text-main">{l.responsavel || '—'}{l.telefone ? <span className="text-text-subtle"> · {l.telefone}</span> : null}</p>
               <p className="truncate text-[12px] text-text-subtle">{l.email}{l.login ? ` · @${l.login}` : ''}</p>
               <div className="mt-2.5 flex items-center gap-3 border-t border-border pt-2.5 text-[13px]">
-                <div className="min-w-0 flex-1"><p className="text-[11px] text-text-subtle">Faturamento</p><p className="font-semibold text-[#15803D]">{l.restauranteId ? brl(l.faturamento) : '—'}</p></div>
+                <div className="min-w-0 flex-1"><p className="text-[11px] text-text-subtle">Faturamento</p><p className="font-semibold text-[#008361]">{l.restauranteId ? brl(l.faturamento) : '—'}</p></div>
                 <div><p className="text-[11px] text-text-subtle">Pedidos</p><p className="font-semibold">{l.restauranteId ? num(l.pedidos) : '—'}</p></div>
                 <div><p className="text-[11px] text-text-subtle">Sublogins</p><BotaoSublogins l={l} /></div>
               </div>
@@ -363,11 +350,11 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis, usoI
         <div className="mt-3 flex items-center justify-between gap-3 text-[12.5px] text-text-subtle" data-testid="paginacao-plataforma">
           <span data-testid="faixa-plataforma">{filtradas.length === 0 ? '0 lojas' : `${pagina * POR_PAGINA + 1}–${Math.min(filtradas.length, (pagina + 1) * POR_PAGINA)} de ${filtradas.length} lojas`}</span>
           <div className="flex gap-1">
-            <button type="button" disabled={pagina === 0} onClick={() => setPagina((p) => p - 1)} aria-label="Página anterior" className="flex h-[36px] w-[36px] items-center justify-center rounded-[4px] border border-border bg-white disabled:opacity-40" data-testid="pagina-anterior"><ChevronLeft className="h-4 w-4" /></button>
-            <button type="button" disabled={pagina >= totalPaginas - 1} onClick={() => setPagina((p) => p + 1)} aria-label="Próxima página" className="flex h-[36px] w-[36px] items-center justify-center rounded-[4px] border border-border bg-white disabled:opacity-40" data-testid="pagina-proxima"><ChevronRight className="h-4 w-4" /></button>
+            <button type="button" disabled={pagina === 0} onClick={() => setPagina((p) => p - 1)} aria-label="Página anterior" className="flex h-[36px] w-[36px] items-center justify-center rounded-[12px] border-[0.8px] border-[rgba(0,0,0,0.1)] bg-white disabled:opacity-40" data-testid="pagina-anterior"><ChevronLeft className="h-4 w-4" /></button>
+            <button type="button" disabled={pagina >= totalPaginas - 1} onClick={() => setPagina((p) => p + 1)} aria-label="Próxima página" className="flex h-[36px] w-[36px] items-center justify-center rounded-[12px] border-[0.8px] border-[rgba(0,0,0,0.1)] bg-white disabled:opacity-40" data-testid="pagina-proxima"><ChevronRight className="h-4 w-4" /></button>
           </div>
         </div>
-      </main>
+      </div>
 
       {/* Menu ⋮ da loja: por cima de tudo, dentro da tela. */}
       <Flutuante ancora={ancoraMenu} aberto={!!lojaDoMenu} onFechar={fecharMenu} largura={250} testid="loja-menu-lista" rotulo="Ações da loja" className="py-1">
@@ -382,16 +369,16 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis, usoI
               {l.restauranteId && <button role="menuitem" type="button" className={ITEM} onClick={() => abrir({ tipo: 'sublogins', loja: l })}>Ver sublogins ({l.sublogins.length})</button>}
               {l.restauranteId && <button role="menuitem" type="button" className={ITEM} onClick={() => abrir({ tipo: 'resetar', usuarioId: l.contaId, nome: l.responsavel || 'Dono', login: l.email, loja: l.loja })} data-testid="acao-resetar-senha">Resetar senha do dono</button>}
               {(ativo || l.situacao === 'pendente') && <button role="menuitem" type="button" className={`${ITEM} border-t border-border`} onClick={() => abrir({ tipo: 'validade', loja: l })} data-testid="acao-validade">{l.acessoExpiraEm ? 'Renovar / alterar validade' : 'Definir validade'}</button>}
-              {ativo && <button role="menuitem" type="button" className={`${ITEM} text-[#B91C1C]`} onClick={() => abrir({ tipo: 'confirmar', loja: l, acao: 'bloquear' })} data-testid="acao-bloquear">Bloquear acesso</button>}
-              {semAcesso && <button role="menuitem" type="button" className={`${ITEM} border-t border-border text-[#15803D]`} onClick={() => abrir({ tipo: 'desbloquear', loja: l })} data-testid="acao-desbloquear">Desbloquear acesso</button>}
+              {ativo && <button role="menuitem" type="button" className={`${ITEM} text-[#D63163]`} onClick={() => abrir({ tipo: 'confirmar', loja: l, acao: 'bloquear' })} data-testid="acao-bloquear">Bloquear acesso</button>}
+              {semAcesso && <button role="menuitem" type="button" className={`${ITEM} border-t border-border text-[#008361]`} onClick={() => abrir({ tipo: 'desbloquear', loja: l })} data-testid="acao-desbloquear">Desbloquear acesso</button>}
               {l.restauranteId && (
                 <button role="menuitem" type="button" className={`${ITEM} border-t border-border`} onClick={() => abrir({ tipo: 'confirmar', loja: l, acao: l.betaLiberado ? 'beta_retirar' : 'beta_liberar' })} data-testid="acao-beta">
                   {l.betaLiberado ? 'Retirar do piloto de Impressão Alfa 1' : 'Liberar Impressão Alfa 1'}
                 </button>
               )}
               {l.situacao === 'pendente' && <button role="menuitem" type="button" className={`${ITEM} border-t border-border`} onClick={() => { setMenu(null); executar(() => novoLinkConviteAction(l.contaId)) }} data-testid="acao-novo-link-convite">Novo link do convite</button>}
-              {l.situacao === 'pendente' && <button role="menuitem" type="button" className={`${ITEM} border-t border-border text-[#B91C1C]`} onClick={() => abrir({ tipo: 'confirmar', loja: l, acao: 'remover' })} data-testid="acao-remover">Remover pré-cadastro</button>}
-              {semAcesso && <button role="menuitem" type="button" className={`${ITEM} text-[#B91C1C]`} onClick={() => abrir({ tipo: 'excluir', loja: l })} data-testid="acao-excluir">Excluir dados…</button>}
+              {l.situacao === 'pendente' && <button role="menuitem" type="button" className={`${ITEM} border-t border-border text-[#D63163]`} onClick={() => abrir({ tipo: 'confirmar', loja: l, acao: 'remover' })} data-testid="acao-remover">Remover pré-cadastro</button>}
+              {semAcesso && <button role="menuitem" type="button" className={`${ITEM} text-[#D63163]`} onClick={() => abrir({ tipo: 'excluir', loja: l })} data-testid="acao-excluir">Excluir dados…</button>}
             </div>
           )
         })()}
@@ -413,7 +400,7 @@ export function PainelPlataforma({ lojas, resumo, emailSuperadmin, usoApis, usoI
       {modal?.tipo === 'excluir' && <ModalExcluir loja={modal.loja} ocupado={pendente} onFechar={fecharModal} onConfirmar={(t) => executar(() => excluirDadosAction(modal.loja.contaId, t))} />}
       {modal?.tipo === 'convite' && <ModalLinkConvite link={modal.link} onFechar={fecharModal} />}
       <PilhaToasts itens={toasts.itens} />
-    </div>
+    </section>
   )
 }
 
@@ -435,7 +422,7 @@ function ModalCadastrar({ ocupado, onFechar, onEnviar }: { ocupado: boolean; onF
         <p className="text-[13px] text-text-subtle">O cliente conclui o cadastro em <b>/cadastro</b> com este e-mail: define o login, a senha e confere os dados da loja.</p>
         <label><span className={ROTULO}>E-mail do cliente *</span>
           <input type="email" required autoFocus value={email} onChange={(e) => setEmail(e.target.value)} placeholder="cliente@exemplo.com" className={CAMPO} data-testid="cadastrar-email" />
-          {email && !emailOk && <span className="mt-1 block text-[12px] text-[#B91C1C]">E-mail inválido.</span>}
+          {email && !emailOk && <span className="mt-1 block text-[12px] text-[#D63163]">E-mail inválido.</span>}
         </label>
         <label><span className={ROTULO}>Nome da loja</span><input value={nomeLoja} onChange={(e) => setNomeLoja(e.target.value)} maxLength={80} className={CAMPO} data-testid="cadastrar-loja" /></label>
         <div className="grid gap-3.5 sm:grid-cols-2">
@@ -454,7 +441,7 @@ function ModalSublogins({ loja, onFechar, onResetar }: { loja: LojaPlataforma; o
     <Modal titulo={`Sublogins · ${loja.loja}`} testid="modal-sublogins" onFechar={onFechar} largura={760}>
       <p className="mb-3 text-[12.5px] text-text-subtle">Funcionários com login nesta loja. A gestão (criar, pausar, bloquear) é na tela <b>Equipe</b> da própria loja; daqui só dá para resetar a senha.</p>
       {loja.sublogins.length === 0 ? (
-        <p className="rounded-[4px] bg-page px-4 py-6 text-center text-[13px] text-text-subtle" data-testid="sublogins-vazio">Esta loja não tem sublogins.</p>
+        <p className="rounded-[12px] bg-page px-4 py-6 text-center text-[13px] text-text-subtle" data-testid="sublogins-vazio">Esta loja não tem sublogins.</p>
       ) : (
         <>
           <table className="hidden w-full text-[13px] sm:table" data-testid="sublogins-tabela">
@@ -465,21 +452,21 @@ function ModalSublogins({ loja, onFechar, onResetar }: { loja: LojaPlataforma; o
                   <td className="py-2 pr-3 font-semibold">{s.nome}</td>
                   <td className="py-2 pr-3">{s.login ? `@${s.login}` : '—'}</td>
                   <td className="py-2 pr-3">{[s.cargo ? CARGO[s.cargo] ?? s.cargo : null, PAPEL[s.papel] ?? s.papel].filter(Boolean).join(' · ')}</td>
-                  <td className="py-2 pr-3"><span className="rounded-[4px] px-2 py-[2px] text-[11px] font-semibold text-white" style={{ backgroundColor: SELO_SUB[s.status][1] }}>{SELO_SUB[s.status][0]}</span></td>
+                  <td className="py-2 pr-3"><span className="rounded-[8px] px-[8px] py-[2px] text-[12px] font-semibold text-white" style={{ backgroundColor: SELO_SUB[s.status][1] }}>{SELO_SUB[s.status][0]}</span></td>
                   <td className="whitespace-nowrap py-2 pr-3 text-[12px]">{dataHora(s.ultimoLoginEm)}</td>
                   <td className="whitespace-nowrap py-2 pr-3 text-[12px] text-text-subtle">{dataCurta(s.criadoEm)}</td>
-                  <td className="py-2 text-right"><button type="button" onClick={() => onResetar(s)} className="whitespace-nowrap rounded-[4px] border border-border px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-[#0369A1] hover:bg-[#E0F2FE]" data-testid="sublogin-resetar">Resetar senha</button></td>
+                  <td className="py-2 text-right"><button type="button" onClick={() => onResetar(s)} className="whitespace-nowrap rounded-[12px] border border-border px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-[#0369A1] hover:bg-[#E0F2FE]" data-testid="sublogin-resetar">Resetar senha</button></td>
                 </tr>
               ))}
             </tbody>
           </table>
           <div className="flex flex-col gap-2 sm:hidden">
             {loja.sublogins.map((s) => (
-              <div key={s.id} className="rounded-[4px] border border-border p-3" data-testid="sublogin">
-                <div className="flex items-center justify-between gap-2"><p className="truncate font-semibold">{s.nome}</p><span className="rounded-[4px] px-2 py-[2px] text-[11px] font-semibold text-white" style={{ backgroundColor: SELO_SUB[s.status][1] }}>{SELO_SUB[s.status][0]}</span></div>
+              <div key={s.id} className="rounded-[12px] border border-border p-3" data-testid="sublogin">
+                <div className="flex items-center justify-between gap-2"><p className="truncate font-semibold">{s.nome}</p><span className="rounded-[8px] px-[8px] py-[2px] text-[12px] font-semibold text-white" style={{ backgroundColor: SELO_SUB[s.status][1] }}>{SELO_SUB[s.status][0]}</span></div>
                 <p className="text-[12.5px] text-text-subtle">{s.login ? `@${s.login}` : '—'} · {[s.cargo ? CARGO[s.cargo] ?? s.cargo : null, PAPEL[s.papel] ?? s.papel].filter(Boolean).join(' · ')}</p>
                 <p className="text-[12px] text-text-subtle">Último acesso {dataHora(s.ultimoLoginEm)} · criado em {dataCurta(s.criadoEm)}</p>
-                <button type="button" onClick={() => onResetar(s)} className="mt-2 h-[36px] rounded-[4px] border border-border px-3 text-[11px] font-semibold uppercase tracking-wide text-[#0369A1]" data-testid="sublogin-resetar">Resetar senha</button>
+                <button type="button" onClick={() => onResetar(s)} className="mt-2 h-[36px] rounded-[12px] border border-border px-3 text-[11px] font-semibold uppercase tracking-wide text-[#0369A1]" data-testid="sublogin-resetar">Resetar senha</button>
               </div>
             ))}
           </div>
@@ -522,7 +509,7 @@ function ModalValidade({ loja, desbloquear, ocupado, onFechar, onEnviar }: { loj
     <Modal titulo={desbloquear ? `Desbloquear · ${loja.loja}` : `Validade · ${loja.loja || loja.email}`} testid="modal-validade" onFechar={onFechar}
       rodape={<>
         <button type="button" className={BTN_NEUTRO} onClick={onFechar}>Cancelar</button>
-        <button type="button" className={desbloquear ? `${BTN} bg-[#15803D] text-white hover:brightness-110` : BTN_PRIMARIO} disabled={ocupado} onClick={() => onEnviar(valor)} data-testid="validade-salvar">
+        <button type="button" className={desbloquear ? `${BTN} bg-[#008361] text-white hover:bg-[#006E51]` : BTN_PRIMARIO} disabled={ocupado} onClick={() => onEnviar(valor)} data-testid="validade-salvar">
           {ocupado ? 'Salvando…' : desbloquear ? 'Desbloquear' : 'Salvar validade'}
         </button>
       </>}>
@@ -585,7 +572,7 @@ function ModalLinkConvite({ link, onFechar }: { link: string; onFechar: () => vo
         <button type="button" className={BTN_PRIMARIO} onClick={() => void copiar()} data-testid="convite-copiar">{copiado ? 'Copiado ✓' : 'Copiar'}</button>
       </>}>
       <p className="mb-2 text-[14px] text-text-main">Mande este link para o cliente. Só com ele dá para concluir o cadastro, e ele vale uma vez.</p>
-      <p className="select-all break-all rounded-[4px] bg-page px-3 py-2.5 font-mono text-[13px] text-text-main" data-testid="convite-link">{link}</p>
+      <p className="select-all break-all rounded-[12px] bg-page px-3 py-2.5 font-mono text-[13px] text-text-main" data-testid="convite-link">{link}</p>
       <p className="mt-2 text-[12px] text-text-subtle">Perdeu o link? No menu da loja, use &quot;Novo link do convite&quot; — o anterior deixa de valer.</p>
     </Modal>
   )
@@ -624,15 +611,15 @@ function ModalResetarSenha({ alvo, onFechar }: { alvo: Extract<ModalAberto, { ti
       </>}>
       {feito ? (
         <div data-testid="resetar-feito">
-          <p className="mb-2 text-[14px] font-semibold text-[#15803D]">Senha resetada.</p>
-          <p className="select-all rounded-[4px] bg-page px-3 py-2.5 font-mono text-[14px] text-text-main" data-testid="resetar-texto">{feito}</p>
+          <p className="mb-2 text-[14px] font-semibold text-[#008361]">Senha resetada.</p>
+          <p className="select-all rounded-[12px] bg-page px-3 py-2.5 font-mono text-[14px] text-text-main" data-testid="resetar-texto">{feito}</p>
           <p className="mt-2 text-[12.5px] text-text-subtle">Ao entrar, a pessoa vê uma faixa amarela pedindo para trocar a senha (em Minha conta).</p>
         </div>
       ) : (
         <>
           <p className="text-[14px] text-text-main">A senha de <b>{alvo.nome}</b> passa a ser <b>{SENHA_PADRAO}</b>. A senha antiga deixa de funcionar.</p>
-          <p className="mt-2 rounded-[4px] bg-page px-3 py-2 text-[13.5px] text-text-main" data-testid="resetar-login">Login: <b>{alvo.login}</b></p>
-          {erro && <p className="mt-3 rounded-[4px] bg-[#FEE2E2] px-3 py-2 text-[13px] text-[#B91C1C]">{erro}</p>}
+          <p className="mt-2 rounded-[12px] bg-page px-3 py-2 text-[13.5px] text-text-main" data-testid="resetar-login">Login: <b>{alvo.login}</b></p>
+          {erro && <p className="mt-3 rounded-[12px] bg-[#FEE2E2] px-3 py-2 text-[13px] text-[#D63163]">{erro}</p>}
         </>
       )}
     </Modal>

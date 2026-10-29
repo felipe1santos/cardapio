@@ -6,8 +6,6 @@
  * mês. Barras simples (sem biblioteca). Só leitura, fora o teto e a cotação.
  */
 import { useState, useTransition } from 'react'
-import Link from 'next/link'
-import { ArrowLeft } from 'lucide-react'
 import type { Fatia, GastoLojas } from '@/lib/custo/gasto-lojas'
 import { COTA_GRATIS_GOOGLE_MES } from '@/lib/custo/gasto-lojas'
 import { TetoIaLoja, usd } from '@/components/superadmin/uso-ia'
@@ -31,9 +29,9 @@ function Cotacao({ atual }: { atual: number }) {
       data-testid="gasto-cotacao"
     >
       <label htmlFor="cotacao" className="text-text-subtle">Cotação do dólar (R$)</label>
-      <input id="cotacao" inputMode="decimal" value={valor} onChange={(e) => { setValor(e.target.value); setMsg(null) }} className="h-[32px] w-[72px] rounded-[3px] border border-border px-2 tabular-nums" />
-      <button type="submit" disabled={pendente} className="h-[32px] rounded-[3px] border border-border px-2.5 text-[11px] font-semibold uppercase hover:border-primary disabled:opacity-50">Salvar</button>
-      {msg && <span role="status" className={msg === 'Salvo' ? 'text-[#16A34A]' : 'text-[#B91C1C]'}>{msg}</span>}
+      <input id="cotacao" inputMode="decimal" value={valor} onChange={(e) => { setValor(e.target.value); setMsg(null) }} className="h-[32px] w-[72px] rounded-[12px] border border-border px-2 tabular-nums" />
+      <button type="submit" disabled={pendente} className="h-[32px] rounded-[12px] border border-border px-2.5 text-[13px] font-bold hover:border-primary disabled:opacity-50">Salvar</button>
+      {msg && <span role="status" className={msg === 'Salvo' ? 'text-[#008361]' : 'text-[#D63163]'}>{msg}</span>}
     </form>
   )
 }
@@ -58,24 +56,19 @@ export function GastoPorLoja({ gasto, nomes, cotacao, tetosLoja, tetoPadrao }: {
   const googleMes = gasto.total.mes
   const dentroDaCota = googleMes.geocoding <= COTA_GRATIS_GOOGLE_MES && googleMes.directions <= COTA_GRATIS_GOOGLE_MES && googleMes.maps_js <= COTA_GRATIS_GOOGLE_MES
   return (
-    <div className="min-h-dvh bg-page pb-16">
-      <header className="sticky top-0 z-30 flex h-[56px] items-center gap-3 border-b border-border bg-white px-4 sm:px-6">
-        <Link href="/superadmin" className="flex h-[36px] w-[36px] items-center justify-center rounded-[4px] border border-border hover:border-primary" aria-label="Voltar ao painel"><ArrowLeft className="h-4 w-4" /></Link>
-        <h1 className="min-w-0 flex-1 truncate text-[17px] font-semibold text-text-main sm:text-[19px]">Gasto por loja</h1>
-        <Cotacao atual={cotacao} />
-      </header>
-
-      <main className="mx-auto max-w-[1100px] space-y-4 px-4 pt-4 sm:px-6">
+    <div className="flex flex-col gap-[16px]">
+      <div className="flex justify-end"><Cotacao atual={cotacao} /></div>
+      <div className="flex flex-col gap-[16px]">
         <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Período">
           {(Object.keys(ROTULO) as Periodo[]).map((p) => (
             <button key={p} type="button" role="tab" aria-selected={periodo === p} onClick={() => setPeriodo(p)}
-              className={`h-[34px] rounded-[3px] border px-3 text-[12px] font-semibold uppercase ${periodo === p ? 'border-primary bg-primary text-white' : 'border-border bg-white text-text-main hover:border-primary'}`}>
+              className={`h-[34px] rounded-[12px] border px-3 text-[12px] font-semibold ${periodo === p ? 'border-transparent bg-[#EBE4FF] text-[#673DE6]' : 'border-[rgba(0,0,0,0.1)] bg-white text-text-main hover:bg-[#F5F5F6]'}`}>
               {ROTULO[p]}
             </button>
           ))}
         </div>
 
-        <section className="rounded-[3px] border border-border bg-white p-4" data-testid="gasto-total">
+        <section className="rounded-[24px] border-[0.8px] border-[rgba(0,0,0,0.1)] bg-white p-[24px]" data-testid="gasto-total">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-[15px] font-semibold text-text-main">Total do sistema — {ROTULO[periodo].toLowerCase()}</h2>
             <span className="text-[20px] font-semibold tabular-nums text-text-main">{usd(totalDe(t))} · {reais(totalDe(t), cotacao)}</span>
@@ -93,7 +86,7 @@ export function GastoPorLoja({ gasto, nomes, cotacao, tetosLoja, tetoPadrao }: {
             const f = l[periodo]
             const pct = (totalDe(f) / max) * 100
             return (
-              <li key={l.loja} className="rounded-[3px] border border-border bg-white p-3" data-testid="gasto-loja">
+              <li key={l.loja} className="rounded-[12px] border border-border bg-white p-3" data-testid="gasto-loja">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-text-main">{nomes[l.loja] ?? l.loja.slice(0, 8)}</span>
                   <span className="text-[14px] font-semibold tabular-nums text-text-main">{usd(totalDe(f))} · {reais(totalDe(f), cotacao)}</span>
@@ -102,7 +95,7 @@ export function GastoPorLoja({ gasto, nomes, cotacao, tetosLoja, tetoPadrao }: {
                 <div className="my-2 h-[8px] overflow-hidden rounded-full bg-[#EDEEF1]" aria-hidden>
                   <div className="flex h-full" style={{ width: `${pct}%` }}>
                     <span className="h-full bg-[#A855F7]" style={{ width: `${totalDe(f) ? (f.iaMicroUsd / totalDe(f)) * 100 : 0}%` }} />
-                    <span className="h-full bg-[#0688D4]" style={{ width: `${totalDe(f) ? (f.googleMicroUsd / totalDe(f)) * 100 : 0}%` }} />
+                    <span className="h-full bg-[#673DE6]" style={{ width: `${totalDe(f) ? (f.googleMicroUsd / totalDe(f)) * 100 : 0}%` }} />
                   </div>
                 </div>
                 <Valores f={f} cot={cotacao} />
@@ -110,8 +103,8 @@ export function GastoPorLoja({ gasto, nomes, cotacao, tetosLoja, tetoPadrao }: {
             )
           })}
         </ul>
-        <p className="text-[12px] text-text-subtle"><span className="inline-block h-[8px] w-[8px] rounded-full bg-[#A855F7] align-middle" /> Agente de IA (Claude, custo real) · <span className="inline-block h-[8px] w-[8px] rounded-full bg-[#0688D4] align-middle" /> Google Maps (preço de tabela)</p>
-      </main>
+        <p className="text-[12px] text-text-subtle"><span className="inline-block h-[8px] w-[8px] rounded-full bg-[#A855F7] align-middle" /> Agente de IA (Claude, custo real) · <span className="inline-block h-[8px] w-[8px] rounded-full bg-[#673DE6] align-middle" /> Google Maps (preço de tabela)</p>
+      </div>
     </div>
   )
 }

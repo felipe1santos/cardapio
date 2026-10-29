@@ -4,6 +4,7 @@ import { lerCotacao, lerGastoLojas } from '@/lib/custo/gasto-lojas'
 import { limitesIa } from '@/lib/custo/ia'
 import { GastoPorLoja } from '@/components/superadmin/gasto-lojas'
 import { LimitesCampanhas } from '@/components/superadmin/limites-campanhas'
+import { ShellHp } from '@/components/superadmin/hp'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,11 +26,9 @@ export default async function GastoPage() {
   const nomes = Object.fromEntries(lojas.filter((l) => l.restauranteId).map((l) => [l.restauranteId as string, l.loja || l.email || 'Loja']))
   const tetosLoja = Object.fromEntries(((tetos ?? []) as { restaurante_id: string; ia_teto_usd_dia: number | string }[]).map((t) => [t.restaurante_id, Number(t.ia_teto_usd_dia)]))
   return (
-    <>
+    <ShellHp aba="gasto" titulo="Gasto por loja">
       <GastoPorLoja gasto={gasto} nomes={nomes} cotacao={cotacao} tetosLoja={tetosLoja} tetoPadrao={limitesIa().usdDiaLoja} />
-      <div className="mx-auto max-w-[1100px] px-4 pb-8">
-        <LimitesCampanhas inicial={{ disparoTetoDia: lim.disparo_teto_dia ?? 150, frequenciaDias: lim.disparo_frequencia_dias ?? 3, pushTetoDia: lim.push_teto_dia ?? 1 }} />
-      </div>
-    </>
+      <LimitesCampanhas inicial={{ disparoTetoDia: lim.disparo_teto_dia ?? 150, frequenciaDias: lim.disparo_frequencia_dias ?? 3, pushTetoDia: lim.push_teto_dia ?? 1 }} />
+    </ShellHp>
   )
 }
