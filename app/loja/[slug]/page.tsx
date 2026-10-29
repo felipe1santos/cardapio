@@ -112,9 +112,10 @@ export default async function PaginaDaLoja({ params }: { params: Promise<{ slug:
   let loja
   try {
     loja = await carregarLoja(slug)
-  } catch {
-    // Supabase fora do ar não pode virar 404: o cliente tenta de novo sozinho.
-    loja = null
+  } catch (e) {
+    // Supabase fora do ar NÃO pode virar 404 (29/10: virava "loja não encontrada"). O erro sobe: o Next segue servindo a
+    // última página boa do cache (revalidate 60) e, sem cache, mostra o error.tsx ("Voltamos já"), que tenta de novo.
+    throw new Error(`Banco indisponível: ${(e as Error)?.message ?? 'erro'}`.slice(0, 200))
   }
   if (!loja) notFound()
 
