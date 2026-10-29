@@ -27,6 +27,8 @@ export async function avisarSuporte(admin: SupabaseClient, assunto: string, text
     await admin.from('sistema_alertas').insert({
       assunto: `custo:${assunto}`, nivel, texto: `${nivel === 'vermelho' ? '🔴' : '🟡'} Menuzia — custo de API\n${texto}`, canal: null, enviado: false,
     })
+    // O cron envia na próxima rodada (1 min) em vez de esperar a conferência de 5 min.
+    ;(globalThis as unknown as { __menuziaAlertaPendente?: boolean }).__menuziaAlertaPendente = true
   } catch (e) {
     console.error('[custo] alerta falhou:', (e as Error).message)
   }

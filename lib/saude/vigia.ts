@@ -161,8 +161,17 @@ export async function despacharPendentes(admin: SupabaseClient, agora = new Date
   return n
 }
 
+/** Sinal de "gravei alerta pendente" (lib/custo/alerta-whatsapp.ts liga, sem importar este módulo — B6). */
+const SINAL = globalThis as unknown as { __menuziaAlertaPendente?: boolean }
+let ultimaConferenciaPendentes = 0
+
 export async function rodarVigia(admin: SupabaseClient, agora = new Date()): Promise<{ rodou: boolean; alertas?: string[]; enviados?: number; erro?: string }> {
-  await despacharPendentes(admin, agora).catch((e) => console.error('[saude] pendentes:', (e as Error).message))
+  // Pendentes: na hora quando este processo gravou um; senão a cada 5 min (outro processo/script pode ter gravado).
+  if (SINAL.__menuziaAlertaPendente || agora.getTime() - ultimaConferenciaPendentes >= INTERVALO_MS) {
+    SINAL.__menuziaAlertaPendente = false
+    ultimaConferenciaPendentes = agora.getTime()
+    await despacharPendentes(admin, agora).catch((e) => console.error('[saude] pendentes:', (e as Error).message))
+  }
   const { data: ult, error: eUlt } = await admin.from('sistema_saude_fotos').select('em, req_postgrest, oficial:dados->oficial, cpuStat:dados->cpuStat, cpuAltaSeguidas:dados->cpuAltaSeguidas').order('em', { ascending: false }).limit(1).maybeSingle()
   const bloqueio = restrito(eUlt?.message)
   if (bloqueio) {

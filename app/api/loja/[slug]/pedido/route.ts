@@ -11,20 +11,15 @@ import { cartaoOnlineDaLoja, prepararCartao } from '@/lib/pagamentos/cartao-onli
 import { reverterBeneficiosPedidoCancelado } from '@/lib/fidelidade'
 import { enviarPurchaseCapi } from '@/lib/meta-capi'
 import { alertarValorManipulado, camposDeValorEnviados } from '@/lib/financeiro/manipulacao'
-import { criarLimitador, ipDaRequisicao } from '@/lib/limite-taxa'
+import { ipDaRequisicao } from '@/lib/limite-taxa'
+import { criarLimitePedidoPublico } from '@/lib/pedidos/limite-publico'
 
-// Rota pública sem login (28/10, varredura Etapa 6): um robô em loop criaria pedidos falsos, tocaria o alarme e imprimiria
-// fichas em todas as lojas. 15/min por IP dá folga para vários clientes atrás do mesmo IP da operadora e para o reenvio
-// com a mesma chave de idempotência; 200/min por loja é bem acima de qualquer pico real.
-const porIp = criarLimitador({ max: 15, janelaMs: 60_000 })
-const porLoja = criarLimitador({ max: 200, janelaMs: 60_000 })
+// Rota pública sem login: 15/min por IP em cada loja e 200/min por loja (lib/pedidos/limite-publico.ts).
+const limite = criarLimitePedidoPublico()
 
 export async function POST(request: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  const ip = ipDaRequisicao(request.headers)
-  if (porIp.excedeu(ip) || porLoja.excedeu(slug)) return NextResponse.json({ error: 'Muitos pedidos em pouco tempo. Aguarde um minuto e tente de novo.' }, { status: 429 })
-  porIp.registrar(ip)
-  porLoja.registrar(slug)
+  if (!limite.permitir(ipDaRequisicao(request.headers), slug)) return NextResponse.json({ error: 'Muitos pedidos em pouco tempo. Aguarde um minuto e tente de novo.' }, { status: 429 })
 
   let bruto: unknown
   try {
