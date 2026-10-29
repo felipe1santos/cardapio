@@ -59,3 +59,12 @@ evento), 0 auditoria, estado segue "close", nenhuma conferência/reconexão na E
 | Batidas dos crons | 410/h | 66/h |
 | Evento de conexão de loja desconectada | ~5 consultas cada | 0 (3 só no 1º evento) |
 Depois do deploy: site 200, 4 Assistentes vivos, pedidos da Villa entrando e impressos.
+
+## Os 3 riscos médios — corrigidos (main d740a6b6, deploy 23:56; 0233 aplicada)
+| Risco | Antes | Depois |
+|---|---|---|
+| Status para iFood/99/Open Delivery com erro | reenviado todo minuto, sem limite (~720×/etapa em 12 h) | espera 1, 2, 4… até 60 min; para em 8 erros (~1 h 3 min de tentativas no total) |
+| Pix com erro do Mercado Pago | consultado todo minuto, para sempre; 200 presos tampavam a fila | 1 min na 1ª hora após vencer, 15 min até 24 h, 2 h até 7 dias, depois 1×/dia; status nunca muda sozinho (o webhook do MP confirma a qualquer hora); mais novos primeiro |
+| Corrida ativa consultada no parceiro | ~1/min a corrida inteira (cota do sistema) | 1 min até 30 min, 3 min até 90, 10 min depois; a consulta é marcada mesmo com erro ou guarda bloqueando |
+Testes: `lib/espera-tentativas.test.ts`. Depois do deploy: rotinas canais/Pix/entregas rodando sem erro no log; Assistente
+da Menuzia vivo (os da Villa e Ponto 400 desligaram antes do deploy, no fechamento).
