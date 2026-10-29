@@ -1,6 +1,7 @@
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { avaliar, CRONS, type Medidas } from '@/lib/saude/avaliar'
 import { diasAteFimDoCiclo, PLANO_PRO } from '@/lib/saude/oficial'
+import { BYTES_EGRESS_POR_REQ } from '@/lib/saude/vigia'
 import { Barra } from '@/components/superadmin/uso-apis'
 
 export const dynamic = 'force-dynamic'
@@ -9,7 +10,6 @@ export const dynamic = 'force-dynamic'
  * Super Admin › Saúde do sistema (28/10/2026). Só leitura: a última foto do vigia (lib/saude/vigia.ts), a série de 30 dias
  * (0232), os crons e o histórico de alertas. Cada card diz de onde vem o número e há quanto tempo foi lido.
  */
-const BYTES_POR_REQ = 1200 / 0.88
 const n0 = (v: number | null | undefined) => (v == null ? '—' : Math.round(v).toLocaleString('pt-BR'))
 const gb = (b: number | null | undefined, casas = 2) => (b == null ? '—' : `${(b / 1e9).toFixed(casas)} GB`)
 const pct = (v: number | null | undefined) => (v == null ? '—' : `${Math.round(v)}%`)
@@ -116,7 +116,7 @@ export default async function SaudePage() {
             <Linha rotulo="Storage" fonte="exato" valor={m.storageBytes == null ? '—' : `${gb(m.storageBytes)} / ${PLANO_PRO.storageGb} GB`} />
             <Linha rotulo="Banco de dados" fonte={o?.prom ? 'supabase' : 'exato'} valor={`${gb(o?.prom?.dbBytes ?? m.dbBytes)} / ${PLANO_PRO.discoGb} GB`} />
             <Linha rotulo="Log ingestion" valor={<span className="font-normal text-text-subtle">sem API — ver Usage no Supabase</span>} />
-            <p className="mt-2 text-[11.5px] text-text-subtle">O Supabase não tem API do egress do ciclo: a projeção usa as requisições × 1,4 KB (medido em 22/10).</p>
+            <p className="mt-2 text-[11.5px] text-text-subtle">O Supabase não tem API do egress do ciclo: a projeção usa as requisições × 700 B (calibrado em 28/10 contra a página Usage).</p>
           </Cartao>
 
           <Cartao titulo="Supabase — requisições (24 h)" fonte={o?.supabase?.req24h ? 'supabase' : 'estimado'} em={o?.supabase?.em ?? m.em}>
@@ -142,7 +142,7 @@ export default async function SaudePage() {
               <>
                 <Linha rotulo="Processador" valor={pct(o.prom.cpuPct)} />
                 <Linha rotulo="Memória livre" valor={o.prom.memTotal ? pct((o.prom.memDisp / o.prom.memTotal) * 100) : '—'} />
-                <Linha rotulo="Disco do banco" valor={o.prom.discoTotal ? <Barra chamadas={Math.round((o.prom.discoTotal - o.prom.discoLivre) / 1e8) / 10} limite={Math.round(o.prom.discoTotal / 1e8) / 10} compacta /> : '—'} />
+                <Linha rotulo="Disco do banco (GB)" valor={o.prom.discoTotal ? <Barra chamadas={Math.round((o.prom.discoTotal - o.prom.discoLivre) / 1e8) / 10} limite={Math.round(o.prom.discoTotal / 1e8) / 10} compacta /> : '—'} />
                 <Linha rotulo="Disk IO" valor={o.prom.iops == null ? '—' : `${o.prom.iops} op/s · ${o.prom.ioMBs} MB/s`} />
               </>
             ) : <p className="text-[13px] text-text-subtle">Sem leitura ainda (a cada 15 min).</p>}
@@ -158,7 +158,7 @@ export default async function SaudePage() {
               </>
             ) : (
               <>
-                <Linha rotulo="Processador (carga ÷ núcleos)" valor={m.cpuCarga == null ? '—' : `${m.cpuCarga.toFixed(2)}×`} />
+                <Linha rotulo="Processador" valor={pct(m.cpuPct)} />
                 <Linha rotulo="Memória livre" valor={pct(m.memLivrePct)} />
                 <Linha rotulo="Disco usado" valor={m.discoUsadoPct == null ? '—' : <Barra chamadas={Math.round(m.discoUsadoPct)} limite={100} compacta />} />
                 <p className="mt-2 text-[11.5px] text-text-subtle">Rede e números da Hostinger aparecem quando HOSTINGER_API_TOKEN estiver no Coolify.</p>
@@ -173,7 +173,7 @@ export default async function SaudePage() {
           {dias.length ? <Grafico30 titulo="Requisições PostgREST por dia" dias={dias} valor={(i) => Number(dias[i].req_postgrest)} formato={(v) => (v >= 1000 ? `${Math.round(v / 1000)} mil` : String(Math.round(v)))} cor="#0688D4" /> : <p className="text-[13px] text-text-subtle">A série começa em 28/10.</p>}
         </Cartao>
         <Cartao titulo="Egress por dia (30 dias)" fonte={temTx ? 'supabase' : 'estimado'} em={m?.em}>
-          {dias.length ? <Grafico30 titulo="Egress por dia" dias={dias} valor={(i) => (temTx ? Number(dias[i].tx_bytes) : Number(dias[i].req_postgrest) * BYTES_POR_REQ) / 1e9} formato={(v) => `${v.toFixed(v < 1 ? 2 : 1)} GB`} cor="#A855F7" /> : <p className="text-[13px] text-text-subtle">A série começa em 28/10.</p>}
+          {dias.length ? <Grafico30 titulo="Egress por dia" dias={dias} valor={(i) => (temTx ? Number(dias[i].tx_bytes) : Number(dias[i].req_postgrest) * BYTES_EGRESS_POR_REQ) / 1e9} formato={(v) => `${v.toFixed(v < 1 ? 2 : 1)} GB`} cor="#A855F7" /> : <p className="text-[13px] text-text-subtle">A série começa em 28/10.</p>}
           {temTx && <p className="mt-1 text-[11.5px] text-text-subtle">Saída de rede do servidor do banco (inclui conexões diretas e réplica; o egress cobrado só conta o que sai pela API).</p>}
         </Cartao>
       </div>

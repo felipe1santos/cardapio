@@ -1,10 +1,9 @@
 import fs from 'node:fs'
-import os from 'node:os'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { limiteDiario, type ApiPaga } from '@/lib/custo/guarda'
 import { limitesIa } from '@/lib/custo/ia'
 import { diaSP, limiteDoPainel } from '@/lib/custo/uso'
-import { avaliar, cronsAtrasados, horaDoResumo, JANELA_ALERTA_MS, medidasVazias, podeEnviar, textoResumo, type Alerta, type Medidas, type Oficial } from './avaliar'
+import { avaliar, CPU_ALTA_PCT, cronsAtrasados, horaDoResumo, JANELA_ALERTA_MS, medidasVazias, podeEnviar, textoResumo, type Alerta, type Medidas, type Oficial } from './avaliar'
 import { derivarProm, lerHostingerOficial, lerPromOficial, lerSupabaseGestao } from './oficial'
 import { enviarAlertaSistema } from './enviar'
 
@@ -14,9 +13,11 @@ import { enviarAlertaSistema } from './enviar'
  * Custo: ~8 consultas leves por rodada (~2.300/dia), nenhuma API paga. Alertas: 1 por assunto a cada 6 h; resumo às 09:00.
  */
 export const INTERVALO_MS = 5 * 60_000
-/** Bytes de egress por requisição PostgREST (medido em 22/10: ~1,2 KB, quase tudo cabeçalho) e fatia do PostgREST (88%). */
-const BYTES_POR_REQ = 1200
-const FATIA_POSTGREST = 0.88
+/**
+ * Egress (todos os serviços) por requisição PostgREST. Calibrado em 28/10 contra a página Usage do Supabase: 0,132 GB em
+ * ~6 h de ciclo para ~196 mil requisições ≈ 700 B (o 1,2 KB de 22/10, no plano grátis, dava o dobro).
+ */
+export const BYTES_EGRESS_POR_REQ = 700
 
 const APIS_TOTAL: string[] = ['geocoding', 'directions', 'places', 'ia', 'lalamove', 'ifood_entrega', 'foody', 'machine', 'uber', 'maps_js']
 
@@ -34,9 +35,13 @@ async function mediaReq(admin: SupabaseClient, agora: number): Promise<number | 
   return media.valor
 }
 
-function vps(): Pick<Medidas, 'cpuCarga' | 'memLivrePct' | 'discoUsadoPct'> {
-  const out: Pick<Medidas, 'cpuCarga' | 'memLivrePct' | 'discoUsadoPct'> = { cpuCarga: null, memLivrePct: null, discoUsadoPct: null }
-  try { out.cpuCarga = os.loadavg()[0] / Math.max(1, os.cpus().length) } catch { /* sem dado */ }
+function vps(): Pick<Medidas, 'cpuStat' | 'memLivrePct' | 'discoUsadoPct'> {
+  const out: Pick<Medidas, 'cpuStat' | 'memLivrePct' | 'discoUsadoPct'> = { cpuStat: null, memLivrePct: null, discoUsadoPct: null }
+  try {
+    // 1ª linha de /proc/stat: tempos somados de todos os núcleos (ocioso = idle + iowait).
+    const v = fs.readFileSync('/proc/stat', 'utf8').split('\n')[0].trim().split(/\s+/).slice(1).map(Number)
+    if (v.length >= 5 && v.every(Number.isFinite)) out.cpuStat = { total: v.reduce((a, b) => a + b, 0), ocioso: v[3] + (v[4] ?? 0) }
+  } catch { /* fora do Linux */ }
   try {
     // No container, /proc/meminfo é o da VPS. "Disponível" conta o cache que o sistema devolve na hora.
     const mi = fs.readFileSync('/proc/meminfo', 'utf8')
@@ -74,9 +79,15 @@ async function coletarOficial(agora: Date, antes: Oficial | undefined): Promise<
 }
 const PROM_INTERVALO_MS = 15 * 60_000 - 15_000
 
-export async function coletar(admin: SupabaseClient, agora: Date, anterior: { em: string; req_postgrest: number | null; dados?: { oficial?: Oficial } | null } | null): Promise<{ m: Medidas; req: number | null; consultas: number | null }> {
+export async function coletar(admin: SupabaseClient, agora: Date, anterior: { em: string; req_postgrest: number | null; dados?: { oficial?: Oficial; cpuStat?: Medidas['cpuStat']; cpuAltaSeguidas?: number } | null } | null): Promise<{ m: Medidas; req: number | null; consultas: number | null }> {
   const m: Medidas = { ...medidasVazias(agora.toISOString()), ...vps() }
   m.oficial = await coletarOficial(agora, anterior?.dados?.oficial)
+  const cpuAntes = anterior?.dados?.cpuStat
+  if (m.cpuStat && cpuAntes && m.cpuStat.total > cpuAntes.total) {
+    const dt = m.cpuStat.total - cpuAntes.total
+    m.cpuPct = Math.round((1 - (m.cpuStat.ocioso - cpuAntes.ocioso) / dt) * 1000) / 10
+    m.cpuAltaSeguidas = m.cpuPct >= CPU_ALTA_PCT ? (anterior?.dados?.cpuAltaSeguidas ?? 0) + 1 : 0
+  }
   const hoje = diaSP(agora)
   const [cont, usos, ia, crons, lojasWa] = await Promise.all([
     admin.rpc('sistema_saude_contadores'),
@@ -97,7 +108,7 @@ export async function coletar(admin: SupabaseClient, agora: Date, anterior: { em
   }
   m.reqMediaPorMin = await mediaReq(admin, agora.getTime()).catch(() => null)
   const base = m.reqMediaPorMin ?? m.reqPorMin
-  if (base !== null) m.egressMesGb = (base * 1440 * 30 * BYTES_POR_REQ) / FATIA_POSTGREST / 1e9
+  if (base !== null) m.egressMesGb = (base * 1440 * 30 * BYTES_EGRESS_POR_REQ) / 1e9
 
   const linhas = ((usos.data ?? []) as { api: string; escopo: string; chamadas: number }[]).filter((l) => !l.api.includes(':'))
   const limite = (api: string) => (api === 'maps_js' ? limiteDoPainel('maps_js') : limiteDiario(api as ApiPaga))
@@ -135,7 +146,7 @@ async function mandar(admin: SupabaseClient, a: { assunto: string; nivel: Alerta
 }
 
 export async function rodarVigia(admin: SupabaseClient, agora = new Date()): Promise<{ rodou: boolean; alertas?: string[]; enviados?: number; erro?: string }> {
-  const { data: ult, error: eUlt } = await admin.from('sistema_saude_fotos').select('em, req_postgrest, oficial:dados->oficial').order('em', { ascending: false }).limit(1).maybeSingle()
+  const { data: ult, error: eUlt } = await admin.from('sistema_saude_fotos').select('em, req_postgrest, oficial:dados->oficial, cpuStat:dados->cpuStat, cpuAltaSeguidas:dados->cpuAltaSeguidas').order('em', { ascending: false }).limit(1).maybeSingle()
   const bloqueio = restrito(eUlt?.message)
   if (bloqueio) {
     // Banco recusando: avisa pelo WhatsApp (Evolution não depende do Supabase) com a trava em memória.
@@ -146,8 +157,8 @@ export async function rodarVigia(admin: SupabaseClient, agora = new Date()): Pro
     await mandar(admin, a, false)
     return { rodou: true, alertas: [a.assunto], enviados: 1 }
   }
-  const ultima = ult as { em: string; req_postgrest: number | null; oficial: Oficial | null } | null
-  const anterior = ultima ? { em: ultima.em, req_postgrest: ultima.req_postgrest, dados: { oficial: ultima.oficial ?? undefined } } : null
+  const ultima = ult as { em: string; req_postgrest: number | null; oficial: Oficial | null; cpuStat: Medidas['cpuStat']; cpuAltaSeguidas: number | null } | null
+  const anterior = ultima ? { em: ultima.em, req_postgrest: ultima.req_postgrest, dados: { oficial: ultima.oficial ?? undefined, cpuStat: ultima.cpuStat, cpuAltaSeguidas: ultima.cpuAltaSeguidas ?? 0 } } : null
   if (anterior && agora.getTime() - Date.parse(anterior.em) < INTERVALO_MS - 15_000) return { rodou: false }
 
   const { m, req, consultas } = await coletar(admin, agora, anterior)

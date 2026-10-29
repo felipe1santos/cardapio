@@ -6,7 +6,7 @@ const assuntos = (m: Medidas) => avaliar(m).map((a) => `${a.assunto}:${a.nivel}`
 
 describe('avaliar', () => {
   it('tudo normal → nenhum alerta', () => {
-    expect(avaliar(base({ reqPorMin: 300, reqMediaPorMin: 250, discoUsadoPct: 48, memLivrePct: 60, cpuCarga: 0.5 }))).toEqual([])
+    expect(avaliar(base({ reqPorMin: 300, reqMediaPorMin: 250, discoUsadoPct: 48, memLivrePct: 60, cpuPct: 40, cpuAltaSeguidas: 0 }))).toEqual([])
   })
 
   it('Supabase bloqueado (402 de 27/10) é vermelho na hora', () => {
@@ -42,7 +42,13 @@ describe('avaliar', () => {
 
   it('VPS: disco, memória e carga', () => {
     expect(assuntos(base({ discoUsadoPct: 75 }))).toEqual(['vps-disco:amarelo'])
-    expect(assuntos(base({ discoUsadoPct: 93, memLivrePct: 8, cpuCarga: 2.5 }))).toEqual(['vps-disco:vermelho', 'vps-memoria:vermelho', 'vps-cpu:vermelho'])
+    expect(assuntos(base({ discoUsadoPct: 93, memLivrePct: 8, cpuPct: 99, cpuAltaSeguidas: 6 }))).toEqual(['vps-disco:vermelho', 'vps-memoria:vermelho', 'vps-cpu:vermelho'])
+  })
+
+  it('CPU: só alerta com 90%+ por 3 fotos seguidas (15 min) — um deploy de 10 min não vira alarme', () => {
+    expect(assuntos(base({ cpuPct: 100, cpuAltaSeguidas: 2 }))).toEqual([])
+    expect(assuntos(base({ cpuPct: 95, cpuAltaSeguidas: 3 }))).toEqual(['vps-cpu:amarelo'])
+    expect(assuntos(base({ cpuPct: 97, cpuAltaSeguidas: 6 }))).toEqual(['vps-cpu:vermelho'])
   })
 
   it('cron parado e WhatsApp de loja caído', () => {

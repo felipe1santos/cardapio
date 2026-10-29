@@ -22,8 +22,12 @@ export interface Medidas {
   apis: { api: string; chamadas: number; limite: number }[]
   iaUsd: { gasto: number; teto: number } | null
   lojasApi: { loja: string; api: string; chamadas: number; totalApi: number; limite: number }[]
-  /** Carga de 1 min dividida pelo nº de CPUs (1 = todos os núcleos ocupados). */
-  cpuCarga: number | null
+  /** % de CPU da VPS entre esta foto e a anterior (/proc/stat — o mesmo número do painel da Hostinger). */
+  cpuPct: number | null
+  /** Fotos seguidas com CPU ≥ 90% (alerta só a partir de 3 = 15 min: um deploy não vira alarme). */
+  cpuAltaSeguidas: number
+  /** Contadores de /proc/stat desta foto (para calcular o % na próxima). */
+  cpuStat?: { total: number; ocioso: number } | null
   memLivrePct: number | null
   discoUsadoPct: number | null
   cronsAtrasados: { nome: string; minutos: number }[]
@@ -44,11 +48,15 @@ export interface Oficial {
 export function medidasVazias(em: string): Medidas {
   return {
     em, reqPorMin: null, reqMediaPorMin: null, egressMesGb: null, egressCotaGb: 250, dbBytes: null, dbCotaBytes: 8e9,
-    bancoRestrito: null, apis: [], iaUsd: null, lojasApi: [], cpuCarga: null, memLivrePct: null, discoUsadoPct: null,
+    bancoRestrito: null, apis: [], iaUsd: null, lojasApi: [], cpuPct: null, cpuAltaSeguidas: 0, memLivrePct: null, discoUsadoPct: null,
     cronsAtrasados: [], whatsappCaido: [],
   }
 }
 
+/** CPU ≥ 90% por 3 fotos (15 min) = amarelo; por 6 (30 min) = vermelho. */
+export const CPU_ALTA_PCT = 90
+const CPU_SEGUIDAS_AMARELO = 3
+const CPU_SEGUIDAS_VERMELHO = 6
 const AMARELO = 0.7
 const VERMELHO = 0.9
 /** Abaixo disso o "2× a média" é ruído (madrugada, 1 loja aberta). */
@@ -132,11 +140,11 @@ export function avaliar(m: Medidas): Alerta[] {
       `${Math.round(m.memLivrePct)}% livre`,
       'não rodar build de outro projeto agora; se continuar, reiniciar o app pelo Coolify fora do horário de pico.'))
   }
-  if (m.cpuCarga !== null) {
-    const nivel: Nivel | null = m.cpuCarga >= 2 ? 'vermelho' : m.cpuCarga >= 1.2 ? 'amarelo' : null
-    if (nivel) out.push(alerta('vps-cpu', nivel, 'processador da VPS sobrecarregado',
-      'O servidor está com mais trabalho do que núcleos: páginas e impressão podem atrasar.',
-      `carga ${m.cpuCarga.toFixed(1)}× os núcleos`,
+  if (m.cpuPct !== null && m.cpuAltaSeguidas >= CPU_SEGUIDAS_AMARELO) {
+    const nivel: Nivel = m.cpuAltaSeguidas >= CPU_SEGUIDAS_VERMELHO ? 'vermelho' : 'amarelo'
+    out.push(alerta('vps-cpu', nivel, 'processador da VPS sobrecarregado',
+      'O processador do servidor está quase no máximo há um tempo: páginas e impressão podem atrasar.',
+      `${Math.round(m.cpuPct)}% há ${m.cpuAltaSeguidas * 5} min`,
       'ver no Coolify se há build rodando; se não houver, chamar o suporte técnico.'))
   }
   for (const c of m.cronsAtrasados) {
