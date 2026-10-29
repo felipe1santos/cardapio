@@ -145,7 +145,24 @@ async function mandar(admin: SupabaseClient, a: { assunto: string; nivel: Alerta
   return r
 }
 
+/**
+ * Alertas que outra parte do sistema gravou pendentes (guarda de custo: loop, limite, teto da IA — lib/custo/alerta-whatsapp.ts)
+ * saem aqui, a cada minuto. Só a última hora (um pendente antigo de um deploy que caiu não dispara de manhã).
+ */
+export async function despacharPendentes(admin: SupabaseClient, agora = new Date()): Promise<number> {
+  const { data } = await admin.from('sistema_alertas').select('id, texto').eq('enviado', false).is('canal', null)
+    .gte('criado_em', new Date(agora.getTime() - 3600_000).toISOString()).order('criado_em').limit(10)
+  let n = 0
+  for (const a of (data ?? []) as { id: number; texto: string }[]) {
+    const r = await enviarAlertaSistema(admin, 'Custo de API', a.texto)
+    await admin.from('sistema_alertas').update({ canal: r.canal, enviado: r.canal !== 'nenhum', erro: r.erro }).eq('id', a.id)
+    n++
+  }
+  return n
+}
+
 export async function rodarVigia(admin: SupabaseClient, agora = new Date()): Promise<{ rodou: boolean; alertas?: string[]; enviados?: number; erro?: string }> {
+  await despacharPendentes(admin, agora).catch((e) => console.error('[saude] pendentes:', (e as Error).message))
   const { data: ult, error: eUlt } = await admin.from('sistema_saude_fotos').select('em, req_postgrest, oficial:dados->oficial, cpuStat:dados->cpuStat, cpuAltaSeguidas:dados->cpuAltaSeguidas').order('em', { ascending: false }).limit(1).maybeSingle()
   const bloqueio = restrito(eUlt?.message)
   if (bloqueio) {

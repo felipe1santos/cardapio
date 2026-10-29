@@ -179,3 +179,13 @@ checagem B-n** no script.
   automática em 440/401; no máximo 3 reconexões automáticas por loja por hora (`lib/mensageria/conexao-repetida.ts`).
   O vigia (`lib/saude/vigia.ts`) avisa no WhatsApp do dono se as requisições passarem de 2× a média.
 - **Teste:** `lib/mensageria/conexao-repetida.test.ts`, `lib/mensageria/entrada-conexao.test.ts`.
+
+## Build quebrou: biblioteca só de servidor no código do navegador · 28/10/2026 · teste (B6)
+
+- **Onde:** `lib/custo/alerta-whatsapp.ts` (importado pela guarda de custo, que entra na tela de Ajustes pelo frete).
+- **Causa:** o alerta passou a importar o envio do vigia → push → `web-push` → `net`. tsc e vitest passaram; o `next build`
+  do Coolify falhou ("Can't resolve 'net'") e a versão anterior ficou no ar.
+- **Como evitar:** quem roda no navegador só grava (alerta pendente em `sistema_alertas`); o envio é do cron
+  (`despacharPendentes` em `lib/saude/vigia.ts`). O teste segue os imports a partir de frete/guarda/geocodificação e
+  falha se chegar em web-push, ffmpeg-static, sharp, pg ou net.
+- **Teste:** `lib/guardas/bundle-cliente.test.ts`.
