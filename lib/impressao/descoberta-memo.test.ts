@@ -36,4 +36,9 @@ describe('memo da descoberta de impressoras', () => {
     expect(precisaGravarDescoberta('a1', ['A'], undefined, T0 + 1000)).toBe(true)
     expect(precisaGravarDescoberta('a2', ['A'], undefined, T0 + 1000)).toBe(false)
   })
+  it('só o coletadoEm mudou (renovado a cada 10 min pelo Assistente): não grava', () => {
+    const d = (em: string) => ({ EPSON: { papelLarguraMm: 80, coletadoEm: em } })
+    marcarDescobertaGravada('a1', ['EPSON'], d('2026-10-29T10:00:00Z'), T0)
+    expect(precisaGravarDescoberta('a1', ['EPSON'], d('2026-10-29T10:10:00Z'), T0 + 1000)).toBe(false)
+  })
 })

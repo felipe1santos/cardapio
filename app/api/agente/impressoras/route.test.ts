@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const descobrir = vi.fn(async () => ({ ok: true as const, valor: 2 }))
+const passar = vi.fn(async () => undefined)
+vi.mock('@/lib/impressao/passar-para-novo', () => ({ tentarPassarParaNovo: passar }))
 vi.mock('@/lib/supabase/admin', () => ({ getAdminSupabase: () => ({}) }))
 vi.mock('@/lib/impressao/credenciais', () => ({ identificarAgente: async () => ({ tipo: 'agente', agenteId: 'ag-1' }) }))
 vi.mock('@/lib/impressao/servico', async (orig) => ({ ...(await orig<typeof import('@/lib/impressao/servico')>()), descobrir }))
@@ -12,15 +14,24 @@ const { esquecerDescoberta } = await import('@/lib/impressao/descoberta-memo')
 const req = (corpo: unknown) => new Request('http://x/api/agente/impressoras', { method: 'POST', body: JSON.stringify(corpo) })
 
 describe('POST /api/agente/impressoras', () => {
-  beforeEach(() => { descobrir.mockClear(); esquecerDescoberta() })
+  beforeEach(() => { descobrir.mockClear(); passar.mockClear(); esquecerDescoberta() })
 
   it('mesmo corpo 2x: descobrir 1 vez e a 2ª resposta traz semMudanca', async () => {
     const corpo = { impressoras: ['A', 'B'], diagnosticos: { A: { papelLarguraMm: 80 } } }
     const r1 = await (await POST(req(corpo))).json()
     const r2 = await (await POST(req(corpo))).json()
     expect(descobrir).toHaveBeenCalledTimes(1)
+    expect(passar).toHaveBeenCalledTimes(1)
     expect(r1).toEqual({ ok: true, total: 2 })
     expect(r2).toEqual({ ok: true, total: 2, semMudanca: true })
+  })
+  it('sem mudança ainda roda a passagem automática para o novo (decide quem imprime)', async () => {
+    const corpo = { impressoras: ['A'] }
+    await POST(req(corpo)); await POST(req(corpo))
+    expect(descobrir).toHaveBeenCalledTimes(1)
+    expect(passar).toHaveBeenCalledTimes(1)
+    await POST(req(corpo))
+    expect(passar).toHaveBeenCalledTimes(2)
   })
   it('falha do descobrir não marca como gravado', async () => {
     descobrir.mockResolvedValueOnce({ ok: false, erro: 'x', codigo: 'c', status: 400 } as never)

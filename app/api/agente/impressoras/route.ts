@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { identificarAgente } from '@/lib/impressao/credenciais'
 import { descobrir } from '@/lib/impressao/servico'
+import { tentarPassarParaNovo } from '@/lib/impressao/passar-para-novo'
 import { marcarDescobertaGravada, precisaGravarDescoberta } from '@/lib/impressao/descoberta-memo'
 
 /**
@@ -20,6 +21,8 @@ export async function POST(request: Request) {
   // `descobrir`, que devolve o erro de sempre.
   const nomes = Array.isArray(corpo?.impressoras) && corpo.impressoras.every((n) => typeof n === 'string') ? (corpo.impressoras as string[]) : null
   if (nomes && !precisaGravarDescoberta(quem.agenteId, nomes, corpo?.diagnosticos)) {
+    // A passagem automática decide quem imprime e rodava a cada minuto dentro de `descobrir`: continua rodando.
+    await tentarPassarParaNovo(admin, quem.agenteId).catch((e) => console.error('[passagem automática]', (e as Error).message))
     return NextResponse.json({ ok: true, total: nomes.length, semMudanca: true })
   }
   const r = await descobrir(admin, quem.agenteId, corpo?.impressoras, corpo?.diagnosticos)

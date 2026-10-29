@@ -16,7 +16,8 @@ function assinaturaDe(nomes: string[], diagnosticos: unknown): string {
     for (const nome of Object.keys(diagnosticos).sort().slice(0, 60)) {
       // Mesma limpeza do `descobrir`: campo de ruído não conta como mudança.
       const limpo = sanearDiagnostico((diagnosticos as Record<string, unknown>)[nome])
-      if (limpo) diag[nome] = limpo
+      // coletadoEm é renovado pelo Assistente a cada ~10 min sem mudança real.
+      if (limpo) { const { coletadoEm: _ignorado, ...resto } = limpo; diag[nome] = resto }
     }
   }
   return JSON.stringify({ n: [...nomes].sort(), d: diag })
