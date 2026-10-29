@@ -129,9 +129,10 @@ export async function esperarComBusca<T>(
   sinal: AbortSignal | undefined,
   buscar: () => Promise<T[]>,
   /**
-   * Conferido antes de cada nova busca durante a espera: a situação que valia no começo
+   * Conferido antes da 1ª busca depois de cada aviso/prazo: a situação que valia no começo
    * (ex.: loja em "Cozinha e Caixa" com este computador na Cozinha) ainda vale? Se não,
-   * para e devolve vazio — nada é reservado para quem deixou de ser o destino.
+   * para e devolve vazio — nada é reservado para quem deixou de ser o destino. As buscas de
+   * 0,4 s e 1,2 s logo depois não conferem de novo (29/10: eram ~3 consultas a mais por busca).
    */
   aindaVale: () => Promise<boolean> = async () => true,
   /**
@@ -157,9 +158,7 @@ export async function esperarComBusca<T>(
       for (const pausa of [400, 800]) {
         if (lista.length || sinal?.aborted) break
         await new Promise((ok) => setTimeout(ok, pausa))
-        const outra = await buscarSeVale()
-        if (outra === null) return []
-        lista = outra
+        lista = await buscar()
       }
       if (!lista.length && devolverJa && (await devolverJa())) break
     }

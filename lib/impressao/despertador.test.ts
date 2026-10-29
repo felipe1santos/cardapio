@@ -68,6 +68,39 @@ describe('espera longa do Assistente (despertador)', () => {
     expect(buscas).toBe(1)
   })
 
+  it('um aviso sem novidade chama aindaVale 1 vez e buscar até 3 vezes', async () => {
+    let buscas = 0
+    let conferencias = 0
+    const ctl = new AbortController()
+    setTimeout(() => _avisarParaTeste('loja-13'), 50)
+    // Depois das buscas de 0,4 s e 1,2 s (≈1,25 s), antes do próximo prazo de 2 s do modo sem Realtime.
+    setTimeout(() => ctl.abort(), 1600)
+    const r = await esperarComBusca('loja-13', 20, ctl.signal, async () => { buscas++; return [] }, async () => { conferencias++; return true })
+    expect(r).toEqual([])
+    expect(conferencias).toBe(1)
+    expect(buscas).toBe(1 + 3) // a primeira (antes de esperar) + 3 depois do aviso
+  })
+
+  it('aindaVale false no aviso → devolve [] e não chama buscar', async () => {
+    let buscas = 0
+    let vale = true
+    setTimeout(() => { vale = false; _avisarParaTeste('loja-14') }, 50)
+    const r = await esperarComBusca('loja-14', 20, undefined, async () => { buscas++; return buscas > 1 ? ['ficha'] : [] }, async () => vale)
+    expect(r).toEqual([])
+    expect(buscas).toBe(1) // só a primeira, antes de esperar
+  })
+
+  it('dono muda durante a espera → nada é reservado para o antigo', async () => {
+    let dono = 'pc-antigo'
+    const reservadas: string[] = []
+    setTimeout(() => { dono = 'pc-novo'; _avisarParaTeste('loja-15') }, 50)
+    const r = await esperarComBusca('loja-15', 20, undefined,
+      async () => { if (dono !== 'pc-antigo') reservadas.push('ficha'); return dono !== 'pc-antigo' ? ['ficha'] : [] },
+      async () => dono === 'pc-antigo')
+    expect(r).toEqual([])
+    expect(reservadas).toEqual([])
+  })
+
   it('aviso de pedido não acorda espera de trabalhos', async () => {
     const t = Date.now()
     setTimeout(() => _avisarParaTeste('loja-9', 'pedidos'), 50)
