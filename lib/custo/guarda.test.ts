@@ -46,7 +46,7 @@ describe('guarda de custo: limite diário', () => {
     expect(limiteDiario('directions', { LIMITE_DIRECTIONS_DIA: '50' })).toBe(50)
     expect(limiteDiario('geocoding', { LIMITE_GEOCODING_DIA: 'abc' })).toBe(300)
   })
-  it('Maps por loja: teto de 60% do limite do sistema (uma loja em loop não gasta a cota de todas); IA/entregas sem teto aqui', async () => {
+  it('Maps e entregadores por loja: teto de 60% do limite do sistema (uma loja não gasta a cota de todas); IA sem teto aqui (tem o seu em US$)', async () => {
     const b = bancoFalso(1000)
     const fn = vi.fn(async () => 'ok')
     await chamarApiPaga(b.admin, { api: 'geocoding', chave: 'a', loja: 'loja-1' }, fn)
@@ -54,7 +54,9 @@ describe('guarda de custo: limite diário', () => {
     await chamarApiPaga(b.admin, { api: 'geocoding', chave: 'c' }, fn)
     await chamarApiPaga(b.admin, { api: 'lalamove', chave: 'd', loja: 'loja-1' }, fn)
     const lim = (b.admin as unknown as { rpc: { mock: { calls: [string, { p_limite_loja: number | null }][] } } }).rpc.mock.calls.map((c) => c[1].p_limite_loja)
-    expect(lim).toEqual([180, 180, null, null])
+    expect(lim).toEqual([180, 180, null, 360])
+    for (const api of ['uber', 'foody', 'machine', 'ifood_entrega'] as const) expect(limiteDaLoja(api, {})).toBe(360)
+    expect(limiteDaLoja('ia', {})).toBeNull()
     expect(limiteDaLoja('geocoding', { LIMITE_GEOCODING_DIA: '100' })).toBe(60)
   })
   it('loja passou do teto dela: bloqueia com alerta que diz a loja', async () => {

@@ -33,9 +33,11 @@ export function limiteDiario(api: ApiPaga, env: Record<string, string | undefine
 /**
  * Teto POR LOJA do Maps (28/10, varredura Etapa 6): 60% do limite do sistema. Sem ele, uma loja com uma tela em loop
  * (endereços diferentes escapam da trava de disparo) gasta a cota do dia de todas e o frete das outras cai na reserva.
- * IA e transcrição já têm teto por loja em dólar (lib/custo/ia.ts); entregas são corridas reais, sem teto por loja.
+ * 29/10 (pedido do dono): também os entregadores (cotação, criação e consulta de corrida) — a cota de 600/dia é do
+ * sistema e uma loja com muitas corridas longas consultadas não pode deixar as outras sem criar corrida.
+ * IA e transcrição já têm teto por loja em dólar (lib/custo/ia.ts).
  */
-const APIS_COM_TETO_LOJA: ApiPaga[] = ['geocoding', 'directions', 'places']
+const APIS_COM_TETO_LOJA: ApiPaga[] = ['geocoding', 'directions', 'places', 'lalamove', 'uber', 'foody', 'machine', 'ifood_entrega']
 export function limiteDaLoja(api: ApiPaga, env: Record<string, string | undefined> = process.env): number | null {
   return APIS_COM_TETO_LOJA.includes(api) ? Math.ceil(limiteDiario(api, env) * 0.6) : null
 }
