@@ -15,6 +15,11 @@
   Assistente; regra nº 1 de custo; dados de clientes fora do git; publicado vale para TODAS as lojas; conferir que os
   pedidos seguem entrando depois de cada deploy.
 
+## ⚠️ DEPLOY SÓ FORA DO PICO (regra do dono, 29/10/2026)
+
+- Publicar só **antes das 11h ou depois das 23h** (Brasília), salvo emergência (sistema fora, perda de pedido/dinheiro).
+  O build roda na mesma VPS das lojas. Programar e testar pode a qualquer hora; o deploy espera a janela.
+
 ## ⚠️ ANTES DE TODO DEPLOY: CHECAR BUGS (regra do dono, 22/10/2026)
 
 - Toda alteração de código, antes de ir para produção: `npm run checar` (bugs conhecidos + `tsc --noEmit` + lint +
