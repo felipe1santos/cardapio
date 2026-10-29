@@ -156,3 +156,17 @@ Conferência pelo Chrome (28/10 ~21h): Storage 586 MiB = 586 "MB" do gráfico of
 provisionados" ✔; memória VPS 67% livre × 33% usado na Hostinger ✔; disco VPS 34% × 33/100 GB ✔ (GB×GiB);
 **egress estimado dava o dobro** (32 × ~16 GB/mês) → recalibrado para 700 B/req; **CPU não batia** (carga média 3× ×
 26% da Hostinger) → trocado por % de CPU do /proc/stat, alerta só com 90%+ por 15 min.
+
+## 3ª rodada — avisos no Super Admin e os "93,1 MB" (28/10 noite)
+- **93,1 MB** = "Tráfego de entrada" da VPS no painel da Hostinger (ponto de ~30 min), não do Supabase. Medido por
+  container (nsenter, 2 min): entrada externa da VPS 1.100 KB/min, quase toda no app Menuzia (1.011); dele, ~754 KB/min
+  vêm do próprio Supabase (104.18.38.10 / 172.64.149.246 = o projeto) — é o egress do Supabase visto do outro lado.
+  Não é laço: as consultas devolvem 1 linha cada; o volume é nº de requisições (~500/min × ~1,5 KB de cabeçalho), quase
+  tudo do Assistente de impressão. Picos de 93–705 MB nos pontos de 30 min = builds dos deploys desta noite baixando as
+  dependências de novo (cache de build limpo).
+- **Avisos:** os do vigia já iam para Saúde do sistema + push. Os da guarda de custo (loop = mesma chamada >20×/min,
+  limite batido, 80%, teto da IA) iam SÓ pelo WhatsApp da Menuzia (fora desde 23/10) → ninguém recebia. Corrigido: ficam
+  pendentes em `sistema_alertas` e o cron envia a cada minuto (teste em produção: push em < 90 s). Faixa no topo do
+  Super Admin com os alertas das últimas 6 h.
+- **Deploy que falhou** (`h8opcnsrm1xnfviaderesbzy`): web-push no código do navegador; a versão anterior ficou no ar.
+  Causa e guarda nova em BUGS-CONHECIDOS (B6). Publicado `fcff9732`.
