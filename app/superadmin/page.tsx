@@ -9,6 +9,7 @@ import { MODULOS, nenhumLiberado, type ModulosDaLoja } from '@/lib/modulos'
 import { CabecalhoHp, PainelHp, ShellHp } from '@/components/superadmin/hp'
 import { HorariosPico, Monitoramento, RotinasHp, Tendencia30, WhatsappLojasHp, type DiaSaude, type FotoSaude, type LeituraHora } from '@/components/superadmin/monitoramento'
 import { GastoHoje } from '@/components/superadmin/gasto-apis'
+import { picoMedioDiario } from '@/lib/saude/pico-requisicoes'
 import { AlertasFaixa, ListaAlertas, type AlertaTela } from '@/components/superadmin/alertas-faixa'
 
 // Dados sempre frescos: é o painel de quem libera e bloqueia contas.
@@ -24,7 +25,7 @@ export default async function SuperadminPage() {
   const { data } = await supabase.auth.getUser()
   const admin = getAdminSupabase()
   // Contador de APIs pagas (10/10): falhar aqui não derruba o painel.
-  const [{ lojas, resumo }, usoApis, usoIa, cotacao, { data: mods }, { data: alertas }, { data: fotos }, { data: crons }, { data: serie }, { data: leituras }] = await Promise.all([
+  const [{ lojas, resumo }, usoApis, usoIa, cotacao, { data: mods }, { data: alertas }, { data: fotos }, { data: crons }, { data: serie }, paginasLeituras] = await Promise.all([
     listarLojasPlataforma(admin), lerUsoApis(admin).catch(() => null), lerUsoIa(admin).catch(() => null), lerCotacao(admin).catch(() => 5.5),
     admin.from('loja_modulos').select('restaurante_id, modulo, liberado'),
     admin.from('sistema_alertas').select('id, criado_em, nivel, texto, canal, enviado, erro').order('criado_em', { ascending: false }).limit(60),
@@ -33,7 +34,8 @@ export default async function SuperadminPage() {
     admin.from('sistema_cron_batidas').select('nome, ultima_em'),
     admin.rpc('sistema_saude_dias', { p_dias: 30 }),
     // Horários de pico: só a hora e o número de cada foto das últimas 24 h (~18 KB), não a foto inteira.
-    admin.from('sistema_saude_fotos').select('em, req:dados->reqPorMin').gte('em', new Date(Date.now() - 24 * 3600_000).toISOString()).limit(300),
+    // E a base do card Requisições: 8 dias (~2.300 linhas, ~150 KB). O PostgREST devolve 1000 por resposta, então vem em páginas.
+    Promise.all([[0, 999], [1000, 1999], [2000, 2399]].map(([de, ate]) => admin.from('sistema_saude_fotos').select('em, req:dados->reqPorMin').gte('em', new Date(Date.now() - 8 * 86400_000).toISOString()).order('em', { ascending: false }).range(de, ate))),
   ])
   // Módulos pagos por loja (0176): sem linha = bloqueado (mesma regra de modulo_liberado).
   const modulos: Record<string, ModulosDaLoja> = {}
@@ -41,6 +43,8 @@ export default async function SuperadminPage() {
   for (const m of (mods ?? []) as { restaurante_id: string; modulo: string; liberado: boolean }[]) {
     if ((MODULOS as readonly string[]).includes(m.modulo)) (modulos[m.restaurante_id] ??= nenhumLiberado())[m.modulo as keyof ModulosDaLoja] = m.liberado === true
   }
+  const leituras = paginasLeituras.flatMap((p) => (p.data ?? []) as unknown as LeituraHora[])
+  const desde24h = Date.now() - 24 * 3600_000
   const historico = (alertas ?? []) as AlertaTela[]
   const desde = Date.now() - 6 * 3600_000
   const recentes = historico.filter((a) => (a.nivel === 'amarelo' || a.nivel === 'vermelho') && Date.parse(a.criado_em) >= desde)
@@ -49,10 +53,10 @@ export default async function SuperadminPage() {
   return (
     <ShellHp aba="visao" titulo="Visão geral" email={data.user?.email ?? ''}>
       <AlertasFaixa alertas={recentes} />
-      <Monitoramento fotos={listaFotos} />
+      <Monitoramento fotos={listaFotos} picoReq={picoMedioDiario(leituras)} />
       <GastoHoje uso={usoApis} ia={usoIa} cotacao={cotacao} />
       <Tendencia30 dias={dias} />
-      <HorariosPico leituras={(leituras ?? []) as unknown as LeituraHora[]} />
+      <HorariosPico leituras={leituras.filter((l) => Date.parse(l.em) >= desde24h)} />
       <div className="grid gap-[12px] sm:gap-[20px] lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:items-start">
         <RotinasHp crons={(crons ?? []) as { nome: string; ultima_em: string }[]} />
         <WhatsappLojasHp caidas={listaFotos[0]?.dados.whatsappCaido ?? []} />

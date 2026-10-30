@@ -70,7 +70,7 @@ function RequisicoesServico({ r }: { r: { rest: number; auth: number; storage: n
   )
 }
 
-export function Monitoramento({ fotos }: { fotos: FotoSaude[] }) {
+export function Monitoramento({ fotos, picoReq }: { fotos: FotoSaude[]; picoReq?: { media: number; dias: number } | null }) {
   const m = fotos[0]?.dados ?? null
   const serie = [...fotos].reverse()
   const horas = serie.map((f) => hora(f.em))
@@ -117,8 +117,9 @@ export function Monitoramento({ fotos }: { fotos: FotoSaude[] }) {
       <Grupo icone={<Database className="h-[16px] w-[16px]" />} titulo="Supabase" sub={`banco de dados, cobrado por uso · número grande = última leitura · gráfico = últimas 3 h · ${ha(prom?.em ?? m?.em)}`}
         info="O Supabase guarda todos os dados (pedidos, cardápios, lojas, fotos). Ele cobra por cota no ciclo mensal: se o egress ou o disco passar do limite do plano, o banco pode ser bloqueado e os pedidos param.">
         <MetricaHp rotulo="Requisições" testid="sa-req" valor={n0(m?.reqPorMin)} unidade="/min"
+          canto={picoReq ? <span title={`Média da hora mais movimentada de cada um dos últimos ${picoReq.dias} dia(s) completos`} data-testid="sa-req-pico">Pico {picoReq.dias}d: {n0(picoReq.media)}/min</span> : undefined}
           nota={m?.reqMediaPorMin != null ? `${m.reqReferenciaMesmoHorario ? 'normal do horário' : 'média geral'} ${n0(m.reqMediaPorMin)}/min` : undefined}
-          info="Quantas vezes por minuto o sistema consulta o banco. Cada consulta gasta tráfego (egress). O dobro do normal deste horário por muito tempo pode indicar algo em repetição."
+          info="Quantas vezes por minuto o sistema consulta o banco. Cada consulta gasta tráfego (egress). O dobro do normal deste horário por muito tempo pode indicar algo em repetição. No canto: média da hora mais movimentada de cada dia, nos últimos 7 dias completos; passar muito disso é fora do normal."
           grafico={<SparklineHp rotulos={horas} rotulo="Requisições por minuto" valores={serie.map((f) => Number(f.dados.reqPorMin))} />} />
         <MetricaHp rotulo="CPU do banco" testid="sa-cpu-banco" alerta={a.cpuBanco} valor={prom?.cpuPct == null ? '—' : `${Math.round(prom.cpuPct)}%`}
           info="Quanto do processador do servidor do banco está em uso (número oficial do Supabase). Acima de ~70% por muito tempo, é hora de subir o tamanho do banco."
