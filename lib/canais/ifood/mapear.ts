@@ -57,7 +57,20 @@ export function mapearPedidoIfood(bruto: unknown): PedidoExterno {
   const trocoPara = s(principal.method).toUpperCase() === 'CASH' ? (num2(cash.changeFor) || null) : null
   // O telefone do iFood é um número intermediário (0800 + localizador): guardamos como vem; o localizador vai na observação.
   const localizador = s(fone.localizer)
-  const observacao = [s(o.extraInfo), localizador ? `Localizador iFood: ${localizador}` : ''].filter(Boolean).join(' · ')
+  // Quem paga cada cupom (homologação): MERCHANT é da loja; o resto o iFood repassa à loja.
+  const benefits = Array.isArray(o.benefits) ? o.benefits.map(r) : []
+  const patrocinios = benefits.flatMap((b) => (Array.isArray(b.sponsorshipValues) ? b.sponsorshipValues.map(r) : []))
+  const somaCupom = (daLoja: boolean) => patrocinios.filter((x) => (s(x.name).toUpperCase() === 'MERCHANT') === daLoja).reduce((soma, x) => soma + num2(x.value), 0)
+  const brl = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
+  const cupomLoja = somaCupom(true)
+  const cupomIfood = somaCupom(false)
+  const obsEntrega = s(entrega.observations)
+  const obsRetirada = s(r(o.takeout).observations)
+  const codigoColeta = s(entrega.pickupCode)
+  const observacao = [
+    s(o.extraInfo), obsEntrega ? `Entrega: ${obsEntrega}` : '', obsRetirada ? `Retirada: ${obsRetirada}` : '', codigoColeta ? `Código de coleta: ${codigoColeta}` : '',
+    localizador ? `Localizador iFood: ${localizador}` : '', cupomLoja > 0 ? `cupom pago pela loja ${brl(cupomLoja)}` : '', cupomIfood > 0 ? `cupom pago pelo iFood ${brl(cupomIfood)}` : '',
+  ].filter(Boolean).join(' · ')
   return {
     canal: 'ifood',
     externoId: s(o.id),

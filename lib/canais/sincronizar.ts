@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { listarCanaisAtivos, registrarPolling, type ConfigCanal } from './config'
-import { cancelarPeloApp, importarPedidoExterno } from './importar'
+import { createHash } from 'node:crypto'
+import { atualizarPedidoPeloApp, cancelarPeloApp, importarPedidoExterno } from './importar'
 import { CANAL_DISPONIVEL, etapasAEnviar, statusParaApp, type Canal, type StatusParaApp } from './tipos'
 import { acknowledgmentOd, detalheDoPedidoOd, enviarStatusOd, pollingOd, type EventoOd } from './opendelivery/cliente'
 import { mapearPedidoOpenDelivery } from './opendelivery/mapear'
@@ -54,7 +55,8 @@ export async function tratarEventoOd(admin: SupabaseClient, c: ConfigCanal, e: E
 /** Um aviso da 99Food (protocolo próprio, só webhook — 22/10). `orderNew` traz o pedido completo em order_info. */
 export async function tratarEvento99(admin: SupabaseClient, c: ConfigCanal, tipo: string, orderId: string, dados: Record<string, unknown>): Promise<'pedido_novo' | 'cancelado' | 'ignorado' | 'repetido'> {
   // orderCancelApply/orderRefundApply repetem o mesmo aviso (lembrete): uma vez por tipo+pedido basta.
-  const eventoId = `${tipo}:${orderId}`
+  // orderPartialCancel pode vir mais de uma vez no mesmo pedido, com conteúdo diferente: o conteúdo entra na chave.
+  const eventoId = tipo === 'orderPartialCancel' ? `${tipo}:${orderId}:${createHash('md5').update(JSON.stringify(dados)).digest('hex').slice(0, 12)}` : `${tipo}:${orderId}`
   if (await eventoJaTratado(admin, c.canal, eventoId)) return 'repetido'
   let resultado: 'pedido_novo' | 'cancelado' | 'ignorado' = 'ignorado'
   if (tipo === 'orderNew') {
@@ -67,8 +69,10 @@ export async function tratarEvento99(admin: SupabaseClient, c: ConfigCanal, tipo
     if (r.novo) await registrarPolling(admin, c, null, true)
   } else if (tipo === 'orderCancel') {
     resultado = (await cancelarPeloApp(admin, c.restauranteId, c.canal, orderId, 'orderCancel')) ? 'cancelado' : 'ignorado'
+  } else if (tipo === 'orderPartialCancel') {
+    await atualizarPedidoPeloApp(admin, c.restauranteId, mapearPedido99(await detalheDoPedido99(admin, c, orderId)))
   } else {
-    // orderConfirm/orderReady/orderFinish/deliveryStatus/orderCancelApply/orderRefundApply/orderPartialCancel: registro.
+    // orderConfirm/orderReady/orderFinish/deliveryStatus/orderCancelApply/orderRefundApply: registro.
     await admin.from('pedidos_externos').update({ status_externo: tipo, atualizado_em: new Date().toISOString() }).eq('canal', c.canal).eq('externo_id', orderId)
   }
   await lembrarEvento(admin, c, eventoId, tipo, orderId)
@@ -85,6 +89,8 @@ async function tratarEventoIfood(admin: SupabaseClient, c: ConfigCanal, e: Event
     resultado = r.novo ? 'pedido_novo' : 'ignorado'
   } else if (code === EVENTO_IFOOD.CANCELLED) {
     resultado = (await cancelarPeloApp(admin, c.restauranteId, 'ifood', e.orderId, e.fullCode ?? 'CANCELLED')) ? 'cancelado' : 'ignorado'
+  } else if (code === EVENTO_IFOOD.PATCHED) {
+    await atualizarPedidoPeloApp(admin, c.restauranteId, mapearPedidoIfood(await detalheDoPedidoIfood(admin, c, e.orderId)))
   } else {
     // Entregador iFood (Etapa 3): o pedido "de fora" que criamos no iFood manda eventos de entrega por aqui também.
     const corrida = await buscarCorridaPorExterno(admin, e.orderId, 'ifood').catch(() => null)
@@ -102,28 +108,54 @@ async function tratarEventoIfood(admin: SupabaseClient, c: ConfigCanal, e: Event
   return resultado
 }
 
+/** Evento com erro (30/10): fora do ack ele volta no polling. Em memória: reiniciar o app só recomeça a contagem. */
+const falhasEvento = new Map<string, { tentativas: number; proximaEm: number }>()
+export const limparFalhasDeEvento = () => falhasEvento.clear()
+
+/** Trata o lote e devolve o que pode ser confirmado: evento com erro espera 1, 2, 4… min; no 8º erro, desiste. */
+async function tratarLote<E extends { orderId: string }>(c: ConfigCanal, eventos: E[], idDe: (e: E) => string, tratar: (e: E) => Promise<string>, resumo: ResumoSincronizacao, aoNovo: () => void): Promise<E[]> {
+  const confirmar: E[] = []
+  for (const e of eventos) {
+    resumo.eventos++
+    const id = `${c.canal}:${idDe(e)}`
+    const falha = falhasEvento.get(id)
+    if (falha && falha.proximaEm > Date.now()) continue
+    try {
+      const r = await tratar(e)
+      falhasEvento.delete(id)
+      confirmar.push(e)
+      if (r === 'pedido_novo') { resumo.pedidosNovos++; aoNovo() }
+      if (r === 'cancelado') resumo.cancelados++
+    } catch (err) {
+      const tentativas = (falha?.tentativas ?? 0) + 1
+      const espera = esperaEnvioCanal(tentativas)
+      const m = (err as Error).message
+      if (espera === null) {
+        falhasEvento.delete(id)
+        confirmar.push(e)
+        resumo.erros.push(`${c.canal}/${e.orderId}: desistiu depois de ${tentativas} erros: ${m}`)
+      } else {
+        falhasEvento.set(id, { tentativas, proximaEm: Date.now() + espera })
+        resumo.erros.push(`${c.canal}/${e.orderId}: ${m}`)
+      }
+    }
+  }
+  return confirmar
+}
+
 /** Polling de uma loja/canal: busca, trata e confirma os eventos. */
 export async function pollingDaLoja(admin: SupabaseClient, c: ConfigCanal, resumo: ResumoSincronizacao): Promise<void> {
   let novo = false
+  const aoNovo = () => { novo = true }
   try {
     if (c.canal === 'ifood') {
       const eventos = await pollingIfood(admin, c)
-      for (const e of eventos) {
-        resumo.eventos++
-        const r = await tratarEventoIfood(admin, c, e).catch((err) => { resumo.erros.push(`${c.canal}/${e.orderId}: ${(err as Error).message}`); return 'ignorado' as const })
-        if (r === 'pedido_novo') { resumo.pedidosNovos++; novo = true }
-        if (r === 'cancelado') resumo.cancelados++
-      }
-      if (eventos.length) await acknowledgmentIfood(admin, c, eventos)
+      const confirmar = await tratarLote(c, eventos, (e) => e.id, (e) => tratarEventoIfood(admin, c, e), resumo, aoNovo)
+      if (confirmar.length) await acknowledgmentIfood(admin, c, confirmar)
     } else {
       const eventos = await pollingOd(admin, c)
-      for (const e of eventos) {
-        resumo.eventos++
-        const r = await tratarEventoOd(admin, c, e).catch((err) => { resumo.erros.push(`${c.canal}/${e.orderId}: ${(err as Error).message}`); return 'ignorado' as const })
-        if (r === 'pedido_novo') { resumo.pedidosNovos++; novo = true }
-        if (r === 'cancelado') resumo.cancelados++
-      }
-      if (eventos.length) await acknowledgmentOd(admin, c, eventos)
+      const confirmar = await tratarLote(c, eventos, (e) => e.eventId, (e) => tratarEventoOd(admin, c, e), resumo, aoNovo)
+      if (confirmar.length) await acknowledgmentOd(admin, c, confirmar)
     }
     await registrarPolling(admin, c, null, novo)
   } catch (err) {
@@ -144,7 +176,7 @@ export async function sincronizarStatusDaLoja(admin: SupabaseClient, c: ConfigCa
     const tentativas = Number(ext.envio_tentativas) || 0
     if (tentativas >= MAX_TENTATIVAS_CANAL) continue
     if (ext.envio_proxima_em && Date.parse(ext.envio_proxima_em as string) > agora) continue
-    const ped = (Array.isArray(ext.pedidos) ? ext.pedidos[0] : ext.pedidos) as { id: string; status: string; tipo: 'entrega' | 'retirada'; cancelado_observacao: string | null; cancelado_motivo: string | null; origem_detalhe: { entregaPor?: string } | null } | null
+    const ped = (Array.isArray(ext.pedidos) ? ext.pedidos[0] : ext.pedidos) as { id: string; status: string; tipo: 'entrega' | 'retirada'; cancelado_observacao: string | null; cancelado_motivo: string | null; origem_detalhe: { entregaPor?: string; motivoApp?: string } | null } | null
     if (!ped) continue
     const alvo = statusParaApp(ped.status, ped.tipo)
     if (!alvo) continue
@@ -154,7 +186,7 @@ export async function sincronizarStatusDaLoja(admin: SupabaseClient, c: ConfigCa
     for (const etapa of etapas) {
       try {
         const r = c.canal === 'ifood'
-          ? await enviarStatusIfood(admin, c, ext.externo_id as string, etapa, { motivoCancelamento: ped.cancelado_observacao ?? undefined })
+          ? await enviarStatusIfood(admin, c, ext.externo_id as string, etapa, { codigoCancelamento: ped.origem_detalhe?.motivoApp, entregaPelaLoja: ped.origem_detalhe?.entregaPor === 'loja' })
           : c.canal === '99food'
             ? await enviarStatus99(admin, c, ext.externo_id as string, etapa, { entregaPelaLoja: ped.origem_detalhe?.entregaPor === 'loja', motivo: ped.cancelado_motivo, texto: ped.cancelado_observacao })
             : await enviarStatusOd(admin, c, ext.externo_id as string, etapa, { motivoCancelamento: ped.cancelado_observacao ?? undefined })
@@ -177,6 +209,7 @@ export async function sincronizarStatusDaLoja(admin: SupabaseClient, c: ConfigCa
 export async function sincronizarCanais(admin: SupabaseClient): Promise<ResumoSincronizacao> {
   const resumo: ResumoSincronizacao = { lojas: 0, eventos: 0, pedidosNovos: 0, cancelados: 0, statusEnviados: 0, erros: [] }
   const configs = await listarCanaisAtivos(admin)
+  const inicio = Date.now()
   for (const c of configs) {
     if (!canalPodeRodar(c.canal)) continue
     // 99Food (22/10): app ÚNICO da Menuzia no servidor (sem credencial por loja) e pedido só por webhook (sem polling).
@@ -190,6 +223,12 @@ export async function sincronizarCanais(admin: SupabaseClient): Promise<ResumoSi
     resumo.lojas++
     await pollingDaLoja(admin, c, resumo)
     await sincronizarStatusDaLoja(admin, c, resumo)
+  }
+  // iFood pede consulta a cada 30 s (loja aberta) e o agendamento do Coolify é de 1 min: 2ª consulta na mesma rodada.
+  const ifood = configs.filter((c) => c.canal === 'ifood' && canalPodeRodar(c.canal) && c.credenciais)
+  if (ifood.length) {
+    await new Promise((fim) => setTimeout(fim, Math.max(0, 30_000 - (Date.now() - inicio))))
+    for (const c of ifood) await pollingDaLoja(admin, c, resumo)
   }
   return resumo
 }

@@ -100,12 +100,25 @@ export async function detalheDoPedidoIfood(admin: SupabaseClient, c: ConfigCanal
 
 const CAMINHO: Partial<Record<StatusParaApp, string>> = { confirmado: 'confirm', preparando: 'startPreparation', pronto: 'readyToPickup', despachado: 'dispatch', cancelado: 'requestCancellation' }
 
+/** Motivos que o iFood aceita para ESTE pedido (a lista muda por pedido; 204 = nenhum). Sem lista fixa, como pede a doc. */
+export async function motivosCancelamentoIfood(admin: SupabaseClient, c: ConfigCanal, orderId: string): Promise<{ codigo: string; descricao: string }[]> {
+  const token = await tokenIfood(admin, c)
+  const res = await chamar(`/order/v1.0/orders/${encodeURIComponent(orderId)}/cancellationReasons`, { token })
+  if (res.status === 204) return []
+  if (!res.ok) throw new ErroIfood(res.status, `cancellationReasons: HTTP ${res.status}`)
+  const j = (await res.json().catch(() => null)) as { reasons?: { code?: unknown; description?: unknown }[] } | null
+  return (Array.isArray(j?.reasons) ? j.reasons : []).filter((m) => m.code).map((m) => ({ codigo: String(m.code), descricao: String(m.description ?? m.code) }))
+}
+
 /** Manda uma etapa ao iFood ("entregue" não existe: o app conclui sozinho). 400 "already" / 409 = já estava. */
-export async function enviarStatusIfood(admin: SupabaseClient, c: ConfigCanal, orderId: string, etapa: StatusParaApp, extra: { motivoCancelamento?: string } = {}): Promise<'ok' | 'ja_estava' | 'nao_se_aplica'> {
+export async function enviarStatusIfood(admin: SupabaseClient, c: ConfigCanal, orderId: string, etapa: StatusParaApp, extra: { codigoCancelamento?: string; entregaPelaLoja?: boolean } = {}): Promise<'ok' | 'ja_estava' | 'nao_se_aplica'> {
   const caminho = CAMINHO[etapa]
   if (!caminho) return 'nao_se_aplica'
+  // /dispatch é só de entrega própria; com o entregador do iFood quem avança é o próprio iFood.
+  if (etapa === 'despachado' && !extra.entregaPelaLoja) return 'nao_se_aplica'
   const token = await tokenIfood(admin, c)
-  const corpo = etapa === 'cancelado' ? JSON.stringify({ reason: (extra.motivoCancelamento ?? 'Problemas internos do restaurante').slice(0, 200), cancellationCode: '501' }) : undefined
+  const corpo = etapa === 'cancelado' ? JSON.stringify({ reason: extra.codigoCancelamento || '501' })
+    : etapa === 'despachado' ? JSON.stringify({ deliveredBy: 'MERCHANT' }) : undefined
   const res = await chamar(`/order/v1.0/orders/${encodeURIComponent(orderId)}/${caminho}`, { method: 'POST', token, body: corpo })
   if (res.ok || res.status === 202) return 'ok'
   const texto = await res.text().catch(() => '')
@@ -114,4 +127,4 @@ export async function enviarStatusIfood(admin: SupabaseClient, c: ConfigCanal, o
 }
 
 /** Códigos de evento do iFood que importam para o Kanban. */
-export const EVENTO_IFOOD = { PLACED: 'PLC', CONFIRMED: 'CFM', CANCELLED: 'CAN', CANCELLATION_REQUESTED: 'CAR', DISPATCHED: 'DSP', CONCLUDED: 'CON' } as const
+export const EVENTO_IFOOD = { PLACED: 'PLC', CONFIRMED: 'CFM', CANCELLED: 'CAN', CANCELLATION_REQUESTED: 'CAR', DISPATCHED: 'DSP', CONCLUDED: 'CON', PATCHED: 'OPA' } as const

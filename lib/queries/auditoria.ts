@@ -161,6 +161,7 @@ export const ROTULO_EVENTO: Record<string, string> = {
   'pedido.diferenca_pix': 'Gerou novo Pix da diferença e mandou ao cliente',
   // Canais externos (0207, 19/10): Keeta/99Food (Open Delivery) e iFood.
   'canal.pedido_importado': 'Pedido de app externo entrou no Painel',
+  'canal.pedido_alterado': 'Pedido de app externo alterado no app',
   'canal.config': 'Alterou a configuração do canal de pedidos (app externo)',
   'canal.autorizado': 'Autorizou a loja no iFood',
   // Entregadores iFood Sob Demanda e Foody (0208, 19/10).

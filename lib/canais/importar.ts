@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { avisarPainelPedidoNovo } from '@/lib/push/painel-pedidos'
 import { registrarAuditoria } from '@/lib/auditoria'
-import type { Canal, PedidoExterno } from './tipos'
+import type { Canal, ItemExterno, PedidoExterno } from './tipos'
 
 /**
  * Grava o pedido do app como pedido Menuzia (0207). Idempotente por (canal, externo_id): o app pode reentregar o mesmo
@@ -81,6 +81,57 @@ export async function importarPedidoExterno(admin: SupabaseClient, restauranteId
   avisarPainelPedidoNovo(admin, restauranteId, { id: ped.id as string, numero: ped.numero as number, canal: p.tipo }).catch(() => null)
   const semVinculo = codigos.filter((c) => !vinculo.get(c))
   return { pedidoId: ped.id as string, numero: ped.numero as number, novo: true, semVinculo }
+}
+
+/** O que mudou nos itens de um pedido alterado no app. Casa por nome, um a um (o app não guarda o nosso id de item). Puro. */
+export function diferencaDeItens(atuais: { id: string; nome: string; quantidade: number }[], novosDoApp: ItemExterno[]) {
+  const restantes = [...novosDoApp]
+  const cancelar: string[] = []
+  const mudar: { id: string; quantidade: number }[] = []
+  for (const a of atuais) {
+    const i = restantes.findIndex((n) => n.nome.slice(0, 160) === a.nome)
+    if (i < 0) { cancelar.push(a.id); continue }
+    const [n] = restantes.splice(i, 1)
+    if (n.quantidade !== a.quantidade) mudar.push({ id: a.id, quantidade: n.quantidade })
+  }
+  return { cancelar, mudar, novos: restantes }
+}
+
+/**
+ * Pedido alterado no app depois de importado (iFood ORDER_PATCHED, 99Food orderPartialCancel): itens e valores passam a
+ * ser os do app. Item que saiu é cancelado (cancelado_em), não apagado: mantém o histórico e o custo. Não mexe em status.
+ */
+export async function atualizarPedidoPeloApp(admin: SupabaseClient, restauranteId: string, p: PedidoExterno): Promise<boolean> {
+  const { data: ext } = await admin.from('pedidos_externos').select('pedido_id').eq('canal', p.canal).eq('externo_id', p.externoId).eq('restaurante_id', restauranteId).maybeSingle()
+  const pedidoId = ext?.pedido_id as string | undefined
+  if (!pedidoId) return false
+  const { data: atuais, error: eItens } = await admin.from('pedido_itens').select('id, nome, quantidade').eq('pedido_id', pedidoId).is('cancelado_em', null)
+  if (eItens) throw eItens
+  const dif = diferencaDeItens((atuais ?? []) as { id: string; nome: string; quantidade: number }[], p.itens)
+  if (dif.cancelar.length) {
+    const { error } = await admin.from('pedido_itens').update({ cancelado_em: new Date().toISOString(), cancelado_motivo: 'Alterado no app', cancelado_por_nome: 'Sistema' }).in('id', dif.cancelar)
+    if (error) throw error
+  }
+  for (const m of dif.mudar) {
+    const { error } = await admin.from('pedido_itens').update({ quantidade: m.quantidade }).eq('id', m.id)
+    if (error) throw error
+  }
+  if (dif.novos.length) {
+    const { error } = await admin.from('pedido_itens').insert(dif.novos.map((i) => ({
+      pedido_id: pedidoId, item_id: null, nome: i.nome.slice(0, 160), preco_unitario: i.precoUnitario, quantidade: i.quantidade, observacao: i.observacao.slice(0, 300), complementos: i.complementos,
+    })))
+    if (error) throw error
+  }
+  const { data: ped } = await admin.from('pedidos').select('observacao').eq('id', pedidoId).maybeSingle()
+  const aviso = 'Pedido alterado no app'
+  const obs = String(ped?.observacao ?? '')
+  const { error } = await admin.from('pedidos').update({
+    subtotal: p.subtotal, taxa_entrega: p.taxaEntrega, desconto: p.desconto, total: p.total,
+    observacao: (obs.includes(aviso) ? obs : [obs, aviso].filter(Boolean).join(' · ')).slice(0, 500),
+  }).eq('id', pedidoId).eq('restaurante_id', restauranteId)
+  if (error) throw error
+  await registrarAuditoria(admin, { restauranteId, usuarioNome: 'Sistema', acao: 'canal.pedido_alterado', entidade: 'pedido', entidadeId: pedidoId, dados: { canal: p.canal, externoId: p.externoId, total: p.total, cancelados: dif.cancelar.length, mudados: dif.mudar.length, novos: dif.novos.length } }).catch(() => null)
+  return true
 }
 
 /** Pedido externo ligado a um pedido Menuzia (para a sincronização de status e para o cancelamento vindo do app). */

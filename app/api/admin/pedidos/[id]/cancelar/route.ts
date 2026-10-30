@@ -39,7 +39,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // de mesa por aqui em qualquer estado.
   const { data: ped } = await admin
     .from('pedidos')
-    .select('id, numero, canal, comanda_id, status, impresso')
+    .select('id, numero, canal, comanda_id, status, impresso, origem_detalhe')
     .eq('id', id)
     .eq('restaurante_id', restauranteId)
     .maybeSingle()
@@ -79,6 +79,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const { data: auth } = await session.auth.getUser()
+  // Código escolhido entre os motivos do iFood: o cron o envia junto do cancelamento (sincronizar.ts).
+  const motivoApp = typeof body?.motivoApp === 'string' && /^\d{1,6}$/.test(body.motivoApp) ? body.motivoApp : null
 
   // A guarda de status vive aqui, não na UI: o botão some para pedido entregue, mas
   // dois operadores em telas diferentes podem colidir. `reimprimir = false` impede que
@@ -94,6 +96,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       cancelado_por: `Loja: ${sessao.nome || auth?.user?.email || ''}`.trim().slice(0, 120),
       cancelado_em: new Date().toISOString(),
       reimprimir: false,
+      ...(motivoApp ? { origem_detalhe: { ...((ped.origem_detalhe as Record<string, unknown> | null) ?? {}), motivoApp } } : {}),
     })
     .eq('id', id)
     .eq('restaurante_id', restauranteId)

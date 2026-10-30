@@ -16,7 +16,7 @@ const STATUS_LABEL: Record<string, string> = {
 }
 
 interface Props {
-  pedido: { id: string; numero: number; clienteNome: string; total: number; status: string }
+  pedido: { id: string; numero: number; clienteNome: string; total: number; status: string; origemCanal?: string | null }
   onFechar: () => void
   /** Chamado após o cancelamento dar certo no servidor. */
   onCancelado: (pedidoId: string) => void
@@ -29,6 +29,20 @@ export function CancelarPedidoModal({ pedido, onFechar, onCancelado }: Props) {
   const [observacao, setObservacao] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState('')
+  const [motivosApp, setMotivosApp] = useState<{ codigo: string; descricao: string }[]>([])
+  const [motivoApp, setMotivoApp] = useState('')
+
+  // Pedido do iFood: o motivo que vale lá vem da lista dele para este pedido.
+  const doIfood = pedido.origemCanal === 'ifood'
+  useEffect(() => {
+    if (!doIfood) return
+    const controle = new AbortController()
+    fetch(`/api/admin/pedidos/${pedido.id}/motivos-app`, { signal: controle.signal })
+      .then((r) => (r.ok ? r.json() : { motivos: [] }))
+      .then((j) => setMotivosApp(Array.isArray(j.motivos) ? j.motivos : []))
+      .catch(() => {})
+    return () => controle.abort()
+  }, [doIfood, pedido.id])
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -39,14 +53,15 @@ export function CancelarPedidoModal({ pedido, onFechar, onCancelado }: Props) {
   }, [enviando, onFechar])
 
   const faltaDescrever = motivo === 'outro' && !observacao.trim()
-  const podeConfirmar = motivo !== null && !faltaDescrever && !enviando
+  const faltaMotivoApp = motivosApp.length > 0 && !motivoApp
+  const podeConfirmar = motivo !== null && !faltaDescrever && !faltaMotivoApp && !enviando
 
   async function confirmar() {
-    if (!motivo || faltaDescrever) return
+    if (!motivo || faltaDescrever || faltaMotivoApp) return
     setEnviando(true)
     setErro('')
     try {
-      await cancelarPedidoRequest(pedido.id, motivo, observacao.trim())
+      await cancelarPedidoRequest(pedido.id, motivo, observacao.trim(), motivoApp || undefined)
       onCancelado(pedido.id)
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Não foi possível cancelar o pedido.')
@@ -92,6 +107,23 @@ export function CancelarPedidoModal({ pedido, onFechar, onCancelado }: Props) {
               </button>
             ))}
           </div>
+
+          {motivosApp.length > 0 && (
+            <>
+              <label htmlFor="motivo-ifood" className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
+                Motivo para o iFood
+              </label>
+              <select
+                id="motivo-ifood"
+                value={motivoApp}
+                onChange={(e) => setMotivoApp(e.target.value)}
+                className="mb-4 w-full rounded-menuzia border border-border bg-white px-3 py-2 text-sm outline-none focus:border-primary"
+              >
+                <option value="">Escolha o motivo</option>
+                {motivosApp.map((m) => <option key={m.codigo} value={m.codigo}>{m.descricao}</option>)}
+              </select>
+            </>
+          )}
 
           <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-text-subtle">
             Observação {motivo === 'outro' ? '(obrigatória)' : '(opcional)'}

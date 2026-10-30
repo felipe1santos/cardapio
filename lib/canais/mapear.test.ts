@@ -35,6 +35,23 @@ const IFOOD = {
   schedule: null, extraInfo: '',
 }
 
+describe('iFood: dados exigidos na homologação', () => {
+  const base = { ...IFOOD, delivery: { ...IFOOD.delivery, observations: 'Deixar na portaria', pickupCode: '9034' } }
+  it('observação de entrega e código de coleta vão na observação do pedido', () => {
+    const p = mapearPedidoIfood(base)
+    expect(p.observacao).toContain('Entrega: Deixar na portaria')
+    expect(p.observacao).toContain('Código de coleta: 9034')
+  })
+  it('observação da retirada também aparece', () => {
+    expect(mapearPedidoIfood({ ...IFOOD, orderType: 'TAKEOUT', takeout: { observations: 'Vaga 3' } }).observacao).toContain('Retirada: Vaga 3')
+  })
+  it('separa quem paga o cupom', () => {
+    const p = mapearPedidoIfood({ ...IFOOD, benefits: [{ value: 14.99, sponsorshipValues: [{ name: 'IFOOD', value: 4.99 }, { name: 'MERCHANT', value: 10 }] }] })
+    expect(p.observacao).toContain('cupom pago pela loja R$ 10,00')
+    expect(p.observacao).toContain('cupom pago pelo iFood R$ 4,99')
+  })
+})
+
 describe('canais externos: Open Delivery → PedidoExterno', () => {
   it('mapeia itens, opções, taxa, desconto, total, cliente, endereço e pagamento pré-pago', () => {
     const p = mapearPedidoOpenDelivery('keeta', OD)

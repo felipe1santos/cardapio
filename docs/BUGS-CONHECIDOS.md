@@ -182,6 +182,23 @@ checagem B-n** no script.
   O vigia (`lib/saude/vigia.ts`) avisa no WhatsApp do dono se as requisições passarem de 2× a média.
 - **Teste:** `lib/mensageria/conexao-repetida.test.ts`, `lib/mensageria/entrada-conexao.test.ts`.
 
+## Pedido de app perdido quando a importação falhava · 30/10/2026 · teste
+
+- **Onde:** `pollingDaLoja` em `lib/canais/sincronizar.ts` (iFood e Keeta).
+- **Causa:** o erro de um evento era só anotado e o lote inteiro era confirmado ao app. Evento confirmado não volta no
+  polling: o pedido nunca entrava no Painel.
+- **Como evitar:** confirmar só o que foi tratado. Evento com erro espera 1, 2, 4… min e no 8º erro é confirmado e
+  registrado ("desistiu"), para não repetir sem limite. A contagem é em memória: reiniciar o app só a recomeça.
+- **Teste:** `lib/canais/sincronizar.test.ts`.
+
+## Cancelamento do iFood com corpo fora do padrão · 30/10/2026 · teste
+
+- **Onde:** `enviarStatusIfood` em `lib/canais/ifood/cliente.ts`.
+- **Causa:** mandava texto em `reason` e código fixo `501` em `cancellationCode`; a documentação pede só `reason` com um
+  código de `GET /cancellationReasons`. O teste de 22/10 não passou por cancelamento.
+- **Como evitar:** a tela de cancelar lista os motivos do próprio pedido; integração nova testa também o caminho de cancelar.
+- **Teste:** `lib/canais/ifood/cliente.test.ts`.
+
 ## Build quebrou: biblioteca só de servidor no código do navegador · 28/10/2026 · teste (B6)
 
 - **Onde:** `lib/custo/alerta-whatsapp.ts` (importado pela guarda de custo, que entra na tela de Ajustes pelo frete).
