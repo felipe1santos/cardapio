@@ -25,6 +25,11 @@ const ha = (iso: string | null | undefined) => {
   return min <= 0 ? 'lido agora' : min < 120 ? `lido há ${min} min` : `lido há ${Math.round(min / 60)} h`
 }
 const pctF = (v: number) => `${Math.round(v)}%`
+/** Card vermelho só pela tela (30/10, pedido do dono), à parte dos alertas do vigia: VPS a partir de 60%, o resto a partir de 70%. */
+const VERMELHO_VPS = 60
+const VERMELHO_GERAL = 70
+const passou = (v: number | null | undefined, limite: number) => v != null && v >= limite
+const CURVA_VERMELHA = '#E73A47'
 const gbF = (v: number) => `${v.toFixed(v < 1 ? 2 : 1)} GB`
 
 function Grupo({ icone, titulo, sub, info, children }: { icone: React.ReactNode; titulo: string; sub: string; info: React.ReactNode; children: React.ReactNode }) {
@@ -82,6 +87,14 @@ export function Monitoramento({ fotos }: { fotos: FotoSaude[] }) {
   const egressPct = m?.egressMesGb == null ? null : (m.egressMesGb / PLANO_PRO.egressGb) * 100
   const memBanco = prom?.memTotal ? (prom.memDisp / prom.memTotal) * 100 : null
   const discoBanco = prom?.discoTotal ? prom.discoTotal - prom.discoLivre : null
+  const discoBancoPct = discoBanco != null && prom?.discoTotal ? (discoBanco / prom.discoTotal) * 100 : null
+  const dbPct = (prom?.dbBytes ?? m?.dbBytes) != null ? (Number(prom?.dbBytes ?? m?.dbBytes) / (PLANO_PRO.discoGb * 1e9)) * 100 : null
+  const storagePct = m?.storageBytes != null ? (m.storageBytes / (PLANO_PRO.storageGb * 1e9)) * 100 : null
+  const a = {
+    cpuBanco: passou(prom?.cpuPct, VERMELHO_GERAL), memBanco: memBanco != null && 100 - memBanco >= VERMELHO_GERAL, egress: passou(egressPct, VERMELHO_GERAL),
+    db: passou(dbPct, VERMELHO_GERAL), storage: passou(storagePct, VERMELHO_GERAL), discoBanco: passou(discoBancoPct, VERMELHO_GERAL),
+    cpu: passou(m?.cpuPct, VERMELHO_VPS), mem: passou(memUsada, VERMELHO_VPS), disco: passou(m?.discoUsadoPct, VERMELHO_VPS),
+  }
   return (
     <PainelHp testid="sa-monitoramento">
       <CabecalhoHp
@@ -99,52 +112,52 @@ export function Monitoramento({ fotos }: { fotos: FotoSaude[] }) {
       )}
       <div className="border-t-[0.8px] border-[rgba(0,0,0,0.1)]" />
 
-      <Grupo icone={<Database className="h-[16px] w-[16px]" />} titulo="Supabase" sub={`banco de dados, cobrado por uso · ${ha(prom?.em ?? m?.em)}`}
+      <Grupo icone={<Database className="h-[16px] w-[16px]" />} titulo="Supabase" sub={`banco de dados, cobrado por uso · número grande = última leitura · gráfico = últimas 3 h · ${ha(prom?.em ?? m?.em)}`}
         info="O Supabase guarda todos os dados (pedidos, cardápios, lojas, fotos). Ele cobra por cota no ciclo mensal: se o egress ou o disco passar do limite do plano, o banco pode ser bloqueado e os pedidos param.">
         <MetricaHp rotulo="Requisições" testid="sa-req" valor={n0(m?.reqPorMin)} unidade="/min"
           nota={m?.reqMediaPorMin != null ? `${m.reqReferenciaMesmoHorario ? 'normal do horário' : 'média geral'} ${n0(m.reqMediaPorMin)}/min` : undefined}
           info="Quantas vezes por minuto o sistema consulta o banco. Cada consulta gasta tráfego (egress). O dobro do normal deste horário por muito tempo pode indicar algo em repetição."
           grafico={<SparklineHp rotulos={horas} rotulo="Requisições por minuto" valores={serie.map((f) => Number(f.dados.reqPorMin))} />} />
-        <MetricaHp rotulo="CPU do banco" testid="sa-cpu-banco" valor={prom?.cpuPct == null ? '—' : `${Math.round(prom.cpuPct)}%`}
+        <MetricaHp rotulo="CPU do banco" testid="sa-cpu-banco" alerta={a.cpuBanco} valor={prom?.cpuPct == null ? '—' : `${Math.round(prom.cpuPct)}%`}
           info="Quanto do processador do servidor do banco está em uso (número oficial do Supabase). Acima de ~70% por muito tempo, é hora de subir o tamanho do banco."
-          grafico={<SparklineHp rotulos={horas} rotulo="CPU do banco" formato={pctF} valores={serie.map((f) => Number(f.dados.oficial?.prom?.cpuPct))} />} />
-        <MetricaHp rotulo="Memória livre (banco)" testid="sa-mem-banco" valor={memBanco == null ? '—' : pctF(memBanco)}
+          grafico={<SparklineHp rotulos={horas} rotulo="CPU do banco" cor={a.cpuBanco ? CURVA_VERMELHA : undefined} formato={pctF} valores={serie.map((f) => Number(f.dados.oficial?.prom?.cpuPct))} />} />
+        <MetricaHp rotulo="Memória livre (banco)" testid="sa-mem-banco" alerta={a.memBanco} valor={memBanco == null ? '—' : pctF(memBanco)}
           info="Memória que ainda sobra no servidor do banco. Pouca memória livre = consultas mais lentas."
-          grafico={<SparklineHp rotulos={horas} rotulo="Memória livre do banco" formato={pctF} valores={serie.map((f) => { const p = f.dados.oficial?.prom; return p?.memTotal ? (p.memDisp / p.memTotal) * 100 : NaN })} />} />
+          grafico={<SparklineHp rotulos={horas} rotulo="Memória livre do banco" cor={a.memBanco ? CURVA_VERMELHA : undefined} formato={pctF} valores={serie.map((f) => { const p = f.dados.oficial?.prom; return p?.memTotal ? (p.memDisp / p.memTotal) * 100 : NaN })} />} />
         <MetricaHp rotulo="Disk IO" testid="sa-io" valor={prom?.iops == null ? '—' : n0(prom.iops)} unidade="op/s" nota={prom?.ioMBs == null ? undefined : `${prom.ioMBs} MB/s`}
           info="Leituras e gravações por segundo no disco do banco. O plano tem um teto; passar dele deixa as consultas em fila."
           grafico={<SparklineHp rotulos={horas} rotulo="Disk IO" valores={serie.map((f) => Number(f.dados.oficial?.prom?.iops))} />} />
-        <MetricaHp rotulo="Egress no mês" testid="sa-egress" valor={m?.egressMesGb == null ? '—' : `${Math.round(m.egressMesGb)} GB`} unidade={`/ ${PLANO_PRO.egressGb}`} nota="estimado"
+        <MetricaHp rotulo="Egress no mês" testid="sa-egress" alerta={a.egress} valor={m?.egressMesGb == null ? '—' : `${Math.round(m.egressMesGb)} GB`} unidade={`/ ${PLANO_PRO.egressGb}`} nota="estimado"
           info={`Egress é tudo que SAI do Supabase para o app e para os clientes (dados e fotos). É a cota que bloqueou o banco em 27/10. O Supabase não tem API desse número, então é uma projeção: requisições × ${BYTES_EGRESS_POR_REQ} B. O anel mostra quanto da cota isso representa.`}
-          anel={egressPct != null ? <AnelHp pct={egressPct} rotulo="Egress do mês" /> : undefined} />
-        <MetricaHp rotulo="Banco de dados" testid="sa-db" valor={gb(prom?.dbBytes ?? m?.dbBytes)} nota={`limite ${PLANO_PRO.discoGb} GB`}
+          anel={egressPct != null ? <AnelHp pct={egressPct} rotulo="Egress do mês" alerta={a.egress} /> : undefined} />
+        <MetricaHp rotulo="Banco de dados" testid="sa-db" alerta={a.db} valor={gb(prom?.dbBytes ?? m?.dbBytes)} nota={`limite ${PLANO_PRO.discoGb} GB`}
           info="Tamanho das tabelas (pedidos, clientes, cardápios). Cresce devagar; as tabelas de registro são limpas sozinhas (retenção)."
-          grafico={<SparklineHp rotulos={horas} rotulo="Banco de dados" formato={(v) => gbF(v)} valores={serie.map((f) => Number(f.dados.oficial?.prom?.dbBytes ?? f.dados.dbBytes) / 1e9)} />} />
-        <MetricaHp rotulo="Storage (fotos)" testid="sa-storage" valor={gb(m?.storageBytes)} nota={`limite ${PLANO_PRO.storageGb} GB`}
+          grafico={<SparklineHp rotulos={horas} rotulo="Banco de dados" cor={a.db ? CURVA_VERMELHA : undefined} formato={(v) => gbF(v)} valores={serie.map((f) => Number(f.dados.oficial?.prom?.dbBytes ?? f.dados.dbBytes) / 1e9)} />} />
+        <MetricaHp rotulo="Storage (fotos)" testid="sa-storage" alerta={a.storage} valor={gb(m?.storageBytes)} nota={`limite ${PLANO_PRO.storageGb} GB`}
           info="Arquivos guardados: fotos dos itens, logos, capas e vídeos das lojas."
-          grafico={<SparklineHp rotulos={horas} rotulo="Storage" formato={(v) => gbF(v)} valores={serie.map((f) => Number(f.dados.storageBytes) / 1e9)} />} />
-        <MetricaHp rotulo="Disco do banco" testid="sa-disco-banco" valor={discoBanco == null ? '—' : gb(discoBanco, 1)} nota={prom?.discoTotal ? `de ${gb(prom.discoTotal, 1)}` : undefined}
+          grafico={<SparklineHp rotulos={horas} rotulo="Storage" cor={a.storage ? CURVA_VERMELHA : undefined} formato={(v) => gbF(v)} valores={serie.map((f) => Number(f.dados.storageBytes) / 1e9)} />} />
+        <MetricaHp rotulo="Disco do banco" testid="sa-disco-banco" alerta={a.discoBanco} valor={discoBanco == null ? '—' : gb(discoBanco, 1)} nota={prom?.discoTotal ? `de ${gb(prom.discoTotal, 1)}` : undefined}
           info="Espaço em disco do servidor do banco (dados + índices + registros internos). O Supabase aumenta sozinho quando enche."
-          anel={discoBanco != null && prom?.discoTotal ? <AnelHp pct={(discoBanco / prom.discoTotal) * 100} rotulo="Disco do banco" /> : undefined} />
+          anel={discoBanco != null && prom?.discoTotal ? <AnelHp pct={(discoBanco / prom.discoTotal) * 100} rotulo="Disco do banco" alerta={a.discoBanco} /> : undefined} />
       </Grupo>
       {o?.supabase?.req24h && <RequisicoesServico r={o.supabase.req24h} />}
 
       <div className="border-t-[0.8px] border-[rgba(0,0,0,0.1)]" />
 
-      <Grupo icone={<Server className="h-[16px] w-[16px]" />} titulo="VPS" sub={`servidor do app, na Hostinger · ${ha(hostinger?.amostraEm ?? hostinger?.em ?? m?.em)}`}
+      <Grupo icone={<Server className="h-[16px] w-[16px]" />} titulo="VPS" sub={`servidor do app, na Hostinger · número grande = última leitura · gráfico = últimas 3 h · ${ha(hostinger?.amostraEm ?? hostinger?.em ?? m?.em)}`}
         info="A VPS é o computador alugado na Hostinger que roda o Menuzia (vitrine, painel, rotinas). Se CPU, memória ou disco enchem, o site fica lento ou cai — os dados continuam salvos no Supabase.">
-        <MetricaHp rotulo="Uso da CPU" testid="sa-cpu" valor={m?.cpuPct == null ? '—' : `${Math.round(m.cpuPct)}%`}
+        <MetricaHp rotulo="Uso da CPU" testid="sa-cpu" alerta={a.cpu} valor={m?.cpuPct == null ? '—' : `${Math.round(m.cpuPct)}%`}
           info="Processador da VPS em uso. Durante um deploy sobe muito por alguns minutos (normal). Só alerta se ficar acima de 90% por 15 minutos."
-          grafico={<SparklineHp rotulos={horas} rotulo="CPU da VPS" formato={pctF} valores={serie.map((f) => Number(f.dados.cpuPct))} />} />
-        <MetricaHp rotulo="Uso de memória" testid="sa-mem" valor={memUsada == null ? '—' : `${Math.round(memUsada)}%`} nota={hostinger?.ramBytes != null ? `${gb(hostinger.ramBytes, 1)}${hostinger.ramTotal ? ` de ${gb(hostinger.ramTotal, 1)}` : ''}` : undefined}
+          grafico={<SparklineHp rotulos={horas} rotulo="CPU da VPS" cor={a.cpu ? CURVA_VERMELHA : undefined} formato={pctF} valores={serie.map((f) => Number(f.dados.cpuPct))} />} />
+        <MetricaHp rotulo="Uso de memória" testid="sa-mem" alerta={a.mem} valor={memUsada == null ? '—' : `${Math.round(memUsada)}%`} nota={hostinger?.ramBytes != null ? `${gb(hostinger.ramBytes, 1)}${hostinger.ramTotal ? ` de ${gb(hostinger.ramTotal, 1)}` : ''}` : undefined}
           info="Memória RAM da VPS em uso (o mesmo número do painel da Hostinger). Acima de 80% o servidor pode ficar lento; se acabar, o sistema trava."
-          grafico={<SparklineHp rotulos={horas} rotulo="Memória da VPS" formato={pctF} valores={serie.map((f) => f.dados.memLivrePct == null ? NaN : 100 - f.dados.memLivrePct)} />} />
+          grafico={<SparklineHp rotulos={horas} rotulo="Memória da VPS" cor={a.mem ? CURVA_VERMELHA : undefined} formato={pctF} valores={serie.map((f) => f.dados.memLivrePct == null ? NaN : 100 - f.dados.memLivrePct)} />} />
         <MetricaHp rotulo="Rede (saída)" testid="sa-rede" valor={hostinger ? gb(hostinger.saidaBytes) : '—'} nota={hostinger ? `entrada ${gb(hostinger.entradaBytes)}` : 'sem leitura da Hostinger'}
           info="Tráfego da VPS com a internet. Não é cobrado à parte, mas um salto pode indicar robô ou loop."
           grafico={<SparklineHp rotulos={horas} rotulo="Rede de saída" formato={(v) => gbF(v)} valores={serie.map((f) => { const b = f.dados.oficial?.hostinger?.saidaBytes; return b == null ? NaN : b / 1e9 })} />} />
-        <MetricaHp rotulo="Uso do disco" testid="sa-disco" valor={m?.discoUsadoPct == null ? '—' : `${Math.round(m.discoUsadoPct)}%`} nota={hostinger?.discoBytes != null ? `${gb(hostinger.discoBytes, 1)}${hostinger.discoTotal ? ` de ${gb(hostinger.discoTotal, 0)}` : ''}` : undefined}
+        <MetricaHp rotulo="Uso do disco" testid="sa-disco" alerta={a.disco} valor={m?.discoUsadoPct == null ? '—' : `${Math.round(m.discoUsadoPct)}%`} nota={hostinger?.discoBytes != null ? `${gb(hostinger.discoBytes, 1)}${hostinger.discoTotal ? ` de ${gb(hostinger.discoTotal, 0)}` : ''}` : undefined}
           info="Espaço usado no disco da VPS. Cada deploy deixa uma imagem; a limpeza automática roda a cada 6 h e guarda as 3 últimas."
-          anel={m?.discoUsadoPct != null ? <AnelHp pct={m.discoUsadoPct} rotulo="Disco da VPS" /> : undefined} />
+          anel={m?.discoUsadoPct != null ? <AnelHp pct={m.discoUsadoPct} rotulo="Disco da VPS" alerta={a.disco} /> : undefined} />
       </Grupo>
 
       {o?.erros && (
