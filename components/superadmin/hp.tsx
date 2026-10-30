@@ -72,9 +72,9 @@ export function CabecalhoHp({ titulo, sub, icone, selo, acoes, info }: { titulo:
   )
 }
 
-/** Cartão de métrica (o "Uso da CPU"): branco, cantos 16 px, borda rgba(0,0,0,.05). `alerta`: fundo vermelho claro. */
-export function CartaoHp({ children, className = '', href, testid, alerta = false }: { children: React.ReactNode; className?: string; href?: string; testid?: string; alerta?: boolean }) {
-  const cls = `block rounded-[16px] border-[0.8px] px-[12px] py-[10px] transition-colors sm:px-[16px] sm:py-[12px] ${alerta ? 'border-[rgba(179,18,45,0.45)] bg-[#FFE8EF]' : 'border-[rgba(0,0,0,0.08)] bg-white'} ${href ? 'hover:border-[rgba(103,61,230,0.35)]' : ''} ${className}`
+/** Cartão de métrica (o "Uso da CPU"): branco, cantos 16 px, borda rgba(0,0,0,.05). */
+export function CartaoHp({ children, className = '', href, testid }: { children: React.ReactNode; className?: string; href?: string; testid?: string }) {
+  const cls = `block rounded-[16px] border-[0.8px] border-[rgba(0,0,0,0.08)] bg-white px-[12px] py-[10px] sm:px-[16px] sm:py-[12px] ${href ? 'hover:border-[rgba(103,61,230,0.35)]' : ''} ${className}`
   return href ? <Link href={href} className={cls} data-testid={testid}>{children}</Link> : <div className={cls} data-testid={testid}>{children}</div>
 }
 
@@ -84,7 +84,7 @@ export function CartaoHp({ children, className = '', href, testid, alerta = fals
  */
 export function MetricaHp({ rotulo, valor, unidade, grafico, anel, testid, nota, info, alerta = false }: { rotulo: string; valor: React.ReactNode; unidade?: string; grafico?: React.ReactNode; anel?: React.ReactNode; testid?: string; nota?: React.ReactNode; info?: React.ReactNode; alerta?: boolean }) {
   return (
-    <CartaoHp testid={testid} alerta={alerta} className="flex min-w-0 flex-col gap-[6px]">
+    <CartaoHp testid={testid} className="flex min-w-0 flex-col gap-[6px]">
       <p className="flex items-center gap-[4px] text-[12px] leading-[16px] text-[#18181A] sm:text-[14px] sm:leading-[20px]">
         <span className="min-w-0">{rotulo}</span>
         {info && <InfoHp titulo={rotulo}>{info}</InfoHp>}
@@ -94,7 +94,7 @@ export function MetricaHp({ rotulo, valor, unidade, grafico, anel, testid, nota,
           <p data-alerta={alerta || undefined} className="whitespace-nowrap text-[18px] font-bold leading-[24px] tabular-nums text-[#18181A] data-[alerta]:text-[#B3122D] sm:text-[20px] sm:leading-[28px]">
             {valor}{unidade && <span className="ml-[3px] text-[12px] font-light text-[#1D1E20] sm:text-[14px]">{unidade}</span>}
           </p>
-          {nota && <p className={`text-[11px] leading-[14px] sm:text-[12px] sm:leading-[16px] ${alerta ? 'text-[#8F0E24]' : 'text-[#58585E]'}`}>{nota}</p>}
+          {nota && <p className={`text-[11px] leading-[14px] sm:text-[12px] sm:leading-[16px] ${alerta ? 'text-[#B3122D]' : 'text-[#58585E]'}`}>{nota}</p>}
         </div>
         {anel}
       </div>
@@ -132,7 +132,8 @@ export function SparklineHp({ valores, rotulos, cor = '#673DE6', altura = 48, ro
   const linha = pontos.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ')
   const id = `sp-${rotulo.replace(/\W/g, '')}`
   return (
-    <div className="relative">
+    <div>
+      <div className="relative">
       <svg viewBox={`0 0 ${L} ${altura}`} preserveAspectRatio="none" className="block h-[40px] w-full sm:h-[48px]" role="img" aria-label={`${rotulo}: de ${formato(min)} a ${formato(max)}`}>
         <defs><linearGradient id={id} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={cor} stopOpacity="0.18" /><stop offset="100%" stopColor={cor} stopOpacity="0" /></linearGradient></defs>
         <polygon points={`0,${altura} ${linha} ${L},${altura}`} fill={`url(#${id})`} />
@@ -141,15 +142,18 @@ export function SparklineHp({ valores, rotulos, cor = '#673DE6', altura = 48, ro
       <div className="absolute inset-0 flex" aria-hidden>
         {itens.map((p, i) => {
           const lado = i < itens.length / 3 ? 'left-0' : i >= (itens.length * 2) / 3 ? 'right-0' : 'left-1/2 -translate-x-1/2'
+          // Cada coluna tem 1/n da largura, mas o ponto fica em i/(n-1): a bolinha vai para o x real do ponto dentro da coluna.
+          const xNaColuna = (i / (itens.length - 1) - i / itens.length) * itens.length * 100
           return (
             <div key={i} className="group relative h-full min-w-0 flex-1" data-testid="spark-ponto">
-              <span className="absolute hidden h-[8px] w-[8px] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white group-hover:block" style={{ top: `${(pontos[i][1] / altura) * 100}%`, left: '50%', background: cor }} />
+              <span className="absolute hidden h-[8px] w-[8px] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white group-hover:block" style={{ top: `${(pontos[i][1] / altura) * 100}%`, left: `${xNaColuna}%`, background: cor }} data-testid="spark-bolinha" />
               <span role="tooltip" className={`pointer-events-none absolute bottom-[calc(100%+4px)] z-30 hidden w-max rounded-[8px] bg-[#18181A] px-[8px] py-[4px] text-[12px] leading-[16px] tabular-nums text-white shadow-[0_8px_20px_rgba(24,24,26,0.25)] group-hover:block ${lado}`}>
                 {p.quando ? `${p.quando} · ` : ''}{formato(p.n)}
               </span>
             </div>
           )
         })}
+      </div>
       </div>
       {itens[0].quando && (
         <p className="mt-[2px] flex justify-between text-[11px] leading-[14px] tabular-nums text-[#58585E]"><span>{itens[0].quando}</span><span>{itens[itens.length - 1].quando}</span></p>
