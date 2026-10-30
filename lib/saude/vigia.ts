@@ -236,6 +236,9 @@ export async function rodarVigia(admin: SupabaseClient, agora = new Date()): Pro
     // Retenção das tabelas que crescem sem limite (0231, aprovada pelo dono em 28/10).
     const { error: eRet } = await admin.rpc('sistema_limpar_retencao')
     if (eRet) console.error('[saude] retenção falhou:', eRet.message)
+    // Quarentena dos arquivos sem uso no Storage (0235): só anota, não apaga nada.
+    const { error: eQua } = await admin.rpc('storage_quarentena_atualizar')
+    if (eQua) console.error('[saude] quarentena do Storage falhou:', eQua.message)
   }
   return { rodou: true, alertas: alertas.map((a) => `${a.assunto}:${a.nivel}`), enviados }
 }
