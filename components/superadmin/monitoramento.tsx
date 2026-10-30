@@ -85,13 +85,15 @@ export function Monitoramento({ fotos }: { fotos: FotoSaude[] }) {
   const hostinger = o?.hostinger
   const memUsada = m?.memLivrePct == null ? null : 100 - m.memLivrePct
   const egressPct = m?.egressMesGb == null ? null : (m.egressMesGb / PLANO_PRO.egressGb) * 100
-  const memBanco = prom?.memTotal ? (prom.memDisp / prom.memTotal) * 100 : null
+  // A foto guarda a memória DISPONÍVEL (memDisp); a tela mostra a ocupada, como os outros cards de uso.
+  const memOcupada = (p?: { memTotal: number; memDisp: number } | null) => (p?.memTotal ? 100 - (p.memDisp / p.memTotal) * 100 : null)
+  const memBanco = memOcupada(prom)
   const discoBanco = prom?.discoTotal ? prom.discoTotal - prom.discoLivre : null
   const discoBancoPct = discoBanco != null && prom?.discoTotal ? (discoBanco / prom.discoTotal) * 100 : null
   const dbPct = (prom?.dbBytes ?? m?.dbBytes) != null ? (Number(prom?.dbBytes ?? m?.dbBytes) / (PLANO_PRO.discoGb * 1e9)) * 100 : null
   const storagePct = m?.storageBytes != null ? (m.storageBytes / (PLANO_PRO.storageGb * 1e9)) * 100 : null
   const a = {
-    cpuBanco: passou(prom?.cpuPct, VERMELHO_GERAL), memBanco: memBanco != null && 100 - memBanco >= VERMELHO_GERAL, egress: passou(egressPct, VERMELHO_GERAL),
+    cpuBanco: passou(prom?.cpuPct, VERMELHO_GERAL), memBanco: passou(memBanco, VERMELHO_GERAL), egress: passou(egressPct, VERMELHO_GERAL),
     db: passou(dbPct, VERMELHO_GERAL), storage: passou(storagePct, VERMELHO_GERAL), discoBanco: passou(discoBancoPct, VERMELHO_GERAL),
     cpu: passou(m?.cpuPct, VERMELHO_VPS), mem: passou(memUsada, VERMELHO_VPS), disco: passou(m?.discoUsadoPct, VERMELHO_VPS),
   }
@@ -121,9 +123,9 @@ export function Monitoramento({ fotos }: { fotos: FotoSaude[] }) {
         <MetricaHp rotulo="CPU do banco" testid="sa-cpu-banco" alerta={a.cpuBanco} valor={prom?.cpuPct == null ? '—' : `${Math.round(prom.cpuPct)}%`}
           info="Quanto do processador do servidor do banco está em uso (número oficial do Supabase). Acima de ~70% por muito tempo, é hora de subir o tamanho do banco."
           grafico={<SparklineHp rotulos={horas} rotulo="CPU do banco" cor={a.cpuBanco ? CURVA_VERMELHA : undefined} formato={pctF} valores={serie.map((f) => Number(f.dados.oficial?.prom?.cpuPct))} />} />
-        <MetricaHp rotulo="Memória livre (banco)" testid="sa-mem-banco" alerta={a.memBanco} valor={memBanco == null ? '—' : pctF(memBanco)}
-          info="Memória que ainda sobra no servidor do banco. Pouca memória livre = consultas mais lentas."
-          grafico={<SparklineHp rotulos={horas} rotulo="Memória livre do banco" cor={a.memBanco ? CURVA_VERMELHA : undefined} formato={pctF} valores={serie.map((f) => { const p = f.dados.oficial?.prom; return p?.memTotal ? (p.memDisp / p.memTotal) * 100 : NaN })} />} />
+        <MetricaHp rotulo="Memória em uso (banco)" testid="sa-mem-banco" alerta={a.memBanco} valor={memBanco == null ? '—' : pctF(memBanco)}
+          info="Memória ocupada no servidor do banco. Quanto menor, melhor: acima de 70% o card fica vermelho, e pouca memória sobrando deixa as consultas mais lentas."
+          grafico={<SparklineHp rotulos={horas} rotulo="Memória em uso do banco" cor={a.memBanco ? CURVA_VERMELHA : undefined} formato={pctF} valores={serie.map((f) => memOcupada(f.dados.oficial?.prom) ?? NaN)} />} />
         <MetricaHp rotulo="Disk IO" testid="sa-io" valor={prom?.iops == null ? '—' : n0(prom.iops)} unidade="op/s" nota={prom?.ioMBs == null ? undefined : `${prom.ioMBs} MB/s`}
           info="Leituras e gravações por segundo no disco do banco. O plano tem um teto; passar dele deixa as consultas em fila."
           grafico={<SparklineHp rotulos={horas} rotulo="Disk IO" valores={serie.map((f) => Number(f.dados.oficial?.prom?.iops))} />} />
