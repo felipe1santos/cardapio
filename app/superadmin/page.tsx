@@ -7,7 +7,7 @@ import { lerUsoIa } from '@/lib/custo/ia'
 import { lerCotacao } from '@/lib/custo/gasto-lojas'
 import { MODULOS, nenhumLiberado, type ModulosDaLoja } from '@/lib/modulos'
 import { CabecalhoHp, PainelHp, ShellHp } from '@/components/superadmin/hp'
-import { Monitoramento, RotinasHp, Tendencia30, WhatsappLojasHp, type DiaSaude, type FotoSaude } from '@/components/superadmin/monitoramento'
+import { HorariosPico, Monitoramento, RotinasHp, Tendencia30, WhatsappLojasHp, type DiaSaude, type FotoSaude, type LeituraHora } from '@/components/superadmin/monitoramento'
 import { GastoHoje } from '@/components/superadmin/gasto-apis'
 import { AlertasFaixa, ListaAlertas, type AlertaTela } from '@/components/superadmin/alertas-faixa'
 
@@ -24,7 +24,7 @@ export default async function SuperadminPage() {
   const { data } = await supabase.auth.getUser()
   const admin = getAdminSupabase()
   // Contador de APIs pagas (10/10): falhar aqui não derruba o painel.
-  const [{ lojas, resumo }, usoApis, usoIa, cotacao, { data: mods }, { data: alertas }, { data: fotos }, { data: crons }, { data: serie }] = await Promise.all([
+  const [{ lojas, resumo }, usoApis, usoIa, cotacao, { data: mods }, { data: alertas }, { data: fotos }, { data: crons }, { data: serie }, { data: leituras }] = await Promise.all([
     listarLojasPlataforma(admin), lerUsoApis(admin).catch(() => null), lerUsoIa(admin).catch(() => null), lerCotacao(admin).catch(() => 5.5),
     admin.from('loja_modulos').select('restaurante_id, modulo, liberado'),
     admin.from('sistema_alertas').select('id, criado_em, nivel, texto, canal, enviado, erro').order('criado_em', { ascending: false }).limit(60),
@@ -32,6 +32,8 @@ export default async function SuperadminPage() {
     admin.from('sistema_saude_fotos').select('em, dados').order('em', { ascending: false }).limit(36),
     admin.from('sistema_cron_batidas').select('nome, ultima_em'),
     admin.rpc('sistema_saude_dias', { p_dias: 30 }),
+    // Horários de pico: só a hora e o número de cada foto das últimas 24 h (~18 KB), não a foto inteira.
+    admin.from('sistema_saude_fotos').select('em, req:dados->reqPorMin').gte('em', new Date(Date.now() - 24 * 3600_000).toISOString()).limit(300),
   ])
   // Módulos pagos por loja (0176): sem linha = bloqueado (mesma regra de modulo_liberado).
   const modulos: Record<string, ModulosDaLoja> = {}
@@ -50,6 +52,7 @@ export default async function SuperadminPage() {
       <Monitoramento fotos={listaFotos} />
       <GastoHoje uso={usoApis} ia={usoIa} cotacao={cotacao} />
       <Tendencia30 dias={dias} />
+      <HorariosPico leituras={(leituras ?? []) as unknown as LeituraHora[]} />
       <div className="grid gap-[12px] sm:gap-[20px] lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:items-start">
         <RotinasHp crons={(crons ?? []) as { nome: string; ultima_em: string }[]} />
         <WhatsappLojasHp caidas={listaFotos[0]?.dados.whatsappCaido ?? []} />

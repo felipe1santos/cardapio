@@ -6,7 +6,7 @@ import { GraficoDiasHp } from './grafico-hp'
  * chamadas bloqueadas pela guarda, alertas de disparo e os últimos 7 dias. Por loja: BarraUsoLoja.
  */
 const COR: Record<CorUso, string> = { verde: '#673DE6', amarela: '#FFAB00', vermelha: '#E73A47' }
-// Paleta validada (dataviz): vermelho fica reservado para o pico dos gráficos.
+// Paleta validada (dataviz).
 const COR_API: Record<ApiPainel, string> = { geocoding: '#673DE6', directions: '#008361', maps_js: '#0B86C9' }
 const num = (v: number) => v.toLocaleString('pt-BR')
 

@@ -68,6 +68,7 @@ function RequisicoesServico({ r }: { r: { rest: number; auth: number; storage: n
 export function Monitoramento({ fotos }: { fotos: FotoSaude[] }) {
   const m = fotos[0]?.dados ?? null
   const serie = [...fotos].reverse()
+  const horas = serie.map((f) => hora(f.em))
   const pontos = m ? avaliar(m) : []
   const vermelho = pontos.some((a) => a.nivel === 'vermelho')
   const selo = !m ? <SeloHp tom="cinza">Sem leitura</SeloHp>
@@ -103,25 +104,25 @@ export function Monitoramento({ fotos }: { fotos: FotoSaude[] }) {
         <MetricaHp rotulo="Requisições" testid="sa-req" valor={n0(m?.reqPorMin)} unidade="/min"
           nota={m?.reqMediaPorMin != null ? `${m.reqReferenciaMesmoHorario ? 'normal do horário' : 'média geral'} ${n0(m.reqMediaPorMin)}/min` : undefined}
           info="Quantas vezes por minuto o sistema consulta o banco. Cada consulta gasta tráfego (egress). O dobro do normal deste horário por muito tempo pode indicar algo em repetição."
-          grafico={<SparklineHp rotulo="Requisições por minuto" valores={serie.map((f) => Number(f.dados.reqPorMin))} />} />
+          grafico={<SparklineHp rotulos={horas} rotulo="Requisições por minuto" valores={serie.map((f) => Number(f.dados.reqPorMin))} />} />
         <MetricaHp rotulo="CPU do banco" testid="sa-cpu-banco" valor={prom?.cpuPct == null ? '—' : `${Math.round(prom.cpuPct)}%`}
           info="Quanto do processador do servidor do banco está em uso (número oficial do Supabase). Acima de ~70% por muito tempo, é hora de subir o tamanho do banco."
-          grafico={<SparklineHp rotulo="CPU do banco" formato={pctF} valores={serie.map((f) => Number(f.dados.oficial?.prom?.cpuPct))} />} />
+          grafico={<SparklineHp rotulos={horas} rotulo="CPU do banco" formato={pctF} valores={serie.map((f) => Number(f.dados.oficial?.prom?.cpuPct))} />} />
         <MetricaHp rotulo="Memória livre (banco)" testid="sa-mem-banco" valor={memBanco == null ? '—' : pctF(memBanco)}
           info="Memória que ainda sobra no servidor do banco. Pouca memória livre = consultas mais lentas."
-          grafico={<SparklineHp rotulo="Memória livre do banco" formato={pctF} valores={serie.map((f) => { const p = f.dados.oficial?.prom; return p?.memTotal ? (p.memDisp / p.memTotal) * 100 : NaN })} />} />
+          grafico={<SparklineHp rotulos={horas} rotulo="Memória livre do banco" formato={pctF} valores={serie.map((f) => { const p = f.dados.oficial?.prom; return p?.memTotal ? (p.memDisp / p.memTotal) * 100 : NaN })} />} />
         <MetricaHp rotulo="Disk IO" testid="sa-io" valor={prom?.iops == null ? '—' : n0(prom.iops)} unidade="op/s" nota={prom?.ioMBs == null ? undefined : `${prom.ioMBs} MB/s`}
           info="Leituras e gravações por segundo no disco do banco. O plano tem um teto; passar dele deixa as consultas em fila."
-          grafico={<SparklineHp rotulo="Disk IO" valores={serie.map((f) => Number(f.dados.oficial?.prom?.iops))} />} />
+          grafico={<SparklineHp rotulos={horas} rotulo="Disk IO" valores={serie.map((f) => Number(f.dados.oficial?.prom?.iops))} />} />
         <MetricaHp rotulo="Egress no mês" testid="sa-egress" valor={m?.egressMesGb == null ? '—' : `${Math.round(m.egressMesGb)} GB`} unidade={`/ ${PLANO_PRO.egressGb}`} nota="estimado"
           info={`Egress é tudo que SAI do Supabase para o app e para os clientes (dados e fotos). É a cota que bloqueou o banco em 27/10. O Supabase não tem API desse número, então é uma projeção: requisições × ${BYTES_EGRESS_POR_REQ} B. O anel mostra quanto da cota isso representa.`}
           anel={egressPct != null ? <AnelHp pct={egressPct} rotulo="Egress do mês" /> : undefined} />
         <MetricaHp rotulo="Banco de dados" testid="sa-db" valor={gb(prom?.dbBytes ?? m?.dbBytes)} nota={`limite ${PLANO_PRO.discoGb} GB`}
           info="Tamanho das tabelas (pedidos, clientes, cardápios). Cresce devagar; as tabelas de registro são limpas sozinhas (retenção)."
-          grafico={<SparklineHp rotulo="Banco de dados" formato={(v) => gbF(v)} valores={serie.map((f) => Number(f.dados.oficial?.prom?.dbBytes ?? f.dados.dbBytes) / 1e9)} />} />
+          grafico={<SparklineHp rotulos={horas} rotulo="Banco de dados" formato={(v) => gbF(v)} valores={serie.map((f) => Number(f.dados.oficial?.prom?.dbBytes ?? f.dados.dbBytes) / 1e9)} />} />
         <MetricaHp rotulo="Storage (fotos)" testid="sa-storage" valor={gb(m?.storageBytes)} nota={`limite ${PLANO_PRO.storageGb} GB`}
           info="Arquivos guardados: fotos dos itens, logos, capas e vídeos das lojas."
-          grafico={<SparklineHp rotulo="Storage" formato={(v) => gbF(v)} valores={serie.map((f) => Number(f.dados.storageBytes) / 1e9)} />} />
+          grafico={<SparklineHp rotulos={horas} rotulo="Storage" formato={(v) => gbF(v)} valores={serie.map((f) => Number(f.dados.storageBytes) / 1e9)} />} />
         <MetricaHp rotulo="Disco do banco" testid="sa-disco-banco" valor={discoBanco == null ? '—' : gb(discoBanco, 1)} nota={prom?.discoTotal ? `de ${gb(prom.discoTotal, 1)}` : undefined}
           info="Espaço em disco do servidor do banco (dados + índices + registros internos). O Supabase aumenta sozinho quando enche."
           anel={discoBanco != null && prom?.discoTotal ? <AnelHp pct={(discoBanco / prom.discoTotal) * 100} rotulo="Disco do banco" /> : undefined} />
@@ -134,13 +135,13 @@ export function Monitoramento({ fotos }: { fotos: FotoSaude[] }) {
         info="A VPS é o computador alugado na Hostinger que roda o Menuzia (vitrine, painel, rotinas). Se CPU, memória ou disco enchem, o site fica lento ou cai — os dados continuam salvos no Supabase.">
         <MetricaHp rotulo="Uso da CPU" testid="sa-cpu" valor={m?.cpuPct == null ? '—' : `${Math.round(m.cpuPct)}%`}
           info="Processador da VPS em uso. Durante um deploy sobe muito por alguns minutos (normal). Só alerta se ficar acima de 90% por 15 minutos."
-          grafico={<SparklineHp rotulo="CPU da VPS" formato={pctF} valores={serie.map((f) => Number(f.dados.cpuPct))} />} />
+          grafico={<SparklineHp rotulos={horas} rotulo="CPU da VPS" formato={pctF} valores={serie.map((f) => Number(f.dados.cpuPct))} />} />
         <MetricaHp rotulo="Uso de memória" testid="sa-mem" valor={memUsada == null ? '—' : `${Math.round(memUsada)}%`} nota={hostinger?.ramBytes != null ? `${gb(hostinger.ramBytes, 1)}${hostinger.ramTotal ? ` de ${gb(hostinger.ramTotal, 1)}` : ''}` : undefined}
           info="Memória RAM da VPS em uso (o mesmo número do painel da Hostinger). Acima de 80% o servidor pode ficar lento; se acabar, o sistema trava."
-          grafico={<SparklineHp rotulo="Memória da VPS" formato={pctF} valores={serie.map((f) => f.dados.memLivrePct == null ? NaN : 100 - f.dados.memLivrePct)} />} />
+          grafico={<SparklineHp rotulos={horas} rotulo="Memória da VPS" formato={pctF} valores={serie.map((f) => f.dados.memLivrePct == null ? NaN : 100 - f.dados.memLivrePct)} />} />
         <MetricaHp rotulo="Rede (saída)" testid="sa-rede" valor={hostinger ? gb(hostinger.saidaBytes) : '—'} nota={hostinger ? `entrada ${gb(hostinger.entradaBytes)}` : 'sem leitura da Hostinger'}
           info="Tráfego da VPS com a internet. Não é cobrado à parte, mas um salto pode indicar robô ou loop."
-          grafico={<SparklineHp rotulo="Rede de saída" formato={(v) => gbF(v)} valores={serie.map((f) => { const b = f.dados.oficial?.hostinger?.saidaBytes; return b == null ? NaN : b / 1e9 })} />} />
+          grafico={<SparklineHp rotulos={horas} rotulo="Rede de saída" formato={(v) => gbF(v)} valores={serie.map((f) => { const b = f.dados.oficial?.hostinger?.saidaBytes; return b == null ? NaN : b / 1e9 })} />} />
         <MetricaHp rotulo="Uso do disco" testid="sa-disco" valor={m?.discoUsadoPct == null ? '—' : `${Math.round(m.discoUsadoPct)}%`} nota={hostinger?.discoBytes != null ? `${gb(hostinger.discoBytes, 1)}${hostinger.discoTotal ? ` de ${gb(hostinger.discoTotal, 0)}` : ''}` : undefined}
           info="Espaço usado no disco da VPS. Cada deploy deixa uma imagem; a limpeza automática roda a cada 6 h e guarda as 3 últimas."
           anel={m?.discoUsadoPct != null ? <AnelHp pct={m.discoUsadoPct} rotulo="Disco da VPS" /> : undefined} />
@@ -155,7 +156,7 @@ export function Monitoramento({ fotos }: { fotos: FotoSaude[] }) {
   )
 }
 
-/** Tendência de 30 dias: um número por dia. Pico em vermelho. */
+/** Tendência de 30 dias: um número por dia. */
 export function Tendencia30({ dias }: { dias: DiaSaude[] }) {
   const temTx = dias.some((d) => Number(d.tx_bytes) > 0)
   const eixo = dias.map((d) => d.dia)
@@ -180,6 +181,58 @@ export function Tendencia30({ dias }: { dias: DiaSaude[] }) {
           series={[{ nome: 'Egress', cor: '#0B86C9', valores: dias.map((d) => (temTx ? Number(d.tx_bytes) : Number(d.req_postgrest) * BYTES_EGRESS_POR_REQ) / 1e9) }]} />
       </PainelHp>
     </div>
+  )
+}
+
+/** Requisições/min de uma foto do vigia (só a hora e o número, sem o resto da foto). */
+export interface LeituraHora { em: string; req: number | null }
+
+const textoHora = (h: string) => `${h}h às ${String((Number(h) + 1) % 24).padStart(2, '0')}h`
+
+/** Três horas mais movimentadas, em selos. */
+function MaioresHoras({ horas, formato }: { horas: { h: string; v: number }[]; formato: (v: number) => string }) {
+  const top = [...horas].filter((x) => x.v > 0).sort((a, b) => b.v - a.v).slice(0, 3)
+  return (
+    <ul className="m-0 mb-[4px] flex list-none flex-wrap gap-[6px] p-0" data-testid="sa-horas-top">
+      {top.map((x) => <li key={x.h}><SeloHp tom="roxo">{textoHora(x.h)} · {formato(x.v)}</SeloHp></li>)}
+    </ul>
+  )
+}
+
+/** Horários de pico das últimas 24 h, por hora do dia. Egress = estimativa a partir das requisições (o vigia não mede por hora). */
+export function HorariosPico({ leituras }: { leituras: LeituraHora[] }) {
+  const soma = Array.from({ length: 24 }, () => ({ s: 0, n: 0 }))
+  for (const l of leituras) {
+    const v = Number(l.req)
+    if (l.req == null || !Number.isFinite(v)) continue
+    const h = Number(new Date(l.em).toLocaleString('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', hourCycle: 'h23' }))
+    soma[h].s += v; soma[h].n += 1
+  }
+  const nomes = soma.map((_, h) => String(h).padStart(2, '0'))
+  const req = soma.map((x) => (x.n ? x.s / x.n : 0))
+  const mb = req.map((v) => (v * 60 * BYTES_EGRESS_POR_REQ) / 1e6)
+  const fReq = (v: number) => `${Math.round(v).toLocaleString('pt-BR')}/min`
+  const fMb = (v: number) => (v >= 1000 ? `${(v / 1000).toFixed(1)} GB` : `${v.toFixed(v < 10 ? 1 : 0)} MB`)
+  const colunas = { dias: nomes, rotuloDe: (h: string) => `${h}h`, visivel: (i: number) => i % 6 === 0 || i === 23 }
+  return (
+    <PainelHp testid="sa-horarios-pico">
+      <CabecalhoHp titulo="Horários de pico" sub="Últimas 24 h, média de cada hora"
+        info={`Mostra em que hora do dia o banco trabalha mais. Vem das leituras do vigia, a cada 5 minutos. O egress por hora é estimado: requisições × ${BYTES_EGRESS_POR_REQ} B, por isso os horários batem com os das requisições.`} />
+      <div className="grid gap-[20px] px-[12px] pb-[12px] sm:px-[24px] sm:pb-[20px] lg:grid-cols-2">
+        <div className="min-w-0">
+          <h3 className="mb-[6px] text-[14px] font-semibold leading-[20px] text-[#18181A]">Requisições</h3>
+          <MaioresHoras horas={nomes.map((h, i) => ({ h, v: req[i] }))} formato={fReq} />
+          <GraficoDiasHp rotulo="Requisições por minuto em cada hora do dia" formato={fReq} {...colunas} altura={130}
+            series={[{ nome: 'Requisições', cor: '#673DE6', valores: req }]} />
+        </div>
+        <div className="min-w-0">
+          <h3 className="mb-[6px] text-[14px] font-semibold leading-[20px] text-[#18181A]">Egress (estimado)</h3>
+          <MaioresHoras horas={nomes.map((h, i) => ({ h, v: mb[i] }))} formato={fMb} />
+          <GraficoDiasHp rotulo="Egress estimado em cada hora do dia" formato={fMb} {...colunas} altura={130}
+            series={[{ nome: 'Egress', cor: '#0B86C9', valores: mb }]} />
+        </div>
+      </div>
+    </PainelHp>
   )
 }
 

@@ -118,25 +118,39 @@ export const CLASSE_BOTAO_SECUNDARIO = 'inline-flex h-[40px] items-center justif
 export function BotaoPrimario({ className = '', ...p }: PropsBotao) { return <button type="button" {...p} className={`${CLASSE_BOTAO_PRIMARIO} ${className}`} /> }
 export function BotaoSecundario({ className = '', ...p }: PropsBotao) { return <button type="button" {...p} className={`${CLASSE_BOTAO_SECUNDARIO} ${className}`} /> }
 
-/** Minigráfico (sparkline) roxo com preenchimento claro; ocupa a largura do espaço (100%). Pico em vermelho: valor e linha. */
-export function SparklineHp({ valores, cor = '#673DE6', altura = 48, rotulo, formato = (n) => Math.round(n).toLocaleString('pt-BR') }: { valores: number[]; cor?: string; altura?: number; rotulo: string; formato?: (n: number) => string }) {
-  const v = valores.filter((n) => Number.isFinite(n))
+/**
+ * Minigráfico (sparkline) roxo com preenchimento claro; ocupa a largura do espaço (100%). Passar o mouse (ou tocar) mostra
+ * o valor de cada ponto e, com `rotulos`, a hora dele. Só CSS: serve em página de servidor.
+ */
+export function SparklineHp({ valores, rotulos, cor = '#673DE6', altura = 48, rotulo, formato = (n) => Math.round(n).toLocaleString('pt-BR') }: { valores: number[]; rotulos?: string[]; cor?: string; altura?: number; rotulo: string; formato?: (n: number) => string }) {
+  const itens = valores.map((n, i) => ({ n, quando: rotulos?.[i] })).filter((p) => Number.isFinite(p.n))
+  const v = itens.map((p) => p.n)
   const L = 150
   if (v.length < 2) return <div style={{ height: altura }} aria-hidden />
   const max = Math.max(...v), min = Math.min(...v), faixa = max - min || 1
   const pontos = v.map((n, i) => [(i / (v.length - 1)) * L, altura - 4 - ((n - min) / faixa) * (altura - 10)] as const)
   const linha = pontos.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ')
   const id = `sp-${rotulo.replace(/\W/g, '')}`
-  const temPico = max > min
   return (
-    <div>
-      <p className="min-h-[14px] text-right text-[11px] font-semibold leading-[14px] tabular-nums text-[#B3122D]">{temPico ? `pico ${formato(max)}` : ''}</p>
+    <div className="relative">
       <svg viewBox={`0 0 ${L} ${altura}`} preserveAspectRatio="none" className="block h-[40px] w-full sm:h-[48px]" role="img" aria-label={`${rotulo}: de ${formato(min)} a ${formato(max)}`}>
         <defs><linearGradient id={id} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={cor} stopOpacity="0.18" /><stop offset="100%" stopColor={cor} stopOpacity="0" /></linearGradient></defs>
         <polygon points={`0,${altura} ${linha} ${L},${altura}`} fill={`url(#${id})`} />
         <polyline points={linha} fill="none" stroke={cor} strokeWidth="1.75" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-        {temPico && <line x1={0} x2={L} y1={6} y2={6} stroke="#E73A47" strokeWidth="1" vectorEffect="non-scaling-stroke" />}
       </svg>
+      <div className="absolute inset-0 flex" aria-hidden>
+        {itens.map((p, i) => {
+          const lado = i < itens.length / 3 ? 'left-0' : i >= (itens.length * 2) / 3 ? 'right-0' : 'left-1/2 -translate-x-1/2'
+          return (
+            <div key={i} className="group relative h-full min-w-0 flex-1" data-testid="spark-ponto">
+              <span className="absolute hidden h-[8px] w-[8px] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white group-hover:block" style={{ top: `${(pontos[i][1] / altura) * 100}%`, left: '50%', background: cor }} />
+              <span role="tooltip" className={`pointer-events-none absolute bottom-[calc(100%+4px)] z-30 hidden w-max rounded-[8px] bg-[#18181A] px-[8px] py-[4px] text-[12px] leading-[16px] tabular-nums text-white shadow-[0_8px_20px_rgba(24,24,26,0.25)] group-hover:block ${lado}`}>
+                {p.quando ? `${p.quando} · ` : ''}{formato(p.n)}
+              </span>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
