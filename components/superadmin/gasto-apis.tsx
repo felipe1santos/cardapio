@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, ExternalLink } from 'lucide-react'
 import { custoGoogleMicroUsd } from '@/lib/custo/gasto-lojas'
 import type { UsoApis } from '@/lib/custo/uso'
 import type { UsoIa } from '@/lib/custo/ia'
@@ -10,6 +10,7 @@ import { GraficoDiasHp } from './grafico-hp'
  * Gasto das APIs em reais (30/10/2026). Visão geral: só o de HOJE, simples. Aba Gastos de API: o histórico de 7 dias.
  * Google pelo preço de tabela (a mesma conta de lib/custo/gasto-lojas.ts); IA pelo custo real.
  */
+const FATURAMENTO_GOOGLE = 'https://console.cloud.google.com/billing/01456B-8C09EE-838D63/reports;timeRange=LAST_30_DAYS;grouping=GROUP_BY_SKU'
 const reais = (micro: number, cot: number) => ((micro / 1e6) * cot).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: micro > 0 && micro < 2e5 ? 4 : 2 })
 const num = (n: number) => n.toLocaleString('pt-BR')
 const custoDe = (api: 'geocoding' | 'directions' | 'maps_js', chamadas: number) => custoGoogleMicroUsd({ geocoding: 0, directions: 0, maps_js: 0, [api]: chamadas })
@@ -28,7 +29,10 @@ export function GastoHoje({ uso, ia, cotacao }: { uso: UsoApis | null | undefine
     <PainelHp testid="sa-gasto-hoje">
       <CabecalhoHp titulo="Gasto de API hoje" sub="Google pelo preço de tabela, antes da cota grátis; IA pelo custo real"
         info="Quanto as APIs pagas custaram hoje. O Google só cobra de verdade depois da cota grátis de 10 mil chamadas por serviço no mês. Histórico e gasto por loja ficam na aba Gastos de API."
-        acoes={<Link href="/superadmin/gasto" data-testid="link-gasto" className="inline-flex h-[40px] items-center gap-[2px] rounded-[12px] px-[4px] text-[14px] font-bold text-[#673DE6] hover:underline">Ver gastos <ChevronRight className="h-[16px] w-[16px]" aria-hidden /></Link>} />
+        acoes={<>
+          <a href={FATURAMENTO_GOOGLE} target="_blank" rel="noreferrer" data-testid="link-faturamento-google" className="inline-flex h-[40px] items-center gap-[4px] rounded-[12px] px-[4px] text-[14px] font-bold text-[#673DE6] hover:underline">Faturamento Google <ExternalLink className="h-[14px] w-[14px]" aria-hidden /></a>
+          <Link href="/superadmin/gasto" data-testid="link-gasto" className="inline-flex h-[40px] items-center gap-[2px] rounded-[12px] px-[4px] text-[14px] font-bold text-[#673DE6] hover:underline">Ver gastos <ChevronRight className="h-[16px] w-[16px]" aria-hidden /></Link>
+        </>} />
       <div className="grid gap-x-[32px] gap-y-[12px] px-[16px] pb-[16px] sm:px-[24px] sm:pb-[20px] lg:grid-cols-[220px_minmax(0,1fr)] lg:items-center">
         <div>
           <p className="text-[28px] font-bold leading-[36px] tabular-nums text-[#18181A]" data-testid="sa-gasto-total">{reais(total, cotacao)}</p>

@@ -82,13 +82,13 @@ export function CartaoHp({ children, className = '', href, testid }: { children:
  * Métrica: rótulo com ›, valor 20/28 700 (18 no celular), unidade 14 300. Gráfico à direita no computador e EMBAIXO no
  * celular (2 colunas cabem). `info` mostra o "i" com a explicação.
  */
-export function MetricaHp({ rotulo, valor, unidade, grafico, anel, testid, nota, info, alerta = false, canto }: { canto?: React.ReactNode; rotulo: string; valor: React.ReactNode; unidade?: string; grafico?: React.ReactNode; anel?: React.ReactNode; testid?: string; nota?: React.ReactNode; info?: React.ReactNode; alerta?: boolean }) {
+export function MetricaHp({ rotulo, valor, unidade, grafico, anel, testid, nota, info, alerta = false, canto, cantoTom = 'roxo' }: { canto?: React.ReactNode; cantoTom?: TomSelo; rotulo: string; valor: React.ReactNode; unidade?: string; grafico?: React.ReactNode; anel?: React.ReactNode; testid?: string; nota?: React.ReactNode; info?: React.ReactNode; alerta?: boolean }) {
   return (
     <CartaoHp testid={testid} className="flex min-w-0 flex-col gap-[6px]">
       <div className="flex flex-wrap items-center gap-x-[4px] text-[12px] leading-[16px] text-[#18181A] sm:text-[14px] sm:leading-[20px]">
         <span className="min-w-0">{rotulo}</span>
         {info && <InfoHp titulo={rotulo}>{info}</InfoHp>}
-        {canto && <span className="ml-auto whitespace-nowrap rounded-[8px] bg-[#EBE4FF] px-[6px] text-[11px] font-semibold leading-[18px] tabular-nums text-[#673DE6] sm:text-[12px]">{canto}</span>}
+        {canto && <span className={`ml-auto whitespace-nowrap rounded-[8px] px-[6px] text-[11px] font-semibold leading-[18px] tabular-nums sm:text-[12px] ${SELO[cantoTom]}`}>{canto}</span>}
       </div>
       <div className="flex min-w-0 flex-wrap items-start gap-[8px]">
         <div className="min-w-0 flex-[1_0_auto]">
