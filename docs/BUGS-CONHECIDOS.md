@@ -199,6 +199,15 @@ checagem B-n** no script.
 - **Como evitar:** a tela de cancelar lista os motivos do próprio pedido; integração nova testa também o caminho de cancelar.
 - **Teste:** `lib/canais/ifood/cliente.test.ts`.
 
+## "Link inválido" ao trocar a senha abrindo o e-mail em outro navegador · 30/10/2026 · teste
+
+- **Onde:** `app/auth/redefinir/route.ts` e o template "Reset password" do Supabase.
+- **Causa:** o link PKCE precisa do cookie `code-verifier` do navegador que pediu. Pediu no computador e abriu no celular
+  ou no app do Gmail: o `code` não troca e o link já ficou gasto; na 2ª tentativa volta `otp_expired` sem `code`, e a tela
+  dizia "Link inválido". Sinal nos logs do Auth: `/verify` 303 sem `/token` depois, e 403 em seguida.
+- **Como evitar:** template com `token_hash` + `verifyOtp` no servidor. Publicar a rota ANTES de trocar o template.
+- **Teste:** `app/auth/redefinir/route.test.ts`.
+
 ## Build quebrou: biblioteca só de servidor no código do navegador · 28/10/2026 · teste (B6)
 
 - **Onde:** `lib/custo/alerta-whatsapp.ts` (importado pela guarda de custo, que entra na tela de Ajustes pelo frete).
