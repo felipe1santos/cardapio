@@ -238,33 +238,35 @@ export function PainelPlataforma({ lojas, resumo, usoApis, usoIa, modulos }: { l
   }
 
   return (
-    <section id="clientes" className="scroll-mt-[16px] overflow-hidden rounded-[24px] border-[0.8px] border-[rgba(0,0,0,0.1)] bg-white" data-testid="topo-plataforma">
-      {/* 29/10 (visual Hostinger): o topo, o Sair e os blocos de uso foram para a página (ShellHp e "Níveis de uso"). */}
-      <div className="flex flex-wrap items-center gap-[16px] px-[24px] py-[20px]">
-        <div className="min-w-0 flex-1">
-          <h2 className="text-[16px] font-semibold leading-[24px] text-text-main">Clientes</h2>
-          <p className="text-[14px] leading-[20px] text-text-subtle">Lojas da plataforma, acesso, uso e módulos</p>
-        </div>
-      </div>
-      {/* Resumo: só lojas (contas principais e pré-cadastros); valores somados por loja. */}
-      <div className="grid grid-cols-2 gap-y-[8px] border-y-[0.8px] border-[rgba(0,0,0,0.1)] px-[24px] py-[16px] text-[14px] leading-[20px] sm:grid-cols-3 lg:grid-cols-6" data-testid="resumo-plataforma">
-        {[
-          ['Cadastros (lojas)', <span key="c" data-testid="resumo-cadastros">{num(resumo.cadastros)}</span>],
-          ['Ativos', <span key="a" data-testid="resumo-ativos">{num(resumo.ativos)}</span>],
-          ['Aguardando 1º acesso', <span key="p" data-testid="resumo-pendentes" className={resumo.pendentes > 0 ? 'text-[#8A6100]' : ''}>{num(resumo.pendentes)}</span>],
-          ['Faturamento (entregue)', <span key="f" data-testid="resumo-faturamento">{brl(resumo.faturamento)}</span>],
-          ['Pedidos entregues', <span key="e" data-testid="resumo-pedidos">{num(resumo.pedidos)}</span>],
-          ['Ticket médio', <span key="t" data-testid="resumo-ticket">{brl(resumo.ticket)}</span>],
-        ].map(([rotulo, valor]) => (
-          <div key={rotulo as string} className="min-w-0">
-            <p className="truncate text-text-subtle">{rotulo}</p>
-            <p className="text-[16px] font-semibold leading-[24px] text-text-main">{valor}</p>
-          </div>
-        ))}
+    <section id="clientes" className="scroll-mt-[16px] overflow-hidden rounded-[20px] border-[0.8px] sm:rounded-[24px] border-[rgba(0,0,0,0.1)] bg-white" data-testid="topo-plataforma">
+      {/* 30/10: cabeçalho lilás numa faixa só (no computador); o "Cadastrar cliente" mora aqui, não flutua mais por cima da tela. */}
+      <div className="flex flex-wrap items-center gap-x-[20px] gap-y-[10px] border-b-[0.8px] border-[rgba(103,61,230,0.18)] bg-[#F7F5FF] px-[16px] py-[12px] sm:px-[24px] sm:py-[14px]">
+        <h2 className="min-w-0 flex-1 text-[16px] font-semibold leading-[24px] text-text-main xl:flex-none">Clientes</h2>
+        {/* Resumo: só lojas (contas principais e pré-cadastros); valores somados por loja. */}
+        <dl className="order-last m-0 grid basis-full grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)] gap-x-[12px] gap-y-[8px] sm:grid-cols-6 xl:order-none xl:flex-1 xl:basis-auto" data-testid="resumo-plataforma">
+          {[
+            ['Cadastros', 'Lojas cadastradas', <span key="c" data-testid="resumo-cadastros">{num(resumo.cadastros)}</span>, ''],
+            ['Ativos', 'Lojas com acesso ativo', <span key="a" data-testid="resumo-ativos">{num(resumo.ativos)}</span>, 'text-[#008361]'],
+            ['Aguardando', 'Aguardando o 1º acesso', <span key="p" data-testid="resumo-pendentes">{num(resumo.pendentes)}</span>, resumo.pendentes > 0 ? 'text-[#8A6100]' : ''],
+            ['Faturamento', 'Faturamento de pedidos entregues', <span key="f" data-testid="resumo-faturamento">{brl(resumo.faturamento)}</span>, 'text-[#008361]'],
+            ['Pedidos', 'Pedidos entregues', <span key="e" data-testid="resumo-pedidos">{num(resumo.pedidos)}</span>, ''],
+            ['Ticket médio', 'Ticket médio', <span key="t" data-testid="resumo-ticket">{brl(resumo.ticket)}</span>, ''],
+          ].map(([rotulo, dica, valor, cor]) => (
+            <div key={rotulo as string} className="min-w-0" title={dica as string}>
+              <dt className="truncate text-[12px] leading-[16px] text-[#58585E]">{rotulo}</dt>
+              <dd className={`m-0 truncate text-[14px] font-semibold leading-[20px] tabular-nums sm:text-[15px] ${cor || 'text-text-main'}`}>{valor}</dd>
+            </div>
+          ))}
+        </dl>
+        <button type="button" onClick={() => setModal({ tipo: 'cadastrar' })}
+          className="inline-flex h-[40px] flex-shrink-0 items-center gap-[6px] whitespace-nowrap rounded-[12px] bg-[#673DE6] px-[14px] text-[14px] font-bold text-white transition-colors hover:bg-[#5025D1]"
+          data-testid="cadastrar-cliente">
+          <Plus className="h-4 w-4" aria-hidden /> Cadastrar cliente
+        </button>
       </div>
 
       <div className="px-[16px] py-[16px] sm:px-[24px]">
-        {/* Barra da lista: busca, filtros e "+ Cadastrar cliente". */}
+        {/* Barra da lista: busca e filtros. */}
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <div className={`relative ${buscaAberta ? 'flex' : 'hidden'} w-full sm:flex sm:w-[340px]`}>
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-subtle" />
@@ -284,11 +286,6 @@ export function PainelPlataforma({ lojas, resumo, usoApis, usoIa, modulos }: { l
               </button>
             ))}
           </div>
-          <button type="button" onClick={() => setModal({ tipo: 'cadastrar' })}
-            className="fixed bottom-4 right-4 z-40 flex h-[48px] items-center gap-1.5 rounded-[12px] bg-[#673DE6] px-5 text-[14px] font-bold text-white shadow-[0_8px_20px_rgba(103,61,230,0.35)] hover:bg-[#5025D1] sm:static sm:h-[40px] sm:px-[14px] sm:shadow-none"
-            data-testid="cadastrar-cliente">
-            <Plus className="h-4 w-4" /> Cadastrar cliente
-          </button>
         </div>
 
         {/* 29/10 (2ª rodada): lista SIMPLES — loja, situação, faturamento, pedidos e último acesso. Tocar abre a ficha completa. */}

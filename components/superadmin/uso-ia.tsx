@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { corDoUso, type CorUso } from '@/lib/custo/uso'
 import { definirTetoIaAction } from '@/app/superadmin/actions'
 import type { SomaIa, UsoIa } from '@/lib/custo/ia'
+import { GraficoDiasHp } from './grafico-hp'
 
 /**
  * Contador da IA de atendimento (Claude) no Super Admin (10/10/2026 — docs/REGRAS-DE-CUSTO.md): gasto de hoje
@@ -43,26 +44,6 @@ function Caixa({ titulo, valor, sub, testid }: { titulo: string; valor: string; 
   )
 }
 
-function Grafico7({ dias }: { dias: UsoIa['ultimos7'] }) {
-  const W = 360, H = 150, pe = 22, topo = 8
-  const max = Math.max(1, ...dias.map((d) => d.custoMicroUsd))
-  const passo = W / dias.length
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Gasto da IA nos últimos 7 dias" data-testid="ia-grafico">
-      <line x1={0} x2={W} y1={H - pe} y2={H - pe} stroke="rgba(0,0,0,0.08)" />
-      {dias.map((d, i) => {
-        const h = ((H - pe - topo) * d.custoMicroUsd) / max
-        return (
-          <g key={d.dia}>
-            <rect x={i * passo + passo / 2 - 9} y={H - pe - h} width={18} height={Math.max(h, d.custoMicroUsd > 0 ? 2 : 0)} rx={2} fill="#673DE6"><title>{`${d.dia.slice(8, 10)}/${d.dia.slice(5, 7)} · ${usd(d.custoMicroUsd)} · ${num(d.chamadas)} respostas`}</title></rect>
-            <text x={i * passo + passo / 2} y={H - 5} textAnchor="middle" fontSize={10} fill="#58585E">{`${d.dia.slice(8, 10)}/${d.dia.slice(5, 7)}`}</text>
-          </g>
-        )
-      })}
-    </svg>
-  )
-}
-
 export function UsoIaResumo({ ia }: { ia: UsoIa }) {
   const { limites: L } = ia
   const modelos = Object.entries(ia.porModeloMes).sort((a, b) => b[1].custoMicroUsd - a[1].custoMicroUsd)
@@ -95,12 +76,13 @@ export function UsoIaResumo({ ia }: { ia: UsoIa }) {
         </div>
         <div>
           <p className="mb-1 text-[12px] font-semibold text-text-subtle">Gasto nos últimos 7 dias</p>
-          <Grafico7 dias={ia.ultimos7} />
+          <GraficoDiasHp rotulo="Gasto da IA nos últimos 7 dias" testid="ia-grafico" dias={ia.ultimos7.map((d) => d.dia)} formato={(v) => usd(v)}
+            series={[{ nome: 'IA', cor: '#673DE6', valores: ia.ultimos7.map((d) => d.custoMicroUsd) }]} />
           <p className="mb-1 mt-2 text-[12px] font-semibold text-text-subtle">Por modelo (mês)</p>
           {modelos.length ? (
             <ul className="flex flex-col gap-0.5 text-[12px]" data-testid="ia-modelos">
               {modelos.map(([m, s]) => (
-                <li key={m} className="flex justify-between gap-3"><span className="truncate text-text-main">{m}</span><span className="tabular-nums text-text-subtle">{num(s.chamadas)} resp. · {tokens(s)} tokens · {usd(s.custoMicroUsd)}</span></li>
+                <li key={m} className="flex flex-wrap justify-between gap-x-3"><span className="min-w-0 truncate text-text-main">{m}</span><span className="tabular-nums text-text-subtle">{num(s.chamadas)} resp. · {tokens(s)} tokens · {usd(s.custoMicroUsd)}</span></li>
               ))}
             </ul>
           ) : (

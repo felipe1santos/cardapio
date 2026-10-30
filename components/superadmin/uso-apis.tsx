@@ -1,11 +1,13 @@
 import { APIS_PAINEL, corDoUso, ROTULO_API, type ApiPainel, type CorUso, type UsoApis } from '@/lib/custo/uso'
+import { GraficoDiasHp } from './grafico-hp'
 
 /**
  * Contador das APIs pagas (Super Admin, 10/10/2026 — docs/REGRAS-DE-CUSTO.md): resumo do dia contra o limite global,
  * chamadas bloqueadas pela guarda, alertas de disparo e os últimos 7 dias. Por loja: BarraUsoLoja.
  */
 const COR: Record<CorUso, string> = { verde: '#673DE6', amarela: '#FFAB00', vermelha: '#E73A47' }
-const COR_API: Record<ApiPainel, string> = { geocoding: '#673DE6', directions: '#E73A47', maps_js: '#18181A' }
+// Paleta validada (dataviz): vermelho fica reservado para o pico dos gráficos.
+const COR_API: Record<ApiPainel, string> = { geocoding: '#673DE6', directions: '#008361', maps_js: '#0B86C9' }
 const num = (v: number) => v.toLocaleString('pt-BR')
 
 export function Barra({ chamadas, limite, compacta = false, testid }: { chamadas: number; limite: number; compacta?: boolean; testid?: string }) {
@@ -31,34 +33,6 @@ export function BarraUsoLoja({ uso, limites }: { uso: Record<ApiPainel, number> 
         </div>
       ))}
     </div>
-  )
-}
-
-function Grafico7Dias({ dias }: { dias: UsoApis['ultimos7'] }) {
-  const W = 560, H = 230, pe = 26, esq = 40, topo = 10
-  const max = Math.max(10, ...dias.flatMap((d) => APIS_PAINEL.map((a) => d[a])))
-  const passo = (W - esq) / dias.length
-  const larg = Math.min(20, (passo - 12) / APIS_PAINEL.length)
-  const y = (v: number) => topo + (H - pe - topo) * (1 - v / max)
-  const fmtDia = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Chamadas por API nos últimos 7 dias" data-testid="uso-grafico">
-      {[0, 0.5, 1].map((f) => (
-        <g key={f}>
-          <line x1={esq} x2={W} y1={y(max * f)} y2={y(max * f)} stroke="rgba(0,0,0,0.08)" strokeWidth={1} />
-          <text x={esq - 4} y={y(max * f) + 3} textAnchor="end" fontSize={12} fill="#58585E">{num(Math.round(max * f))}</text>
-        </g>
-      ))}
-      {dias.map((d, i) => (
-        <g key={d.dia}>
-          {APIS_PAINEL.map((a, j) => {
-            const x = esq + i * passo + (passo - larg * APIS_PAINEL.length) / 2 + j * larg
-            return <rect key={a} x={x} y={y(d[a])} width={Math.max(2, larg - 2)} height={H - pe - y(d[a])} rx={2} fill={COR_API[a]}><title>{`${fmtDia(d.dia)} · ${ROTULO_API[a]}: ${num(d[a])}`}</title></rect>
-          })}
-          <text x={esq + i * passo + passo / 2} y={H - 7} textAnchor="middle" fontSize={12} fill="#58585E">{fmtDia(d.dia)}</text>
-        </g>
-      ))}
-    </svg>
   )
 }
 
@@ -89,11 +63,9 @@ export function UsoApisResumo({ uso }: { uso: UsoApis }) {
           </div>
         </div>
         <div>
-          <p className="mb-1 text-[12px] font-semibold text-text-subtle">Últimos 7 dias</p>
-          <Grafico7Dias dias={uso.ultimos7} />
-          <div className="mt-1 flex flex-wrap gap-3 text-[11.5px] text-text-subtle">
-            {APIS_PAINEL.map((a) => <span key={a} className="inline-flex items-center gap-1"><span className="h-[8px] w-[8px] rounded-[2px]" style={{ background: COR_API[a] }} />{ROTULO_API[a]}</span>)}
-          </div>
+          <p className="mb-1 text-[12px] font-semibold text-text-subtle">Chamadas nos últimos 7 dias</p>
+          <GraficoDiasHp rotulo="Chamadas por API nos últimos 7 dias" testid="uso-grafico" altura={190} dias={uso.ultimos7.map((d) => d.dia)} formato={(v) => num(Math.round(v))}
+            series={APIS_PAINEL.map((a) => ({ nome: ROTULO_API[a], cor: COR_API[a], valores: uso.ultimos7.map((d) => d[a]) }))} />
         </div>
       </div>
     </section>

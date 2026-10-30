@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ChevronRight, LogOut } from 'lucide-react'
+import { LogOut, MessageSquareText } from 'lucide-react'
 import { sairAction } from '@/app/superadmin/actions'
 import { InfoHp } from './info-hp'
 
@@ -10,12 +10,11 @@ import { InfoHp } from './info-hp'
  * Medidas em px (a raiz do painel é 87,5%). Cores em app/globals.css › .sa-hp.
  */
 
-export type Aba = 'visao' | 'saude' | 'gasto' | 'palavras'
+// Duas abas (30/10/2026). Palavras do robô é ferramenta, não seção: fica num botão ao lado do Sair.
+export type Aba = 'visao' | 'gasto' | 'palavras'
 const ABAS: { id: Aba; rotulo: string; href: string }[] = [
   { id: 'visao', rotulo: 'Visão geral', href: '/superadmin' },
-  { id: 'saude', rotulo: 'Saúde do sistema', href: '/superadmin/saude' },
-  { id: 'gasto', rotulo: 'Gasto por loja', href: '/superadmin/gasto' },
-  { id: 'palavras', rotulo: 'Palavras do robô', href: '/superadmin/palavras' },
+  { id: 'gasto', rotulo: 'Gastos de API', href: '/superadmin/gasto' },
 ]
 
 export function ShellHp({ aba, titulo, email, children }: { aba: Aba; titulo: string; email?: string; children: React.ReactNode }) {
@@ -25,6 +24,10 @@ export function ShellHp({ aba, titulo, email, children }: { aba: Aba; titulo: st
         <div className="flex items-center gap-[8px]">
           <h1 className="min-w-0 flex-1 truncate text-[20px] font-normal leading-[28px] text-[#18181A] sm:text-[24px] sm:leading-[32px]">{titulo}</h1>
           {email && <span className="hidden max-w-[260px] truncate text-[14px] text-[#58585E] md:inline" title={email}>{email}</span>}
+          <Link href="/superadmin/palavras" aria-label="Palavras do robô" data-testid="link-palavras"
+            className="inline-flex h-[40px] items-center justify-center gap-[6px] rounded-[12px] border border-[rgba(103,61,230,0.45)] bg-white px-[10px] text-[14px] font-bold text-[#18181A] hover:bg-[#EBE4FF] sm:px-[12px]">
+            <MessageSquareText className="h-[16px] w-[16px]" aria-hidden /><span className="max-sm:hidden">Palavras do robô</span>
+          </Link>
           <form action={sairAction}>
             <button type="submit" data-testid="plataforma-sair" aria-label="Sair"
               className="inline-flex h-[40px] items-center justify-center gap-[6px] rounded-[12px] border border-[rgba(103,61,230,0.45)] bg-white px-[10px] text-[14px] font-bold text-[#18181A] hover:bg-[#EBE4FF] sm:px-[12px]">
@@ -69,19 +72,6 @@ export function CabecalhoHp({ titulo, sub, icone, selo, acoes, info }: { titulo:
   )
 }
 
-/** Linha de informações com divisórias (o "Nome de usuário SSH / IPv4 / Acesso root"). No celular: 2 colunas. */
-export function LinhaInfoHp({ itens }: { itens: { rotulo: string; valor: React.ReactNode }[] }) {
-  return (
-    <div className="grid grid-cols-2 gap-x-[12px] gap-y-[8px] border-y-[0.8px] border-[rgba(0,0,0,0.1)] px-[16px] py-[12px] text-[13px] leading-[18px] sm:flex sm:flex-wrap sm:items-center sm:gap-0 sm:px-[24px] sm:py-[20px] sm:text-[14px] sm:leading-[20px]">
-      {itens.map((i, n) => (
-        <span key={i.rotulo} className={`flex min-w-0 flex-col sm:flex-row sm:items-center sm:gap-[4px] sm:pr-[24px] ${n > 0 ? 'sm:border-l-[0.8px] sm:border-[rgba(0,0,0,0.1)] sm:pl-[24px]' : ''}`}>
-          <span className="text-[#58585E]">{i.rotulo}</span> <span className="text-[#18181A]">{i.valor}</span>
-        </span>
-      ))}
-    </div>
-  )
-}
-
 /** Cartão de métrica (o "Uso da CPU"): branco, cantos 16 px, borda rgba(0,0,0,.05). */
 export function CartaoHp({ children, className = '', href, testid }: { children: React.ReactNode; className?: string; href?: string; testid?: string }) {
   const cls = `block rounded-[16px] border-[0.8px] border-[rgba(0,0,0,0.08)] bg-white px-[12px] py-[10px] sm:px-[16px] sm:py-[12px] ${href ? 'hover:border-[rgba(103,61,230,0.35)]' : ''} ${className}`
@@ -92,20 +82,23 @@ export function CartaoHp({ children, className = '', href, testid }: { children:
  * Métrica: rótulo com ›, valor 20/28 700 (18 no celular), unidade 14 300. Gráfico à direita no computador e EMBAIXO no
  * celular (2 colunas cabem). `info` mostra o "i" com a explicação.
  */
-export function MetricaHp({ rotulo, valor, unidade, grafico, testid, nota, info }: { rotulo: string; valor: React.ReactNode; unidade?: string; grafico?: React.ReactNode; testid?: string; nota?: React.ReactNode; info?: React.ReactNode }) {
+export function MetricaHp({ rotulo, valor, unidade, grafico, anel, testid, nota, info }: { rotulo: string; valor: React.ReactNode; unidade?: string; grafico?: React.ReactNode; anel?: React.ReactNode; testid?: string; nota?: React.ReactNode; info?: React.ReactNode }) {
   return (
-    <CartaoHp testid={testid} className="flex min-w-0 flex-col gap-[6px] sm:min-h-[88px] sm:flex-row sm:items-center sm:gap-[12px]">
-      <div className="min-w-0 flex-1">
-        <p className="flex items-center gap-[4px] text-[12px] leading-[16px] text-[#18181A] sm:text-[14px] sm:leading-[20px]">
-          <span className="min-w-0 truncate">{rotulo}</span>
-          {info && <InfoHp titulo={rotulo}>{info}</InfoHp>}
-        </p>
-        <p className="mt-[2px] text-[18px] font-bold leading-[24px] text-[#18181A] sm:mt-[8px] sm:text-[20px] sm:leading-[28px]">
-          {valor}{unidade && <span className="ml-[3px] text-[12px] font-light text-[#1D1E20] sm:text-[14px]">{unidade}</span>}
-        </p>
-        {nota && <p className="truncate text-[11px] leading-[14px] text-[#58585E] sm:text-[12px] sm:leading-[16px]">{nota}</p>}
+    <CartaoHp testid={testid} className="flex min-w-0 flex-col gap-[6px]">
+      <p className="flex items-center gap-[4px] text-[12px] leading-[16px] text-[#18181A] sm:text-[14px] sm:leading-[20px]">
+        <span className="min-w-0">{rotulo}</span>
+        {info && <InfoHp titulo={rotulo}>{info}</InfoHp>}
+      </p>
+      <div className="flex min-w-0 flex-wrap items-start gap-[8px]">
+        <div className="min-w-0 flex-[1_0_auto]">
+          <p className="whitespace-nowrap text-[18px] font-bold leading-[24px] tabular-nums text-[#18181A] sm:text-[20px] sm:leading-[28px]">
+            {valor}{unidade && <span className="ml-[3px] text-[12px] font-light text-[#1D1E20] sm:text-[14px]">{unidade}</span>}
+          </p>
+          {nota && <p className="text-[11px] leading-[14px] text-[#58585E] sm:text-[12px] sm:leading-[16px]">{nota}</p>}
+        </div>
+        {anel}
       </div>
-      {grafico && <div className="w-full flex-shrink-0 sm:w-[150px]">{grafico}</div>}
+      {grafico && <div className="w-full">{grafico}</div>}
     </CartaoHp>
   )
 }
@@ -125,8 +118,8 @@ export const CLASSE_BOTAO_SECUNDARIO = 'inline-flex h-[40px] items-center justif
 export function BotaoPrimario({ className = '', ...p }: PropsBotao) { return <button type="button" {...p} className={`${CLASSE_BOTAO_PRIMARIO} ${className}`} /> }
 export function BotaoSecundario({ className = '', ...p }: PropsBotao) { return <button type="button" {...p} className={`${CLASSE_BOTAO_SECUNDARIO} ${className}`} /> }
 
-/** Minigráfico (sparkline) roxo com preenchimento claro; ocupa a largura do espaço (100%). */
-export function SparklineHp({ valores, cor = '#673DE6', altura = 48, rotulo }: { valores: number[]; cor?: string; altura?: number; rotulo: string }) {
+/** Minigráfico (sparkline) roxo com preenchimento claro; ocupa a largura do espaço (100%). Pico em vermelho: valor e linha. */
+export function SparklineHp({ valores, cor = '#673DE6', altura = 48, rotulo, formato = (n) => Math.round(n).toLocaleString('pt-BR') }: { valores: number[]; cor?: string; altura?: number; rotulo: string; formato?: (n: number) => string }) {
   const v = valores.filter((n) => Number.isFinite(n))
   const L = 150
   if (v.length < 2) return <div style={{ height: altura }} aria-hidden />
@@ -134,12 +127,17 @@ export function SparklineHp({ valores, cor = '#673DE6', altura = 48, rotulo }: {
   const pontos = v.map((n, i) => [(i / (v.length - 1)) * L, altura - 4 - ((n - min) / faixa) * (altura - 10)] as const)
   const linha = pontos.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ')
   const id = `sp-${rotulo.replace(/\W/g, '')}`
+  const temPico = max > min
   return (
-    <svg viewBox={`0 0 ${L} ${altura}`} preserveAspectRatio="none" className="block h-[40px] w-full sm:h-[48px]" role="img" aria-label={`${rotulo}: de ${Math.round(min)} a ${Math.round(max)}`}>
-      <defs><linearGradient id={id} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={cor} stopOpacity="0.18" /><stop offset="100%" stopColor={cor} stopOpacity="0" /></linearGradient></defs>
-      <polygon points={`0,${altura} ${linha} ${L},${altura}`} fill={`url(#${id})`} />
-      <polyline points={linha} fill="none" stroke={cor} strokeWidth="1.75" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-    </svg>
+    <div>
+      <p className="min-h-[14px] text-right text-[11px] font-semibold leading-[14px] tabular-nums text-[#B3122D]">{temPico ? `pico ${formato(max)}` : ''}</p>
+      <svg viewBox={`0 0 ${L} ${altura}`} preserveAspectRatio="none" className="block h-[40px] w-full sm:h-[48px]" role="img" aria-label={`${rotulo}: de ${formato(min)} a ${formato(max)}`}>
+        <defs><linearGradient id={id} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={cor} stopOpacity="0.18" /><stop offset="100%" stopColor={cor} stopOpacity="0" /></linearGradient></defs>
+        <polygon points={`0,${altura} ${linha} ${L},${altura}`} fill={`url(#${id})`} />
+        <polyline points={linha} fill="none" stroke={cor} strokeWidth="1.75" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+        {temPico && <line x1={0} x2={L} y1={6} y2={6} stroke="#E73A47" strokeWidth="1" vectorEffect="non-scaling-stroke" />}
+      </svg>
+    </div>
   )
 }
 
@@ -148,25 +146,12 @@ export function AnelHp({ pct, rotulo }: { pct: number; rotulo: string }) {
   const T = 72, r = T / 2 - 5, c = 2 * Math.PI * r, p = Math.max(0, Math.min(100, pct))
   const cor = p >= 90 ? '#E73A47' : '#673DE6'
   return (
-    <div className="flex sm:justify-end">
-      <svg viewBox={`0 0 ${T} ${T}`} className="h-[44px] w-[44px] sm:h-[72px] sm:w-[72px]" role="img" aria-label={`${rotulo}: ${Math.round(p)}%`}>
+    <div className="flex flex-shrink-0">
+      <svg viewBox={`0 0 ${T} ${T}`} className="h-[44px] w-[44px] sm:h-[60px] sm:w-[60px]" role="img" aria-label={`${rotulo}: ${Math.round(p)}%`}>
         <circle cx={T / 2} cy={T / 2} r={r} fill="none" stroke="#EBE4FF" strokeWidth="6" />
         <circle cx={T / 2} cy={T / 2} r={r} fill="none" stroke={cor} strokeWidth="6" strokeLinecap="round"
           strokeDasharray={`${(p / 100) * c} ${c}`} transform={`rotate(-90 ${T / 2} ${T / 2})`} />
       </svg>
     </div>
-  )
-}
-
-/** Cartão pequeno de atalho (o "Chave SSH › Gerenciar"): cantos 20 px, título 14 e valor 16/24 500. */
-export function AtalhoHp({ titulo, valor, href, testid }: { titulo: string; valor: React.ReactNode; href: string; testid?: string }) {
-  return (
-    <Link href={href} data-testid={testid} className="flex min-h-[56px] items-center gap-[8px] rounded-[16px] border-[0.8px] border-[rgba(0,0,0,0.1)] bg-white px-[12px] py-[10px] hover:border-[rgba(103,61,230,0.35)] sm:rounded-[20px] sm:px-[16px] sm:py-[12px]">
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-[12px] leading-[16px] text-[#18181A] sm:text-[14px] sm:leading-[20px]">{titulo}</p>
-        <p className="truncate text-[14px] font-medium leading-[20px] text-[#18181A] sm:text-[16px] sm:leading-[24px]">{valor}</p>
-      </div>
-      <ChevronRight className="h-[18px] w-[18px] flex-shrink-0 text-[#18181A]" aria-hidden />
-    </Link>
   )
 }

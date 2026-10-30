@@ -17,7 +17,7 @@ export function LimitesCampanhas({ inicial }: { inicial: { disparoTetoDia: numbe
     </label>
   )
   return (
-    <form className="rounded-[24px] border-[0.8px] border-[rgba(0,0,0,0.1)] bg-white p-[24px]" data-testid="limites-campanhas"
+    <form className="rounded-[20px] border-[0.8px] border-[rgba(0,0,0,0.1)] bg-white p-[16px] sm:rounded-[24px] sm:p-[24px]" data-testid="limites-campanhas"
       onSubmit={(e) => { e.preventDefault(); iniciar(async () => { const r = await definirLimitesCampanhasAction(v); setMsg(r.ok ? r.mensagem ?? 'Salvo' : r.erro) }) }}>
       <p className="text-[16px] font-semibold leading-[24px] text-text-main">Limites das campanhas (todas as lojas)</p>
       <div className="mt-3 flex flex-wrap gap-5">

@@ -24,13 +24,13 @@ function Cotacao({ atual }: { atual: number }) {
   const [pendente, iniciar] = useTransition()
   return (
     <form
-      className="flex items-center gap-2 text-[13px]"
+      className="flex flex-wrap items-center gap-2 text-[13px]"
       onSubmit={(e) => { e.preventDefault(); iniciar(async () => { const r = await definirCotacaoAction(valor); setMsg(r.ok ? 'Salvo' : r.erro) }) }}
       data-testid="gasto-cotacao"
     >
       <label htmlFor="cotacao" className="text-text-subtle">Cotação do dólar (R$)</label>
-      <input id="cotacao" inputMode="decimal" value={valor} onChange={(e) => { setValor(e.target.value); setMsg(null) }} className="h-[32px] w-[72px] rounded-[12px] border border-border px-2 tabular-nums" />
-      <button type="submit" disabled={pendente} className="h-[32px] rounded-[12px] border border-border px-2.5 text-[13px] font-bold hover:border-primary disabled:opacity-50">Salvar</button>
+      <input id="cotacao" inputMode="decimal" value={valor} onChange={(e) => { setValor(e.target.value); setMsg(null) }} className="h-[40px] w-[72px] rounded-[12px] border border-border px-2 tabular-nums" />
+      <button type="submit" disabled={pendente} className="h-[40px] rounded-[12px] border border-border px-2.5 text-[13px] font-bold hover:border-primary disabled:opacity-50">Salvar</button>
       {msg && <span role="status" className={msg === 'Salvo' ? 'text-[#008361]' : 'text-[#D63163]'}>{msg}</span>}
     </form>
   )
@@ -57,18 +57,20 @@ export function GastoPorLoja({ gasto, nomes, cotacao, tetosLoja, tetoPadrao }: {
   const dentroDaCota = googleMes.geocoding <= COTA_GRATIS_GOOGLE_MES && googleMes.directions <= COTA_GRATIS_GOOGLE_MES && googleMes.maps_js <= COTA_GRATIS_GOOGLE_MES
   return (
     <div className="flex flex-col gap-[16px]">
-      <div className="flex justify-end"><Cotacao atual={cotacao} /></div>
       <div className="flex flex-col gap-[16px]">
-        <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Período">
-          {(Object.keys(ROTULO) as Periodo[]).map((p) => (
-            <button key={p} type="button" role="tab" aria-selected={periodo === p} onClick={() => setPeriodo(p)}
-              className={`h-[34px] rounded-[12px] border px-3 text-[12px] font-semibold ${periodo === p ? 'border-transparent bg-[#EBE4FF] text-[#673DE6]' : 'border-[rgba(0,0,0,0.1)] bg-white text-text-main hover:bg-[#F5F5F6]'}`}>
-              {ROTULO[p]}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center justify-between gap-[8px]">
+          <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Período">
+            {(Object.keys(ROTULO) as Periodo[]).map((p) => (
+              <button key={p} type="button" role="tab" aria-selected={periodo === p} onClick={() => setPeriodo(p)}
+                className={`h-[40px] rounded-[12px] border px-3 text-[13px] font-semibold ${periodo === p ? 'border-transparent bg-[#EBE4FF] text-[#673DE6]' : 'border-[rgba(0,0,0,0.1)] bg-white text-text-main hover:bg-[#F5F5F6]'}`}>
+                {ROTULO[p]}
+              </button>
+            ))}
+          </div>
+          <Cotacao atual={cotacao} />
         </div>
 
-        <section className="rounded-[24px] border-[0.8px] border-[rgba(0,0,0,0.1)] bg-white p-[24px]" data-testid="gasto-total">
+        <section className="rounded-[20px] border-[0.8px] border-[rgba(0,0,0,0.1)] bg-white p-[16px] sm:rounded-[24px] sm:p-[24px]" data-testid="gasto-total">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-[15px] font-semibold text-text-main">Total do sistema — {ROTULO[periodo].toLowerCase()}</h2>
             <span className="text-[20px] font-semibold tabular-nums text-text-main">{usd(totalDe(t))} · {reais(totalDe(t), cotacao)}</span>
@@ -94,8 +96,8 @@ export function GastoPorLoja({ gasto, nomes, cotacao, tetosLoja, tetoPadrao }: {
                 </div>
                 <div className="my-2 h-[8px] overflow-hidden rounded-full bg-[#EDEEF1]" aria-hidden>
                   <div className="flex h-full" style={{ width: `${pct}%` }}>
-                    <span className="h-full bg-[#A855F7]" style={{ width: `${totalDe(f) ? (f.iaMicroUsd / totalDe(f)) * 100 : 0}%` }} />
-                    <span className="h-full bg-[#673DE6]" style={{ width: `${totalDe(f) ? (f.googleMicroUsd / totalDe(f)) * 100 : 0}%` }} />
+                    <span className="h-full bg-[#673DE6]" style={{ width: `${totalDe(f) ? (f.iaMicroUsd / totalDe(f)) * 100 : 0}%` }} />
+                    <span className="h-full bg-[#0B86C9]" style={{ width: `${totalDe(f) ? (f.googleMicroUsd / totalDe(f)) * 100 : 0}%` }} />
                   </div>
                 </div>
                 <Valores f={f} cot={cotacao} />
@@ -103,7 +105,7 @@ export function GastoPorLoja({ gasto, nomes, cotacao, tetosLoja, tetoPadrao }: {
             )
           })}
         </ul>
-        <p className="text-[12px] text-text-subtle"><span className="inline-block h-[8px] w-[8px] rounded-full bg-[#A855F7] align-middle" /> Agente de IA (Claude, custo real) · <span className="inline-block h-[8px] w-[8px] rounded-full bg-[#673DE6] align-middle" /> Google Maps (preço de tabela)</p>
+        <p className="text-[12px] text-text-subtle"><span className="inline-block h-[8px] w-[8px] rounded-full bg-[#673DE6] align-middle" /> Agente de IA (Claude, custo real) · <span className="inline-block h-[8px] w-[8px] rounded-full bg-[#0B86C9] align-middle" /> Google Maps (preço de tabela)</p>
       </div>
     </div>
   )
