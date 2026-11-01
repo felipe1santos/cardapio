@@ -24,6 +24,8 @@ import { precisaPixAntes } from '@/lib/entregas/parceiro-pix'
 import { pedidoDeApp } from '@/lib/pedido-editavel'
 import { CORRIDA_ATIVA, ENTREGA_PROVEDOR_SELECT, mapEntregaProvedor, type EntregaProvedorLinha } from '@/lib/entregas/lalamove-status'
 import { useEventosPedidos } from '@/lib/realtime-pedidos'
+import { INTERVALO_REALTIME_OK, useHeartbeatVisivel } from '@/lib/realtime-fallback'
+import { criarAgrupador } from '@/lib/ritmo-telas'
 import { aplicarEventoEntregador, atualizarOnline } from '@/lib/entregadores-evento'
 
 // Milhar com ponto ("R$ 4.088,00"): função única do painel, ver lib/moeda.ts.
@@ -215,8 +217,15 @@ function RotaPanelBase({ supabase, restauranteId, apiKey, onClose }: RotaPanelPr
     }
   }, [supabase, restauranteId])
 
+  // 01/11 (Fase 3): vários eventos numa janela de 400 ms = 1 releitura (3 consultas), como o coletor do Kanban; e rede
+  // de segurança (leitura a cada 60 s com a aba visível + ao reconectar) — antes, canal caído = tela parada em silêncio.
+  const refetchRef = useRef(refetch)
+  refetchRef.current = refetch
+  const agrupado = useMemo(() => criarAgrupador(400, () => { void refetchRef.current() }), [])
+  useEffect(() => () => agrupado.cancelar(), [agrupado])
   // `pedidos` pelo canal do layout (achado #6); este canal fica só com motoboys e corridas.
-  useEventosPedidos({ supabase: supabase!, restauranteId: supabase ? restauranteId ?? null : null, aoEvento: () => refetch() })
+  useEventosPedidos({ supabase: supabase!, restauranteId: supabase ? restauranteId ?? null : null, aoEvento: () => agrupado.chamar(), aoSincronizar: () => agrupado.chamar() })
+  useHeartbeatVisivel(() => { void refetchRef.current() }, INTERVALO_REALTIME_OK)
   useEffect(() => {
     refetch()
     if (supabase && restauranteId) {
@@ -225,16 +234,16 @@ function RotaPanelBase({ supabase, restauranteId, apiKey, onClose }: RotaPanelPr
         // Heartbeat do motoboy (achado #7): aplica na linha dele (online e posição no mapa), sem reler tudo.
         .on('postgres_changes', { event: '*', schema: 'public', table: 'entregadores', filter: `restaurante_id=eq.${restauranteId}` }, (payload) => {
           const r = aplicarEventoEntregador(driversRef.current, payload)
-          if (r.recarregar) refetch()
+          if (r.recarregar) agrupado.chamar()
           else { driversRef.current = r.lista; setDrivers(r.lista) }
         })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'entregas_provedor', filter: `restaurante_id=eq.${restauranteId}` }, () => refetch())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'entregas_provedor', filter: `restaurante_id=eq.${restauranteId}` }, () => agrupado.chamar())
         .subscribe()
       return () => {
         supabase.removeChannel(channel)
       }
     }
-  }, [supabase, restauranteId, refetch])
+  }, [supabase, restauranteId, refetch, agrupado])
 
   const porId = useMemo(() => new Map(pedidos.map((p) => [p.id, p])), [pedidos])
   const ordenados = useMemo(() => ordem.map((id) => porId.get(id)).filter((p): p is Pedido => Boolean(p)), [ordem, porId])

@@ -47,14 +47,21 @@ export async function aguardandoAceite(admin: SupabaseClient, restauranteId: str
   return { aguardando: lista.length, numeros: lista.slice(0, 10).map((p) => p.numero) }
 }
 
-/** Painel: o Assistente desta loja está tocando o alarme? Erro → false (o painel toca). */
-export async function alarmeNoAssistente(admin: SupabaseClient, restauranteId: string, agora = new Date()): Promise<boolean> {
+/**
+ * Painel: o Assistente desta loja está tocando o alarme? Erro → false (o painel toca). `semAssistente` = a loja não tem
+ * Assistente dono da Cozinha: o painel passa a perguntar só a cada 5 min (01/11, lib/ritmo-telas.ts).
+ */
+export async function estadoAlarmeAssistente(admin: SupabaseClient, restauranteId: string, agora = new Date()): Promise<{ assistente: boolean; semAssistente: boolean }> {
   try {
     const rota = await destinoCozinha(admin, restauranteId)
-    if (!rota.ativo || !rota.agenteId) return false
+    if (!rota.ativo || !rota.agenteId) return { assistente: false, semAssistente: true }
     const { data } = await admin.from('impressao_agentes').select('versao, visto_em, revogado_em').eq('id', rota.agenteId).eq('restaurante_id', restauranteId).maybeSingle()
-    return assistenteTocaAlarme((data as AgenteAlarme | null) ?? null, agora)
+    return { assistente: assistenteTocaAlarme((data as AgenteAlarme | null) ?? null, agora), semAssistente: false }
   } catch {
-    return false
+    return { assistente: false, semAssistente: false }
   }
+}
+
+export async function alarmeNoAssistente(admin: SupabaseClient, restauranteId: string, agora = new Date()): Promise<boolean> {
+  return (await estadoAlarmeAssistente(admin, restauranteId, agora)).assistente
 }

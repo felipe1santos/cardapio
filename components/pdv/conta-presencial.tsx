@@ -30,6 +30,7 @@ import { rotuloTaxa, type TaxaEntrada } from '@/lib/taxas-conta'
 import { IdentificarModal } from './atendimento'
 import { ResumoEncerramentoModal } from './resumo-encerramento'
 import { montarResumoEncerramento, type ResumoEncerramento } from '@/lib/encerramento-conta'
+import { intervaloPreConta } from '@/lib/ritmo-telas'
 import Link from 'next/link'
 
 /**
@@ -1434,15 +1435,23 @@ function PreContaBloco({ comandaId, variante = 'bloco' }: { comandaId: string; v
     const criado = new Date(criadoEmUltima ?? Date.now()).getTime()
     const idade = () => Date.now() - criado
     let vivo = true
-    let t: ReturnType<typeof setTimeout>
+    let t: ReturnType<typeof setTimeout> | undefined
+    // Espera crescente com teto e pausa escondida (01/11): antes era 0,7→2 s para sempre — impressora parada = 30
+    // consultas/min por comanda, indefinidamente.
+    const visivel = () => document.visibilityState === 'visible'
+    const agendar = () => {
+      const ms = intervaloPreConta(idade(), visivel())
+      if (ms !== null) t = setTimeout(passo, ms)
+    }
     const passo = () => {
       if (!vivo) return
-      void carregar()
-      setAgora(Date.now())
-      t = setTimeout(passo, idade() < 15_000 ? 700 : 2000)
+      if (visivel()) { void carregar(); setAgora(Date.now()) }
+      agendar()
     }
-    t = setTimeout(passo, idade() < 15_000 ? 700 : 2000)
-    return () => { vivo = false; clearTimeout(t) }
+    agendar()
+    const aoVoltar = () => { if (vivo && visivel()) { void carregar(); setAgora(Date.now()) } }
+    document.addEventListener('visibilitychange', aoVoltar)
+    return () => { vivo = false; if (t) clearTimeout(t); document.removeEventListener('visibilitychange', aoVoltar) }
   }, [andando, carregar, criadoEmUltima, ultima?.estado])
   const idadeUltima = ultima ? agora - new Date(ultima.criadoEm).getTime() : 0
 

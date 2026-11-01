@@ -131,8 +131,9 @@ export function PortalMotoboy({ apiBase, swUrl, swScope }: { apiBase: string; sw
   useEffect(() => {
     void refetch(); void esvaziarFila()
     // A tela só atualiza visível (revisão de escala 26/10); a fila offline continua saindo. O sinal de vida (abaixo) não
-    // pausa: é ele que diz ao despacho que o motoboy está disponível.
-    const i = setInterval(() => { if (document.visibilityState === 'visible') void refetch(); if (lerFila().length) void esvaziarFila() }, 10000)
+    // pausa: é ele que diz ao despacho que o motoboy está disponível. 20 s (01/11; era 10 s): era a tela mais cara por
+    // usuário, ~80 consultas/min; toda ação do motoboy já relê na hora.
+    const i = setInterval(() => { if (document.visibilityState === 'visible') void refetch(); if (lerFila().length) void esvaziarFila() }, 20000)
     return () => clearInterval(i)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiBase])

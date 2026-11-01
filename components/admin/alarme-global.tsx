@@ -6,6 +6,7 @@ import { listarRecebidosParaAlarme } from '@/lib/queries/pedidos'
 import { useAlarmePedidos } from '@/components/pedidos/use-alarme'
 import { textoDoTituloPiscando } from '@/lib/alarme-pedidos'
 import { abrirCanalPedidos, useCanalPedidos } from '@/lib/realtime-pedidos'
+import { ASSISTENTE_MS, intervaloPerguntaAssistente } from '@/lib/ritmo-telas'
 
 /**
  * Alarme de pedido novo em QUALQUER tela do painel (2026-10-04). Antes ele só existia no Painel de
@@ -33,29 +34,36 @@ export function useAlarme(): ValorAlarme | null {
  * aba do painel, ~44 mil/dia medidas em 26/10 (13 % do egress). Ao voltar à aba, à internet ou ao canal, lê na hora.
  */
 const LEITURA_MS = 60_000
-/** De quanto em quanto tempo o painel pergunta se o Assistente da loja está tocando o alarme (12/10). */
-const ASSISTENTE_MS = 15_000
 
 export function AlarmeProvider({ restauranteId, ativo, children }: { restauranteId: string | null; ativo: boolean; children: ReactNode }) {
   // Um alarme só (12/10): Assistente online e com alarme → o painel fica mudo. Na dúvida (erro, sem resposta), toca.
+  // 01/11 (Fase 3): a pergunta pausa com a aba escondida e cai para 5 min em loja sem Assistente pareado — antes eram
+  // 4 consultas/min por aba, 24 h, em toda loja (40 % da base ociosa do painel).
   const [assistenteToca, setAssistenteToca] = useState(false)
   useEffect(() => {
     if (!restauranteId || !ativo) return
     let vivo = true
+    let t: ReturnType<typeof setTimeout> | undefined
+    let proximo = ASSISTENTE_MS
+    const visivel = () => document.visibilityState === 'visible'
     const perguntar = async () => {
       try {
         const r = await fetch('/api/admin/pedidos/alarme-assistente', { cache: 'no-store' })
         const j = r.ok ? await r.json() : null
-        if (vivo) setAssistenteToca(j?.assistente === true)
+        if (vivo) { setAssistenteToca(j?.assistente === true); proximo = intervaloPerguntaAssistente(j) }
       } catch {
         if (vivo) setAssistenteToca(false)
       }
     }
-    void perguntar()
-    const t = setInterval(() => void perguntar(), ASSISTENTE_MS)
-    const aoVoltar = () => { if (document.visibilityState === 'visible') void perguntar() }
+    const laco = async () => {
+      if (!vivo) return
+      if (visivel()) await perguntar()
+      if (vivo) t = setTimeout(laco, proximo)
+    }
+    void laco()
+    const aoVoltar = () => { if (visivel()) void perguntar() }
     document.addEventListener('visibilitychange', aoVoltar)
-    return () => { vivo = false; clearInterval(t); document.removeEventListener('visibilitychange', aoVoltar) }
+    return () => { vivo = false; if (t) clearTimeout(t); document.removeEventListener('visibilitychange', aoVoltar) }
   }, [restauranteId, ativo])
   const alarme = useAlarmePedidos({ ativo, mudo: assistenteToca })
   const supabase = useMemo(() => getBrowserSupabase(), [])
@@ -89,7 +97,8 @@ export function AlarmeProvider({ restauranteId, ativo, children }: { restaurante
     // fora do layout (não deveria acontecer), abre o próprio.
     const canal = canalPedidos === undefined || (canalPedidos && canalPedidos.restauranteId !== restauranteId) ? abrirCanalPedidos(supabase, restauranteId) : null
     const sair = (canal ?? canalPedidos)?.ouvir(() => void ler(), () => void ler()) ?? (() => {})
-    const relogio = setInterval(() => void ler(), LEITURA_MS)
+    // Escondida, o pedido novo ainda chega pelo canal (acima); o relógio é só rede de segurança e pausa (01/11).
+    const relogio = setInterval(() => { if (document.visibilityState === 'visible') void ler() }, LEITURA_MS)
     const aoVoltar = () => { if (document.visibilityState === 'visible') void ler() }
     document.addEventListener('visibilitychange', aoVoltar)
     window.addEventListener('online', aoVoltar)

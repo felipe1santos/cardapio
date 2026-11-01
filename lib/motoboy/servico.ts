@@ -15,6 +15,7 @@ import { registrarAuditoria } from '@/lib/auditoria'
 import { lerEntradaDoQr } from '@/lib/motoboy/qr-rota'
 import { enderecoCompletoPedido } from '@/lib/queries/pedidos'
 import { controleCaixaAtivo } from '@/lib/financeiro/nivel'
+import { lembrar, type Guardado } from '@/lib/cache-memoria'
 
 /**
  * Motoboy (Fase 3, 0136): o MESMO serviço atende o link/QR antigo (token) e o app com login. Quem
@@ -51,31 +52,46 @@ async function dinheiroComigo(admin: SupabaseClient, e: EntregadorPortal) {
   }
 }
 
+/**
+ * Dados da loja que mudam uma vez por mês (onde fica, logo, módulo financeiro): guardados 5 min por loja (01/11, Fase 3).
+ * O app do motoboy relia tudo isso a cada poll — 3 consultas por leitura, por motoboy.
+ */
+type FixoDaLoja = { loja: Awaited<ReturnType<typeof buscarLojaNoMapa>> | null; logoUrl: string | null; fin: boolean }
+const fixoPorLoja = new Map<string, Guardado<FixoDaLoja>>()
+const FIXO_MS = 5 * 60_000
+async function fixoDaLoja(admin: SupabaseClient, restauranteId: string): Promise<FixoDaLoja> {
+  return lembrar(fixoPorLoja, restauranteId, FIXO_MS, Date.now(), async () => {
+    const [loja, { data: rest }, fin] = await Promise.all([
+      // Onde a loja fica: o mapa da rota abre nela (antes: Fortaleza fixo até a rota chegar).
+      buscarLojaNoMapa(admin, restauranteId).catch(() => null),
+      admin.from('restaurantes').select('logo_url').eq('id', restauranteId).maybeSingle(),
+      financeiroAtivo(admin, restauranteId),
+    ])
+    return { loja, logoUrl: ((rest as { logo_url?: string | null } | null)?.logo_url) ?? null, fin }
+  })
+}
+
 export async function dadosDoPortal(admin: SupabaseClient, e: EntregadorPortal) {
   const inicio = inicioDoDiaSaoPaulo()
-  const [pedidos, concluidosHoje, caixaHoje, despachoAberto, fin] = await Promise.all([
+  const [pedidos, concluidosHoje, caixaHoje, despachoAberto, fixo] = await Promise.all([
     listarPedidosEmRotaDoEntregador(admin, e.id),
     contarEntregasConcluidasHoje(admin, e.id, inicio),
     calcularCaixaEntregadorHoje(admin, e.id, inicio),
     buscarDespachoAberto(admin, e.restauranteId),
-    financeiroAtivo(admin, e.restauranteId),
+    fixoDaLoja(admin, e.restauranteId),
   ])
-  // Onde a loja fica: o mapa da rota abre nela (antes: Fortaleza fixo até a rota chegar).
-  const loja = await buscarLojaNoMapa(admin, e.restauranteId).catch(() => null)
+  const { loja, fin } = fixo
   const disponiveis = despachoAberto ? await listarPedidosDisponiveisDespacho(admin, e.restauranteId) : []
   const saiu = pedidos.length
     ? ((await admin.from('pedidos').select('id, saiu_para_entrega_em, entrega_latitude, entrega_longitude').in('id', pedidos.map((p) => p.id))).data ?? [])
     : []
   const saiuEm = new Map(saiu.map((s) => [s.id as string, s as { saiu_para_entrega_em: string | null; entrega_latitude: number | null; entrega_longitude: number | null }]))
-  // Item 59 (tela inicial nova): logo da loja, foto e situação do motoboy.
-  const [{ data: rest }, { data: ent }] = await Promise.all([
-    admin.from('restaurantes').select('logo_url').eq('id', e.restauranteId).maybeSingle(),
-    admin.from('entregadores').select('foto_url, status').eq('id', e.id).maybeSingle(),
-  ])
+  // Item 59 (tela inicial nova): foto e situação do motoboy (a logo vem do cache da loja).
+  const { data: ent } = await admin.from('entregadores').select('foto_url, status').eq('id', e.id).maybeSingle()
   return {
     entregador: {
       nome: e.nome, restauranteNome: e.restauranteNome,
-      logoUrl: ((rest as { logo_url?: string | null } | null)?.logo_url) ?? null,
+      logoUrl: fixo.logoUrl,
       fotoUrl: ((ent as { foto_url?: string | null } | null)?.foto_url) ?? null,
       status: ((ent as { status?: string } | null)?.status) ?? 'online',
     },

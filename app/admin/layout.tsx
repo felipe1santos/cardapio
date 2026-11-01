@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { Sidebar } from '@/components/layout/sidebar'
 import { MenuLateralContext } from '@/components/layout/menu-lateral-contexto'
@@ -37,6 +37,7 @@ import { AlarmeProvider, AvisoSomBloqueado } from '@/components/admin/alarme-glo
 import { abrirCanalPedidos, CanalPedidosContexto, type CanalPedidos } from '@/lib/realtime-pedidos'
 import { assinarPushPainel } from '@/lib/push/painel-cliente'
 import { useStatusLoja } from '@/lib/status-loja-cliente'
+import { deveRecarregarChecklist } from '@/lib/ritmo-telas'
 
 /** Onde fica registrado o "OK, entendi" do dono, por loja. */
 function chaveDispensa(restauranteId: string) {
@@ -239,10 +240,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   }, [supabase, pathname])
 
-  // Checklist de configuração: recarregado a cada troca de rota, que é quando o
-  // dono acabou de mexer em Ajustes/Cardápio. Corrigiu, o marcador some sozinho.
+  // Checklist de configuração: recarregado quando o dono SAI de uma tela de configuração (Ajustes, Cardápio, Equipe…),
+  // que é quando ele acabou de mexer. Corrigiu, o marcador some sozinho. Alternar entre Pedidos, KDS e PDV não relê
+  // (01/11, Fase 3: eram ~14 consultas por clique no menu, 10 delas deste checklist e da configuração da loja).
+  const rotaAnterior = useRef<string | null>(null)
   useEffect(() => {
     if (!restauranteId) return
+    const recarregar = deveRecarregarChecklist(rotaAnterior.current, pathname)
+    rotaAnterior.current = pathname
+    if (!recarregar) return
     let active = true
     ;(async () => {
       try {

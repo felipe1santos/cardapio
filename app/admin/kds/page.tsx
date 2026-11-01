@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { useRouter, useSearchParams } from 'next/navigation'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { useHeartbeatVisivel, useRealtimeComFallback } from '@/lib/realtime-fallback'
+import { criarAgrupador } from '@/lib/ritmo-telas'
 import { sairDoPainel, useEstadoSessao } from '@/lib/sessao-cliente'
 import { buscarRestauranteIdDoUsuario } from '@/lib/queries/cardapio'
 import { corteLiberacaoAgendados, listarPedidosKanban, type Pedido } from '@/lib/queries/pedidos'
@@ -100,13 +101,19 @@ function Kds() {
     }
   }, [supabase])
 
+  // 01/11 (Fase 3): um pedido gera 3 eventos seguidos (status, aviso, coordenadas); juntos numa janela de 400 ms = 1
+  // releitura, como o coletor do Kanban (lib/kanban-quadro.ts).
+  const recarregarRef = useRef<() => void>(() => {})
+  recarregarRef.current = () => { if (restauranteId) void recarregar(restauranteId) }
+  const agrupado = useMemo(() => criarAgrupador(400, () => recarregarRef.current()), [])
+  useEffect(() => () => agrupado.cancelar(), [agrupado])
   // Mesmo canal do Kanban: evento do banco → relê (Kanban e KDS se veem na hora). Poll só como rede de segurança.
   const { intervaloMs } = useRealtimeComFallback({
     supabase,
     canal: restauranteId ? `pedidos-kds-${restauranteId}` : null,
     tabelas: useMemo(() => [{ tabela: 'pedidos', filtro: restauranteId ? `restaurante_id=eq.${restauranteId}` : undefined }], [restauranteId]),
-    aoEvento: useCallback(() => { if (restauranteId) void recarregar(restauranteId) }, [recarregar, restauranteId]),
-    aoSincronizar: useCallback(() => { if (restauranteId) void recarregar(restauranteId) }, [recarregar, restauranteId]),
+    aoEvento: useCallback(() => agrupado.chamar(), [agrupado]),
+    aoSincronizar: useCallback(() => agrupado.chamar(), [agrupado]),
   })
   useEffect(() => {
     if (!restauranteId) return
