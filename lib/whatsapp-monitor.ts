@@ -154,7 +154,9 @@ export async function aplicarEventoConexao(admin: SupabaseClient, restauranteId:
   if (loja.whatsapp_estado === 'close' && conexao.estado !== 'open') return 'parado'
   if (conexao.estado === loja.whatsapp_estado) return 'pulou'
   if (conexao.estado !== 'open') {
-    await registrarAuditoria(admin, { restauranteId, usuarioNome: 'Sistema', acao: 'whatsapp.conexao', entidade: 'restaurante', entidadeId: restauranteId, dados: { estado: conexao.estado, motivo: conexao.motivo } }).catch(() => null)
+    // Metadado técnico em whatsapp_eventos (90 dias), NÃO em eventos_auditoria: aquela é encadeada por hash e guardada
+    // para sempre — em 27/10 foram 70 mil linhas de conexão lá, e apagá-las quebraria a cadeia (01/11, Fase 2).
+    await admin.from('whatsapp_eventos').insert({ restaurante_id: restauranteId, tipo: 'conexao', resultado: { estado: conexao.estado, motivo: conexao.motivo } }).then(() => null, () => null)
   }
   return monitorarLoja(admin, loja, { forcar: true, motivo: conexao.motivo })
 }

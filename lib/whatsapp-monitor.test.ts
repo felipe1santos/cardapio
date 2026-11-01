@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { decidirMonitor, deveVigiar, MAX_TENTATIVAS, THROTTLE_MS } from './whatsapp-monitor'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { aplicarEventoConexao, decidirMonitor, deveVigiar, MAX_TENTATIVAS, THROTTLE_MS } from './whatsapp-monitor'
 
 /**
  * Regra do dono (28/10/2026): WhatsApp é OPCIONAL. Loja desconectada (manual, 401 deslogou no celular, 440 sessão aberta
@@ -55,4 +56,35 @@ describe('quem o cron confere', () => {
     expect(deveVigiar('sem_instancia')).toBe(false)
   })
   it('throttle de 2 min por loja', () => { expect(THROTTLE_MS).toBe(120_000) })
+})
+
+/**
+ * 01/11/2026 (Fase 2 da auditoria de infraestrutura): o evento técnico de conexão NÃO entra em `eventos_auditoria`
+ * (tabela encadeada por hash, guardada para sempre); vai para `whatsapp_eventos` (metadado, 90 dias). Em 27/10 foram
+ * 70 mil linhas na auditoria da PONTO 400 — e qualquer limpeza delas quebraria a cadeia.
+ */
+function adminFalso(loja: Record<string, unknown>) {
+  const inseridos: { tabela: string; linha: Record<string, unknown> }[] = []
+  const resposta = { data: null, error: null }
+  const cadeia = (tabela: string) => {
+    const c: Record<string, unknown> = {}
+    const self = () => c
+    for (const m of ['select', 'eq', 'is', 'gte', 'not', 'or', 'in', 'order', 'limit', 'update']) c[m] = self
+    c.maybeSingle = async () => ({ data: tabela === 'restaurantes' ? loja : null, error: null })
+    c.insert = (linha: Record<string, unknown>) => { inseridos.push({ tabela, linha }); return { ...c, then: (ok: (v: unknown) => unknown) => Promise.resolve(resposta).then(ok) } }
+    c.then = (ok: (v: unknown) => unknown) => Promise.resolve(resposta).then(ok)
+    return c
+  }
+  return { admin: { from: cadeia } as unknown as SupabaseClient, inseridos }
+}
+
+describe('evento de conexão do webhook (01/11): metadado em whatsapp_eventos, nunca na auditoria encadeada', () => {
+  it('"connecting" numa loja conectada grava 1 linha em whatsapp_eventos com estado e motivo, e nada em eventos_auditoria', async () => {
+    const { admin, inseridos } = adminFalso({ id: 'r1', nome: 'Ponto 400', evolution_instance: 'inst', whatsapp_estado: 'open', whatsapp_estado_em: iso(10), whatsapp_caiu_em: null, whatsapp_alertado_em: null, whatsapp_desconexao_manual_em: null })
+    await aplicarEventoConexao(admin, 'r1', { estado: 'connecting', motivo: 428 })
+    expect(inseridos.filter((i) => i.tabela === 'eventos_auditoria')).toEqual([])
+    const ev = inseridos.filter((i) => i.tabela === 'whatsapp_eventos')
+    expect(ev).toHaveLength(1)
+    expect(ev[0].linha).toMatchObject({ restaurante_id: 'r1', tipo: 'conexao', resultado: { estado: 'connecting', motivo: 428 } })
+  })
 })
