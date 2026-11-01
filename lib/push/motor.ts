@@ -28,6 +28,7 @@ import {
 } from './regras'
 import { TEXTO_PREMIO_PADRAO, TEXTOS_PADRAO, aplicarVariaveis, montarPayload, primeiroNome, textoStatusPedido } from './conteudo'
 import { processarFilaPush, pushConfigurado } from './envio'
+import { lerTodas } from '@/lib/queries/ler-todas'
 
 const DIA = 24 * 3600_000
 /** Intervalo mínimo entre duas avaliações de automação da mesma loja. */
@@ -222,17 +223,22 @@ export async function enviarPushStatusPedido(admin: SupabaseClient, pedidoId: st
 // ── automações de marketing ─────────────────────────────────────────────────
 interface Historico { chaves: Map<string, Set<string>>; marketingEm: Map<string, number[]> }
 
-/** Chaves já usadas e instantes dos marketings de cada destinatário (um por notificação, não por aparelho). */
-async function historicoDaLoja(admin: SupabaseClient, restauranteId: string, desde: number): Promise<Historico> {
-  const { data } = await admin
+/**
+ * Chaves já usadas e instantes dos marketings de cada destinatário (um por notificação, não por aparelho).
+ * De 1.000 em 1.000 (01/11): `.limit(50000)` não passava do corte de 1.000 do PostgREST — loja com mais de 1.000 envios
+ * em 120 dias esquecia chaves já enviadas e repetia a automação.
+ */
+export async function historicoDaLoja(admin: SupabaseClient, restauranteId: string, desde: number): Promise<Historico> {
+  const data = await lerTodas<{ destinatario: string; chave_dedup: string | null; avulsa_id: string | null; origem: string; status: string; criado_em: string }>((de, ate) => admin
     .from('push_envios')
     .select('destinatario, chave_dedup, avulsa_id, origem, status, criado_em')
     .eq('restaurante_id', restauranteId)
     .gte('criado_em', new Date(desde).toISOString())
-    .limit(50000)
+    .order('criado_em').order('id')
+    .range(de, ate))
   const chaves = new Map<string, Set<string>>()
   const vistos = new Map<string, Map<string, number>>()
-  for (const e of data ?? []) {
+  for (const e of data) {
     if (e.chave_dedup) {
       if (!chaves.has(e.destinatario)) chaves.set(e.destinatario, new Set())
       chaves.get(e.destinatario)!.add(e.chave_dedup)
@@ -252,16 +258,16 @@ async function historicoDaLoja(admin: SupabaseClient, restauranteId: string, des
 
 interface PedidosCliente { qtd: number; ultimoEm: number; ultimoId: string; nome: string }
 
-async function pedidosPorTelefone(admin: SupabaseClient, restauranteId: string): Promise<Map<string, PedidosCliente>> {
-  const { data } = await admin
+export async function pedidosPorTelefone(admin: SupabaseClient, restauranteId: string): Promise<Map<string, PedidosCliente>> {
+  const data = await lerTodas<{ id: string; cliente_telefone: string | null; cliente_nome: string | null; criado_em: string }>((de, ate) => admin
     .from('pedidos')
     .select('id, cliente_telefone, cliente_nome, criado_em')
     .eq('restaurante_id', restauranteId)
     .neq('status', 'cancelado')
-    .order('criado_em', { ascending: false })
-    .limit(50000)
+    .order('criado_em', { ascending: false }).order('id')
+    .range(de, ate))
   const m = new Map<string, PedidosCliente>()
-  for (const p of data ?? []) {
+  for (const p of data) {
     const t = soDigitos(p.cliente_telefone)
     if (!t) continue
     const atual = m.get(t)

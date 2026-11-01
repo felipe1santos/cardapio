@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { diaSP } from './uso'
+import { lerTodas } from '@/lib/queries/ler-todas'
 
 /**
  * "Gasto por loja" do Super Admin (12/10/2026): hoje, últimos 7 dias e mês atual de cada loja, por serviço — Agente de IA
@@ -63,11 +64,12 @@ export async function lerGastoLojas(admin: SupabaseClient, lojas: string[], agor
   const mesIni = `${hoje.slice(0, 8)}01`
   const semanaIni = new Date(Date.parse(`${hoje}T12:00:00Z`) - 6 * 86_400_000).toISOString().slice(0, 10)
   const desde = semanaIni < mesIni ? semanaIni : mesIni
-  const [{ data: ia }, { data: api }] = await Promise.all([
-    admin.from('ia_uso_dia').select('dia, escopo, chamadas, custo_micro_usd').gte('dia', desde).limit(20000),
-    admin.from('api_uso_dia').select('dia, escopo, api, chamadas').in('api', [...APIS]).gte('dia', desde).limit(20000),
+  // De 1.000 em 1.000 (01/11): o PostgREST corta em 1.000 calado e o mês passava disso perto do dia 26.
+  const [ia, api] = await Promise.all([
+    lerTodas<LinhaIaUso>((de, ate) => admin.from('ia_uso_dia').select('dia, escopo, chamadas, custo_micro_usd').gte('dia', desde).order('dia').order('escopo').order('modelo').range(de, ate)),
+    lerTodas<LinhaApiUso>((de, ate) => admin.from('api_uso_dia').select('dia, escopo, api, chamadas').in('api', [...APIS]).gte('dia', desde).order('api').order('escopo').order('dia').range(de, ate)),
   ])
-  return agregarGastoLojas((ia ?? []) as LinhaIaUso[], (api ?? []) as LinhaApiUso[], hoje, lojas)
+  return agregarGastoLojas(ia, api, hoje, lojas)
 }
 
 /** Cotação do dólar para mostrar em reais: a do Super Admin (plataforma_config, 0187) ou COTACAO_DOLAR, padrão 5,50. */

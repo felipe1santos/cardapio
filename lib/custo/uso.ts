@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { limiteDiario } from './guarda'
+import { lerTodas } from '@/lib/queries/ler-todas'
 
 /**
  * Contador das APIs pagas no Super Admin (10/10/2026, docs/REGRAS-DE-CUSTO.md) — lê api_uso_dia (0173).
@@ -69,11 +70,11 @@ export async function lerUsoApis(admin: SupabaseClient, agora = new Date()): Pro
   const hoje = diaSP(agora)
   const desde = new Date(Date.parse(`${hoje}T12:00:00Z`) - 6 * 86_400_000).toISOString().slice(0, 10)
   const inicioDia = new Date(`${hoje}T00:00:00-03:00`).toISOString()
-  const [{ data: linhas }, { data: alertas }] = await Promise.all([
-    admin.from('api_uso_dia').select('api, escopo, dia, chamadas').gte('dia', desde).limit(5000),
+  // De 1.000 em 1.000 (01/11): o PostgREST corta em 1.000 calado (7 dias × APIs × lojas passa disso com ~20 lojas).
+  const [ls, { data: alertas }] = await Promise.all([
+    lerTodas<LinhaUso>((de, ate) => admin.from('api_uso_dia').select('api, escopo, dia, chamadas').gte('dia', desde).order('api').order('escopo').order('dia').range(de, ate)),
     admin.from('api_alertas').select('nivel').gte('criado_em', inicioDia).limit(5000),
   ])
-  const ls = ((linhas ?? []) as LinhaUso[])
   const total = zerado()
   const porLoja: Record<string, Record<ApiPainel, number>> = {}
   let bloqueadas = 0

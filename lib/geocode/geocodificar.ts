@@ -49,9 +49,16 @@ export async function geocodificar(admin: SupabaseClient, consulta: string, loja
     const res = await fetch(url, { signal: AbortSignal.timeout(5000) })
     return (await res.json()) as { status: string; error_message?: string; results?: { geometry?: { location?: Coord } }[] }
   })
-  if (!r.ok) return { coord: null, motivo: 'indisponivel' }
-  const loc = r.valor.results?.[0]?.geometry?.location
   const agora = Date.now()
+  if (!r.ok) {
+    // Recusa da guarda (limite do dia, disparo) fica no cache por 1 h (01/11): antes cada abertura do mapa de rotas
+    // refazia a tentativa de todo pedido sem coordenada. Banco fora: não dá para gravar mesmo.
+    if (r.motivo !== 'banco') {
+      await admin.from('geocode_cache').upsert({ chave, lat: null, lng: null, ok: false, motivo: `guarda:${r.motivo}`, consultado_em: new Date(agora).toISOString(), expira_em: new Date(agora + FALHA_RECUSA_MS).toISOString() }).then(() => {}, () => {})
+    }
+    return { coord: null, motivo: 'indisponivel' }
+  }
+  const loc = r.valor.results?.[0]?.geometry?.location
   // Grava ANTES de devolver — sucesso e falha (a falha não é consultada de novo até expirar).
   if (r.valor.status === 'OK' && loc && Number.isFinite(loc.lat) && Number.isFinite(loc.lng)) {
     await admin.from('geocode_cache').upsert({ chave, lat: loc.lat, lng: loc.lng, ok: true, motivo: null, consultado_em: new Date(agora).toISOString(), expira_em: null }).then(() => {}, () => {})

@@ -9,7 +9,12 @@ export function definirTokenDoMapa(token: string | null | undefined) {
   if (token) tokenMapa = token
 }
 
-/** Avisa o servidor UMA vez por carregamento do script (é o que o Google cobra). Falhar não atrapalha o mapa. */
+/**
+ * Avisa o servidor a cada mapa novo: o Google cobra por INSTÂNCIA de mapa (`new google.maps.Map`), e cada tela chama
+ * `loadGoogleMaps` uma vez por montagem e cria um mapa — então cada chamada conta, inclusive com o script já na
+ * página (01/11; antes contava só o carregamento do script e o painel mostrava menos que a cobrança). Falhar não
+ * atrapalha o mapa.
+ */
 function avisarCarregou() {
   try {
     void fetch('/api/mapa/carregou', {
@@ -22,8 +27,8 @@ function avisarCarregou() {
 /** Injeta o script da Google Maps JavaScript API uma única vez e reaproveita entre componentes. */
 export function loadGoogleMaps(apiKey: string): Promise<typeof google> {
   if (typeof window === 'undefined') return Promise.reject(new Error('Google Maps só pode ser carregado no navegador.'))
-  if (window.google?.maps) return Promise.resolve(window.google)
-  if (loaderPromise) return loaderPromise
+  if (window.google?.maps) { avisarCarregou(); return Promise.resolve(window.google) }
+  if (loaderPromise) { avisarCarregou(); return loaderPromise }
 
   loaderPromise = new Promise((resolve, reject) => {
     const callbackName = '__menuziaGoogleMapsLoaded'

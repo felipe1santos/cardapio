@@ -2,6 +2,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { chamarApiPaga, limiteDiario } from './guarda'
 import { contarSemTrava, diaSP } from './uso'
 import { avisarSuporte } from './alerta-whatsapp'
+import { lerCotacao } from './gasto-lojas'
+import { lerTodas } from '@/lib/queries/ler-todas'
 
 /**
  * IA DE ATENDIMENTO (Claude, Anthropic — 11/10/2026; antes preparada para a OpenAI) — contador e teto de gasto
@@ -169,15 +171,17 @@ export async function lerUsoIa(admin: SupabaseClient, agora = new Date()): Promi
   const mesIni = `${hoje.slice(0, 8)}01`
   const seteAtras = new Date(Date.parse(`${hoje}T12:00:00Z`) - 6 * 86_400_000).toISOString().slice(0, 10)
   const desde = seteAtras < mesIni ? seteAtras : mesIni
-  const [{ data: linhas }, { data: bloq }, { data: tetos }] = await Promise.all([
-    admin.from('ia_uso_dia').select('dia, escopo, modelo, chamadas, tokens_entrada, tokens_saida, custo_micro_usd').gte('dia', desde).limit(20000),
+  // De 1.000 em 1.000 (01/11): o PostgREST corta em 1.000 calado. Cotação: a mesma do resto do Super Admin (editável).
+  const [linhas, { data: bloq }, { data: tetos }, cotacao] = await Promise.all([
+    lerTodas<LinhaIa>((de, ate) => admin.from('ia_uso_dia').select('dia, escopo, modelo, chamadas, tokens_entrada, tokens_saida, custo_micro_usd').gte('dia', desde).order('dia').order('escopo').order('modelo').range(de, ate)),
     admin.from('api_uso_dia').select('chamadas').eq('api', 'ia:bloqueada').eq('escopo', 'total').eq('dia', hoje).maybeSingle(),
     admin.from('whatsapp_robo_config').select('restaurante_id, ia_teto_usd_dia').not('ia_teto_usd_dia', 'is', null).limit(5000),
+    lerCotacao(admin).catch(() => limitesIa().cotacao),
   ])
   return {
-    ...agregarIa((linhas ?? []) as LinhaIa[], hoje),
+    ...agregarIa(linhas, hoje),
     ligada: Boolean(process.env.ANTHROPIC_API_KEY),
-    limites: limitesIa(),
+    limites: { ...limitesIa(), cotacao },
     bloqueadasHoje: Number((bloq as { chamadas?: number } | null)?.chamadas) || 0,
     tetosLoja: Object.fromEntries(((tetos ?? []) as { restaurante_id: string; ia_teto_usd_dia: number | string }[]).map((t) => [t.restaurante_id, Number(t.ia_teto_usd_dia)])),
   }
