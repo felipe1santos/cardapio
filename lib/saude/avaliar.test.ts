@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { assistentesFora, avaliar, cronsAtrasados, horaDoResumo, medidasVazias, podeEnviar, referenciaReq, textoResumo, type Medidas } from './avaliar'
+import { assistentesFora, avaliar, cronsAtrasados, horaDoResumo, medidasVazias, podeEnviar, referenciaReq, resolvidos, textoResumo, type Medidas } from './avaliar'
 
 const base = (p: Partial<Medidas> = {}): Medidas => ({ ...medidasVazias('2026-10-28T21:00:00Z'), ...p })
 const assuntos = (m: Medidas) => avaliar(m).map((a) => `${a.assunto}:${a.nivel}`)
@@ -30,11 +30,11 @@ describe('avaliar', () => {
 
   it('API paga do dia: um assunto por API', () => {
     const m = base({ apis: [{ api: 'geocoding', chamadas: 220, limite: 300 }, { api: 'directions', chamadas: 290, limite: 300 }, { api: 'uber', chamadas: 3, limite: 600 }] })
-    expect(assuntos(m)).toEqual(['api-geocoding:amarelo', 'api-directions:vermelho'])
+    expect(assuntos(m)).toEqual(['api-geocoding:amarelo', 'api-directions:amarelo'])
   })
 
   it('IA em dólar e loja que puxa quase tudo de uma API', () => {
-    expect(assuntos(base({ iaUsd: { gasto: 4.6, teto: 5 } }))).toEqual(['ia-usd:vermelho'])
+    expect(assuntos(base({ iaUsd: { gasto: 4.6, teto: 5 } }))).toEqual(['ia-usd:amarelo'])
     const m = base({ lojasApi: [{ loja: 'Villa', api: 'geocoding', chamadas: 160, totalApi: 180, limite: 300 }] })
     expect(assuntos(m)).toEqual(['loja-api-geocoding:amarelo'])
     // Loja dominante mas volume baixo: normal (uma loja só usando).
@@ -59,11 +59,12 @@ describe('avaliar', () => {
   })
 })
 
-describe('Assistente de impressão desligado com a loja aberta (29/10)', () => {
-  it('vira alerta vermelho por loja, com os minutos', () => {
-    const a = avaliar(base({ assistentesFora: [{ loja: 'Villa', minutos: 42 }] }))
-    expect(a.map((x) => `${x.assunto}:${x.nivel}`)).toEqual(['assistente-Villa:vermelho'])
+describe('Assistente de impressão parado com pedido chegando (01/11: só com prejuízo real)', () => {
+  it('vira alerta AMARELO por loja (a loja decide quando liga o PC), com os minutos e os pedidos parados', () => {
+    const a = avaliar(base({ assistentesFora: [{ loja: 'Villa', minutos: 42, pedidos: 3 }] }))
+    expect(a.map((x) => `${x.assunto}:${x.nivel}`)).toEqual(['assistente-Villa:amarelo'])
     expect(a[0].texto).toMatch(/42 min/)
+    expect(a[0].texto).toMatch(/3 pedido/)
     expect(a[0].texto).toMatch(/impressora/)
   })
 })
@@ -71,16 +72,71 @@ describe('Assistente de impressão desligado com a loja aberta (29/10)', () => {
 describe('assistentesFora (quem entra no alerta)', () => {
   const agora = Date.parse('2026-10-29T23:00:00Z')
   const min = (m: number) => new Date(agora - m * 60_000).toISOString()
-  it('só loja ABERTA, que usou o Assistente nos últimos 7 dias, sem sinal há 15 min ou mais', () => {
+  const loja = (p: Partial<Parameters<typeof assistentesFora>[0][number]>) => ({ nome: 'L', aberta: true, ultimoSinal: min(40), imprimirSozinho: true, pedidosRecentes: 2, ...p })
+  it('só loja aberta, com Imprimir sozinho ligado, com pedido nos últimos 30 min e sem sinal há 15 min ou mais', () => {
     const r = assistentesFora([
-      { nome: 'Aberta sem sinal', aberta: true, ultimoSinal: min(40) },
-      { nome: 'Aberta com sinal', aberta: true, ultimoSinal: min(1) },
-      { nome: 'Fechada', aberta: false, ultimoSinal: min(300) },
-      { nome: 'Nunca usou', aberta: true, ultimoSinal: null },
-      { nome: 'Abandonou há 10 dias', aberta: true, ultimoSinal: min(10 * 24 * 60) },
-      { nome: 'Quase', aberta: true, ultimoSinal: min(14) },
+      loja({ nome: 'Pedido parado' }),
+      loja({ nome: 'Com sinal', ultimoSinal: min(1) }),
+      loja({ nome: 'Fechada', aberta: false }),
+      loja({ nome: 'Nunca usou', ultimoSinal: null }),
+      loja({ nome: 'Abandonou há 10 dias', ultimoSinal: min(10 * 24 * 60) }),
+      loja({ nome: 'Quase', ultimoSinal: min(14) }),
+      loja({ nome: 'Imprime pelo painel', imprimirSozinho: false }),
+      loja({ nome: 'BURGUER MAX: aberta no manual, PC desligado, sem pedido', pedidosRecentes: 0, ultimoSinal: min(507) }),
     ], agora)
-    expect(r).toEqual([{ loja: 'Aberta sem sinal', minutos: 40 }])
+    expect(r).toEqual([{ loja: 'Pedido parado', minutos: 40, pedidos: 2 }])
+  })
+})
+
+describe('requisições com o pico médio dos 7 dias (01/11: 2× de uma tarde vazia não é loop)', () => {
+  const mh = { reqReferenciaMesmoHorario: true }
+  it('228/min contra 111 do horário, pico médio 531 → nada (caso real de 01/11)', () => {
+    expect(assuntos(base({ reqPorMin: 228, reqMediaPorMin: 111, reqPicoMedioPorMin: 531, reqAnteriorPorMin: 220, ...mh }))).toEqual([])
+  })
+  it('646 contra 316, pico 843 → nada (jantar de sexta, 30/10)', () => {
+    expect(assuntos(base({ reqPorMin: 646, reqMediaPorMin: 316, reqPicoMedioPorMin: 843, reqAnteriorPorMin: 600, ...mh }))).toEqual([])
+  })
+  it('acima do pico e 2× o horário, mas só nesta foto → ainda nada (precisa de 2 fotos seguidas)', () => {
+    expect(assuntos(base({ reqPorMin: 700, reqMediaPorMin: 300, reqPicoMedioPorMin: 531, reqAnteriorPorMin: 200, ...mh }))).toEqual([])
+  })
+  it('acima do pico, 2× o horário, 2 fotos seguidas → amarelo; 2× o pico → vermelho', () => {
+    expect(assuntos(base({ reqPorMin: 700, reqMediaPorMin: 300, reqPicoMedioPorMin: 531, reqAnteriorPorMin: 650, ...mh }))).toEqual(['requisicoes:amarelo'])
+    expect(assuntos(base({ reqPorMin: 1200, reqMediaPorMin: 300, reqPicoMedioPorMin: 531, reqAnteriorPorMin: 1100, ...mh }))).toEqual(['requisicoes:vermelho'])
+  })
+  it('sem pico conhecido (primeiros dias) vale a regra antiga', () => {
+    expect(assuntos(base({ reqPorMin: 900, reqMediaPorMin: 400, ...mh }))).toEqual(['requisicoes:amarelo'])
+  })
+})
+
+describe('nível: só é Crítico o que para pedido ou dinheiro (01/11, regra do dono)', () => {
+  it('API perto do limite e IA perto do teto são Atenção (amarelo), nunca vermelho', () => {
+    expect(assuntos(base({ apis: [{ api: 'directions', chamadas: 290, limite: 300 }] }))).toEqual(['api-directions:amarelo'])
+    expect(assuntos(base({ iaUsd: { gasto: 4.6, teto: 5 } }))).toEqual(['ia-usd:amarelo'])
+  })
+  it('banco bloqueado, rotina parada, VPS e egress continuam Crítico', () => {
+    expect(assuntos(base({ cronsAtrasados: [{ nome: 'pix-online', minutos: 25 }] }))).toEqual(['cron-pix-online:vermelho'])
+    expect(assuntos(base({ egressMesGb: 230, egressCotaGb: 250 }))).toEqual(['egress:vermelho'])
+  })
+})
+
+describe('resolvidos (01/11): alerta aberto cujo assunto sumiu da foto', () => {
+  it('devolve os ids dos alertas do vigia que não estão mais ativos; alerta de custo (evento único) não entra', () => {
+    const abertos = [
+      { id: 1, assunto: 'assistente-BURGUER MAX' },
+      { id: 2, assunto: 'requisicoes' },
+      { id: 3, assunto: 'vps-disco' },
+      { id: 4, assunto: 'custo:loop' },
+    ]
+    expect(resolvidos(abertos, ['vps-disco'])).toEqual([1, 2])
+  })
+})
+
+describe('podeEnviar: impressora no máximo 1 por loja por dia', () => {
+  const agora = Date.parse('2026-11-01T18:00:00Z')
+  it('repetido em 24 h não sai; os outros assuntos continuam com 6 h', () => {
+    const h = [{ assunto: 'assistente-Villa', nivel: 'amarelo', criado_em: '2026-11-01T08:00:00Z' }, { assunto: 'vps-disco', nivel: 'amarelo', criado_em: '2026-11-01T08:00:00Z' }]
+    expect(podeEnviar(h, { assunto: 'assistente-Villa', nivel: 'amarelo' }, agora)).toBe(false)
+    expect(podeEnviar(h, { assunto: 'vps-disco', nivel: 'amarelo' }, agora)).toBe(true)
   })
 })
 

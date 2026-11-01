@@ -16,6 +16,10 @@ export interface Medidas {
   reqReferenciaMesmoHorario?: boolean
   /** Média simples de 7 dias (base da projeção de egress; não muda com a hora). */
   reqMediaGeralPorMin?: number | null
+  /** Pico médio diário dos 7 dias (média da hora mais forte de cada dia) — o alerta de requisições exige passar dele (01/11). */
+  reqPicoMedioPorMin?: number | null
+  /** Requisições/min da foto anterior: o alerta exige 2 fotos seguidas acima (01/11). */
+  reqAnteriorPorMin?: number | null
   /** Egress estimado para o mês (GB) a partir da média de requisições, e a cota do plano. */
   egressMesGb: number | null
   egressCotaGb: number
@@ -36,8 +40,8 @@ export interface Medidas {
   discoUsadoPct: number | null
   cronsAtrasados: { nome: string; minutos: number }[]
   whatsappCaido: { loja: string; minutos: number }[]
-  /** Lojas abertas com o Assistente de impressão sem sinal (29/10). */
-  assistentesFora?: { loja: string; minutos: number }[]
+  /** Lojas com pedido chegando e o Assistente de impressão sem sinal (29/10; 01/11: só com prejuízo real). */
+  assistentesFora?: { loja: string; minutos: number; pedidos: number }[]
   /** Soma exata dos arquivos do Storage (storage.objects). */
   storageBytes?: number | null
   /** Números das fontes oficiais (lib/saude/oficial.ts); cada um com a hora em que foi lido. */
@@ -92,10 +96,18 @@ export function avaliar(m: Medidas): Alerta[] {
     const x = m.reqPorMin / m.reqMediaPorMin
     // Normal do mesmo horário: 2×/4×. Média geral (mistura madrugada e jantar) é frouxa: 4×/8×.
     const mh = m.reqReferenciaMesmoHorario === true
-    const nivel: Nivel | null = x >= (mh ? 4 : 8) ? 'vermelho' : x >= (mh ? 2 : 4) ? 'amarelo' : null
+    let nivel: Nivel | null = x >= (mh ? 4 : 8) ? 'vermelho' : x >= (mh ? 2 : 4) ? 'amarelo' : null
+    // 01/11: 2× de uma tarde vazia (228/min) não é loop. Com o pico médio dos 7 dias conhecido, exige passar dele em
+    // 2 fotos seguidas (10 min); 2× o pico = vermelho. Sem pico (primeiros dias) vale só a razão.
+    const pico = m.reqPicoMedioPorMin ?? null
+    if (nivel && pico) {
+      const acima = (v: number | null | undefined) => v != null && v >= pico && v >= m.reqMediaPorMin! * (mh ? 2 : 4)
+      if (!acima(m.reqPorMin) || !acima(m.reqAnteriorPorMin)) nivel = null
+      else nivel = m.reqPorMin >= 2 * pico ? 'vermelho' : nivel
+    }
     if (nivel) out.push(alerta('requisicoes', nivel, 'requisições ao banco acima do normal',
       'O banco está recebendo muito mais chamadas que o normal — pode ser uma tela ou robô em repetição.',
-      `${n0(m.reqPorMin)}/min (${mh ? 'normal deste horário' : 'média geral'} ${n0(m.reqMediaPorMin)}/min, ${x.toFixed(1)}×)`,
+      `${n0(m.reqPorMin)}/min (${mh ? 'normal deste horário' : 'média geral'} ${n0(m.reqMediaPorMin)}/min, ${x.toFixed(1)}×${pico ? `; pico normal ${n0(pico)}/min` : ''})`,
       'abrir Super Admin › Saúde do sistema; se continuar por 15 min, chamar o suporte técnico para achar a origem.'))
   }
   if (m.egressMesGb !== null) {
@@ -112,16 +124,17 @@ export function avaliar(m: Medidas): Alerta[] {
       `${(m.dbBytes / 1e9).toFixed(1)} GB de ${(m.dbCotaBytes / 1e9).toFixed(0)} GB`,
       'ver as tabelas que mais crescem (logs, eventos) e ligar a limpeza automática delas.'))
   }
+  // 01/11 (regra do dono): só é Crítico o que para pedido ou dinheiro. API e IA perto do limite são Atenção.
   for (const a of m.apis) {
     const nivel = porLimite(a.chamadas, a.limite)
-    if (nivel) out.push(alerta(`api-${a.api}`, nivel, `API paga "${a.api}" perto do limite do dia`,
+    if (nivel) out.push(alerta(`api-${a.api}`, 'amarelo', `API paga "${a.api}" perto do limite do dia`,
       nivel === 'vermelho' ? 'Ao bater o limite, a guarda bloqueia novas chamadas até a meia-noite (nada é cobrado a mais).' : 'O uso de hoje está acima do normal.',
       `${n0(a.chamadas)} de ${n0(a.limite)} chamadas hoje (${pct(a.chamadas / a.limite)})`,
       'abrir Super Admin › contador de APIs e ver qual loja está usando; se for repetição, avisar o suporte técnico.'))
   }
   if (m.iaUsd) {
     const nivel = porLimite(m.iaUsd.gasto, m.iaUsd.teto)
-    if (nivel) out.push(alerta('ia-usd', nivel, 'gasto da IA perto do teto do dia',
+    if (nivel) out.push(alerta('ia-usd', 'amarelo', 'gasto da IA perto do teto do dia',
       'O Agente de IA e a transcrição de áudio estão perto do teto diário em dólar; ao bater, o robô padrão assume.',
       `US$ ${m.iaUsd.gasto.toFixed(2)} de US$ ${m.iaUsd.teto.toFixed(2)} (${pct(m.iaUsd.gasto / m.iaUsd.teto)})`,
       'abrir Super Admin › Gasto da IA e ver a loja; subir o teto só se o uso for real.'))
@@ -162,9 +175,9 @@ export function avaliar(m: Medidas): Alerta[] {
       'abrir Coolify › app › Scheduled Tasks e ver o último resultado dela.'))
   }
   for (const a of m.assistentesFora ?? []) {
-    out.push(alerta(`assistente-${a.loja}`, 'vermelho', `impressão parada na loja ${a.loja}`,
-      `A loja ${a.loja} está aberta e o Assistente de impressão está desligado: os pedidos não estão saindo na impressora.`,
-      `sem sinal há ${n0(a.minutos)} min`,
+    out.push(alerta(`assistente-${a.loja}`, 'amarelo', `impressão parada na loja ${a.loja}`,
+      `A loja ${a.loja} tem pedido chegando, "Imprimir sozinho" ligado e o Assistente de impressão sem sinal: os pedidos não estão saindo na impressora.`,
+      `sem sinal há ${n0(a.minutos)} min · ${n0(a.pedidos)} pedido(s) nos últimos 30 min`,
       'ligar para a loja: abrir o Assistente no computador da cozinha (ícone perto do relógio) ou imprimir pelo painel.'))
   }
   // WhatsApp de loja desconectado: NÃO alerta aqui (28/10, regra do dono — é opcional). O aviso único sai do monitor
@@ -220,26 +233,40 @@ export function cronsAtrasados(batidas: { nome: string; ultima_em: string }[], a
 }
 
 /**
- * Assistente de impressão desligado com a loja ABERTA (29/10, pedido do dono): só lojas que usaram o Assistente nos
- * últimos 7 dias (quem nunca usou ou abandonou não entra) e sem sinal há 15 min ou mais. Pura.
+ * Assistente de impressão parado com PREJUÍZO REAL (29/10; 01/11, regra do dono): a loja decide quando liga o PC, então
+ * só entra quem está aberta, com "Imprimir sozinho" ligado, com pedido nos últimos 30 min, que usou o Assistente nos
+ * últimos 7 dias e está sem sinal há 15 min ou mais. Loja aberta no manual com o PC desligado e sem pedido = nada. Pura.
  */
-export function assistentesFora(lojas: { nome: string; aberta: boolean; ultimoSinal: string | null }[], agora: number): { loja: string; minutos: number }[] {
-  const out: { loja: string; minutos: number }[] = []
+export const PEDIDOS_RECENTES_MIN = 30
+export function assistentesFora(lojas: { nome: string; aberta: boolean; ultimoSinal: string | null; imprimirSozinho: boolean; pedidosRecentes: number }[], agora: number): { loja: string; minutos: number; pedidos: number }[] {
+  const out: { loja: string; minutos: number; pedidos: number }[] = []
   for (const l of lojas) {
-    if (!l.aberta || !l.ultimoSinal) continue
+    if (!l.aberta || !l.ultimoSinal || !l.imprimirSozinho || !(l.pedidosRecentes > 0)) continue
     const minutos = Math.floor((agora - Date.parse(l.ultimoSinal)) / 60_000)
-    if (minutos >= 15 && minutos <= 7 * 24 * 60) out.push({ loja: l.nome, minutos })
+    if (minutos >= 15 && minutos <= 7 * 24 * 60) out.push({ loja: l.nome, minutos, pedidos: l.pedidosRecentes })
   }
   return out
 }
 
 export const JANELA_ALERTA_MS = 6 * 3600_000
+/** Impressora: no máximo 1 aviso por loja por dia (01/11) — a loja faz o que quiser com o PC dela. */
+const JANELA_ASSISTENTE_MS = 24 * 3600_000
+const janelaDe = (assunto: string) => (assunto.startsWith('assistente-') ? JANELA_ASSISTENTE_MS : JANELA_ALERTA_MS)
 
-/** Sem spam: no máximo 1 alerta do mesmo assunto a cada 6 h; amarelo que vira vermelho sai na hora. */
+/** Sem spam: no máximo 1 alerta do mesmo assunto a cada 6 h (impressora: 24 h); amarelo que vira vermelho sai na hora. */
 export function podeEnviar(historico: { assunto: string; nivel: string; criado_em: string }[], a: { assunto: string; nivel: Nivel }, agora: number): boolean {
-  const recentes = historico.filter((h) => h.assunto === a.assunto && agora - Date.parse(h.criado_em) < JANELA_ALERTA_MS)
+  const janela = janelaDe(a.assunto)
+  const recentes = historico.filter((h) => h.assunto === a.assunto && agora - Date.parse(h.criado_em) < janela)
   if (!recentes.length) return true
   return a.nivel === 'vermelho' && !recentes.some((h) => h.nivel === 'vermelho')
+}
+
+/** Assuntos que `avaliar` produz (os de custo, `custo:*`, são eventos únicos da guarda e não "resolvem"). */
+const ASSUNTO_DO_VIGIA = /^(supabase-bloqueado|requisicoes|egress|banco-tamanho|api-|ia-usd|loja-api-|vps-|cron-|assistente-)/
+/** Alertas abertos cujo assunto sumiu da foto atual: viram "resolvido" no histórico (01/11). Pura. */
+export function resolvidos(abertos: { id: number; assunto: string }[], ativos: string[]): number[] {
+  const vivo = new Set(ativos)
+  return abertos.filter((a) => ASSUNTO_DO_VIGIA.test(a.assunto) && !vivo.has(a.assunto)).map((a) => a.id)
 }
 
 const diaSP = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })

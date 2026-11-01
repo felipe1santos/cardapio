@@ -3,10 +3,11 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { limiteDiario, type ApiPaga } from '@/lib/custo/guarda'
 import { limitesIa } from '@/lib/custo/ia'
 import { diaSP, limiteDoPainel } from '@/lib/custo/uso'
-import { assistentesFora, avaliar, CPU_ALTA_PCT, cronsAtrasados, horaDoResumo, JANELA_ALERTA_MS, medidasVazias, podeEnviar, referenciaReq, textoResumo, type Alerta, type Medidas, type Oficial } from './avaliar'
+import { assistentesFora, avaliar, CPU_ALTA_PCT, cronsAtrasados, horaDoResumo, JANELA_ALERTA_MS, medidasVazias, PEDIDOS_RECENTES_MIN, podeEnviar, referenciaReq, resolvidos, textoResumo, type Alerta, type Medidas, type Oficial } from './avaliar'
 import { lojaEstaAberta, type HorarioFuncionamento, type StatusLoja } from '@/lib/timezone'
 import { derivarProm, lerHostingerOficial, lerPromOficial, lerSupabaseGestao } from './oficial'
 import { enviarAlertaSistema } from './enviar'
+import { picoMedioDiario } from './pico-requisicoes'
 
 /**
  * Vigia da saúde do sistema (28/10/2026, Etapa 7 da varredura). Roda dentro do cron do WhatsApp (1/min) e trabalha
@@ -31,7 +32,7 @@ function restrito(msg: string | undefined | null): string | null {
  * ficar certa. PostgREST limita a 1000 linhas por resposta (max_rows), então busca em 2 páginas.
  */
 let fotos: { rows: { em: string; rpm: number }[]; em: number } = { rows: [], em: 0 }
-async function mediaReq(admin: SupabaseClient, agora: number): Promise<ReturnType<typeof referenciaReq>> {
+async function mediaReq(admin: SupabaseClient, agora: number): Promise<ReturnType<typeof referenciaReq> & { pico: number | null }> {
   if (agora - fotos.em >= 3600_000) {
     const rows: { em: string; rpm: number }[] = []
     for (const [de, ate] of [[0, 999], [1000, 2099]]) {
@@ -42,7 +43,9 @@ async function mediaReq(admin: SupabaseClient, agora: number): Promise<ReturnTyp
     }
     fotos = { rows, em: agora }
   }
-  return referenciaReq(fotos.rows, agora)
+  // Pico médio diário (a mesma base do card Requisições do Super Admin): o alerta de requisições exige passar dele (01/11).
+  const pico = picoMedioDiario(fotos.rows.map((f) => ({ em: f.em, req: f.rpm })), new Date(agora))
+  return { ...referenciaReq(fotos.rows, agora), pico: pico?.media ?? null }
 }
 
 function vps(): Pick<Medidas, 'cpuStat' | 'memLivrePct' | 'discoUsadoPct'> {
@@ -89,7 +92,7 @@ async function coletarOficial(agora: Date, antes: Oficial | undefined): Promise<
 }
 const PROM_INTERVALO_MS = 15 * 60_000 - 15_000
 
-export async function coletar(admin: SupabaseClient, agora: Date, anterior: { em: string; req_postgrest: number | null; dados?: { oficial?: Oficial; cpuStat?: Medidas['cpuStat']; cpuAltaSeguidas?: number } | null } | null): Promise<{ m: Medidas; req: number | null; consultas: number | null }> {
+export async function coletar(admin: SupabaseClient, agora: Date, anterior: { em: string; req_postgrest: number | null; dados?: { oficial?: Oficial; cpuStat?: Medidas['cpuStat']; cpuAltaSeguidas?: number; reqPorMin?: number | null } | null } | null): Promise<{ m: Medidas; req: number | null; consultas: number | null }> {
   const m: Medidas = { ...medidasVazias(agora.toISOString()), ...vps() }
   m.oficial = await coletarOficial(agora, anterior?.dados?.oficial)
   const cpuAntes = anterior?.dados?.cpuStat
@@ -100,25 +103,31 @@ export async function coletar(admin: SupabaseClient, agora: Date, anterior: { em
   }
   const hoje = diaSP(agora)
   const seteDias = new Date(agora.getTime() - 7 * 86400_000).toISOString()
-  const [cont, usos, ia, crons, lojasWa, lojasImp, agentes] = await Promise.all([
+  const [cont, usos, ia, crons, lojasWa, lojasImp, agentes, recentes] = await Promise.all([
     admin.rpc('sistema_saude_contadores'),
     admin.from('api_uso_dia').select('api, escopo, chamadas').eq('dia', hoje).limit(2000),
     admin.from('ia_uso_dia').select('custo_micro_usd').eq('dia', hoje).eq('escopo', 'total').limit(100),
     admin.from('sistema_cron_batidas').select('nome, ultima_em'),
     admin.from('restaurantes').select('nome, whatsapp_caiu_em').not('whatsapp_caiu_em', 'is', null).is('whatsapp_desconexao_manual_em', null).limit(200),
     // Assistente de impressão (29/10): lojas e sinais dos últimos 7 dias (antigo: restaurantes; novo: impressao_agentes).
-    admin.from('restaurantes').select('id, nome, status_loja, horario_funcionamento, impressao_agente_visto_em').limit(1000),
+    admin.from('restaurantes').select('id, nome, status_loja, horario_funcionamento, impressao_agente_visto_em, impressao_automatica').limit(1000),
     admin.from('impressao_agentes').select('restaurante_id, visto_em').is('revogado_em', null).gte('visto_em', seteDias).limit(2000),
+    // 01/11: só alerta de impressora com pedido chegando — pedidos dos últimos 30 min, por loja (índice pedidos_loja_criado_idx).
+    admin.from('pedidos').select('restaurante_id').gte('criado_em', new Date(agora.getTime() - PEDIDOS_RECENTES_MIN * 60_000).toISOString()).limit(2000),
   ])
   {
     const ultimo = new Map<string, string>()
     const marcar = (id: string, em: string | null | undefined) => { if (em && em >= seteDias && (!ultimo.has(id) || em > (ultimo.get(id) as string))) ultimo.set(id, em) }
     for (const a of (agentes.data ?? []) as { restaurante_id: string; visto_em: string }[]) marcar(a.restaurante_id, a.visto_em)
-    const lojas = (lojasImp.data ?? []) as { id: string; nome: string; status_loja: StatusLoja | null; horario_funcionamento: HorarioFuncionamento | null; impressao_agente_visto_em: string | null }[]
+    const pedidosPorLoja = new Map<string, number>()
+    for (const p of (recentes.data ?? []) as { restaurante_id: string }[]) pedidosPorLoja.set(p.restaurante_id, (pedidosPorLoja.get(p.restaurante_id) ?? 0) + 1)
+    const lojas = (lojasImp.data ?? []) as { id: string; nome: string; status_loja: StatusLoja | null; horario_funcionamento: HorarioFuncionamento | null; impressao_agente_visto_em: string | null; impressao_automatica: boolean | null }[]
     for (const l of lojas) marcar(l.id, l.impressao_agente_visto_em)
     m.assistentesFora = assistentesFora(lojas.map((l) => ({
       nome: l.nome, ultimoSinal: ultimo.get(l.id) ?? null,
       aberta: lojaEstaAberta({ statusLoja: l.status_loja ?? 'automatico', horarioFuncionamento: l.horario_funcionamento ?? null }),
+      imprimirSozinho: l.impressao_automatica === true,
+      pedidosRecentes: pedidosPorLoja.get(l.id) ?? 0,
     })), agora.getTime())
   }
   m.bancoRestrito = restrito(cont.error?.message) ?? restrito(usos.error?.message)
@@ -131,10 +140,12 @@ export async function coletar(admin: SupabaseClient, agora: Date, anterior: { em
     // Contador zerado (reset das estatísticas) dá delta negativo: sem número nesta rodada.
     if (min > 0.5 && req >= anterior.req_postgrest) m.reqPorMin = (req - Number(anterior.req_postgrest)) / min
   }
-  const ref = await mediaReq(admin, agora.getTime()).catch(() => ({ valor: null, mesmoHorario: false, geral: null }))
+  const ref = await mediaReq(admin, agora.getTime()).catch(() => ({ valor: null, mesmoHorario: false, geral: null, pico: null }))
   m.reqMediaPorMin = ref.valor
   m.reqReferenciaMesmoHorario = ref.mesmoHorario
   m.reqMediaGeralPorMin = ref.geral
+  m.reqPicoMedioPorMin = ref.pico
+  m.reqAnteriorPorMin = anterior?.dados?.reqPorMin ?? null
   const base = ref.geral ?? m.reqMediaPorMin ?? m.reqPorMin
   if (base !== null) m.egressMesGb = (base * 1440 * 30 * BYTES_EGRESS_POR_REQ) / 1e9
 
@@ -200,7 +211,7 @@ export async function rodarVigia(admin: SupabaseClient, agora = new Date()): Pro
     ultimaConferenciaPendentes = agora.getTime()
     await despacharPendentes(admin, agora).catch((e) => console.error('[saude] pendentes:', (e as Error).message))
   }
-  const { data: ult, error: eUlt } = await admin.from('sistema_saude_fotos').select('em, req_postgrest, oficial:dados->oficial, cpuStat:dados->cpuStat, cpuAltaSeguidas:dados->cpuAltaSeguidas').order('em', { ascending: false }).limit(1).maybeSingle()
+  const { data: ult, error: eUlt } = await admin.from('sistema_saude_fotos').select('em, req_postgrest, oficial:dados->oficial, cpuStat:dados->cpuStat, cpuAltaSeguidas:dados->cpuAltaSeguidas, reqPorMin:dados->reqPorMin').order('em', { ascending: false }).limit(1).maybeSingle()
   const bloqueio = restrito(eUlt?.message)
   if (bloqueio) {
     // Banco recusando: avisa pelo WhatsApp (Evolution não depende do Supabase) com a trava em memória.
@@ -211,8 +222,8 @@ export async function rodarVigia(admin: SupabaseClient, agora = new Date()): Pro
     await mandar(admin, a, false)
     return { rodou: true, alertas: [a.assunto], enviados: 1 }
   }
-  const ultima = ult as { em: string; req_postgrest: number | null; oficial: Oficial | null; cpuStat: Medidas['cpuStat']; cpuAltaSeguidas: number | null } | null
-  const anterior = ultima ? { em: ultima.em, req_postgrest: ultima.req_postgrest, dados: { oficial: ultima.oficial ?? undefined, cpuStat: ultima.cpuStat, cpuAltaSeguidas: ultima.cpuAltaSeguidas ?? 0 } } : null
+  const ultima = ult as { em: string; req_postgrest: number | null; oficial: Oficial | null; cpuStat: Medidas['cpuStat']; cpuAltaSeguidas: number | null; reqPorMin: number | null } | null
+  const anterior = ultima ? { em: ultima.em, req_postgrest: ultima.req_postgrest, dados: { oficial: ultima.oficial ?? undefined, cpuStat: ultima.cpuStat, cpuAltaSeguidas: ultima.cpuAltaSeguidas ?? 0, reqPorMin: ultima.reqPorMin == null ? null : Number(ultima.reqPorMin) } } : null
   if (anterior && agora.getTime() - Date.parse(anterior.em) < INTERVALO_MS - 15_000) return { rodou: false }
 
   const { m, req, consultas } = await coletar(admin, agora, anterior)
@@ -226,6 +237,11 @@ export async function rodarVigia(admin: SupabaseClient, agora = new Date()): Pro
     await mandar(admin, a, true)
     enviados++
   }
+  // 01/11: alerta aberto cujo assunto sumiu da foto vira "resolvido" no histórico (0236). Só os dos últimos 7 dias.
+  const { data: abertos } = await admin.from('sistema_alertas').select('id, assunto').is('resolvido_em', null).in('nivel', ['amarelo', 'vermelho'])
+    .gte('criado_em', new Date(agora.getTime() - 7 * 86400_000).toISOString()).limit(200)
+  const ids = resolvidos((abertos ?? []) as { id: number; assunto: string }[], alertas.map((a) => a.assunto))
+  if (ids.length) await admin.from('sistema_alertas').update({ resolvido_em: agora.toISOString() }).in('id', ids)
   const ultimoResumo = historico.find((h) => h.nivel === 'resumo')?.criado_em ?? null
   if (horaDoResumo(agora, ultimoResumo)) {
     await mandar(admin, { assunto: 'resumo-diario', nivel: 'resumo', titulo: 'Resumo do dia', texto: textoResumo(m, alertas) }, true)

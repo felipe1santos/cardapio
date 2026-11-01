@@ -28,7 +28,7 @@ export default async function SuperadminPage() {
   const [{ lojas, resumo }, usoApis, usoIa, cotacao, { data: mods }, { data: alertas }, { data: fotos }, { data: crons }, { data: serie }, paginasLeituras] = await Promise.all([
     listarLojasPlataforma(admin), lerUsoApis(admin).catch(() => null), lerUsoIa(admin).catch(() => null), lerCotacao(admin).catch(() => 5.5),
     admin.from('loja_modulos').select('restaurante_id, modulo, liberado'),
-    admin.from('sistema_alertas').select('id, criado_em, nivel, texto, canal, enviado, erro').order('criado_em', { ascending: false }).limit(60),
+    admin.from('sistema_alertas').select('id, assunto, criado_em, nivel, texto, canal, enviado, erro, resolvido_em').order('criado_em', { ascending: false }).limit(60),
     // Últimas 3 h de fotos do vigia (a cada 5 min) para os minigráficos.
     admin.from('sistema_saude_fotos').select('em, dados').order('em', { ascending: false }).limit(36),
     admin.from('sistema_cron_batidas').select('nome, ultima_em'),
@@ -47,7 +47,8 @@ export default async function SuperadminPage() {
   const desde24h = Date.now() - 24 * 3600_000
   const historico = (alertas ?? []) as AlertaTela[]
   const desde = Date.now() - 6 * 3600_000
-  const recentes = historico.filter((a) => (a.nivel === 'amarelo' || a.nivel === 'vermelho') && Date.parse(a.criado_em) >= desde)
+  // Faixa vermelha: só o que ainda está acontecendo (01/11: alerta resolvido sai da faixa).
+  const recentes = historico.filter((a) => (a.nivel === 'amarelo' || a.nivel === 'vermelho') && !a.resolvido_em && Date.parse(a.criado_em) >= desde)
   const listaFotos = (fotos ?? []) as FotoSaude[]
   const dias = ((serie ?? []) as DiaSaude[]).map((d) => ({ ...d, dia: String(d.dia).slice(0, 10) }))
   return (
@@ -62,9 +63,9 @@ export default async function SuperadminPage() {
         <WhatsappLojasHp caidas={listaFotos[0]?.dados.whatsappCaido ?? []} />
       </div>
       <PainelHp id="alertas" testid="sa-historico-alertas" className="scroll-mt-[16px] overflow-hidden">
-        <CabecalhoHp titulo="Histórico de alertas" sub="Últimos 60 avisos · toque para ver tudo"
-          info="Cada alerta mostra o que aconteceu, o número que disparou e o que fazer, além de quando saiu e por onde (WhatsApp ou notificação do painel)." />
-        <ListaAlertas alertas={historico} vazio="Nenhum alerta enviado." />
+        <CabecalhoHp titulo="Histórico de alertas" sub="Últimos 60 avisos, uma linha por assunto · toque para ver tudo"
+          info="Cada linha é um assunto: quantas vezes o aviso saiu, se ainda está acontecendo ou já resolveu sozinho, o número que disparou e o que fazer. Resumos diários e testes ficam atrás do botão no fim da lista." />
+        <ListaAlertas alertas={historico} vazio="Nenhum alerta enviado." comFiltro />
       </PainelHp>
       <PainelPlataforma lojas={lojas} resumo={resumo} usoApis={usoApis} usoIa={usoIa} modulos={modulos} />
     </ShellHp>
