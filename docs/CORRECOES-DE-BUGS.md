@@ -57,3 +57,23 @@ Relatórios completos: [varredura 28/10](relatorios/2026-10-28-varredura.md) · 
 5. Toda cota compartilhada tem teto por loja.
 6. Antes de afirmar, medir com a fonte certa e calibrar contra o número oficial.
 7. `npm run checar` antes de todo deploy; código de tela não importa biblioteca de servidor.
+
+## 01/11/2026 — auditoria de infraestrutura (7 fases; relatório no claude.ai, ver memória)
+
+| # | Bug | Causa | Correção | Como evitar | Teste |
+|---|---|---|---|---|---|
+| 24 | Alerta "impressão parada" Crítico a cada 6 h sem problema | Regra olhava "loja aberta" (manual = 24 h) e não se havia pedido nem Imprimir sozinho | Só com pedido nos últimos 30 min + Imprimir sozinho; Atenção; 1/loja/dia | Alerta de recurso opcional só com trabalho parado | `lib/saude/avaliar.test.ts` |
+| 25 | Alerta "requisições acima do normal" a 2× de uma tarde vazia | Razão contra a média do horário sem olhar o volume absoluto | Exige passar do pico médio de 7 dias em 2 fotos seguidas | Alerta de volume compara com o pico, não só com a razão | `lib/saude/avaliar.test.ts` |
+| 26 | **Retenção quebraria a cadeia da auditoria em 25/11** | 0231 apagava `whatsapp.conexao` de `eventos_auditoria` (encadeada por hash) | 0237: auditoria fora da retenção; evento vai para `whatsapp_eventos` | Nunca apagar de tabela encadeada | `0237_*.test.ts` |
+| 27 | Pré-conta do PDV consultava para sempre | `setTimeout` 0,7→2 s sem teto nem pausa | 0,7→2→5 s, pausa escondida, para aos 10 min | Regra 1 em todo laço de tela | `lib/ritmo-telas.test.ts` |
+| 28 | Push repetido / gasto por loja errado | `.limit(50000)` ≠ corte de 1.000 do PostgREST | `lerTodas` nas leituras que crescem | Consulta que pode passar de 1.000 linhas pagina ou agrega | `lib/custo/paginacao.test.ts` |
+| 29 | Token do Mercado Pago renovado todo minuto se o MP recusar | Sem espera nem registro da tentativa | 1 tentativa/h por conta (`atualizado_em`) | Regra 1 | `lib/pagamentos/renovacao.test.ts` |
+| 30 | Campanhas consultavam Evolution de loja desconectada todo minuto | Pausa não olhava `whatsapp_estado` | Loja `close` = fechada sem consultar; `umaPorVez` | Regra 3 | `lib/mensageria/campanhas-envio.test.ts` |
+| 31 | N+1 por loja todo minuto (entregas, abandono, fin-vigia nível 1) | Laço por loja com o mesmo filtro | 1 consulta para todas; só entra na loja com trabalho | Regra 3 | `despacho-automatico.test.ts`, `abandono.test.ts`, `financeiro/vigia.test.ts` |
+| 32 | Função nova no banco nascia aberta ao anon | Privilégio padrão do schema | 0241 + guarda B7 | B7 no `npm run checar` | `lib/guardas/bugs-conhecidos.test.ts` |
+
+### Regras gerais que saíram daqui
+8. Alerta de recurso que a loja pode desligar de propósito (impressora, WhatsApp) só sai com **trabalho parado**, nunca pelo relógio; e só é Crítico o que para pedido ou dinheiro.
+9. Consulta que pode passar de 1.000 linhas: `lerTodas` ou agregação no banco — `.limit(N)` grande não existe.
+10. Nunca apagar de tabela encadeada por hash (`eventos_auditoria`, `fin_lancamentos`).
+11. Função nova no banco diz quem executa (B7); o padrão é fechado.

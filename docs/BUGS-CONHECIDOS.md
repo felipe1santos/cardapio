@@ -217,3 +217,43 @@ checagem B-n** no script.
   (`despacharPendentes` em `lib/saude/vigia.ts`). O teste segue os imports a partir de frete/guarda/geocodificação e
   falha se chegar em web-push, ffmpeg-static, sharp, pg ou net.
 - **Teste:** `lib/guardas/bundle-cliente.test.ts`.
+
+## B7 — Função nova no banco sem dizer quem executa · 01/11/2026 · checagem automática (migrations ≥ 0238)
+
+**O que era.** O privilégio padrão do schema `public` dava EXECUTE a `anon` e `authenticated` em toda função criada
+pelas migrations. Uma RPC `security definer` nova (que ignora RLS) ficava exposta pelo PostgREST até alguém lembrar de
+revogar. Em produção todas as de escrita já tinham sido revogadas à mão (conferido em 01/11: só 18 funções de gatilho/apoio
+executáveis por `anon`), mas nada impedia a próxima.
+**Correção.** 0241 muda o padrão: função nova nasce sem EXECUTE para `anon`/`authenticated`. Consequência: uma RPC da
+vitrine sem `grant` quebra em silêncio — por isso a guarda.
+**Checagem (`scripts/guardas/bugs-conhecidos.mjs`, B7).** Toda migration ≥ 0238 que tenha `create [or replace] function`
+precisa de `revoke … on function` ou `grant execute on function` para a MESMA função, no mesmo arquivo. Padrão:
+`revoke all on function public.f() from public, anon, authenticated; grant execute on function public.f() to service_role;`
+(ou `grant execute … to anon, authenticated` quando a vitrine chama). Teste: `lib/guardas/bugs-conhecidos.test.ts`.
+
+## Retenção apagava da auditoria encadeada por hash · 01/11/2026 · teste (0237)
+
+**O que era.** A 0231 apagava `whatsapp.conexao` de `eventos_auditoria` com mais de 30 dias. Toda linha dessa tabela é
+encadeada por hash (0134) e `auditoria_verificar_cadeia` acusa "registro removido" no primeiro buraco — a partir de 25/11 as
+70 mil linhas da PONTO 400 (27/10) seriam apagadas e a tela Auditoria do Financeiro acusaria adulteração.
+**Correção.** 0237 tira `eventos_auditoria` da retenção (a auditoria fica inteira para sempre); o evento de conexão do
+webhook vai para `whatsapp_eventos` (90 dias). **Nunca** apagar linha de `eventos_auditoria` nem de `fin_lancamentos`.
+Teste: `supabase/migrations/0237_retencao_sem_auditoria.test.ts`, `lib/whatsapp-monitor.test.ts`.
+
+## `.limit(50000)` não passa do corte de 1.000 do PostgREST · 01/11/2026 · teste
+
+**O que era.** `max_rows = 1000` (supabase/config.toml): qualquer consulta devolve no máximo 1.000 linhas, por mais alto
+que seja o `.limit()`. O dedup das automações de push (`push_envios`, `pedidos`) e as leituras do mês do Super Admin
+(`api_uso_dia`, `ia_uso_dia`) liam só as primeiras 1.000 e erravam em silêncio: push repetido em loja grande, gasto por loja
+errado perto do dia 26.
+**Correção.** `lerTodas` (lib/queries/ler-todas.ts) com ordem estável terminando em `id`. **Regra:** consulta que pode passar
+de 1.000 linhas usa `lerTodas` ou agrega no banco (RPC). Teste com banco que corta como produção:
+`lib/teste/postgrest-falso.ts` (`lib/custo/paginacao.test.ts`, `lib/push/historico.test.ts`).
+
+## Alerta "impressão parada" como Crítico a cada 6 h para loja que desligou o PC · 01/11/2026 · teste
+
+**O que era.** O vigia alertava com loja "aberta" (inclusive `aberto_manual`, 24 h) + Assistente sem sinal há 15 min, em
+vermelho, 1× a cada 6 h por até 7 dias — 9 alertas em 4 dias para a BURGUER MAX, que só desliga o PC fora do turno.
+**Correção.** Só alerta com prejuízo real: "Imprimir sozinho" ligado + pedido nos últimos 30 min + sem sinal há 15 min;
+Atenção (amarelo); 1 por loja por dia. **Regra:** alerta de recurso que a loja pode desligar de propósito só sai quando há
+trabalho parado, nunca pelo relógio. Teste: `lib/saude/avaliar.test.ts` (assistentesFora).
