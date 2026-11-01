@@ -105,8 +105,12 @@ export async function tokenDaLoja(admin: SupabaseClient, restauranteId: string, 
     return { token: t.accessToken, mpUserId: t.userId || c.mp_user_id }
   } catch (e) {
     if (opcoes.semMarcarErro) return null
-    // Token atual ainda vale (só faltam dias): segue com ele e tenta renovar de novo depois.
-    if (!opcoes.forcar && falta > 0 && c.status === 'conectada') return { token: decifrar(c.access_token_cifrado), mpUserId: c.mp_user_id }
+    // Token atual ainda vale (só faltam dias): segue com ele e tenta renovar de novo em 1 h (01/11: `atualizado_em`
+    // marca a tentativa; antes o cron tentava todo minuto).
+    if (!opcoes.forcar && falta > 0 && c.status === 'conectada') {
+      await admin.from('pagamentos_contas').update({ atualizado_em: new Date().toISOString() }).eq('restaurante_id', restauranteId).then(() => null, () => null)
+      return { token: decifrar(c.access_token_cifrado), mpUserId: c.mp_user_id }
+    }
     await admin.from('pagamentos_contas').update({ status: 'erro', erro: e instanceof ErroMp ? `renovação recusada pelo MP (${e.status})` : 'renovação falhou', atualizado_em: new Date().toISOString() }).eq('restaurante_id', restauranteId)
     return null
   }

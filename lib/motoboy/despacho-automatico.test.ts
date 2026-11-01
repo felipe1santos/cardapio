@@ -34,3 +34,19 @@ describe('aviso do botão Despachar (12/10: "Sem motoboy disponível" com 4 cada
     expect(avisoSemMotoboy(0)).toBe('Nenhum motoboy cadastrado')
   })
 })
+
+/**
+ * 01/11/2026 (Fase 5): o cron de entregas já filtra as lojas com a chave ligada e `despacharAutomaticamente` relia a
+ * chave de novo (1 consulta por loja por minuto, redundante). Com `jaLigado` a chave não é relida.
+ */
+describe('despacharAutomaticamente com a chave já conferida', () => {
+  it('jaLigado: não lê restaurantes; sem pronto, só 1 consulta em pedidos', async () => {
+    const { adminGravador } = await import('@/lib/teste/admin-gravador')
+    const { despacharAutomaticamente } = await import('./despacho-automatico')
+    const g = adminGravador({ pedidos: [] })
+    const r = await despacharAutomaticamente(g.admin, 'L1', { jaLigado: true })
+    expect(r.ligado).toBe(true)
+    expect(g.vezes('restaurantes')).toBe(0)
+    expect(g.vezes('pedidos')).toBe(1)
+  })
+})

@@ -26,6 +26,15 @@ export async function baterCron(nome: string): Promise<void> {
   if (error) console.error(`[cron ${nome}] batida não gravada:`, error.message)
 }
 
+/**
+ * Vigia (01/11): a hora da última foto fica lembrada em memória; só consulta `sistema_saude_fotos` quando já pode ser
+ * hora de outra (1 leitura a cada 5 min em vez de 1 por minuto). Sem lembrança (deploy) consulta. Pura.
+ */
+export const FOTO_INTERVALO_MS = 5 * 60_000 - 15_000
+export function horaDeFotografar(ultimaFotoMs: number | null, agoraMs: number): boolean {
+  return ultimaFotoMs === null || agoraMs - ultimaFotoMs >= FOTO_INTERVALO_MS
+}
+
 export const TRAVA_MAX_MS = 10 * 60_000
 const rodando = new Map<string, { desde: number; id: symbol }>()
 

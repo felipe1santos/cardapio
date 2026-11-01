@@ -39,3 +39,19 @@ describe('conversa abandonada pela loja', () => {
     expect(TEXTO_RETORNO_ROBO).toContain('continuar seu pedido')
   })
 })
+
+/**
+ * 01/11/2026 (Fase 5): `devolverConversasAbandonadas` fazia 1 consulta POR LOJA com autoatendimento, todo minuto
+ * (N+1), com o mesmo filtro para todas. Agora: 1 consulta para todas as lojas; o prazo de cada loja é conferido em
+ * memória por `conversaAbandonada`.
+ */
+describe('devolverConversasAbandonadas: uma consulta para todas as lojas', () => {
+  it('3 lojas configuradas → whatsapp_conversas lida 1 vez', async () => {
+    const { adminGravador } = await import('@/lib/teste/admin-gravador')
+    const { devolverConversasAbandonadas } = await import('./abandono')
+    const g = adminGravador({ whatsapp_robo_config: [{ restaurante_id: 'a', auto_voltar_min: 5 }, { restaurante_id: 'b', auto_voltar_min: 10 }, { restaurante_id: 'c', auto_voltar_min: null }], whatsapp_conversas: [] })
+    const r = await devolverConversasAbandonadas(g.admin, Date.parse('2026-11-01T22:00:00Z'))
+    expect(r.lojas).toBe(3)
+    expect(g.vezes('whatsapp_conversas')).toBe(1)
+  })
+})

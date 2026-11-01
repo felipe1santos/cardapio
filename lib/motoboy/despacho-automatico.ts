@@ -75,9 +75,12 @@ export interface ResultadoDespacho {
 }
 
 
-/** Despacha os pedidos de entrega prontos da loja (se a chave estiver ligada). Seguro para rodar em paralelo. */
-export async function despacharAutomaticamente(admin: SupabaseClient, restauranteId: string): Promise<ResultadoDespacho> {
-  if (!(await despachoAutomaticoLigado(admin, restauranteId))) return { ligado: false, despachados: [], semMotoboy: 0 }
+/**
+ * Despacha os pedidos de entrega prontos da loja (se a chave estiver ligada). Seguro para rodar em paralelo.
+ * `jaLigado` (01/11): quem chama já conferiu a chave (o cron filtra as lojas) — não relê `restaurantes`.
+ */
+export async function despacharAutomaticamente(admin: SupabaseClient, restauranteId: string, opcoes: { jaLigado?: boolean } = {}): Promise<ResultadoDespacho> {
+  if (!opcoes.jaLigado && !(await despachoAutomaticoLigado(admin, restauranteId))) return { ligado: false, despachados: [], semMotoboy: 0 }
   const { data: prontos } = await admin.from('pedidos').select('id, numero')
     .eq('restaurante_id', restauranteId).eq('status', 'pronto').eq('tipo', 'entrega').is('entregador_id', null)
     .order('pronto_em', { ascending: true, nullsFirst: false }).limit(50)

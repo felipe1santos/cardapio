@@ -8,6 +8,7 @@ import { lojaEstaAberta, type HorarioFuncionamento, type StatusLoja } from '@/li
 import { derivarProm, lerHostingerOficial, lerPromOficial, lerSupabaseGestao } from './oficial'
 import { enviarAlertaSistema } from './enviar'
 import { picoMedioDiario } from './pico-requisicoes'
+import { horaDeFotografar } from './cron'
 
 /**
  * Vigia da saúde do sistema (28/10/2026, Etapa 7 da varredura). Roda dentro do cron do WhatsApp (1/min) e trabalha
@@ -203,6 +204,7 @@ export async function despacharPendentes(admin: SupabaseClient, agora = new Date
 /** Sinal de "gravei alerta pendente" (lib/custo/alerta-whatsapp.ts liga, sem importar este módulo — B6). */
 const SINAL = globalThis as unknown as { __menuziaAlertaPendente?: boolean }
 let ultimaConferenciaPendentes = 0
+let ultimaFotoEm: number | null = null
 
 export async function rodarVigia(admin: SupabaseClient, agora = new Date()): Promise<{ rodou: boolean; alertas?: string[]; enviados?: number; erro?: string }> {
   // Pendentes: na hora quando este processo gravou um; senão a cada 5 min (outro processo/script pode ter gravado).
@@ -211,6 +213,8 @@ export async function rodarVigia(admin: SupabaseClient, agora = new Date()): Pro
     ultimaConferenciaPendentes = agora.getTime()
     await despacharPendentes(admin, agora).catch((e) => console.error('[saude] pendentes:', (e as Error).message))
   }
+  // Lembrança em memória da última foto (01/11): não consulta o banco todo minuto só para ver que ainda não é hora.
+  if (!horaDeFotografar(ultimaFotoEm, agora.getTime())) return { rodou: false }
   const { data: ult, error: eUlt } = await admin.from('sistema_saude_fotos').select('em, req_postgrest, oficial:dados->oficial, cpuStat:dados->cpuStat, cpuAltaSeguidas:dados->cpuAltaSeguidas, reqPorMin:dados->reqPorMin').order('em', { ascending: false }).limit(1).maybeSingle()
   const bloqueio = restrito(eUlt?.message)
   if (bloqueio) {
@@ -224,10 +228,11 @@ export async function rodarVigia(admin: SupabaseClient, agora = new Date()): Pro
   }
   const ultima = ult as { em: string; req_postgrest: number | null; oficial: Oficial | null; cpuStat: Medidas['cpuStat']; cpuAltaSeguidas: number | null; reqPorMin: number | null } | null
   const anterior = ultima ? { em: ultima.em, req_postgrest: ultima.req_postgrest, dados: { oficial: ultima.oficial ?? undefined, cpuStat: ultima.cpuStat, cpuAltaSeguidas: ultima.cpuAltaSeguidas ?? 0, reqPorMin: ultima.reqPorMin == null ? null : Number(ultima.reqPorMin) } } : null
-  if (anterior && agora.getTime() - Date.parse(anterior.em) < INTERVALO_MS - 15_000) return { rodou: false }
+  if (anterior && agora.getTime() - Date.parse(anterior.em) < INTERVALO_MS - 15_000) { ultimaFotoEm = Date.parse(anterior.em); return { rodou: false } }
 
   const { m, req, consultas } = await coletar(admin, agora, anterior)
   await admin.from('sistema_saude_fotos').insert({ em: agora.toISOString(), req_postgrest: req, consultas, dados: m })
+  ultimaFotoEm = agora.getTime()
   const alertas = avaliar(m)
   const { data: hist } = await admin.from('sistema_alertas').select('assunto, nivel, criado_em').gte('criado_em', new Date(agora.getTime() - 26 * 3600_000).toISOString()).order('criado_em', { ascending: false }).limit(500)
   const historico = (hist ?? []) as { assunto: string; nivel: string; criado_em: string }[]

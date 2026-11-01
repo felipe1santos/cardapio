@@ -36,3 +36,13 @@ describe('batida dos crons', () => {
     expect(batidaDevida(m, 'pix', 5 * 60_000)).toBe(true)
   })
 })
+
+describe('horaDeFotografar (01/11: o vigia lia a última foto todo minuto só para decidir que ainda não era hora)', () => {
+  it('sem lembrança → sim; lembrada há menos de 4 min 45 s → não; depois → sim', async () => {
+    const { horaDeFotografar } = await import('./cron')
+    const t = Date.parse('2026-11-01T12:00:00Z')
+    expect(horaDeFotografar(null, t)).toBe(true)
+    expect(horaDeFotografar(t - 2 * 60_000, t)).toBe(false)
+    expect(horaDeFotografar(t - 5 * 60_000, t)).toBe(true)
+  })
+})

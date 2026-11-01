@@ -38,26 +38,30 @@ export function conversaAbandonada(c: ConversaParaAbandono, agora: number, volta
 export async function devolverConversasAbandonadas(admin: SupabaseClient, agora = Date.now()): Promise<{ lojas: number; devolvidas: number }> {
   const resumo = { lojas: 0, devolvidas: 0 }
   const { data: cfgs } = await admin.from('whatsapp_robo_config').select('restaurante_id, auto_voltar_min').eq('autoatendimento_ativo', true)
-  for (const cfg of (cfgs ?? []) as { restaurante_id: string; auto_voltar_min: number | null }[]) {
-    resumo.lojas++
-    const voltarMin = Number(cfg.auto_voltar_min ?? VOLTAR_MIN_PADRAO) || VOLTAR_MIN_PADRAO
-    const limite = new Date(agora - voltarMin * 60_000).toISOString()
-    const { data: convs } = await admin.from('whatsapp_conversas')
-      .select('id, telefone, estado, atendimento, atendente_nome, silenciada_motivo, silenciada_em, ultima_origem, ultima_mensagem_em')
-      .eq('restaurante_id', cfg.restaurante_id).eq('estado', 'silenciada').eq('atendimento', 'humano').eq('ultima_origem', 'cliente').lte('ultima_mensagem_em', limite)
-      .gte('ultima_mensagem_em', new Date(agora - 24 * 3600_000).toISOString()).limit(50)
-    for (const c of (convs ?? []) as (ConversaParaAbandono & { telefone: string })[]) {
-      if (!conversaAbandonada(c, agora, voltarMin)) continue
-      // Volta ao robô (mesmo efeito do "Retomar robô" da central), uma vez só: UPDATE condicional.
-      const { data: mudou } = await admin.from('whatsapp_conversas').update({
-        estado: 'robo', silenciada_em: null, silenciada_motivo: null, atendimento: 'robo', atendente_id: null, atendente_nome: null, assumida_em: null,
-      }).eq('id', c.id).eq('estado', 'silenciada').eq('atendimento', 'humano').select('id').maybeSingle()
-      if (!mudou) continue
-      await admin.from('whatsapp_eventos').insert({ restaurante_id: cfg.restaurante_id, conversa_id: c.id, tipo: 'retorno_robo_abandono', resultado: { voltarMin, ultimaMensagemEm: c.ultima_mensagem_em, motivoAnterior: c.silenciada_motivo } }).then(() => null, () => null)
-      await enfileirar(admin, { restauranteId: cfg.restaurante_id, chave: `retorno:${c.id}:${c.ultima_mensagem_em}`, tipo: 'robo', telefone: c.telefone, texto: TEXTO_RETORNO_ROBO, conversaId: c.id }).catch(() => null)
-      await registrarAuditoria(admin, { restauranteId: cfg.restaurante_id, usuarioNome: 'Sistema', acao: 'whatsapp.retorno_automatico', entidade: 'whatsapp_conversa', entidadeId: c.id, dados: { voltarMin, atendente: c.atendente_nome, motivo: c.silenciada_motivo } }).catch(() => null)
-      resumo.devolvidas++
-    }
+  const lojas = (cfgs ?? []) as { restaurante_id: string; auto_voltar_min: number | null }[]
+  resumo.lojas = lojas.length
+  if (!lojas.length) return resumo
+  const voltarDe = new Map(lojas.map((l) => [l.restaurante_id, Number(l.auto_voltar_min ?? VOLTAR_MIN_PADRAO) || VOLTAR_MIN_PADRAO]))
+  // 1 consulta para todas as lojas (01/11; era 1 por loja por minuto): o filtro é o mesmo, só o prazo muda — e esse
+  // `conversaAbandonada` confere em memória com o prazo de cada loja.
+  const menorPrazo = Math.min(...voltarDe.values())
+  const { data: convs } = await admin.from('whatsapp_conversas')
+    .select('id, restaurante_id, telefone, estado, atendimento, atendente_nome, silenciada_motivo, silenciada_em, ultima_origem, ultima_mensagem_em')
+    .in('restaurante_id', [...voltarDe.keys()]).eq('estado', 'silenciada').eq('atendimento', 'humano').eq('ultima_origem', 'cliente')
+    .lte('ultima_mensagem_em', new Date(agora - menorPrazo * 60_000).toISOString())
+    .gte('ultima_mensagem_em', new Date(agora - 24 * 3600_000).toISOString()).limit(200)
+  for (const c of (convs ?? []) as (ConversaParaAbandono & { telefone: string; restaurante_id: string })[]) {
+    const voltarMin = voltarDe.get(c.restaurante_id) ?? VOLTAR_MIN_PADRAO
+    if (!conversaAbandonada(c, agora, voltarMin)) continue
+    // Volta ao robô (mesmo efeito do "Retomar robô" da central), uma vez só: UPDATE condicional.
+    const { data: mudou } = await admin.from('whatsapp_conversas').update({
+      estado: 'robo', silenciada_em: null, silenciada_motivo: null, atendimento: 'robo', atendente_id: null, atendente_nome: null, assumida_em: null,
+    }).eq('id', c.id).eq('estado', 'silenciada').eq('atendimento', 'humano').select('id').maybeSingle()
+    if (!mudou) continue
+    await admin.from('whatsapp_eventos').insert({ restaurante_id: c.restaurante_id, conversa_id: c.id, tipo: 'retorno_robo_abandono', resultado: { voltarMin, ultimaMensagemEm: c.ultima_mensagem_em, motivoAnterior: c.silenciada_motivo } }).then(() => null, () => null)
+    await enfileirar(admin, { restauranteId: c.restaurante_id, chave: `retorno:${c.id}:${c.ultima_mensagem_em}`, tipo: 'robo', telefone: c.telefone, texto: TEXTO_RETORNO_ROBO, conversaId: c.id }).catch(() => null)
+    await registrarAuditoria(admin, { restauranteId: c.restaurante_id, usuarioNome: 'Sistema', acao: 'whatsapp.retorno_automatico', entidade: 'whatsapp_conversa', entidadeId: c.id, dados: { voltarMin, atendente: c.atendente_nome, motivo: c.silenciada_motivo } }).catch(() => null)
+    resumo.devolvidas++
   }
   return resumo
 }

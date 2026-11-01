@@ -67,11 +67,14 @@ export async function varrerLoja(admin: SupabaseClient, loja: string, agora = Da
 
   // Motoboy com dinheiro pendente há mais de N h: idade = linha mais antiga depois do último acerto.
   // Paginado (revisão 26/10): com o teto de 1.000 linhas do PostgREST, `.limit(5000)` lia só os mais ANTIGOS.
-  const motos = await lerTodas<{ entregador_id: string; valor_centavos: number; tipo: string; criado_em: string; id: number }>((de, ate) =>
-    admin.from('fin_lancamentos').select('entregador_id, valor_centavos, tipo, criado_em, id').eq('restaurante_id', loja).eq('carteira', 'motoboy').order('id').range(de, ate))
-    .catch(() => [] as { entregador_id: string; valor_centavos: number; tipo: string; criado_em: string; id: number }[])
+  // Só com o controle de caixa (01/11): em loja nível 1 o alerta nem existe e a leitura era todo o histórico, 96×/dia.
+  const motos = controle
+    ? await lerTodas<{ entregador_id: string; valor_centavos: number; tipo: string; criado_em: string; id: number }>((de, ate) =>
+      admin.from('fin_lancamentos').select('entregador_id, valor_centavos, tipo, criado_em, id').eq('restaurante_id', loja).eq('carteira', 'motoboy').order('id').range(de, ate))
+      .catch(() => [] as { entregador_id: string; valor_centavos: number; tipo: string; criado_em: string; id: number }[])
+    : []
   const porMoto = new Map<string, { saldo: number; desde: string | null }>()
-  for (const l of motos ?? []) {
+  for (const l of motos) {
     const k = l.entregador_id as string
     const s = porMoto.get(k) ?? { saldo: 0, desde: null }
     if (l.tipo === 'acerto_motoboy') s.desde = null

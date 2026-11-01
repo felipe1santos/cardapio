@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { provedorAtual } from '@/lib/mensageria/provedor'
 import { processarCampanhas } from '@/lib/mensageria/campanhas-envio'
-import { baterCron } from '@/lib/saude/cron'
+import { baterCron, umaPorVez } from '@/lib/saude/cron'
 
 // Cron chamado pelo Coolify (ou qualquer scheduler) — protegido por CRON_SECRET.
 // Configuração no Coolify: POST /api/cron/campanhas a cada 60 segundos
@@ -33,7 +33,8 @@ export async function POST(request: Request) {
     void baterCron('campanhas')
 
     // Push do app (0127) NÃO roda mais aqui (22/10): tem cron próprio no Coolify (/api/cron/push) e rodava 2× por minuto.
-    const resumo = await processarCampanhas(getAdminSupabase(), provedorAtual(), { limite: BATCH_SIZE, intervalo: randomDelay })
+    // Uma rodada de cada vez (01/11): um lote leva até ~90 s (5 envios × 4–12 s) e a seguinte sobrepunha, dobrando o ritmo.
+    const resumo = await umaPorVez('campanhas', () => processarCampanhas(getAdminSupabase(), provedorAtual(), { limite: BATCH_SIZE, intervalo: randomDelay }))
     return NextResponse.json(resumo)
   } catch (err) {
     console.error('[cron/campanhas] erro:', (err as Error).message?.slice(0, 200))

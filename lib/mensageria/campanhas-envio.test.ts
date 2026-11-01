@@ -64,3 +64,20 @@ describe('processarCampanhas: módulo Disparos bloqueado (0176)', () => {
     expect(enviar).not.toHaveBeenCalled()
   })
 })
+
+/**
+ * 01/11/2026 (Fase 5): loja já marcada como desconectada (`whatsapp_estado = 'close'`, o monitor parou de olhar) com
+ * campanha pausada era consultada na Evolution TODO MINUTO, por até 7 dias. Regra 3: desligado = zero consulta.
+ */
+describe('sincronizar pausas: loja desconectada não consulta a Evolution', () => {
+  it('campanha pausada de loja com whatsapp_estado close → nenhuma chamada a provedor.conexao', async () => {
+    const campanha = { id: 'c9', status: 'pausada', pausa_motivo: 'whatsapp_desconectado', restaurante_id: 'r9', restaurantes: { evolution_instance: 'inst9', whatsapp_estado: 'close' } }
+    const vazio: Record<string, unknown> = {}
+    for (const m of ['select', 'in', 'update', 'eq']) vazio[m] = () => vazio
+    vazio.lte = async () => ({ data: [campanha] })
+    const admin = { from: () => vazio, rpc: vi.fn(async () => ({ data: [], error: null })) }
+    const conexao = vi.fn(async () => 'aberto')
+    await processarCampanhas(admin as never, { conexao, enviarTexto: vi.fn() } as unknown as ProvedorWhatsapp, { limite: 10, intervalo: () => 0 })
+    expect(conexao).not.toHaveBeenCalled()
+  })
+})

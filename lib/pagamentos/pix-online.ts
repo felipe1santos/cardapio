@@ -14,6 +14,7 @@ import { avisarPixExpiradoIa } from '@/lib/agente-ia/avisos'
 import { textoPixParceiroPago } from '@/lib/entregas/parceiro-pix'
 import { acaoDaPendencia } from './pendencias'
 import { proximaVerificacaoPix } from '@/lib/espera-tentativas'
+import { contasParaRenovar, RENOVAR_ANTES_MS } from './renovacao'
 
 /**
  * Pix online (Mercado Pago) — núcleo. Plano: docs/pix-online/plano.md (aprovado em 2026-10-04).
@@ -556,9 +557,12 @@ export async function verificarPendentes(admin: SupabaseClient, opcoes: { limite
       }
     }
   }
-  const limite = new Date(agora + 30 * 86_400_000).toISOString()
-  const { data: contas } = await admin.from('pagamentos_contas').select('restaurante_id').eq('status', 'conectada').lt('expira_em', limite)
-  for (const c of contas ?? []) if (await tokenDaLoja(admin, c.restaurante_id)) resumo.renovadas++
+  // 1 tentativa por hora por conta (01/11; antes todo minuto, sem limite, por até 30 dias se o MP recusasse).
+  const limite = new Date(agora + RENOVAR_ANTES_MS).toISOString()
+  const { data: contas } = await admin.from('pagamentos_contas').select('restaurante_id, expira_em, atualizado_em').eq('status', 'conectada').lt('expira_em', limite)
+  for (const c of contasParaRenovar((contas ?? []) as { restaurante_id: string; expira_em: string; atualizado_em: string | null }[], agora)) {
+    if (await tokenDaLoja(admin, c.restaurante_id)) resumo.renovadas++
+  }
   return resumo
 }
 

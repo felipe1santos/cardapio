@@ -19,9 +19,15 @@ export async function POST(request: Request) {
     let entregues = 0
     try { entregues = await marcarEntreguesAutomaticos(admin) } catch (e) { console.error('[cron entregas] entregue automático', (e as Error).message) }
     const { data: lojas } = await admin.from('restaurantes').select('id').eq('despacho_automatico', true)
+    const ids = ((lojas ?? []) as { id: string }[]).map((l) => l.id)
     let despachados = 0
-    for (const l of (lojas ?? []) as { id: string }[]) {
-      try { despachados += (await despacharAutomaticamente(admin, l.id)).despachados.length } catch (e) { console.error('[cron entregas] despacho', l.id, (e as Error).message) }
+    if (ids.length) {
+      // 1 consulta para todas as lojas (01/11): só entra na loja que tem pronto sem motoboy (era 2 consultas por loja por minuto).
+      const { data: prontos } = await admin.from('pedidos').select('restaurante_id').in('restaurante_id', ids).eq('status', 'pronto').eq('tipo', 'entrega').is('entregador_id', null).limit(500)
+      const comPronto = [...new Set(((prontos ?? []) as { restaurante_id: string }[]).map((p) => p.restaurante_id))]
+      for (const id of comPronto) {
+        try { despachados += (await despacharAutomaticamente(admin, id, { jaLigado: true })).despachados.length } catch (e) { console.error('[cron entregas] despacho', id, (e as Error).message) }
+      }
     }
     return { ok: true, entregues, lojas: lojas?.length ?? 0, despachados }
   }))
