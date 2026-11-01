@@ -37,12 +37,10 @@ async function rodada(admin: ReturnType<typeof getAdminSupabase>) {
   // Loja assumiu e sumiu (Etapa 4, 20/10): humano parou de responder há X min → robô/IA volta com pedido de desculpas (antes da fila: sai nesta rodada).
   await devolverConversasAbandonadas(admin).catch((e) => console.error('[whatsapp] retorno automático:', (e as Error).message))
   const fila = await processarFila(admin, { limite: 20 })
-  // Manutenção sem pressa: 1 vez por hora (revisão de escala 26/10). A limpeza lê as tabelas do WhatsApp inteiras.
-  let limpeza: unknown = null
+  // Manutenção sem pressa: 1 vez por hora (revisão de escala 26/10). A limpeza das tabelas do WhatsApp
+  // (whatsapp_limpar_antigos, varredura completa sem índice) saiu daqui e roda 1×/dia no vigia (01/11, lib/saude/vigia.ts).
+  const limpeza: unknown = null
   if (manutencao.liberar()) {
-    const { data, error } = await admin.rpc('whatsapp_limpar_antigos')
-    if (error) console.error('[whatsapp] limpeza falhou:', error.message)
-    limpeza = data
     // Cashback (Etapa 7, 0211): o que venceu vira "expirado" (o saldo já ignora vencidos; isto é só arrumação).
     await expirarCashbackVencidos(admin).catch(() => null)
     // "Perguntas que o robô não entendeu" ficam 30 dias (0177).

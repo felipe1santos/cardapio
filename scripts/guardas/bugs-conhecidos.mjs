@@ -100,8 +100,26 @@ export function verificarB5(base) {
   return erros
 }
 
+// B7 — função nova (migration ≥ 0238) sem grant/revoke explícito. Desde a 0241 o padrão do schema é "ninguém executa":
+// uma RPC da vitrine sem grant quebra em silêncio; antes da 0241, uma de escrita sem revoke ficava aberta ao anon.
+export function verificarB7(base, aPartirDe = 238) {
+  const pasta = join(base, 'supabase/migrations')
+  let lista = []
+  try { lista = readdirSync(pasta).filter((n) => /^\d{4}_.*\.sql$/.test(n) && Number(n.slice(0, 4)) >= aPartirDe) } catch { return [] }
+  const erros = []
+  for (const n of lista) {
+    const sql = readFileSync(join(pasta, n), 'utf8').replace(/--.*$/gm, '')
+    for (const m of sql.matchAll(/\bcreate\s+(?:or\s+replace\s+)?function\s+(?:public\.)?([a-z0-9_]+)\s*\(/gi)) {
+      const fn = m[1]
+      const temGrant = new RegExp(`\\b(grant\\s+execute|revoke\\s+(all|execute))\\s+on\\s+function\\s+(public\\.)?${fn}\\s*\\(`, 'i').test(sql)
+      if (!temGrant) erros.push(`supabase/migrations/${n} B7 função ${fn} sem grant/revoke explícito — diga quem executa (revoke all … from public, anon, authenticated; grant execute … to service_role)`)
+    }
+  }
+  return erros
+}
+
 export function verificarBugsConhecidos(base) {
-  return [...verificarB1(base), ...verificarB2(base), ...verificarB3(base), ...verificarB4(base), ...verificarB5(base)]
+  return [...verificarB1(base), ...verificarB2(base), ...verificarB3(base), ...verificarB4(base), ...verificarB5(base), ...verificarB7(base)]
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
@@ -110,5 +128,5 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     console.error(`\n✖ Bugs conhecidos voltaram (docs/BUGS-CONHECIDOS.md):\n  ${erros.join('\n  ')}\n`)
     process.exit(1)
   }
-  console.log('✓ bugs conhecidos: nenhum voltou (B1 regex, B2 cron duplicado, B3 RLS por linha, B4 caractere invisível, B5 foto sem otimizar)')
+  console.log('✓ bugs conhecidos: nenhum voltou (B1 regex, B2 cron duplicado, B3 RLS por linha, B4 caractere invisível, B5 foto sem otimizar, B7 função sem grant)')
 }

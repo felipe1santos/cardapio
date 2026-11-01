@@ -203,18 +203,11 @@ export function resumir(linhas: LojaPlataforma[]): ResumoPlataforma {
  */
 export async function metricasEntreguesPorLoja(admin: SupabaseClient): Promise<Map<string, { faturamento: number; qtdPedidos: number }>> {
   const out = new Map<string, { faturamento: number; qtdPedidos: number }>()
-  const PAGINA = 1000
-  for (let de = 0; ; de += PAGINA) {
-    const { data, error } = await admin.from('pedidos').select('id, restaurante_id, total').eq('status', 'entregue').order('id').range(de, de + PAGINA - 1)
-    if (error) throw error
-    for (const p of (data ?? []) as { restaurante_id: string | null; total: number }[]) {
-      if (!p.restaurante_id) continue
-      const cur = out.get(p.restaurante_id) ?? { faturamento: 0, qtdPedidos: 0 }
-      cur.faturamento += Number(p.total)
-      cur.qtdPedidos += 1
-      out.set(p.restaurante_id, cur)
-    }
-    if (!data || data.length < PAGINA) break
+  // Agregado no banco (0242, 01/11): uma linha por loja, em vez de todos os pedidos entregues pelo PostgREST.
+  const { data, error } = await admin.rpc('plataforma_metricas_entregues')
+  if (error) throw error
+  for (const p of (data ?? []) as { restaurante_id: string; faturamento: number | string; qtd_pedidos: number | string }[]) {
+    out.set(p.restaurante_id, { faturamento: Number(p.faturamento), qtdPedidos: Number(p.qtd_pedidos) })
   }
   return out
 }

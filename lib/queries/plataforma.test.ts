@@ -66,3 +66,15 @@ describe('situação e status', () => {
     expect(statusDoSublogin({ desativado_em: 'x', situacao: 'excluido' })).toBeNull()
   })
 })
+
+/** 01/11/2026 (Fase 6): faturamento e pedidos entregues por loja vêm agregados do banco (0242), não paginando todos os pedidos. */
+describe('metricasEntreguesPorLoja', () => {
+  it('usa a RPC plataforma_metricas_entregues e não lê a tabela pedidos', async () => {
+    const { adminGravador } = await import('@/lib/teste/admin-gravador')
+    const { metricasEntreguesPorLoja } = await import('./plataforma')
+    const g = adminGravador({}, { plataforma_metricas_entregues: [{ restaurante_id: 'A', faturamento: '150.50', qtd_pedidos: '3' }] })
+    const m = await metricasEntreguesPorLoja(g.admin)
+    expect(m.get('A')).toEqual({ faturamento: 150.5, qtdPedidos: 3 })
+    expect(g.vezes('pedidos')).toBe(0)
+  })
+})

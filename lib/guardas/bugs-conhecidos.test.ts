@@ -52,3 +52,25 @@ describe('a guarda pega quem reintroduz', () => {
     expect(e[0]).toContain('0219_ruim.sql')
   })
 })
+
+/**
+ * B7 (01/11/2026, Fase 6): migration nova que cria função sem dizer quem executa. Com a 0241 o padrão passa a ser
+ * "ninguém além do servidor", então toda função nova precisa de `revoke`/`grant execute` explícito — senão uma RPC da
+ * vitrine quebra em silêncio ou uma de escrita fica aberta.
+ */
+describe('B7 função nova sem grant/revoke', () => {
+  it('acusa create function sem grant nem revoke; aceita com um dos dois; ignora migrations antigas', async () => {
+    const { mkdtempSync, mkdirSync, writeFileSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const { join } = await import('node:path')
+    const { verificarB7 } = await import('../../scripts/guardas/bugs-conhecidos.mjs')
+    const base = mkdtempSync(join(tmpdir(), 'b7-'))
+    mkdirSync(join(base, 'supabase/migrations'), { recursive: true })
+    writeFileSync(join(base, 'supabase/migrations/0250_sem.sql'), 'create or replace function public.x_sem()\nreturns int language sql as $$ select 1 $$;\n')
+    writeFileSync(join(base, 'supabase/migrations/0251_com.sql'), 'create or replace function public.x_com()\nreturns int language sql as $$ select 1 $$;\nrevoke all on function public.x_com() from public, anon, authenticated;\ngrant execute on function public.x_com() to service_role;\n')
+    writeFileSync(join(base, 'supabase/migrations/0200_antiga.sql'), 'create function public.x_antiga() returns int language sql as $$ select 1 $$;\n')
+    const erros = verificarB7(base)
+    expect(erros).toHaveLength(1)
+    expect(erros[0]).toMatch(/0250_sem\.sql B7 .*x_sem/)
+  })
+})

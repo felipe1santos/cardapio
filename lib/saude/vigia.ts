@@ -257,6 +257,9 @@ export async function rodarVigia(admin: SupabaseClient, agora = new Date()): Pro
     // Retenção das tabelas que crescem sem limite (0231, aprovada pelo dono em 28/10).
     const { error: eRet } = await admin.rpc('sistema_limpar_retencao')
     if (eRet) console.error('[saude] retenção falhou:', eRet.message)
+    // Limpeza das tabelas do WhatsApp (0107): 1×/dia aqui, não mais de hora em hora no cron (01/11, Fase 6).
+    const { error: eWa } = await admin.rpc('whatsapp_limpar_antigos')
+    if (eWa) console.error('[saude] limpeza do WhatsApp falhou:', eWa.message)
     // Quarentena dos arquivos sem uso no Storage (0235): só anota, não apaga nada.
     const { error: eQua } = await admin.rpc('storage_quarentena_atualizar')
     if (eQua) console.error('[saude] quarentena do Storage falhou:', eQua.message)
