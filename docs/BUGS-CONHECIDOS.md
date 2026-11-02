@@ -257,3 +257,17 @@ vermelho, 1× a cada 6 h por até 7 dias — 9 alertas em 4 dias para a BURGUER 
 **Correção.** Só alerta com prejuízo real: "Imprimir sozinho" ligado + pedido nos últimos 30 min + sem sinal há 15 min;
 Atenção (amarelo); 1 por loja por dia. **Regra:** alerta de recurso que a loja pode desligar de propósito só sai quando há
 trabalho parado, nunca pelo relógio. Teste: `lib/saude/avaliar.test.ts` (assistentesFora).
+
+## Item "Disponível" no Gestor que não aparece na vitrine · 02/11/2026 · teste
+
+**O que era.** A Ferraz Burguer (abre dom/qui/sex/sáb) cadastrou 8 itens marcando em "Dias em que aparece" só os
+dias em que a loja abre. Numa segunda, o Gestor mostrava tudo "Disponível" e a vitrine ficava em branco (a categoria
+some quando não sobra item visível). O dono achou que o cadastro tinha falhado. Não era bug de gravação: o filtro da
+vitrine (`listarCardapioPublico`: status + canal delivery + dia da semana + horário da categoria + categoria existente)
+fez o que o cadastro pediu, mas nenhuma tela dizia isso.
+**Correção.** `motivoForaDaVitrine` (lib/item-visibilidade.ts) responde "por quê" com as MESMAS funções do filtro
+da vitrine; o Gestor mostra o motivo ao lado do badge (tabela, grade e gaveta do item) e a vitrine mostra "Nenhum
+item disponível no cardápio hoje" em vez de página vazia. Nada mudou no que a vitrine mostra ou vende. **Regra:**
+toda condição que esconde algo do cliente tem que aparecer com o motivo no painel, ao lado do status. Suporte: item
+"disponível" sumido → conferir categoria, "Delivery e retirada", dias marcados e horário da categoria. Teste:
+`lib/item-visibilidade.test.ts`.

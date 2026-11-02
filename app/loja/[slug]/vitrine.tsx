@@ -3976,6 +3976,13 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
               <div className="px-4 py-16 text-center text-sm text-text-subtle lg:px-0">Carregando cardápio…</div>
             )}
 
+            {/* Cardápio sem nenhum item visível hoje (todos fora do dia/horário, só do salão
+                ou sem categoria): antes a página ficava em branco e o lojista achava que o
+                cadastro tinha falhado (Ferraz, 02/11). */}
+            {!loading && groups.length === 0 && (
+              <div className="px-4 py-16 text-center text-[14px] leading-[20px] text-[#5C5C5C] lg:px-0">Nenhum item disponível no cardápio hoje.</div>
+            )}
+
             {/* Modo gaveta: a grade de categorias ocupa o lugar da lista de
                 seções, e abrir um cartão troca a grade pelos itens daquela
                 categoria. */}

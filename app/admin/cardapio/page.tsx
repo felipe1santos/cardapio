@@ -4,6 +4,7 @@ import { avisosDoCadastro } from '@/lib/avisos-cadastro'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { descricaoEmTextoPuro } from '@/lib/descricao-rica'
 import { avisoDoItem, erroDoItem, statusAoCriarItem } from '@/lib/item-cadastro'
+import { motivoForaDaVitrine } from '@/lib/item-visibilidade'
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Clock, CupSoda, GripVertical, Images, MoreVertical, Pause, Pencil, Pizza, Play, Plus, Sandwich, Search, Soup, Star, Trash2, X } from 'lucide-react'
 import { TopBar } from '@/components/layout/topbar'
 import { Button } from '@/components/ui/button'
@@ -1077,6 +1078,11 @@ export default function CardapioPage() {
 
   const formMudou = JSON.stringify(form) !== formSalvo
 
+  /** "Disponível" mas fora da vitrine agora (sem categoria, só salão, dia, horário) — lib/item-visibilidade. */
+  function motivoVitrine(item: { status: string; grupoId: string | null; diasDisponiveis: number[]; disponivelDelivery: boolean; disponivelSalao: boolean }): string | null {
+    return motivoForaDaVitrine(item, groups.find((g) => g.id === item.grupoId))
+  }
+
   /** Fechar: com alteração não salva, pergunta antes. */
   function closeDrawer() {
     if (saving) return
@@ -1935,7 +1941,14 @@ export default function CardapioPage() {
                             }}
                           />
                         </td>
-                        <td className="border-b border-border px-3.5 py-3"><StatusBadge status={item.status} /></td>
+                        <td className="border-b border-border px-3.5 py-3">
+                          <StatusBadge status={item.status} />
+                          {/* "Disponível" que o cliente não vê: dia, categoria, canal ou horário (caso Ferraz, 02/11). */}
+                          {(() => {
+                            const motivo = motivoVitrine(item)
+                            return motivo ? <p className="mt-1 max-w-[180px] text-[11px] font-semibold leading-snug text-warn">{motivo}</p> : null
+                          })()}
+                        </td>
                         <td className="border-b border-border px-3.5 py-3">
                           <div className="prod-acoes flex items-center gap-1.5" data-testid="produto-acoes">
                             <button onClick={() => openEditItem(item)} title="Editar" aria-label={`Editar ${item.nome}`} data-testid="produto-editar"
@@ -2010,6 +2023,13 @@ export default function CardapioPage() {
                           })
                           return aviso ? (
                             <p className="rounded-menuzia bg-warn-bg px-2 py-1 text-[11px] font-semibold leading-snug text-warn">{aviso}</p>
+                          ) : null
+                        })()}
+                        {/* "Disponível" que o cliente não vê: dia, categoria, canal ou horário (caso Ferraz, 02/11). */}
+                        {(() => {
+                          const motivo = motivoVitrine(item)
+                          return motivo ? (
+                            <p className="rounded-menuzia bg-warn-bg px-2 py-1 text-[11px] font-semibold leading-snug text-warn">{motivo}</p>
                           ) : null
                         })()}
                         {/* Celular: preço em cima e Pausar/Editar lado a lado, cada um com metade da largura. */}
@@ -2559,6 +2579,13 @@ export default function CardapioPage() {
                     <div>
                       <div className="mb-1.5 text-[11.5px] font-semibold uppercase tracking-[0.05em] text-[#5b6472]">Dias em que aparece</div>
                       <DayToggles days={form.diasDisponiveis} onChange={(days) => setForm((p) => ({ ...p, diasDisponiveis: days }))} />
+                      {/* O lojista marcava aqui os dias em que a LOJA abre e achava que o cadastro
+                          falhou nos outros dias (Ferraz, 02/11). Dia fechado já não recebe pedido. */}
+                      <p className="mt-1.5 text-[11.5px] leading-snug text-text-subtle">Deixe todos marcados, a não ser que o item exista só em certos dias. Nos dias em que a loja fecha, ninguém pede mesmo.</p>
+                      {(() => {
+                        const motivo = motivoVitrine(form)
+                        return motivo ? <p className="mt-1 text-[11.5px] font-semibold leading-snug text-warn">{motivo}</p> : null
+                      })()}
                     </div>
                   </div>
             {/* Onde o item é vendido. O cadastro é ESTE — não existe cardápio separado para
