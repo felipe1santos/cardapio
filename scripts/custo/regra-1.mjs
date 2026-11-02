@@ -11,6 +11,8 @@ export const PAGAS = [
   /generativelanguage\.googleapis\.com/, /aiplatform\.googleapis\.com/, /api\.openai\.com/, /api\.anthropic\.com/,
   // Lalamove (18/10): a corrida é paga pela loja; só lib/custo/lalamove.ts fala com a API.
   /rest(\.sandbox)?\.lalamove\.com/,
+  // Asaas e Resend (02/11): assinatura do lojista e e-mail; só lib/custo/asaas.ts e lib/custo/resend.ts falam com eles.
+  /api(-sandbox)?\.asaas\.com/, /api\.resend\.com/,
   // Entregador iFood (Sob Demanda) e Foody/Open Delivery Logistics (19/10): a corrida é paga pela loja; só lib/custo/.
   /\/shipping\/v1\.0\//, /\/v1\/logistics\//,
   // Machine/Gaudium (20/10): API nativa paga pela loja; só lib/custo/ (hoje via Open Delivery Logistics).

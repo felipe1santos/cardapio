@@ -1,0 +1,125 @@
+import { describe, expect, it, vi } from 'vitest'
+import { cobrancaPaga, efeitoDoEvento, lerEvento, processarEventoAsaas, tokenConfere, type AssinaturaRegistro, type Repositorio, type UsuarioRegistro } from './webhook'
+
+const TOKEN = 'a'.repeat(40)
+
+describe('lerEvento', () => {
+  it('lê o corpo do Asaas e ignora campos desconhecidos', () => {
+    const ev = lerEvento({ id: 'evt_1', event: 'PAYMENT_RECEIVED', dateCreated: 'x', novo: 1, payment: { id: 'pay_1', subscription: 'sub_1', status: 'RECEIVED', dueDate: '2026-11-02', invoiceUrl: 'https://f', outra: true } })
+    expect(ev).toEqual({ id: 'evt_1', evento: 'PAYMENT_RECEIVED', cobranca: { id: 'pay_1', assinaturaId: 'sub_1', status: 'RECEIVED', vencimento: '2026-11-02', faturaUrl: 'https://f' } })
+  })
+  it('sem id, evento ou cobrança = null', () => {
+    expect(lerEvento(null)).toBeNull()
+    expect(lerEvento({ event: 'PAYMENT_RECEIVED', payment: { id: 'p' } })).toBeNull()
+    expect(lerEvento({ id: 'e', event: 'PAYMENT_RECEIVED' })).toBeNull()
+  })
+})
+
+describe('tokenConfere', () => {
+  it('só com token configurado (32+) e igual', () => {
+    expect(tokenConfere(TOKEN, TOKEN)).toBe(true)
+    expect(tokenConfere(TOKEN, `${TOKEN}b`)).toBe(false)
+    expect(tokenConfere(null, TOKEN)).toBe(false)
+    expect(tokenConfere('curto', 'curto')).toBe(false)
+    expect(tokenConfere(TOKEN, undefined)).toBe(false)
+  })
+})
+
+describe('efeitoDoEvento / cobrancaPaga', () => {
+  it('mapeia os eventos', () => {
+    expect(efeitoDoEvento('PAYMENT_CONFIRMED')).toBe('pago')
+    expect(efeitoDoEvento('PAYMENT_RECEIVED')).toBe('pago')
+    expect(efeitoDoEvento('PAYMENT_OVERDUE')).toBe('atrasado')
+    expect(efeitoDoEvento('PAYMENT_DELETED')).toBe('cancelado')
+    expect(efeitoDoEvento('PAYMENT_REFUNDED')).toBe('cancelado')
+    expect(efeitoDoEvento('PAYMENT_CREATED')).toBe('ignorar')
+    expect(cobrancaPaga('RECEIVED_IN_CASH')).toBe(true)
+    expect(cobrancaPaga('PENDING')).toBe(false)
+  })
+})
+
+function cenario(opcoes: { restauranteId?: string | null; acessoExpiraEm?: string | null; statusCobranca?: string; assinaturaDaCobranca?: string | null } = {}) {
+  const eventos = new Set<string>()
+  const assinatura: AssinaturaRegistro = { id: 'ass_1', usuarioId: 'u1', restauranteId: opcoes.restauranteId ?? null, plano: 'completo', status: 'aguardando' }
+  const usuario: UsuarioRegistro = { id: 'u1', email: 'dono@x.com', nome: 'Dono', usuario: 'dono', nomeLoja: 'Burger do Dono', restauranteId: opcoes.restauranteId ?? null, acessoExpiraEm: opcoes.acessoExpiraEm ?? null }
+  const repo: Repositorio = {
+    registrarEvento: vi.fn(async (e) => { if (eventos.has(e.id)) return 'repetido'; eventos.add(e.id); return 'novo' }),
+    marcarEvento: vi.fn(async () => {}),
+    buscarAssinatura: vi.fn(async (id) => (id === 'sub_1' ? assinatura : null)),
+    buscarUsuario: vi.fn(async () => usuario),
+    criarLoja: vi.fn(async () => ({ restauranteId: 'r1', slug: 'burger-do-dono' })),
+    estenderValidade: vi.fn(async () => {}),
+    ligarModulos: vi.fn(async () => {}),
+    atualizarAssinatura: vi.fn(async () => {}),
+  }
+  const deps = {
+    repo,
+    buscarCobranca: vi.fn(async (id: string) => ({ id, status: opcoes.statusCobranca ?? 'RECEIVED', vencimento: '2026-11-02', faturaUrl: 'https://fatura', assinaturaId: opcoes.assinaturaDaCobranca === undefined ? 'sub_1' : opcoes.assinaturaDaCobranca })),
+    avisarAcessoLiberado: vi.fn(async () => {}),
+    agora: () => new Date('2026-11-02T20:00:00Z'),
+  }
+  return { repo, deps }
+}
+
+const pago = { id: 'evt_1', evento: 'PAYMENT_RECEIVED', cobranca: { id: 'pay_1', assinaturaId: 'sub_1', status: 'RECEIVED', vencimento: '2026-11-02', faturaUrl: 'https://fatura' } }
+
+describe('processarEventoAsaas', () => {
+  it('primeiro pagamento: cria a loja, liga as chaves do plano, marca em dia e avisa por e-mail', async () => {
+    const { repo, deps } = cenario()
+    expect(await processarEventoAsaas(pago, deps)).toBe('ativado')
+    expect(repo.criarLoja).toHaveBeenCalledWith('u1', 'Burger do Dono', '2026-12-08T02:59:59.000Z')
+    expect(repo.ligarModulos).toHaveBeenCalledWith('r1', { financeiro: true, agente_ia: true, disparos: true })
+    expect(repo.atualizarAssinatura).toHaveBeenCalledWith('ass_1', expect.objectContaining({ restauranteId: 'r1', status: 'em_dia', ultimaCobrancaId: 'pay_1', proximoVencimento: '2026-12-02', pagoEm: '2026-11-02T20:00:00.000Z' }))
+    expect(deps.avisarAcessoLiberado).toHaveBeenCalledWith(expect.objectContaining({ email: 'dono@x.com', slug: 'burger-do-dono', plano: 'completo' }))
+    expect(repo.marcarEvento).toHaveBeenCalledWith('evt_1', 'ativado')
+  })
+
+  it('evento repetido: nada acontece', async () => {
+    const { repo, deps } = cenario()
+    await processarEventoAsaas(pago, deps)
+    expect(await processarEventoAsaas(pago, deps)).toBe('repetido')
+    expect(repo.criarLoja).toHaveBeenCalledTimes(1)
+  })
+
+  it('renovação: só estende a validade (nunca encurta) e não cria loja nem manda e-mail', async () => {
+    const { repo, deps } = cenario({ restauranteId: 'r1', acessoExpiraEm: '2027-03-01T02:59:59.000Z' })
+    expect(await processarEventoAsaas({ ...pago, id: 'evt_2' }, deps)).toBe('renovado')
+    expect(repo.estenderValidade).toHaveBeenCalledWith('u1', '2027-03-01T02:59:59.000Z')
+    expect(repo.criarLoja).not.toHaveBeenCalled()
+    expect(deps.avisarAcessoLiberado).not.toHaveBeenCalled()
+  })
+
+  it('o corpo diz pago, mas a API diz pendente: nada muda', async () => {
+    const { repo, deps } = cenario({ statusCobranca: 'PENDING' })
+    expect(await processarEventoAsaas(pago, deps)).toBe('cobranca_nao_paga')
+    expect(repo.criarLoja).not.toHaveBeenCalled()
+  })
+
+  it('cobrança de outra assinatura na API: recusa', async () => {
+    const { repo, deps } = cenario({ assinaturaDaCobranca: 'sub_outra' })
+    expect(await processarEventoAsaas(pago, deps)).toBe('cobranca_de_outra_assinatura')
+    expect(repo.criarLoja).not.toHaveBeenCalled()
+  })
+
+  it('e-mail que falha não desfaz a ativação', async () => {
+    const { repo, deps } = cenario()
+    deps.avisarAcessoLiberado = vi.fn(async () => { throw new Error('resend fora') })
+    expect(await processarEventoAsaas(pago, deps)).toBe('ativado')
+    expect(repo.marcarEvento).toHaveBeenCalledWith('evt_1', 'ativado')
+  })
+
+  it('atrasada: marca status e guarda a fatura; cancelada: marca sem consultar a API', async () => {
+    const { repo, deps } = cenario({ restauranteId: 'r1', statusCobranca: 'OVERDUE' })
+    expect(await processarEventoAsaas({ ...pago, id: 'evt_3', evento: 'PAYMENT_OVERDUE' }, deps)).toBe('atrasada')
+    expect(repo.atualizarAssinatura).toHaveBeenCalledWith('ass_1', expect.objectContaining({ status: 'atrasada', ultimaFaturaUrl: 'https://fatura' }))
+    expect(await processarEventoAsaas({ ...pago, id: 'evt_4', evento: 'PAYMENT_DELETED' }, deps)).toBe('cancelada')
+    expect(deps.buscarCobranca).toHaveBeenCalledTimes(1)
+  })
+
+  it('assinatura que não é nossa ou evento sem assinatura: 200 sem efeito', async () => {
+    const { deps } = cenario()
+    expect(await processarEventoAsaas({ ...pago, cobranca: { ...pago.cobranca, assinaturaId: 'sub_x' } }, deps)).toBe('assinatura_desconhecida')
+    expect(await processarEventoAsaas({ ...pago, id: 'evt_5', cobranca: { ...pago.cobranca, assinaturaId: null } }, deps)).toBe('sem_assinatura')
+    expect(await processarEventoAsaas({ ...pago, id: 'evt_6', evento: 'PAYMENT_CREATED' }, deps)).toBe('ignorado')
+  })
+})

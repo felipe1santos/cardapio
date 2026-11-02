@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { isSuperAdminEmail } from '@/lib/auth/superadmin'
 import { acessoValido, buscarStatusAcesso, registrarLogin } from '@/lib/queries/lojistas'
+import { buscarAssinaturaDoUsuario, urlDeFaturaAsaas } from '@/lib/assinatura/repo'
 import { telaInicialDoPapel } from '@/lib/auth/rotas'
 import { registrarSessao } from '@/lib/financeiro/sessoes'
 import { COOKIE_TERMINAL, dispositivoDaRequisicao } from '@/lib/financeiro/contexto'
@@ -29,8 +30,11 @@ export async function concluirEntrada(supabase: SupabaseClient, user: User, prox
     return `/login?${nx}error=pendente`
   }
   if (!acessoValido(status)) {
+    // Assinatura (02/11): a tela de login mostra "Pagar agora" com a fatura do Asaas, se houver.
+    const assinatura = await buscarAssinaturaDoUsuario(admin, user.id).catch(() => null)
+    const fatura = urlDeFaturaAsaas(assinatura?.faturaUrl)
     await supabase.auth.signOut()
-    return `/login?${nx}error=${encodeURIComponent('Seu acesso expirou. Fale com a Menuzia para renovar.')}`
+    return `/login?${nx}error=expirado${fatura ? `&pagar=${encodeURIComponent(fatura)}` : ''}`
   }
 
   // Funcionário desativado pelo estabelecimento não entra. A RLS e o middleware já o

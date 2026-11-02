@@ -62,11 +62,14 @@ export function LoginCartao({
   voltar,
   aviso,
   erro,
+  pagarUrl = null,
 }: {
   signIn: (formData: FormData) => Promise<void>
   voltar: string | null
   aviso: string | null
   erro: string | null
+  /** Fatura do Asaas quando o acesso venceu (docs/ASSINATURA-ASAAS.md): botão "Pagar agora" sob o aviso. */
+  pagarUrl?: string | null
 }) {
   const [usuario, setUsuario] = useState('')
   const [verSenha, setVerSenha] = useState(false)
@@ -98,6 +101,11 @@ export function LoginCartao({
       )}
       {aviso && <p className={authAviso.ok}>{aviso}</p>}
       {erro && <p role="alert" className={authAviso.erro}>{erro}</p>}
+      {erro && pagarUrl && (
+        <p className="mb-[16px]">
+          <a href={pagarUrl} target="_blank" rel="noopener noreferrer" className={authButton} data-testid="login-pagar-agora">Pagar agora</a>
+        </p>
+      )}
 
       <form action={signIn} onSubmit={aoEnviar}>
         {voltar && <input type="hidden" name="next" value={voltar} />}

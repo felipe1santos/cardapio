@@ -20,7 +20,7 @@ export function normalizarSlug(value: string): string {
     .replace(/^-|-$/g, '')
 }
 
-async function gerarSlugUnico(admin: SupabaseClient, nomeLoja: string): Promise<string> {
+export async function gerarSlugUnico(admin: SupabaseClient, nomeLoja: string): Promise<string> {
   const base = normalizarSlug(nomeLoja) || 'loja'
   const { data, error } = await admin.from('restaurantes').select('slug').like('slug', `${base}%`)
   if (error) throw error

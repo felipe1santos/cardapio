@@ -21,12 +21,13 @@ import { avisarSuporte } from './alerta-whatsapp'
 // 'ifood_entrega' e 'foody' (19/10, Etapa 3): entregador do iFood (Sob Demanda) e Foody (Open Delivery Logistics), mesma regra.
 // 'audio' (20/10, aprovado pelo dono): transcrição de áudio do WhatsApp (OpenAI) — LIMITE_AUDIO_DIA por loja (padrão 200), além do
 // teto em US$ da IA (lib/custo/ia.ts). 'machine' (20/10): Machine/Gaudium como logística Open Delivery, mesma regra da Foody.
-export type ApiPaga = 'geocoding' | 'directions' | 'places' | 'ia' | 'lalamove' | 'ifood_entrega' | 'foody' | 'audio' | 'machine' | 'uber'
+// 'asaas' e 'email' (02/11): assinatura do lojista (docs/ASSINATURA-ASAAS.md). Poucas chamadas por mês; o teto é anti-laço.
+export type ApiPaga = 'geocoding' | 'directions' | 'places' | 'ia' | 'lalamove' | 'ifood_entrega' | 'foody' | 'audio' | 'machine' | 'uber' | 'asaas' | 'email'
 
 // Entregadores 600 → 3.000/dia (29/10, aprovado pelo dono): as chamadas são grátis (a corrida é paga pela loja) e o teto
 // é só anti-laço; 600 = ~40 corridas/dia no sistema todo travaria com ~15–20 lojas. Por loja: 60% (1.800).
-const PADRAO: Record<ApiPaga, number> = { geocoding: 300, directions: 300, places: 100, ia: 2000, lalamove: 3000, ifood_entrega: 3000, foody: 3000, audio: 200, machine: 3000, uber: 3000 }
-const ENV: Record<ApiPaga, string> = { geocoding: 'LIMITE_GEOCODING_DIA', directions: 'LIMITE_DIRECTIONS_DIA', places: 'LIMITE_PLACES_DIA', ia: 'LIMITE_IA_CHAMADAS_DIA', lalamove: 'LIMITE_LALAMOVE_DIA', ifood_entrega: 'LIMITE_IFOOD_ENTREGA_DIA', foody: 'LIMITE_FOODY_DIA', audio: 'LIMITE_AUDIO_DIA', machine: 'LIMITE_MACHINE_DIA', uber: 'LIMITE_UBER_DIA' }
+const PADRAO: Record<ApiPaga, number> = { geocoding: 300, directions: 300, places: 100, ia: 2000, lalamove: 3000, ifood_entrega: 3000, foody: 3000, audio: 200, machine: 3000, uber: 3000, asaas: 200, email: 200 }
+const ENV: Record<ApiPaga, string> = { geocoding: 'LIMITE_GEOCODING_DIA', directions: 'LIMITE_DIRECTIONS_DIA', places: 'LIMITE_PLACES_DIA', ia: 'LIMITE_IA_CHAMADAS_DIA', lalamove: 'LIMITE_LALAMOVE_DIA', ifood_entrega: 'LIMITE_IFOOD_ENTREGA_DIA', foody: 'LIMITE_FOODY_DIA', audio: 'LIMITE_AUDIO_DIA', machine: 'LIMITE_MACHINE_DIA', uber: 'LIMITE_UBER_DIA', asaas: 'LIMITE_ASAAS_DIA', email: 'LIMITE_EMAIL_DIA' }
 
 export function limiteDiario(api: ApiPaga, env: Record<string, string | undefined> = process.env): number {
   const v = Number(env[ENV[api]])

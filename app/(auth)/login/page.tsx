@@ -2,10 +2,16 @@ import { AuthShell, authLink } from '@/components/auth/auth-shell'
 import { LoginCartao } from '@/components/auth/login-cartao'
 import Link from 'next/link'
 import { SUPORTE_MENUZIA } from '@/lib/suporte'
+import { getServerSupabase } from '@/lib/supabase/server'
+import { getAdminSupabase } from '@/lib/supabase/admin'
+import { buscarAssinaturaDoUsuario, urlDeFaturaAsaas } from '@/lib/assinatura/repo'
 import { signIn } from './actions'
 
 const ERROR_MESSAGES: Record<string, string> = {
   pendente: 'Seu cadastro ainda não foi concluído. Acesse o link de primeiro acesso enviado pela Menuzia.',
+  // Assinatura (02/11): venceu no login (entrada.ts) ou no meio do uso (middleware → error=acesso).
+  expirado: 'Seu acesso expirou. Regularize o pagamento para voltar a usar o sistema.',
+  acesso: 'Seu acesso está bloqueado. Se a assinatura venceu, regularize o pagamento para voltar a usar o sistema.',
   'google-sem-conta': 'Não encontramos uma conta Menuzia com este e-mail. Fale com o suporte.',
   'google-falhou': 'Não foi possível entrar com o Google. Tente de novo ou entre com usuário e senha.',
 }
@@ -19,13 +25,22 @@ const NOTICE_MESSAGES: Record<string, string> = {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; notice?: string; next?: string }>
+  searchParams: Promise<{ error?: string; notice?: string; next?: string; pagar?: string }>
 }) {
-  const { error, notice, next } = await searchParams
+  const { error, notice, next, pagar } = await searchParams
   // Vindo do app do motoboy (10/10): depois de entrar, volta para lá (no pedido do QR). O servidor valida o destino.
   const voltar = typeof next === 'string' && next.startsWith('/motoboy') ? next : null
   const errorMessage = error ? ERROR_MESSAGES[error] ?? error : null
   const noticeMessage = notice ? NOTICE_MESSAGES[notice] ?? null : null
+  // "Pagar agora": fatura vinda do entrada.ts (expirado, já deslogado) ou, no meio do uso (acesso), da sessão ainda viva.
+  let pagarUrl = error === 'expirado' ? urlDeFaturaAsaas(pagar) : null
+  if (error === 'acesso' && !pagarUrl) {
+    try {
+      const supabase = await getServerSupabase()
+      const { data } = await supabase.auth.getUser()
+      if (data.user) pagarUrl = urlDeFaturaAsaas((await buscarAssinaturaDoUsuario(getAdminSupabase(), data.user.id))?.faturaUrl)
+    } catch { pagarUrl = null }
+  }
 
   // Sem o botão do Google na tela (pedido do dono, 26/10).
   return (
@@ -44,12 +59,14 @@ export default async function LoginPage({
           </p>
           <p className="text-[14px]">
             Ainda não tem uma conta?{' '}
+            <Link href="/assinar" className={authLink} data-testid="login-adquirir-acesso">Adquirir acesso</Link>
+            {' · '}
             <a href="https://menuzia.com.br" className={authLink}>Conheça o Menuzia</a>
           </p>
         </>
       }
     >
-      <LoginCartao signIn={signIn} voltar={voltar} aviso={noticeMessage} erro={errorMessage} />
+      <LoginCartao signIn={signIn} voltar={voltar} aviso={noticeMessage} erro={errorMessage} pagarUrl={pagarUrl} />
     </AuthShell>
   )
 }
