@@ -84,13 +84,15 @@ function mapCampanha(row: any): Campanha {
 
 // ─── CRUD ────────────────────────────────────────────────────────────────────
 
-const CAMPANHA_SELECT = 'id, restaurante_id, nome, status, tipo_mensagem, mensagem, imagem_url, audio_url, filtro, agendado_em, total_destinatarios, total_enviados, total_erros, criado_em, incluir_link, duplicados_bloqueados, incluir_descadastro, pausada_em, pausa_motivo, botoes'
+const CAMPANHA_SELECT = 'id, restaurante_id, nome, status, tipo_mensagem, mensagem, imagem_url, audio_url, filtro, agendado_em, total_destinatarios, total_enviados, total_erros, criado_em, incluir_link, duplicados_bloqueados, incluir_descadastro, pausada_em, pausa_motivo, botoes, recorrente_id'
 
+/** Agendamentos da loja. Rodadas dos cards recorrentes (0245) ficam de fora: aparecem no próprio card. */
 export async function listarCampanhas(supabase: SupabaseClient, restauranteId: string): Promise<Campanha[]> {
   const { data, error } = await supabase
     .from('campanhas')
     .select(CAMPANHA_SELECT)
     .eq('restaurante_id', restauranteId)
+    .is('recorrente_id', null)
     .order('criado_em', { ascending: false })
   if (error) throw error
   return (data ?? []).map(mapCampanha)
