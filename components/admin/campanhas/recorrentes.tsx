@@ -89,12 +89,13 @@ export function Recorrentes({ restauranteId, onToast }: { restauranteId: string 
   }
   const aberto = galeria ? cards.find((c) => c.tipo === galeria) ?? null : null
   return (
-    <div className="space-y-4" data-testid="recorrentes">
+    <div className="flex min-h-full flex-col gap-4" data-testid="recorrentes">
       <p className="text-[12.5px] text-[#5b6472]">
         Três campanhas que rodam sozinhas: ligou, o sistema dispara nos dias e horário programados, para quem já falou com a loja no
         WhatsApp, com pelo menos 1 minuto entre mensagens e no máximo uma mensagem por pessoa a cada 2 dias.
       </p>
-      <div className="grid gap-4 lg:grid-cols-3">
+      {/* Cards ocupam a altura disponível da área (03/11): o espaço embaixo fica livre para avisos. */}
+      <div className="grid flex-1 items-stretch gap-4 lg:grid-cols-3">
         {cards.map((c) => (
           <CardRecorrente key={c.tipo} card={c} estimativa={estimativas[c.tipo]} onPatch={patch} onGaleria={() => setGaleria(c.tipo)} />
         ))}
@@ -135,7 +136,7 @@ function CardRecorrente({ card, estimativa, onPatch, onGaleria }: {
   }
 
   return (
-    <section className="campanha-cartao flex flex-col overflow-hidden rounded-[8px] border border-[#e5e7eb] bg-white" data-testid={`card-${card.tipo}`} data-ativa={card.ativa ? '1' : '0'} data-destaque={card.ativa ? '' : undefined}>
+    <section className="campanha-cartao flex h-full flex-col overflow-hidden rounded-[8px] border border-[#e5e7eb] bg-white" data-testid={`card-${card.tipo}`} data-ativa={card.ativa ? '1' : '0'} data-destaque={card.ativa ? '' : undefined}>
       {/* Ilustração do card (pasta public/ilustracoes/campanhas). Sem ilustração: faixa azul com o nome e o estado. */}
       {ILUSTRACAO_CARD[card.tipo] ? (
         <div className="flex items-center justify-center bg-[#eef3fb]" data-bordo="ilustracao">
