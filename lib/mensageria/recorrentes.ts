@@ -1,0 +1,120 @@
+/**
+ * Cards de disparo recorrente (03/11/2026) — regras puras, sem banco.
+ * Desenho: docs/superpowers/specs/2026-11-03-disparos-recorrentes-design.md
+ *
+ * Três cards fixos por loja, sempre ligados quando `ativa`: o cron gera uma rodada por dia programado (0245).
+ * Aqui mora o que a API valida e o que a tela mostra; a agenda e o público ficam no banco.
+ */
+import { MARCADOR_ULTIMO_ITEM, problemasDasVariaveis } from './campanhas'
+import { janelaDoDisparo } from './disparo-regras'
+
+export const TIPOS_RECORRENTES = ['recuperacao', 'nunca_compraram', 'promocoes'] as const
+export type TipoRecorrente = (typeof TIPOS_RECORRENTES)[number]
+
+export const ROTULO_RECORRENTE: Record<TipoRecorrente, { nome: string; publico: string; mensagemPadrao: string }> = {
+  recuperacao: {
+    nome: 'Recuperação de clientes',
+    publico: 'Quem já pediu, falou com a loja no WhatsApp e está há 30 dias ou mais sem pedir.',
+    mensagemPadrao: 'Oi {nome}! Sentimos sua falta na {loja} 😊 Que tal pedir de novo hoje? Dá uma olhada no cardápio: {link}',
+  },
+  nunca_compraram: {
+    nome: 'Quem nunca comprou',
+    publico: 'Quem já falou com a loja no WhatsApp, mas nunca fez um pedido.',
+    mensagemPadrao: 'Oi {nome}! Aqui é da {loja}. Ainda não experimentou a gente? Veja o cardápio e faça seu primeiro pedido: {link}',
+  },
+  promocoes: {
+    nome: 'Promoções',
+    publico: 'Todo mundo que já falou com a loja no WhatsApp, comprador ou não.',
+    mensagemPadrao: 'Oi {nome}! Promoção de hoje na {loja} 🔥 Confira no cardápio: {link}',
+  },
+}
+
+export const IMAGENS_MAX = 5
+/** O cron só pergunta "algum card venceu?" a cada 10 min (pedido do dono: menos consulta ao banco). */
+export const CHECAGEM_CARDS_MS = 10 * 60_000
+/** Média do intervalo de 60–150 s entre mensagens da loja (0245): quanto cabe numa janela. */
+const SEGUNDOS_POR_MENSAGEM = 105
+
+/** Está na hora de olhar os cards? Sem lembrança (deploy) olha; depois, só a cada 10 min. Pura. */
+export function checagemDevida(ultimaMs: number | null, agoraMs: number): boolean {
+  return ultimaMs === null || agoraMs - ultimaMs >= CHECAGEM_CARDS_MS
+}
+
+const HORA = /^([01]\d|2[0-3]):([0-5]\d)$/
+const minutos = (h: string) => Number(h.slice(0, 2)) * 60 + Number(h.slice(3, 5))
+
+/** Quantas pessoas cabem numa rodada: o que a janela comporta com 60–150 s por mensagem, nunca acima do teto da loja. */
+export function cabemNaJanela(hora: string, janelaFim: string, limiteDia: number): number {
+  if (!HORA.test(hora) || !HORA.test(janelaFim)) return 1
+  const cabem = Math.floor(((minutos(janelaFim) - minutos(hora)) * 60) / SEGUNDOS_POR_MENSAGEM)
+  return Math.max(1, Math.min(limiteDia, cabem))
+}
+
+export interface PatchRecorrente {
+  ativa?: boolean
+  mensagem?: string
+  incluirLink?: boolean
+  imagens?: string[]
+  diasSemana?: number[]
+  hora?: string
+  janelaFim?: string
+  pularHoje?: boolean
+}
+
+/** Data de hoje em Brasília, "YYYY-MM-DD". */
+export function hojeSaoPaulo(agora: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(agora)
+}
+
+/**
+ * Valida o PATCH de um card e devolve as colunas a gravar (snake_case). Só o que veio no patch entra na linha.
+ * `pularHoje` também volta à parte: a rota cancela a rodada de hoje se ela já nasceu.
+ */
+export function validarPatchRecorrente(
+  tipo: TipoRecorrente,
+  p: unknown,
+): { ok: true; row: Record<string, unknown>; pularHoje: boolean } | { ok: false; erro: string } {
+  if (!p || typeof p !== 'object') return { ok: false, erro: 'Nada para salvar.' }
+  const patch = p as Record<string, unknown>
+  const row: Record<string, unknown> = {}
+
+  if ('ativa' in patch) {
+    if (typeof patch.ativa !== 'boolean') return { ok: false, erro: 'Ligado/desligado inválido.' }
+    row.ativa = patch.ativa
+  }
+  if ('incluirLink' in patch) {
+    if (typeof patch.incluirLink !== 'boolean') return { ok: false, erro: 'Opção do link inválida.' }
+    row.incluir_link = patch.incluirLink
+  }
+  if ('mensagem' in patch) {
+    if (typeof patch.mensagem !== 'string' || patch.mensagem.length > 4096) return { ok: false, erro: 'Mensagem inválida (até 4096 caracteres).' }
+    const incluirLink = typeof patch.incluirLink === 'boolean' ? patch.incluirLink : true
+    const problema = problemasDasVariaveis(patch.mensagem, { incluirLink })
+    if (problema) return { ok: false, erro: problema }
+    if (tipo !== 'recuperacao' && patch.mensagem.includes(MARCADOR_ULTIMO_ITEM)) return { ok: false, erro: 'Esta variável só vale na Recuperação.' }
+    row.mensagem = patch.mensagem
+  }
+  if ('imagens' in patch) {
+    const lista = patch.imagens
+    if (!Array.isArray(lista) || lista.length > IMAGENS_MAX) return { ok: false, erro: `Até ${IMAGENS_MAX} imagens por card.` }
+    if (!lista.every((u) => typeof u === 'string' && /^https:\/\/\S+$/.test(u) && u.length <= 1000)) return { ok: false, erro: 'Imagem inválida.' }
+    row.imagens = lista
+  }
+  if ('diasSemana' in patch) {
+    const dias = patch.diasSemana
+    if (!Array.isArray(dias) || dias.length === 0) return { ok: false, erro: 'Escolha pelo menos um dia.' }
+    if (!dias.every((d) => Number.isInteger(d) && d >= 0 && d <= 6)) return { ok: false, erro: 'Dia da semana inválido.' }
+    row.dias_semana = [...new Set(dias as number[])].sort((a, b) => a - b)
+  }
+  if ('hora' in patch || 'janelaFim' in patch) {
+    const janela = janelaDoDisparo(patch.hora ?? '17:00', patch.janelaFim ?? '19:00')
+    if (!janela.ok) return { ok: false, erro: janela.erro }
+    row.hora = janela.inicio
+    row.janela_fim = janela.fim
+  }
+  const pularHoje = patch.pularHoje === true
+  if (pularHoje) row.pular_ate = hojeSaoPaulo()
+
+  if (Object.keys(row).length === 0) return { ok: false, erro: 'Nada para salvar.' }
+  return { ok: true, row, pularHoje }
+}
