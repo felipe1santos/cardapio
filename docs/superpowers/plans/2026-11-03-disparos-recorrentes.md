@@ -42,7 +42,7 @@
 
 ---
 
-### Tarefa 1: Migration 0245 — tabela, coluna, config, trigger de agenda
+### Task 1: Migration 0245 — tabela, coluna, config, trigger de agenda
 
 **Files:**
 - Create: `supabase/migrations/0245_disparos_recorrentes.sql`
@@ -89,7 +89,7 @@ it('frequência por cliente vai a 2 dias; trigger calcula a agenda', () => {
 
 ---
 
-### Tarefa 2: Público em SQL + contagem para a tela
+### Task 2: Público em SQL + contagem para a tela
 
 **Files:**
 - Modify: `supabase/migrations/0245_disparos_recorrentes.sql` (acrescenta)
@@ -107,7 +107,7 @@ it('frequência por cliente vai a 2 dias; trigger calcula a agenda', () => {
 
 ---
 
-### Tarefa 3: RPC que gera as rodadas
+### Task 3: RPC que gera as rodadas
 
 **Files:**
 - Modify: `supabase/migrations/0245_disparos_recorrentes.sql` (acrescenta)
@@ -132,7 +132,7 @@ it('frequência por cliente vai a 2 dias; trigger calcula a agenda', () => {
 
 ---
 
-### Tarefa 4: Cadência nova e expiração de rodada na reserva; métricas em 72 h
+### Task 4: Cadência nova e expiração de rodada na reserva; métricas em 72 h
 
 **Files:**
 - Modify: `supabase/migrations/0245_disparos_recorrentes.sql` (acrescenta: `drop function if exists public.campanha_reservar_envios(integer)` + `create function` copiada da 0190:79-180 com três mudanças)
@@ -150,7 +150,7 @@ it('frequência por cliente vai a 2 dias; trigger calcula a agenda', () => {
 
 ---
 
-### Tarefa 5: Regras puras em TS (validação do PATCH, trava de 10 min, rótulos)
+### Task 5: Regras puras em TS (validação do PATCH, trava de 10 min, rótulos)
 
 **Files:**
 - Create: `lib/mensageria/recorrentes.ts`
@@ -172,7 +172,7 @@ it('frequência por cliente vai a 2 dias; trigger calcula a agenda', () => {
 
 ---
 
-### Tarefa 6: Cron chama a RPC a cada 10 min; freio desliga o card
+### Task 6: Cron chama a RPC a cada 10 min; freio desliga o card
 
 **Files:**
 - Modify: `lib/mensageria/campanhas-envio.ts` (`processarCampanhas` e `aplicarFreio`)
@@ -191,7 +191,7 @@ it('frequência por cliente vai a 2 dias; trigger calcula a agenda', () => {
 
 ---
 
-### Tarefa 7: API dos cards
+### Task 7: API dos cards
 
 **Files:**
 - Create: `app/api/admin/campanhas/recorrentes/route.ts` (GET)
@@ -215,7 +215,7 @@ it('frequência por cliente vai a 2 dias; trigger calcula a agenda', () => {
 
 ---
 
-### Tarefa 8: Tela Campanhas = 3 cards (funcional, sem cor nova ainda)
+### Task 8: Tela Campanhas = 3 cards (funcional, sem cor nova ainda)
 
 **Files:**
 - Create: `components/admin/campanhas/recorrentes.tsx`
@@ -232,7 +232,7 @@ it('frequência por cliente vai a 2 dias; trigger calcula a agenda', () => {
 
 ---
 
-### Tarefa 9: Agendamentos absorve a lista com ações e os Modelos
+### Task 9: Agendamentos absorve a lista com ações e os Modelos
 
 **Files:**
 - Modify: `app/admin/campanhas/page.tsx` (`ABAS`: remove `modelos`; tipo `Aba` sem `'modelos'`; `:340-341`: `?aba=modelos` → `setAba('agendamentos')` e `router.replace('/admin/campanhas?aba=agendamentos')`; `:574`: aba agendamentos renderiza `<Modelos …/>` **acima** de `<ListaCampanhas …/>`; `:576` some)
@@ -246,7 +246,7 @@ it('frequência por cliente vai a 2 dias; trigger calcula a agenda', () => {
 
 ---
 
-### Tarefa 10: Visão geral só com números e um gráfico
+### Task 10: Visão geral só com números e um gráfico
 
 **Files:**
 - Modify: `components/admin/campanhas/visao-geral.tsx` (:130-144 vira duas linhas: 5 `Metrica` em `grid-cols-2 sm:grid-cols-5`, 4 `Indicador` em `grid-cols-2 lg:grid-cols-4`; :146-167 fica só a seção `grafico-dias` em largura total; :169-… tabela, `Paginacao`, `Th`, `ordem/pagina/porPagina` e `BarrasCampanhas` são removidos; estado vazio (`dados.envios.length === 0`) vira uma faixa curta abaixo do gráfico com o botão "Disparar mensagem")
@@ -258,7 +258,7 @@ it('frequência por cliente vai a 2 dias; trigger calcula a agenda', () => {
 
 ---
 
-### Tarefa 11: E2E local de ponta a ponta
+### Task 11: E2E local de ponta a ponta
 
 **Files:**
 - Modify: `scripts/seguranca/e2e-campanhas-metricas.mjs` (seção "recorrentes")
@@ -274,7 +274,7 @@ it('frequência por cliente vai a 2 dias; trigger calcula a agenda', () => {
 
 ---
 
-### Tarefa 12: Visual nas cores mestre (por último)
+### Task 12: Visual nas cores mestre (por último)
 
 **Files:**
 - Modify: `app/globals.css` (bloco `.campanhas-tema { --camp-azul:#112f6b; --camp-amarelo:#f6bd28; --camp-vermelho:#ea1d2c; --camp-laranja:#FFA400 }` + regras para `.fin-aba`/submenu ativo em amarelo com texto `#1F2937`, hover de ferramentas amarelo, `campanha-cartao` com borda superior azul)
@@ -290,7 +290,7 @@ it('frequência por cliente vai a 2 dias; trigger calcula a agenda', () => {
 
 ---
 
-### Tarefa 13: Publicar e acompanhar
+### Task 13: Publicar e acompanhar
 
 - [ ] **Step 1:** `npm run checar` limpo; `git push origin publicar:main`.
 - [ ] **Step 2:** Backup do banco antes da migration (regra do projeto); aplicar `0245` no Supabase de produção; conferir `select count(*) from campanha_recorrentes` = 0 (nasce vazio; linhas aparecem quando a loja abre a aba) e `plataforma_config.disparo_frequencia_dias = 2`.
