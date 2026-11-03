@@ -20,7 +20,7 @@ import { concluirSaida, registrarSaida } from './historico'
 import { moduloLiberado } from '@/lib/modulos'
 import { decidirFreio } from './disparo-regras'
 import { criarAlerta } from '@/lib/financeiro/alertas'
-import { checagemDevida } from './recorrentes'
+import { checagemDevida, intervaloChecagemCards } from './recorrentes'
 
 interface EnvioReservado {
   id: string
@@ -69,7 +69,7 @@ export function _resetChecagemCards() { ultimaChecagemCards = null }
 
 /** Se já passaram 10 min, transforma cards vencidos em rodadas. Falha aqui NUNCA derruba o envio do lote. */
 export async function gerarRodadasSeDevido(admin: SupabaseClient, agora = Date.now()): Promise<{ rodadas: number } | null> {
-  if (!checagemDevida(ultimaChecagemCards, agora)) return null
+  if (!checagemDevida(ultimaChecagemCards, agora, intervaloChecagemCards())) return null
   ultimaChecagemCards = agora
   try {
     const { data, error } = await admin.rpc('campanha_recorrentes_gerar_rodadas')
@@ -244,18 +244,27 @@ async function aplicarFreio(admin: SupabaseClient, campanhas: string[], r: Resum
       const n = (Array.isArray(data) ? data[0] : data) as { enviados: number; erros: number; sair: number } | null
       const motivo = n ? decidirFreio(n) : null
       if (!motivo) continue
+      const { data: camp } = await admin.from('campanhas').select('restaurante_id, nome, recorrente_id').eq('id', id).maybeSingle()
+      if (!camp) continue
       const { data: pausou } = await admin.from('campanhas').update({ status: 'pausada', pausada_em: new Date().toISOString(), pausa_motivo: motivo, atualizado_em: new Date().toISOString() })
-        .eq('id', id).in('status', ['agendada', 'enviando']).select('restaurante_id, nome, recorrente_id').maybeSingle()
-      if (!pausou) continue
-      r.campanhasPausadas++
-      // Rodada de card recorrente (0245): desliga o card, senão amanhã nasce outra rodada com o mesmo problema.
-      const recorrenteId = (pausou as { recorrente_id?: string | null }).recorrente_id ?? null
+        .eq('id', id).in('status', ['agendada', 'enviando']).select('id').maybeSingle()
+      if (pausou) r.campanhasPausadas++
+      // Rodada de card recorrente (0245): desliga o card mesmo que a rodada já tenha terminado (a mensagem que cruzou o
+      // limite pode ter sido a última) — senão amanhã nasce outra rodada com o mesmo problema.
+      const recorrenteId = (camp as { recorrente_id?: string | null }).recorrente_id ?? null
+      let cardDesligado = false
       if (recorrenteId) {
-        await admin.from('campanha_recorrentes').update({ ativa: false, desligado_motivo: motivo, atualizado_em: new Date().toISOString() }).eq('id', recorrenteId)
+        const { data: card } = await admin.from('campanha_recorrentes').update({ ativa: false, desligado_motivo: motivo, atualizado_em: new Date().toISOString() })
+          .eq('id', recorrenteId).eq('ativa', true).select('id').maybeSingle()
+        cardDesligado = !!card
       }
+      if (!pausou && !cardDesligado) continue
+      const problema = motivo === 'erro_alto' ? 'muitas mensagens com erro' : 'muitos clientes pedindo para sair'
       await criarAlerta(admin, {
-        restauranteId: pausou.restaurante_id as string, tipo: 'campanha_pausada', gravidade: 'grave',
-        mensagem: `Campanha "${String(pausou.nome).slice(0, 60)}" pausada pelo freio: ${motivo === 'erro_alto' ? 'muitas mensagens com erro' : 'muitos clientes pedindo para sair'}. Revise o público em Campanhas antes de retomar.${recorrenteId ? ' O card recorrente foi desligado.' : ''}`,
+        restauranteId: camp.restaurante_id as string, tipo: 'campanha_pausada', gravidade: 'grave',
+        mensagem: pausou
+          ? `Campanha "${String(camp.nome).slice(0, 60)}" pausada pelo freio: ${problema}. Revise o público em Campanhas antes de retomar.${cardDesligado ? ' O card recorrente foi desligado.' : ''}`
+          : `Rodada "${String(camp.nome).slice(0, 60)}" terminou com ${problema}: o card recorrente foi desligado. Revise a mensagem antes de religar.`,
         dados: { campanha: id, ...n }, dedupeMin: 24 * 60, dedupeChave: `freio:${id}`,
       }).catch(() => null)
     } catch { /* freio nunca derruba o envio */ }

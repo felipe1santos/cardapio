@@ -241,11 +241,11 @@ try {
   const inicio = (l) => l === 'https://app.menuzia.com.br' || l === 'https://app.menuzia.com.br/'
   ok('token inválido ou inexistente: vai para a página inicial, sem erro', inval.s === 302 && inicio(inval.loc) && inex.s === 302 && inicio(inex.loc), `${inval.s} ${inval.loc} ${inex.s} ${inex.loc}`)
 
-  secao('7. Pedidos e conversão em 12h')
+  secao('7. Pedidos e conversão em 72 h')
   const p1 = await pedido(A, C.c1, 'entregue', 60) // depois do clique: confirmada
   const p2 = await pedido(A, '11912340102', 'preparando', 40) // C2 em outro formato, sem clique: provável
-  await db.query(`update campanha_envios set enviado_em = now() - interval '13 hours' where campanha_id=$1 and telefone=$2`, [camp1, C.c3])
-  await pedido(A, C.c3, 'entregue', 99) // 13h depois do envio: fora da janela
+  await db.query(`update campanha_envios set enviado_em = now() - interval '73 hours' where campanha_id=$1 and telefone=$2`, [camp1, C.c3])
+  await pedido(A, C.c3, 'entregue', 99) // 73h depois do envio: fora da janela (72 h desde a 0245)
   await pedido(A, C.c4, 'cancelado', 77) // cancelado não conta
   await pedido(A, OUTRO, 'entregue', 55) // telefone que não recebeu campanha
   await pedido(B, C.c1, 'entregue', 88) // mesmo telefone, outra loja
@@ -254,7 +254,7 @@ try {
   ok('métricas: 200 para o dono', m1.s === 200 && Array.isArray(m1.j?.campanhas), JSON.stringify(m1.j).slice(0, 200))
   ok('enviadas 4 · entregues 3 · lidas 2 · respondidas 1', t.enviadas === 4 && t.entregues === 3 && t.lidas === 2 && t.respondidas === 1, JSON.stringify(t))
   ok('cliques: 1 pessoa, 1 clique', t.clicaram === 1 && t.cliques === 1)
-  ok('pedidos em 12h: 2 (1 com clique, 1 provável); fora da janela, cancelado, outro telefone e outra loja fora', t.pedidos === 2 && t.pedidos_clique === 1 && t.convertidos === 2)
+  ok('pedidos em 72 h: 2 (1 com clique, 1 provável); fora da janela, cancelado, outro telefone e outra loja fora', t.pedidos === 2 && t.pedidos_clique === 1 && t.convertidos === 2)
   ok('faturamento = 60 + 40', Number(t.faturamento) === 100)
   ok('retry 1, falhas 0, duplicidades barradas 3 (lista, webhook, clique)', t.retries === 1 && t.falhas === 0 && t.duplicados_bloqueados === 3, JSON.stringify({ r: t.retries, f: t.falhas, d: t.duplicados_bloqueados }))
   const det = await api(dono.p, `/api/admin/campanhas/metricas?detalhe=${camp1}`)
@@ -340,7 +340,7 @@ try {
   await dispensar(dono.p)
   await dono.p.getByTestId('ver-detalhado').click()
   const painel = dono.p.getByTestId('metricas-campanhas')
-  await painel.getByText('Pedidos em 12h').first().waitFor({ timeout: 15000 })
+  await painel.getByText('Pedidos em 72 h').first().waitFor({ timeout: 15000 })
   const txt = await painel.innerText()
   ok('painel mostra cards, funil e tabela', /enviadas\s*5\b/i.test(txt) && /Faturamento/.test(txt) && /Funil/.test(txt) && /Promo de quinta/.test(txt) && /Como contamos/.test(txt), txt.slice(0, 160).replace(/\n/g, ' | '))
   ok('textos no plural certo (2 clientes pediram, 1 provável, 1 clique)', txt.includes('2 clientes pediram') && /1 com clique · 1 provável\b/.test(txt) && txt.includes('1 clique no total') && !/\b1 clientes pediram/.test(txt))
@@ -355,7 +355,7 @@ try {
   await cel.p.goto(`${BASE}/admin/campanhas`, { waitUntil: 'networkidle' })
   await dispensar(cel.p)
   await cel.p.getByTestId('ver-detalhado').click()
-  await cel.p.getByTestId('metricas-campanhas').getByText('Pedidos em 12h').first().waitFor({ timeout: 15000 })
+  await cel.p.getByTestId('metricas-campanhas').getByText('Pedidos em 72 h').first().waitFor({ timeout: 15000 })
   const larg = await cel.p.evaluate(() => document.documentElement.scrollWidth)
   ok('celular (390px): sem rolagem horizontal', larg <= 392, String(larg))
   await cel.p.screenshot({ path: join(SHOTS, 'metricas-celular.png'), fullPage: true })

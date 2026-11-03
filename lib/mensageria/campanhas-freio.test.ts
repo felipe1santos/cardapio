@@ -9,13 +9,14 @@ import { processarCampanhas } from './campanhas-envio'
 import type { ProvedorWhatsapp } from './provedor'
 
 /** Supabase falso: guarda os updates em `campanhas` e responde às RPCs da fila. */
-function cenario(o: { conexao: 'aberto' | 'fechado'; freio?: { enviados: number; erros: number; sair: number }; ativas?: { id: string; status: string; pausa_motivo?: string | null }[]; recorrenteId?: string }) {
+function cenario(o: { conexao: 'aberto' | 'fechado'; freio?: { enviados: number; erros: number; sair: number }; ativas?: { id: string; status: string; pausa_motivo?: string | null }[]; recorrenteId?: string; jaConcluida?: boolean }) {
   const updates: { tabela: string; dados: Record<string, unknown> }[] = []
   const envio = { id: 'e1', campanha_id: 'c1', restaurante_id: 'L', telefone: '27999990001', nome_cliente: 'Ana', token: null, tipo_mensagem: 'texto', mensagem: 'Oi {nome}', imagem_url: null, audio_url: null, incluir_link: false, evolution_instance: 'inst', slug: 'menuzia', incluir_descadastro: true, ultimo_item: null, nome_loja: 'Menuzia' }
   const chain = (tabela: string, dados?: Record<string, unknown>) => {
     const b: Record<string, unknown> = {}
     for (const m of ['select', 'in', 'lte', 'eq', 'neq', 'not', 'order', 'limit']) b[m] = () => b
-    b.maybeSingle = async () => ({ data: dados ? { restaurante_id: 'L', nome: 'Campanha teste', recorrente_id: o.recorrenteId ?? null } : null })
+    // select → a campanha; update de `campanhas` → null se já concluída (o `in('status', …)` não casa); update do card → a linha.
+    b.maybeSingle = async () => ({ data: dados && tabela === 'campanhas' && o.jaConcluida ? null : { id: 'c1', restaurante_id: 'L', nome: 'Campanha teste', recorrente_id: o.recorrenteId ?? null } })
     b.then = (ok: (v: unknown) => unknown) => Promise.resolve({ data: tabela === 'campanhas' && !dados ? (o.ativas ?? []).map((c) => ({ ...c, restaurante_id: 'L', restaurantes: { evolution_instance: 'inst' } })) : [], error: null }).then(ok)
     return b
   }
@@ -67,6 +68,14 @@ describe('freio automático das campanhas', () => {
     await processarCampanhas(s.admin, s.provedor, { limite: 5, intervalo: () => 0 })
     const card = s.updates.find((u) => u.tabela === 'campanha_recorrentes')
     expect(card?.dados).toMatchObject({ ativa: false, desligado_motivo: 'erro_alto' })
+    expect(alertas[0]?.mensagem).toContain('card recorrente foi desligado')
+  })
+  it('rodada já concluída quando o freio cruza o limite: não há o que pausar, mas o card é desligado e avisado', async () => {
+    alertas.length = 0
+    const s = cenario({ conexao: 'aberto', freio: { enviados: 30, erros: 3, sair: 0 }, recorrenteId: 'rc1', jaConcluida: true })
+    const r = await processarCampanhas(s.admin, s.provedor, { limite: 5, intervalo: () => 0 })
+    expect(r.campanhasPausadas).toBe(0)
+    expect(s.updates.find((u) => u.tabela === 'campanha_recorrentes')?.dados).toMatchObject({ ativa: false, desligado_motivo: 'erro_alto' })
     expect(alertas[0]?.mensagem).toContain('card recorrente foi desligado')
   })
   it('freio numa campanha comum não mexe em card nenhum', async () => {

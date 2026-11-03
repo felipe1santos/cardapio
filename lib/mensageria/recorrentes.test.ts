@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CHECAGEM_CARDS_MS, IMAGENS_MAX, ROTULO_RECORRENTE, TIPOS_RECORRENTES, cabemNaJanela, checagemDevida, validarPatchRecorrente } from './recorrentes'
+import { CHECAGEM_CARDS_MS, IMAGENS_MAX, ROTULO_RECORRENTE, TIPOS_RECORRENTES, cabemNaJanela, checagemDevida, intervaloChecagemCards, validarPatchRecorrente } from './recorrentes'
 
 /** 03/11/2026: regras puras dos cards recorrentes (docs/superpowers/specs/2026-11-03-disparos-recorrentes-design.md). */
 
@@ -8,6 +8,12 @@ describe('checagemDevida: o cron olha os cards no máximo a cada 10 min', () => 
   it('sem lembrança (deploy) checa', () => expect(checagemDevida(null, t)).toBe(true))
   it('menos de 10 min depois não checa', () => expect(checagemDevida(t - 599_999, t)).toBe(false))
   it('10 min depois checa', () => expect(checagemDevida(t - CHECAGEM_CARDS_MS, t)).toBe(true))
+  it('intervalo encurtado (só a suíte local, provedor simulado) checa a cada chamada', () => expect(checagemDevida(t - 1, t, 0)).toBe(true))
+  it('intervaloChecagemCards: 10 min por padrão; 0 só com provedor simulado', () => {
+    expect(intervaloChecagemCards({})).toBe(CHECAGEM_CARDS_MS)
+    expect(intervaloChecagemCards({ CAMPANHA_CHECAGEM_CARDS_MS: '0' })).toBe(CHECAGEM_CARDS_MS)
+    expect(intervaloChecagemCards({ WHATSAPP_PROVEDOR: 'simulado', CAMPANHA_CHECAGEM_CARDS_MS: '0' })).toBe(0)
+  })
 })
 
 describe('rótulos', () => {

@@ -36,8 +36,14 @@ export const CHECAGEM_CARDS_MS = 10 * 60_000
 const SEGUNDOS_POR_MENSAGEM = 105
 
 /** Está na hora de olhar os cards? Sem lembrança (deploy) olha; depois, só a cada 10 min. Pura. */
-export function checagemDevida(ultimaMs: number | null, agoraMs: number): boolean {
-  return ultimaMs === null || agoraMs - ultimaMs >= CHECAGEM_CARDS_MS
+export function checagemDevida(ultimaMs: number | null, agoraMs: number, intervaloMs: number = CHECAGEM_CARDS_MS): boolean {
+  return ultimaMs === null || agoraMs - ultimaMs >= intervaloMs
+}
+
+/** Intervalo da checagem: 10 min; só a suíte local (provedor simulado) encurta, como CAMPANHA_INTERVALO_MS. */
+export function intervaloChecagemCards(env: NodeJS.ProcessEnv = process.env): number {
+  if (env.WHATSAPP_PROVEDOR === 'simulado' && env.CAMPANHA_CHECAGEM_CARDS_MS !== undefined) return Math.max(0, Number(env.CAMPANHA_CHECAGEM_CARDS_MS) || 0)
+  return CHECAGEM_CARDS_MS
 }
 
 const HORA = /^([01]\d|2[0-3]):([0-5]\d)$/

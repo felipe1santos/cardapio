@@ -77,6 +77,10 @@ Relatórios completos: [varredura 28/10](relatorios/2026-10-28-varredura.md) · 
 9. Consulta que pode passar de 1.000 linhas: `lerTodas` ou agregação no banco — `.limit(N)` grande não existe.
 10. Nunca apagar de tabela encadeada por hash (`eventos_auditoria`, `fin_lancamentos`).
 11. Função nova no banco diz quem executa (B7); o padrão é fechado.
+12. Agenda materializada (03/11, cards recorrentes 0245): quem precisa "disparar na hora X" grava `proximo_*_em` já
+    calculado e o cron lê só os vencidos por índice parcial — nunca recalcula agenda a cada tique, e a checagem de
+    agenda roda em cadência própria (10 min) dentro do cron que já existe, sem cron novo (B2). A trava contra execução
+    dupla é avançar `proximo_*_em` na mesma transação que faz o trabalho, com `skip locked`.
 
 ## 03/11/2026 — assinatura Asaas (auditoria) e alerta da impressora (2ª rodada)
 

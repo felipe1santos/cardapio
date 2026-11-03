@@ -139,7 +139,7 @@ as $$
        and not exists (select 1 from public.campanha_envios e, hoje
                         where e.restaurante_id = p_restaurante and e.criado_em >= hoje.inicio
                           and public.telefone_chave(e.telefone) = public.telefone_chave(c.telefone))
-     order by public.telefone_chave(c.telefone), c.ultima_atividade_em desc nulls last, c.criado_em desc
+     order by public.telefone_chave(c.telefone), c.ultima_atividade_em desc nulls last, length(c.telefone) desc, c.criado_em desc
   ), ped as (
     select public.telefone_chave(p.cliente_telefone) as k, max(p.criado_em) as ultimo_em,
            (array_agg(p.id order by p.criado_em desc))[1] as ultimo_id
