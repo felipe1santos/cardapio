@@ -76,3 +76,5 @@ estornou) — umas 2–3 chamadas por loja por mês. Zero polling, zero custo de
 
 **O que só o dono faz:** criar a conta Asaas (CNPJ, verificação), gerar a chave da API e o token do webhook, colar no Coolify;
 decidir valor da mensalidade, dia de vencimento e carência.
+| 24 | Asaas: "ping" mensal para a chave não expirar por falta de uso | O Asaas desativa chave sem uso há 3 meses e expira em 6. Cron mensal com 1 `GET /payments?limit=1` por `lib/custo/asaas.ts` (1 chamada/mês). |
+| 25 | Super Admin: coluna "Assinatura" por loja | plano · situação (aguardando/em dia/atrasada/cancelada) · próximo vencimento · link da fatura (`lib/assinatura/repo.ts` → `buscarAssinaturaDoUsuario`). |
