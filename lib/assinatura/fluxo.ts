@@ -3,7 +3,7 @@
  * O acesso só abre quando o webhook confirma o pagamento (lib/assinatura/webhook.ts). docs/ASSINATURA-ASAAS.md.
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { criarAssinaturaAsaas, criarClienteAsaas, primeiraCobrancaDaAssinatura, AsaasError } from '@/lib/custo/asaas'
+import { cancelarAssinaturaAsaas, criarAssinaturaAsaas, criarClienteAsaas, primeiraCobrancaDaAssinatura, AsaasError } from '@/lib/custo/asaas'
 import { usuarioDisponivel } from '@/lib/queries/lojistas'
 import type { DadosAssinar } from './cadastro'
 import { hojeSaoPaulo, PLANOS, valorDoPlano } from './planos'
@@ -32,7 +32,10 @@ export async function iniciarAssinatura(admin: SupabaseClient, d: DadosAssinar):
     return { ok: false, erro: ERRO_GENERICO }
   }
   const usuarioId = criado.user.id
+  let assinaturaNoAsaas: string | null = null
   const desfazer = async () => {
+    // 03/11: a assinatura criada no Asaas também é cancelada — senão ela seguia cobrando um CPF sem conta.
+    if (assinaturaNoAsaas) await cancelarAssinaturaAsaas(admin, assinaturaNoAsaas)
     await admin.from('assinaturas').delete().eq('usuario_id', usuarioId)
     await admin.from('usuarios').delete().eq('id', usuarioId)
     await admin.auth.admin.deleteUser(usuarioId)
@@ -50,6 +53,7 @@ export async function iniciarAssinatura(admin: SupabaseClient, d: DadosAssinar):
     const valor = valorDoPlano(d.plano)
     const clienteId = await criarClienteAsaas(admin, { nome: d.nome, email: d.email, celular: d.telefone, documento: d.documento, referencia: usuarioId })
     const assinaturaId = await criarAssinaturaAsaas(admin, { clienteId, valor, vencimento: hojeSaoPaulo(), descricao: `${PLANOS[d.plano].nome} — ${d.nomeLoja}`, referencia: usuarioId })
+    assinaturaNoAsaas = assinaturaId
     const cobranca = await primeiraCobrancaDaAssinatura(admin, assinaturaId)
     const faturaUrl = urlDeFaturaAsaas(cobranca?.faturaUrl)
     if (!faturaUrl) throw new AsaasError('assinatura sem fatura', null)

@@ -77,3 +77,12 @@ Relatórios completos: [varredura 28/10](relatorios/2026-10-28-varredura.md) · 
 9. Consulta que pode passar de 1.000 linhas: `lerTodas` ou agregação no banco — `.limit(N)` grande não existe.
 10. Nunca apagar de tabela encadeada por hash (`eventos_auditoria`, `fin_lancamentos`).
 11. Função nova no banco diz quem executa (B7); o padrão é fechado.
+
+## 03/11/2026 — assinatura Asaas (auditoria) e alerta da impressora (2ª rodada)
+
+| # | Bug | Causa | Correção | Como evitar | Teste |
+|---|---|---|---|---|---|
+| 33 | **Pagamento de assinatura perdido se o webhook falhar no meio** | Id do evento gravado antes do efeito e nunca desfeito; reenvio do Asaas caía em "repetido" | Falha → `desfazerEvento` (apaga o id sem resultado) e o erro sobe; o reenvio reprocessa | Idempotência precisa distinguir "já aplicado" de "tentou e falhou" | `lib/assinatura/webhook.test.ts` (reenvio reprocessa) |
+| 34 | Assinatura viva no Asaas depois de cadastro desfeito ou lojista excluído | Rollback só do lado Supabase | `cancelarAssinaturaAsaas` (DELETE) no desfazer e na exclusão | Toda criação em serviço externo tem o desfazer correspondente | `lib/custo/asaas.test.ts` |
+| 35 | Webhook do Asaas em erro não avisava ninguém (15 falhas pausam a fila lá) | Só `console.error` | Alerta pendente em `sistema_alertas` (1/h) | Regra 4: todo erro de integração que para dinheiro tem alerta | — |
+| 36 | Alerta de impressora para loja nova testando (FERRAZ) | Regra não olhava "Ativar Assistente" nos ajustes; loja pareou uma vez e fez pedido de teste | Exige `impressao_ativar_assistente` ligado | Alerta de recurso só com o recurso declarado em uso pela loja | `lib/saude/avaliar.test.ts` |

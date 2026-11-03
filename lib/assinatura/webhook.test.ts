@@ -45,6 +45,7 @@ function cenario(opcoes: { restauranteId?: string | null; acessoExpiraEm?: strin
   const repo: Repositorio = {
     registrarEvento: vi.fn(async (e) => { if (eventos.has(e.id)) return 'repetido'; eventos.add(e.id); return 'novo' }),
     marcarEvento: vi.fn(async () => {}),
+    desfazerEvento: vi.fn(async (id) => { eventos.delete(id) }),
     buscarAssinatura: vi.fn(async (id) => (id === 'sub_1' ? assinatura : null)),
     buscarUsuario: vi.fn(async () => usuario),
     criarLoja: vi.fn(async () => ({ restauranteId: 'r1', slug: 'burger-do-dono' })),
@@ -121,5 +122,30 @@ describe('processarEventoAsaas', () => {
     expect(await processarEventoAsaas({ ...pago, cobranca: { ...pago.cobranca, assinaturaId: 'sub_x' } }, deps)).toBe('assinatura_desconhecida')
     expect(await processarEventoAsaas({ ...pago, id: 'evt_5', cobranca: { ...pago.cobranca, assinaturaId: null } }, deps)).toBe('sem_assinatura')
     expect(await processarEventoAsaas({ ...pago, id: 'evt_6', evento: 'PAYMENT_CREATED' }, deps)).toBe('ignorado')
+  })
+})
+
+/**
+ * 03/11/2026 (auditoria da assinatura, achado crítico): o id do evento era gravado antes do efeito e nunca desfeito; se a
+ * reconsulta no Asaas ou um UPDATE falhasse, a rota respondia 500 e o reenvio do Asaas (mesmo id) caía em "repetido" —
+ * o pagamento se perdia para sempre (loja nunca criada, renovação não estendida). Agora: falha no meio → o evento é
+ * desfeito e o reenvio reprocessa.
+ */
+describe('falha no meio do processamento: o reenvio do Asaas reprocessa', () => {
+  it('reconsulta do Asaas falha → erro sobe, evento desfeito; a 2ª entrega do mesmo evento ativa a loja', async () => {
+    const { repo, deps } = cenario()
+    deps.buscarCobranca.mockRejectedValueOnce(new Error('Asaas fora'))
+    await expect(processarEventoAsaas(pago, deps)).rejects.toThrow('Asaas fora')
+    expect(repo.desfazerEvento).toHaveBeenCalledWith('evt_1')
+    expect(repo.criarLoja).not.toHaveBeenCalled()
+    expect(await processarEventoAsaas(pago, deps)).toBe('ativado')
+    expect(repo.criarLoja).toHaveBeenCalledTimes(1)
+  })
+  it('evento concluído e reenviado continua "repetido" (nada é feito duas vezes)', async () => {
+    const { repo, deps } = cenario()
+    expect(await processarEventoAsaas(pago, deps)).toBe('ativado')
+    expect(await processarEventoAsaas(pago, deps)).toBe('repetido')
+    expect(repo.desfazerEvento).not.toHaveBeenCalled()
+    expect(repo.criarLoja).toHaveBeenCalledTimes(1)
   })
 })

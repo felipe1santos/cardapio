@@ -18,6 +18,9 @@ export function repoSupabase(admin: SupabaseClient): Repositorio {
     async marcarEvento(id, resultado) {
       await admin.from('asaas_eventos').update({ resultado }).eq('id', id)
     },
+    async desfazerEvento(id) {
+      await admin.from('asaas_eventos').delete().eq('id', id).is('resultado', null)
+    },
     async buscarAssinatura(asaasAssinaturaId): Promise<AssinaturaRegistro | null> {
       const { data, error } = await admin.from('assinaturas').select('id, usuario_id, restaurante_id, plano, status').eq('asaas_assinatura_id', asaasAssinaturaId).maybeSingle()
       if (error) throw error

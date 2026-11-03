@@ -78,6 +78,8 @@ export interface Repositorio {
   /** Insere o id do evento; 'repetido' quando já existia. */
   registrarEvento(e: { id: string; evento: string; cobrancaId: string; assinaturaId: string | null }): Promise<'novo' | 'repetido'>
   marcarEvento(id: string, resultado: string): Promise<void>
+  /** Falha no meio do processamento: solta o id para o reenvio do Asaas reprocessar (03/11). Só apaga evento sem resultado. */
+  desfazerEvento(id: string): Promise<void>
   buscarAssinatura(asaasAssinaturaId: string): Promise<AssinaturaRegistro | null>
   buscarUsuario(usuarioId: string): Promise<UsuarioRegistro | null>
   /** Cria a loja e amarra ao dono (papel dono, autorizado, validade). Devolve id e slug da loja. */
@@ -105,6 +107,18 @@ export type ResultadoEvento =
 export async function processarEventoAsaas(ev: EventoAsaas, deps: Dependencias): Promise<ResultadoEvento> {
   const { repo } = deps
   if ((await repo.registrarEvento({ id: ev.id, evento: ev.evento, cobrancaId: ev.cobranca.id, assinaturaId: ev.cobranca.assinaturaId })) === 'repetido') return 'repetido'
+  try {
+    return await aplicarEvento(ev, deps)
+  } catch (e) {
+    // 03/11: o id foi gravado antes do efeito; sem isto o reenvio do Asaas (mesmo id) caía em "repetido" e o pagamento
+    // se perdia (loja nunca criada, renovação não estendida). Solta o id e deixa o erro subir (a rota responde 500).
+    await repo.desfazerEvento(ev.id).catch(() => undefined)
+    throw e
+  }
+}
+
+async function aplicarEvento(ev: EventoAsaas, deps: Dependencias): Promise<ResultadoEvento> {
+  const { repo } = deps
   const terminar = async (r: ResultadoEvento): Promise<ResultadoEvento> => { await repo.marcarEvento(ev.id, r); return r }
 
   const efeito = efeitoDoEvento(ev.evento)

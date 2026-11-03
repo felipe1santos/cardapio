@@ -369,6 +369,14 @@ export async function excluirLojistaCompleto(admin: SupabaseClient, usuarioId: s
   const temAcesso = usuario.autorizado && (!usuario.acesso_expira_em || new Date(usuario.acesso_expira_em).getTime() > Date.now())
   if (temAcesso) return { ok: false, error: 'Revogue o acesso antes de excluir os dados.' }
 
+  // 03/11: assinatura do Asaas cancelada antes de apagar (o cascade apaga a linha local; o Asaas seguiria cobrando).
+  const { data: ass } = await admin.from('assinaturas').select('asaas_assinatura_id').eq('usuario_id', usuarioId).maybeSingle()
+  const asaasId = (ass as { asaas_assinatura_id?: string } | null)?.asaas_assinatura_id
+  if (asaasId) {
+    const { cancelarAssinaturaAsaas } = await import('@/lib/custo/asaas')
+    await cancelarAssinaturaAsaas(admin, asaasId)
+  }
+
   await admin.from('usuarios').delete().eq('id', usuarioId)
   if (usuario.restaurante_id) {
     const { error } = await admin.from('restaurantes').delete().eq('id', usuario.restaurante_id)

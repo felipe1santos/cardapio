@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { buscarCobrancaAsaas } from '@/lib/custo/asaas'
+import { avisarSuporte } from '@/lib/custo/alerta-whatsapp'
 import { enviarEmail } from '@/lib/custo/resend'
 import { emailAcessoLiberado } from '@/lib/assinatura/email'
 import { repoSupabase } from '@/lib/assinatura/repo'
@@ -37,6 +38,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, resultado })
   } catch (e) {
     console.error('[webhook asaas]', ev.id, (e as Error).message)
+    // 03/11: erro aqui pausa a fila do Asaas para todas as lojas depois de 15 falhas; o Super Admin precisa saber
+    // (alerta pendente em sistema_alertas, 1 por hora; o cron do WhatsApp envia).
+    await avisarSuporte(admin, 'assinatura:webhook', `O webhook do Asaas falhou e o pagamento de assinatura não foi processado (${(e as Error).message.slice(0, 120)}).\nQuanto: evento ${ev.id} (${ev.evento})\nO que fazer: abrir Asaas › Integrações › Webhooks › Logs; se for chave inválida, trocar ASAAS_API_KEY no Coolify. O Asaas reenvia sozinho.`, 3600_000).catch(() => undefined)
     return NextResponse.json({ ok: false }, { status: 500 })
   }
 }

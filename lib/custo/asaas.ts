@@ -34,7 +34,7 @@ function mensagemErro(status: number, corpo: Record<string, unknown>): string {
   return 'Não foi possível gerar a cobrança agora. Tente de novo em instantes.'
 }
 
-async function requisicao<T>(admin: SupabaseClient, metodo: 'GET' | 'POST', caminho: string, chave: string, corpo?: unknown): Promise<T> {
+async function requisicao<T>(admin: SupabaseClient, metodo: 'GET' | 'POST' | 'DELETE', caminho: string, chave: string, corpo?: unknown, opcoes: { aceitar404?: boolean } = {}): Promise<T> {
   const apiKey = process.env.ASAAS_API_KEY
   if (!apiKey) throw new AsaasError('ASAAS_API_KEY ausente', null)
   const r = await chamarApiPaga(admin, { api: 'asaas', chave }, async () => {
@@ -47,7 +47,7 @@ async function requisicao<T>(admin: SupabaseClient, metodo: 'GET' | 'POST', cami
     const texto = await res.text()
     let j: Record<string, unknown> = {}
     try { j = texto ? (JSON.parse(texto) as Record<string, unknown>) : {} } catch { j = {} }
-    if (!res.ok) {
+    if (!res.ok && !(opcoes.aceitar404 && res.status === 404)) {
       console.error(`[asaas] ${metodo} ${caminho.split('?')[0]} → ${res.status} ${texto.slice(0, 200)}`)
       throw new AsaasError(mensagemErro(res.status, j), res.status)
     }
@@ -90,6 +90,22 @@ export async function primeiraCobrancaDaAssinatura(admin: SupabaseClient, assina
   const r = await requisicao<{ data?: Record<string, unknown>[] }>(admin, 'GET', `/subscriptions/${encodeURIComponent(assinaturaId)}/payments?limit=1`, `cobrancas:${assinaturaId}`)
   const p = r.data?.[0]
   return p ? lerCobranca(p) : null
+}
+
+/**
+ * Cancela a assinatura no Asaas (03/11): cadastro que falhou depois de criar a assinatura, ou lojista excluído pelo
+ * Super Admin — sem isto o Asaas seguia cobrando todo mês um CPF sem conta. Nunca lança: true = cancelada ou já não
+ * existia (404); false = não conseguiu (fica registrado no log para cancelar à mão no painel do Asaas).
+ */
+export async function cancelarAssinaturaAsaas(admin: SupabaseClient, assinaturaId: string): Promise<boolean> {
+  try {
+    // 404 = já não existe no Asaas: nada a cancelar (a guarda engole o status, por isso o 404 é aceito dentro da chamada).
+    await requisicao<{ deleted?: boolean }>(admin, 'DELETE', `/subscriptions/${encodeURIComponent(assinaturaId)}`, `cancelar:${assinaturaId}`, undefined, { aceitar404: true })
+    return true
+  } catch (e) {
+    console.error('[asaas] cancelar assinatura falhou', assinaturaId, (e as Error).message)
+    return false
+  }
 }
 
 /** Reconsulta da cobrança (o webhook nunca é tomado como verdade). */
