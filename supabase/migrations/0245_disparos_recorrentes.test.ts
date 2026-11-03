@@ -25,3 +25,25 @@ describe('0245 campanha_recorrentes', () => {
     expect(sql).toMatch(/create trigger campanha_recorrentes_agenda before insert or update of ativa, dias_semana, hora, pular_ate/)
   })
 })
+
+describe('0245 público dos cards', () => {
+  const publico = sql.slice(sql.indexOf('function public.campanha_recorrente_publico('), sql.indexOf('function public.campanha_recorrente_estimativa('))
+  it('base: quem mandou mensagem para a loja, fora descadastros e fora quem já entrou em rodada hoje', () => {
+    expect(publico).toMatch(/from public\.whatsapp_conversas/)
+    expect(publico).toMatch(/direcao = 'entrada'/)
+    expect(publico).toMatch(/not exists \(select 1 from public\.whatsapp_descadastros/)
+    expect(publico).toMatch(/not exists \(select 1 from public\.campanha_envios[^)]*criado_em >= /)
+    expect(publico).toMatch(/distinct on \(public\.telefone_chave\(/)
+  })
+  it('recuperação = último pedido há 30 dias ou mais; nunca compraram = sem pedido; promoções = todos', () => {
+    expect(publico).toMatch(/interval '30 days'/)
+    expect(publico).toMatch(/when 'nunca_compraram' then/)
+    expect(publico).toMatch(/when 'promocoes' then true/)
+  })
+  it('devolve ultimo_disparo_em e só o service_role chama; estimativa é da sessão de gestor', () => {
+    expect(publico).toMatch(/ultimo_disparo_em timestamptz/)
+    expect(publico).toMatch(/revoke execute on function public\.campanha_recorrente_publico\(uuid, text\) from public, anon, authenticated/)
+    expect(sql).toMatch(/function public\.campanha_recorrente_estimativa\(p_tipo text\)[\s\S]*auth_e_gestor\(\)/)
+    expect(sql).toMatch(/grant execute on function public\.campanha_recorrente_estimativa\(text\) to authenticated/)
+  })
+})
