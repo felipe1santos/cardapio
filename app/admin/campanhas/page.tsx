@@ -18,6 +18,7 @@ import { Modelos, useModelos, type ModeloMensagem } from '@/components/admin/cam
 import { PushNotificacoes } from '@/components/admin/push-notificacoes'
 import { useEstadoSessao } from '@/lib/sessao-cliente'
 import { BoasPraticas } from '@/components/admin/campanhas/boas-praticas'
+import { Recorrentes } from '@/components/admin/campanhas/recorrentes'
 import { Ajuda, Confirmar } from '@/components/admin/campanhas/comum'
 import { AlertTriangle, Lightbulb, Send } from 'lucide-react'
 import { AVISO_DISPAROS } from '@/lib/mensageria/disparo-regras'
@@ -570,7 +571,8 @@ export default function CampanhasPage() {
           {aba === 'visao' && (
             <VisaoGeral onDisparar={abrirNovo} detalhado={<CampanhasMetricas opcoesCampanhas={campanhas.map((c) => ({ id: c.id, nome: c.nome }))} />} />
           )}
-          {aba === 'campanhas' && <ListaCampanhas campanhas={campanhas} carregando={loading} acoes={acoes} onNovo={abrirNovo} />}
+          {/* Campanhas (03/11): os 3 cards recorrentes. A lista com ações vai para Agendamentos. */}
+          {aba === 'campanhas' && <Recorrentes restauranteId={restauranteId} onToast={toasts.mostrar} />}
           {aba === 'agendamentos' && <Agendamentos campanhas={campanhas} carregando={loading} acoes={acoes} onNovo={abrirNovo} />}
           {/* "Usar" abre o disparo com o modelo, aqui mesmo. */}
           {aba === 'modelos' && <Modelos api={modelos} onUsar={usarModelo} onUsarPush={(m) => { router.replace(`/admin/campanhas?aba=notificacoes&modelo=${encodeURIComponent(m.id)}`); setAba('notificacoes') }} onToast={toasts.mostrar} />}
