@@ -1,6 +1,6 @@
 /**
  * Regras do disparo de WhatsApp com segurança (12/10/2026). Puras e testadas (disparo-regras.test.ts); o banco aplica
- * as mesmas na reserva da fila (0190: janela, limite diário, intervalo, frequência).
+ * as mesmas na reserva da fila (0190/0245: janela, limite diário, intervalo de 60–150 s por loja, 2 dias por cliente).
  *
  * - Público: SÓ clientes que já fizeram pedido na loja (com telefone). Nada de lista importada nem número de fora.
  * - Janela: a loja escolhe (ex.: 17:00–19:00), sempre dentro de 09:00–21:30 (Brasília).

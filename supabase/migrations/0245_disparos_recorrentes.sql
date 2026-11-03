@@ -273,3 +273,251 @@ begin
 end $$;
 revoke execute on function public.campanha_recorrentes_gerar_rodadas() from public, anon, authenticated;
 grant execute on function public.campanha_recorrentes_gerar_rodadas() to service_role;
+
+-- ── Reserva da fila (Tarefa 4): cópia da 0190 com duas mudanças ──────────────────────────────────────────────────
+--   (a) próxima mensagem da LOJA em 60–150 s aleatórios (era 25–90 s) — pedido do dono, anti-bloqueio;
+--   (b) rodada de card (recorrente_id) expira no fim da janela do próprio dia: amanhã nasce outra, com a próxima imagem.
+--       Agendamentos continuam expirando 7 dias depois do horário marcado.
+-- O resto (janela 09:00–21:30, teto diário, 1 por loja por chamada, frequência por cliente, trava de 5 min) é igual.
+drop function if exists public.campanha_reservar_envios(integer);
+create function public.campanha_reservar_envios(p_limite integer)
+returns table (
+  id uuid, campanha_id uuid, restaurante_id uuid, telefone text, nome_cliente text, token text,
+  tipo_mensagem text, mensagem text, imagem_url text, audio_url text, incluir_link boolean,
+  evolution_instance text, slug text, incluir_descadastro boolean, ultimo_item text, nome_loja text
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+#variable_conflict use_column
+declare
+  v_agora_sp timestamp := now() at time zone 'America/Sao_Paulo';
+  v_hoje_inicio timestamptz := (date_trunc('day', now() at time zone 'America/Sao_Paulo')) at time zone 'America/Sao_Paulo';
+  v_teto integer := public.plataforma_int('disparo_teto_dia', 150);
+  v_freq integer := greatest(public.plataforma_int('disparo_frequencia_dias', 2), 0);
+  v_loja record;
+  v_envio uuid;
+  v_ids uuid[] := '{}';
+begin
+  update public.campanha_envios e set status = 'expirado', erro = 'Expirado: mais de 7 dias após o horário agendado'
+    from public.campanhas c
+   where c.id = e.campanha_id and e.status = 'pendente' and c.status in ('agendada', 'enviando', 'pausada')
+     and c.recorrente_id is null
+     and c.agendado_em < now() - interval '7 days';
+
+  -- Rodada de card: o que não saiu até o fim da janela do dia expira (0245).
+  update public.campanha_envios e set status = 'expirado', erro = 'Rodada do dia encerrada'
+    from public.campanhas c
+   where c.id = e.campanha_id and e.status = 'pendente' and c.status in ('agendada', 'enviando', 'pausada')
+     and c.recorrente_id is not null
+     and v_agora_sp > ((c.agendado_em at time zone 'America/Sao_Paulo')::date + coalesce(c.janela_fim, time '21:30'));
+
+  update public.campanha_envios e set status = 'cancelado', erro = 'Cliente pediu para não receber (SAIR)'
+   where e.status = 'pendente'
+     and exists (select 1 from public.whatsapp_descadastros d
+                  where d.restaurante_id = e.restaurante_id and d.telefone_chave = public.telefone_chave(e.telefone));
+
+  update public.campanha_envios e set status = 'incerto', erro = 'Envio interrompido: pode ter sido entregue'
+   where e.status = 'reservado' and e.travado_ate is not null and e.travado_ate < now();
+
+  update public.campanhas c set status = 'concluida', atualizado_em = now(), pausada_em = null, pausa_motivo = null
+   where c.status in ('agendada', 'enviando', 'pausada')
+     and c.agendado_em <= now()
+     and exists (select 1 from public.campanha_envios x where x.campanha_id = c.id)
+     and not exists (select 1 from public.campanha_envios x where x.campanha_id = c.id and x.status in ('pendente', 'reservado'));
+
+  -- Nunca fora de 09:00–21:30 (Brasília), qualquer que seja a janela da campanha.
+  if v_agora_sp::time < time '09:00' or v_agora_sp::time > time '21:30' then return; end if;
+
+  for v_loja in
+    select l.id, least(l.disparo_limite_dia, v_teto) limite
+      from public.restaurantes l
+     where (l.disparo_proximo_em is null or l.disparo_proximo_em <= now())
+       and exists (select 1 from public.campanhas c
+                    where c.restaurante_id = l.id and c.status in ('agendada', 'enviando')
+                      and c.agendado_em is not null and c.agendado_em <= now()
+                      and v_agora_sp::time between coalesce(c.janela_inicio, time '09:00') and coalesce(c.janela_fim, time '21:30'))
+     limit greatest(1, least(coalesce(p_limite, 5), 50))
+  loop
+    -- Limite do dia (o que saiu hoje + o que está saindo agora).
+    if (select count(*) from public.campanha_envios x
+         where x.restaurante_id = v_loja.id
+           and ((x.status in ('enviado', 'incerto') and x.enviado_em >= v_hoje_inicio) or x.status = 'reservado')) >= v_loja.limite then
+      continue;
+    end if;
+
+    -- Frequência: quem recebeu outro disparo desta loja há menos de N dias fica de fora (não reenvia depois).
+    if v_freq > 0 then
+      update public.campanha_envios e set status = 'cancelado', erro = format('Recebeu outro disparo há menos de %s dias', v_freq)
+        from public.campanhas c
+       where c.id = e.campanha_id and e.restaurante_id = v_loja.id and e.status = 'pendente'
+         and c.status in ('agendada', 'enviando')
+         and exists (select 1 from public.campanha_envios y
+                      where y.restaurante_id = v_loja.id and y.campanha_id <> e.campanha_id and y.status in ('enviado', 'incerto')
+                        and y.enviado_em > now() - make_interval(days => v_freq)
+                        and public.telefone_chave(y.telefone) = public.telefone_chave(e.telefone));
+    end if;
+
+    select e.id into v_envio
+      from public.campanha_envios e
+      join public.campanhas c on c.id = e.campanha_id
+     where e.restaurante_id = v_loja.id and e.status = 'pendente'
+       and c.status in ('agendada', 'enviando') and c.agendado_em is not null and c.agendado_em <= now()
+       and v_agora_sp::time between coalesce(c.janela_inicio, time '09:00') and coalesce(c.janela_fim, time '21:30')
+       and (e.proxima_tentativa_em is null or e.proxima_tentativa_em <= now())
+     order by c.agendado_em, e.criado_em
+     limit 1
+     for update of e skip locked;
+    if v_envio is null then continue; end if;
+
+    update public.campanha_envios set status = 'reservado', travado_ate = now() + interval '5 minutes', tentativas = tentativas + 1 where id = v_envio;
+    update public.campanhas set status = 'enviando', atualizado_em = now()
+     where id = (select x.campanha_id from public.campanha_envios x where x.id = v_envio) and status = 'agendada';
+    -- Próxima mensagem desta loja: entre 60 e 150 segundos, nunca o mesmo intervalo (0245).
+    update public.restaurantes set disparo_proximo_em = now() + make_interval(secs => 60 + floor(random() * 91)::int) where id = v_loja.id;
+    v_ids := v_ids || v_envio;
+    v_envio := null;
+  end loop;
+
+  return query
+  select r.id, r.campanha_id, r.restaurante_id, r.telefone, r.nome_cliente, r.token,
+         c.tipo_mensagem, c.mensagem, c.imagem_url, c.audio_url, c.incluir_link,
+         l.evolution_instance, l.slug, c.incluir_descadastro, r.ultimo_item, l.nome
+    from public.campanha_envios r
+    join public.campanhas c on c.id = r.campanha_id
+    join public.restaurantes l on l.id = r.restaurante_id
+   where r.id = any (v_ids)
+   order by r.criado_em;
+end $$;
+revoke execute on function public.campanha_reservar_envios(integer) from public, anon, authenticated;
+grant execute on function public.campanha_reservar_envios(integer) to service_role;
+
+-- ── Métricas detalhadas em 72 h (Tarefa 4): mesma janela da visão geral (0129) ───────────────────────────────────
+-- Cópia da 0104 trocando só '12 hours' por '72 hours' (atribuição e "respondidas"), para os dois relatórios baterem.
+create or replace function public.campanha_atribuicoes(p_restaurante uuid, p_de timestamptz, p_ate timestamptz)
+returns table (envio_id uuid, pedido_id uuid, numero integer, total numeric, criado_em timestamptz, via_clique boolean)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  with env as (
+    select e.id, e.enviado_em, e.clicado_em, public.telefone_chave(e.telefone) k
+      from public.campanha_envios e
+     where e.restaurante_id = p_restaurante and e.status = 'enviado' and e.enviado_em is not null
+       and e.enviado_em >= p_de - interval '72 hours' and e.enviado_em <= p_ate
+  ), ped as (
+    select p.id, p.numero, p.total, p.criado_em, public.telefone_chave(p.cliente_telefone) k
+      from public.pedidos p
+     where p.restaurante_id = p_restaurante and p.status <> 'cancelado'
+       and p.criado_em >= p_de and p.criado_em <= p_ate + interval '72 hours'
+  )
+  select distinct on (ped.id) env.id, ped.id, ped.numero, ped.total, ped.criado_em,
+         (env.clicado_em is not null and env.clicado_em <= ped.criado_em)
+    from ped
+    join env on env.k = ped.k and ped.k is not null
+            and ped.criado_em >= env.enviado_em and ped.criado_em < env.enviado_em + interval '72 hours'
+   order by ped.id, env.enviado_em desc
+$$;
+
+create or replace function public.campanhas_metricas(p_de timestamptz, p_ate timestamptz, p_campanha uuid default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare v_loja uuid := public.auth_restaurante_id(); v_res jsonb;
+begin
+  if v_loja is null or not public.auth_e_gestor() then raise exception 'sem permissão' using errcode = '42501'; end if;
+  if p_de is null or p_ate is null or p_ate < p_de then raise exception 'período inválido' using errcode = '22023'; end if;
+
+  with camp as (
+    select c.* from public.campanhas c
+     where c.restaurante_id = v_loja
+       and (p_campanha is null or c.id = p_campanha)
+       and coalesce(c.agendado_em, c.criado_em) between p_de and p_ate
+  ), env as (
+    select e.* from public.campanha_envios e join camp on camp.id = e.campanha_id
+  ), atr as (
+    select a.* from public.campanha_atribuicoes(v_loja, p_de, p_ate + interval '72 hours') a
+     where a.envio_id in (select id from env)
+  ), resp as (
+    select e.id envio_id
+      from env e
+     where e.status = 'enviado' and exists (
+       select 1 from public.whatsapp_conversas cv
+         join public.whatsapp_mensagens m on m.conversa_id = cv.id and m.direcao = 'entrada'
+        where cv.restaurante_id = v_loja
+          and public.telefone_chave(cv.telefone) = public.telefone_chave(e.telefone)
+          and m.criado_em > e.enviado_em and m.criado_em < e.enviado_em + interval '72 hours')
+  ), por as (
+    select camp.id, camp.nome, camp.status, camp.tipo_mensagem, camp.incluir_link,
+           coalesce(camp.agendado_em, camp.criado_em) quando, camp.duplicados_bloqueados,
+           (select count(*) from env where env.campanha_id = camp.id) destinatarios,
+           (select count(*) from env where env.campanha_id = camp.id and env.status = 'enviado') enviadas,
+           (select count(*) from env where env.campanha_id = camp.id and (env.entregue_em is not null or env.lido_em is not null)) entregues,
+           (select count(*) from env where env.campanha_id = camp.id and env.lido_em is not null) lidas,
+           (select count(*) from resp join env on env.id = resp.envio_id where env.campanha_id = camp.id) respondidas,
+           (select count(*) from env where env.campanha_id = camp.id and env.clicado_em is not null) clicaram,
+           (select coalesce(sum(env.cliques), 0) from env where env.campanha_id = camp.id) cliques,
+           (select count(*) from atr join env on env.id = atr.envio_id where env.campanha_id = camp.id) pedidos,
+           (select count(*) from atr join env on env.id = atr.envio_id where env.campanha_id = camp.id and atr.via_clique) pedidos_clique,
+           (select count(distinct atr.envio_id) from atr join env on env.id = atr.envio_id where env.campanha_id = camp.id) convertidos,
+           (select coalesce(sum(atr.total), 0) from atr join env on env.id = atr.envio_id where env.campanha_id = camp.id) faturamento,
+           (select count(*) from env where env.campanha_id = camp.id and env.status = 'erro') falhas,
+           (select count(*) from env where env.campanha_id = camp.id and env.status = 'incerto') incertos,
+           (select count(*) from env where env.campanha_id = camp.id and env.status in ('expirado', 'cancelado')) nao_enviadas,
+           (select count(*) from env where env.campanha_id = camp.id and env.status in ('pendente', 'reservado')) na_fila,
+           (select coalesce(sum(env.tentativas), 0) from env where env.campanha_id = camp.id) tentativas,
+           (select coalesce(sum(greatest(env.tentativas - 1, 0)), 0) from env where env.campanha_id = camp.id) retries,
+           exists (select 1 from env where env.campanha_id = camp.id and env.id_externo is not null) rastreada
+      from camp
+  )
+  select jsonb_build_object(
+    'campanhas', coalesce((select jsonb_agg(to_jsonb(por) order by por.quando desc) from por), '[]'::jsonb),
+    'totais', (select jsonb_build_object(
+        'campanhas', count(*), 'destinatarios', coalesce(sum(destinatarios), 0), 'enviadas', coalesce(sum(enviadas), 0),
+        'entregues', coalesce(sum(entregues), 0), 'lidas', coalesce(sum(lidas), 0), 'respondidas', coalesce(sum(respondidas), 0),
+        'clicaram', coalesce(sum(clicaram), 0), 'cliques', coalesce(sum(cliques), 0), 'pedidos', coalesce(sum(pedidos), 0),
+        'pedidos_clique', coalesce(sum(pedidos_clique), 0), 'convertidos', coalesce(sum(convertidos), 0),
+        'faturamento', coalesce(sum(faturamento), 0), 'falhas', coalesce(sum(falhas), 0), 'incertos', coalesce(sum(incertos), 0),
+        'nao_enviadas', coalesce(sum(nao_enviadas), 0), 'na_fila', coalesce(sum(na_fila), 0), 'tentativas', coalesce(sum(tentativas), 0),
+        'retries', coalesce(sum(retries), 0), 'duplicados_bloqueados', coalesce(sum(duplicados_bloqueados), 0),
+        'rastreadas', count(*) filter (where rastreada)) from por)
+  ) into v_res;
+  return v_res;
+end $$;
+
+create or replace function public.campanha_destinatarios(p_campanha uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare v_loja uuid := public.auth_restaurante_id(); v_c public.campanhas%rowtype;
+begin
+  if v_loja is null or not public.auth_e_gestor() then raise exception 'sem permissão' using errcode = '42501'; end if;
+  select * into v_c from public.campanhas where id = p_campanha and restaurante_id = v_loja;
+  if not found then return null; end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'nome', e.nome_cliente,
+      'telefone', case when length(regexp_replace(e.telefone, '\D', '', 'g')) >= 8
+                       then '•••• ' || right(regexp_replace(e.telefone, '\D', '', 'g'), 4) else '••••' end,
+      'status', e.status, 'erro', e.erro, 'tentativas', e.tentativas,
+      'enviado_em', e.enviado_em, 'entregue_em', coalesce(e.entregue_em, e.lido_em), 'lido_em', e.lido_em,
+      'clicado_em', e.clicado_em, 'cliques', e.cliques,
+      'pedido', (select jsonb_build_object('numero', a.numero, 'total', a.total, 'criado_em', a.criado_em, 'via_clique', a.via_clique)
+                   from public.campanha_atribuicoes(v_loja, coalesce(e.enviado_em, now()), coalesce(e.enviado_em, now()) + interval '72 hours') a
+                  where a.envio_id = e.id order by a.criado_em limit 1),
+      'respondeu', (e.enviado_em is not null and exists (
+         select 1 from public.whatsapp_conversas cv join public.whatsapp_mensagens m on m.conversa_id = cv.id and m.direcao = 'entrada'
+          where cv.restaurante_id = v_loja and public.telefone_chave(cv.telefone) = public.telefone_chave(e.telefone)
+            and m.criado_em > e.enviado_em and m.criado_em < e.enviado_em + interval '72 hours'))
+    ) order by e.enviado_em desc nulls last, e.criado_em)
+    from public.campanha_envios e where e.campanha_id = p_campanha
+  ), '[]'::jsonb);
+end $$;

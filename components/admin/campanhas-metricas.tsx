@@ -15,7 +15,7 @@ import { BolhaIcone, Cartao, Etiqueta, TituloBloco, TONS, type Tom } from '@/com
  * só responde a dono/gerente e só com a loja dele. Visual no idioma do Dashboard.
  *
  * Real: enviadas, falhas, tentativas, cliques (link rastreável), pedidos do mesmo
- * telefone em até 12h. Entregue/lida dependem do WhatsApp da loja integrado (webhook) e
+ * telefone em até 72 h. Entregue/lida dependem do WhatsApp da loja integrado (webhook) e
  * "lida" é um piso: o cliente pode ter a confirmação de leitura desligada. Pedido sem
  * clique antes é "provável". ROI precisa de custo, que a campanha não registra.
  */
@@ -219,7 +219,7 @@ export function CampanhasMetricas({ opcoesCampanhas }: { opcoesCampanhas: { id: 
         <div className={['space-y-4 transition-opacity', carregando ? 'opacity-60' : ''].join(' ')}>
           {/* Resultado: o que a campanha trouxe */}
           <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-            <Destaque icone={ShoppingBag} tom="azul" titulo="Pedidos em 12h" valor={inteiro(t.pedidos)}
+            <Destaque icone={ShoppingBag} tom="azul" titulo="Pedidos em 72 h" valor={inteiro(t.pedidos)}
               dica={`${inteiro(t.pedidos_clique)} com clique · ${contagem(provaveis, 'provável', 'prováveis')}`}
               etiqueta={provaveis > 0 ? <Etiqueta tom="ambar" title="Pedido do mesmo telefone sem clique no link antes">estimados</Etiqueta> : undefined} />
             <Destaque icone={Wallet} tom="verde" titulo="Faturamento" valor={formatarReal(Number(t.faturamento))} valorCor={TONS.verde.cor}
@@ -254,7 +254,7 @@ export function CampanhasMetricas({ opcoesCampanhas }: { opcoesCampanhas: { id: 
               </div>
             </Cartao>
             <Cartao className="p-4">
-              <TituloBloco titulo="Faturamento por campanha" subtitulo="Pedidos em até 12h após o envio" />
+              <TituloBloco titulo="Faturamento por campanha" subtitulo="Pedidos em até 72 h após o envio" />
               <FaturamentoPorCampanha campanhas={dados!.campanhas} />
             </Cartao>
           </div>
@@ -352,9 +352,9 @@ export function CampanhasMetricas({ opcoesCampanhas }: { opcoesCampanhas: { id: 
               <Etiqueta tom="roxo">Mínimo: lidas</Etiqueta>
             </div>
             <ul className="list-disc space-y-1 pl-4">
-              <li><strong>Pedidos em 12h</strong>: pedido não cancelado do mesmo telefone nas 12 horas depois do envio. Com clique no link antes do pedido é <strong>confirmado</strong>; sem clique, <strong>provável</strong>. Cada pedido conta para uma campanha só (a mais recente).</li>
+              <li><strong>Pedidos em 72 h</strong>: pedido não cancelado do mesmo telefone nas 72 horas depois do envio. Com clique no link antes do pedido é <strong>confirmado</strong>; sem clique, <strong>provável</strong>. Cada pedido conta para uma campanha só (a mais recente).</li>
               <li><strong>Entregues e lidas</strong> só aparecem quando o WhatsApp da loja está integrado ao Menuzia. “Lida” é o mínimo: quem desliga a confirmação de leitura não aparece.</li>
-              <li><strong>Respondidas</strong>: mensagem do cliente em até 12h, nas lojas com o robô de atendimento ligado.</li>
+              <li><strong>Respondidas</strong>: mensagem do cliente em até 72 h, nas lojas com o robô de atendimento ligado.</li>
               <li><strong>Cliques</strong> só existem em campanhas com o link do cardápio ligado; pré-visualização do WhatsApp não conta.</li>
               <li><strong>ROI</strong> precisa do custo da campanha, que ainda não é registrado — por isso aparece como indisponível.</li>
             </ul>

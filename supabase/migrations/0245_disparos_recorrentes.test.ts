@@ -76,3 +76,23 @@ describe('0245 geração de rodadas', () => {
     expect(rod).toMatch(/grant execute on function public\.campanha_recorrentes_gerar_rodadas\(\) to service_role/)
   })
 })
+
+describe('0245 cadência nova e métricas em 72 h', () => {
+  const reserva = sql.slice(sql.indexOf('create function public.campanha_reservar_envios(p_limite integer)'))
+  it('próxima mensagem da loja em 60–150 s', () => {
+    expect(reserva).toMatch(/60 \+ floor\(random\(\) \* 91\)/)
+    expect(reserva).not.toMatch(/25 \+ floor\(random\(\) \* 66\)/)
+  })
+  it('rodada de card expira no fim da janela do dia; agendamentos seguem com 7 dias', () => {
+    expect(reserva).toMatch(/Rodada do dia encerrada/)
+    expect(reserva).toMatch(/c\.recorrente_id is not null/)
+    expect(reserva).toMatch(/interval '7 days'/)
+  })
+  it('atribuição detalhada passa a 72 h, igual à visão geral', () => {
+    const atr = sql.slice(sql.indexOf('function public.campanha_atribuicoes('), sql.indexOf('function public.campanhas_metricas('))
+    expect(atr).toMatch(/interval '72 hours'/)
+    expect(atr).not.toMatch(/12 hours/)
+    const met = sql.slice(sql.indexOf('function public.campanhas_metricas('), sql.indexOf('function public.campanha_destinatarios('))
+    expect(met).not.toMatch(/12 hours/)
+  })
+})
