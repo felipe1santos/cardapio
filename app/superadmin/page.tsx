@@ -11,6 +11,8 @@ import { HorariosPico, Monitoramento, RotinasHp, Tendencia30, WhatsappLojasHp, t
 import { GastoHoje } from '@/components/superadmin/gasto-apis'
 import { picoMedioDiario } from '@/lib/saude/pico-requisicoes'
 import { AlertasFaixa, ListaAlertas, type AlertaTela } from '@/components/superadmin/alertas-faixa'
+import { lerCustoMensal } from '@/lib/custo/custo-mensal'
+import { CustoMes } from '@/components/superadmin/custo-mes'
 
 // Dados sempre frescos: é o painel de quem libera e bloqueia contas.
 export const dynamic = 'force-dynamic'
@@ -51,10 +53,13 @@ export default async function SuperadminPage() {
   const recentes = historico.filter((a) => (a.nivel === 'amarelo' || a.nivel === 'vermelho') && !a.resolvido_em && Date.parse(a.criado_em) >= desde)
   const listaFotos = (fotos ?? []) as FotoSaude[]
   const dias = ((serie ?? []) as DiaSaude[]).map((d) => ({ ...d, dia: String(d.dia).slice(0, 10) }))
+  // Custo do sistema por mês (03/11): depende da cotação, por isso fora do Promise.all; falhar não derruba o painel.
+  const custo = await lerCustoMensal(admin, cotacao).catch(() => null)
   return (
     <ShellHp aba="visao" titulo="Visão geral" email={data.user?.email ?? ''}>
       <AlertasFaixa alertas={recentes} />
       <Monitoramento fotos={listaFotos} picoReq={picoMedioDiario(leituras)} />
+      {custo && <CustoMes meses={custo.meses} cotacao={cotacao} />}
       <GastoHoje uso={usoApis} ia={usoIa} cotacao={cotacao} />
       <Tendencia30 dias={dias} />
       <HorariosPico leituras={leituras.filter((l) => Date.parse(l.em) >= desde24h)} />

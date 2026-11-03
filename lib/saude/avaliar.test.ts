@@ -72,8 +72,8 @@ describe('Assistente de impressão parado com pedido chegando (01/11: só com pr
 describe('assistentesFora (quem entra no alerta)', () => {
   const agora = Date.parse('2026-10-29T23:00:00Z')
   const min = (m: number) => new Date(agora - m * 60_000).toISOString()
-  const loja = (p: Partial<Parameters<typeof assistentesFora>[0][number]>) => ({ nome: 'L', aberta: true, ultimoSinal: min(40), imprimirSozinho: true, pedidosRecentes: 2, ...p })
-  it('só loja aberta, com Imprimir sozinho ligado, com pedido nos últimos 30 min e sem sinal há 15 min ou mais', () => {
+  const loja = (p: Partial<Parameters<typeof assistentesFora>[0][number]>) => ({ nome: 'L', aberta: true, ultimoSinal: min(40), imprimirSozinho: true, usaAssistente: true, pedidosRecentes: 2, ...p })
+  it('só loja aberta, com Assistente ATIVADO nos ajustes e Imprimir sozinho ligado, com pedido nos últimos 30 min e sem sinal há 15 min ou mais', () => {
     const r = assistentesFora([
       loja({ nome: 'Pedido parado' }),
       loja({ nome: 'Com sinal', ultimoSinal: min(1) }),
@@ -83,6 +83,8 @@ describe('assistentesFora (quem entra no alerta)', () => {
       loja({ nome: 'Quase', ultimoSinal: min(14) }),
       loja({ nome: 'Imprime pelo painel', imprimirSozinho: false }),
       loja({ nome: 'BURGUER MAX: aberta no manual, PC desligado, sem pedido', pedidosRecentes: 0, ultimoSinal: min(507) }),
+      // 03/11: loja nova testando (pareou o Assistente uma vez, nunca ligou "Ativar Assistente" nos ajustes, fez pedidos de teste).
+      loja({ nome: 'FERRAZ: Assistente nao ativado nos ajustes', usaAssistente: false, ultimoSinal: min(19), pedidosRecentes: 1 }),
     ], agora)
     expect(r).toEqual([{ loja: 'Pedido parado', minutos: 40, pedidos: 2 }])
   })

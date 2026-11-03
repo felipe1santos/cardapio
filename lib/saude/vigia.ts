@@ -111,7 +111,7 @@ export async function coletar(admin: SupabaseClient, agora: Date, anterior: { em
     admin.from('sistema_cron_batidas').select('nome, ultima_em'),
     admin.from('restaurantes').select('nome, whatsapp_caiu_em').not('whatsapp_caiu_em', 'is', null).is('whatsapp_desconexao_manual_em', null).limit(200),
     // Assistente de impressão (29/10): lojas e sinais dos últimos 7 dias (antigo: restaurantes; novo: impressao_agentes).
-    admin.from('restaurantes').select('id, nome, status_loja, horario_funcionamento, impressao_agente_visto_em, impressao_automatica').limit(1000),
+    admin.from('restaurantes').select('id, nome, status_loja, horario_funcionamento, impressao_agente_visto_em, impressao_automatica, impressao_ativar_assistente').limit(1000),
     admin.from('impressao_agentes').select('restaurante_id, visto_em').is('revogado_em', null).gte('visto_em', seteDias).limit(2000),
     // 01/11: só alerta de impressora com pedido chegando — pedidos dos últimos 30 min, por loja (índice pedidos_loja_criado_idx).
     admin.from('pedidos').select('restaurante_id').gte('criado_em', new Date(agora.getTime() - PEDIDOS_RECENTES_MIN * 60_000).toISOString()).limit(2000),
@@ -122,12 +122,13 @@ export async function coletar(admin: SupabaseClient, agora: Date, anterior: { em
     for (const a of (agentes.data ?? []) as { restaurante_id: string; visto_em: string }[]) marcar(a.restaurante_id, a.visto_em)
     const pedidosPorLoja = new Map<string, number>()
     for (const p of (recentes.data ?? []) as { restaurante_id: string }[]) pedidosPorLoja.set(p.restaurante_id, (pedidosPorLoja.get(p.restaurante_id) ?? 0) + 1)
-    const lojas = (lojasImp.data ?? []) as { id: string; nome: string; status_loja: StatusLoja | null; horario_funcionamento: HorarioFuncionamento | null; impressao_agente_visto_em: string | null; impressao_automatica: boolean | null }[]
+    const lojas = (lojasImp.data ?? []) as { id: string; nome: string; status_loja: StatusLoja | null; horario_funcionamento: HorarioFuncionamento | null; impressao_agente_visto_em: string | null; impressao_automatica: boolean | null; impressao_ativar_assistente: boolean | null }[]
     for (const l of lojas) marcar(l.id, l.impressao_agente_visto_em)
     m.assistentesFora = assistentesFora(lojas.map((l) => ({
       nome: l.nome, ultimoSinal: ultimo.get(l.id) ?? null,
       aberta: lojaEstaAberta({ statusLoja: l.status_loja ?? 'automatico', horarioFuncionamento: l.horario_funcionamento ?? null }),
       imprimirSozinho: l.impressao_automatica === true,
+      usaAssistente: l.impressao_ativar_assistente === true,
       pedidosRecentes: pedidosPorLoja.get(l.id) ?? 0,
     })), agora.getTime())
   }

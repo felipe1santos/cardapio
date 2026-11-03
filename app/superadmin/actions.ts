@@ -236,6 +236,23 @@ export async function definirCotacaoAction(cotacao: string): Promise<ResultadoAc
 }
 
 /** Tetos das campanhas (12/10): disparo de WhatsApp por dia, frequência por cliente e push de campanha por dia. */
+/** Custos fixos do sistema (03/11): Supabase em US$, VPS e outros em R$ — base do card "Custo do sistema" e do histórico por mês. */
+export async function definirCustoFixoAction(v: { supabaseUsd: string; vpsBrl: string; outrosBrl: string }): Promise<ResultadoAcao> {
+  const quem = await ensureSuperAdmin()
+  const n = (x: string) => Number(String(x ?? '').trim().replace(',', '.'))
+  const supabaseUsd = n(v.supabaseUsd), vpsBrl = n(v.vpsBrl), outrosBrl = n(v.outrosBrl)
+  for (const [k, x] of [['Supabase', supabaseUsd], ['VPS', vpsBrl], ['Outros', outrosBrl]] as const) {
+    if (!(x >= 0 && x <= 100000)) return { ok: false, erro: `${k}: use um número entre 0 e 100000.` }
+  }
+  const admin = getAdminSupabase()
+  const { error } = await admin.from('plataforma_config').upsert({ chave: 'custo_fixo', valor: { supabaseUsd, vpsBrl, outrosBrl }, atualizado_em: new Date().toISOString(), atualizado_por: quem.email }, { onConflict: 'chave' })
+  if (error) return { ok: false, erro: 'Não foi possível salvar.' }
+  await auditarPlataforma(admin, { ator: quem.email, acao: 'plataforma.custo_fixo', dados: { supabaseUsd, vpsBrl, outrosBrl } })
+  revalidatePath('/superadmin')
+  revalidatePath('/superadmin/gasto')
+  return { ok: true, mensagem: 'Custos fixos salvos.' }
+}
+
 export async function definirLimitesCampanhasAction(v: { disparoTetoDia: string; frequenciaDias: string; pushTetoDia: string }): Promise<ResultadoAcao> {
   const quem = await ensureSuperAdmin()
   const n = (x: string) => Math.round(Number(String(x ?? '').trim()))

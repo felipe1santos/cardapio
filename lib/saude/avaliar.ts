@@ -238,10 +238,11 @@ export function cronsAtrasados(batidas: { nome: string; ultima_em: string }[], a
  * últimos 7 dias e está sem sinal há 15 min ou mais. Loja aberta no manual com o PC desligado e sem pedido = nada. Pura.
  */
 export const PEDIDOS_RECENTES_MIN = 30
-export function assistentesFora(lojas: { nome: string; aberta: boolean; ultimoSinal: string | null; imprimirSozinho: boolean; pedidosRecentes: number }[], agora: number): { loja: string; minutos: number; pedidos: number }[] {
+/** `usaAssistente` = "Ativar Assistente" ligado nos ajustes da loja (03/11): loja nova que só pareou para testar não entra. */
+export function assistentesFora(lojas: { nome: string; aberta: boolean; ultimoSinal: string | null; imprimirSozinho: boolean; usaAssistente: boolean; pedidosRecentes: number }[], agora: number): { loja: string; minutos: number; pedidos: number }[] {
   const out: { loja: string; minutos: number; pedidos: number }[] = []
   for (const l of lojas) {
-    if (!l.aberta || !l.ultimoSinal || !l.imprimirSozinho || !(l.pedidosRecentes > 0)) continue
+    if (!l.aberta || !l.ultimoSinal || !l.imprimirSozinho || !l.usaAssistente || !(l.pedidosRecentes > 0)) continue
     const minutos = Math.floor((agora - Date.parse(l.ultimoSinal)) / 60_000)
     if (minutos >= 15 && minutos <= 7 * 24 * 60) out.push({ loja: l.nome, minutos, pedidos: l.pedidosRecentes })
   }
