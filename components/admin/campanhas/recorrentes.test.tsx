@@ -56,6 +56,18 @@ describe('Recorrentes', () => {
     await waitFor(() => expect(screen.getByTestId('toggle-recuperacao')).toHaveAttribute('aria-checked', 'true'))
   })
 
+  it('fora de edição: só texto (dias e horário); os campos aparecem ao clicar em Editar', async () => {
+    fetchFalso()
+    render(<Recorrentes restauranteId="L1" onToast={vi.fn()} />)
+    await screen.findByTestId('card-promocoes')
+    expect(screen.getByTestId('resumo-promocoes').textContent).toMatch(/todos os dias/)
+    expect(screen.queryByTestId('hora-promocoes')).toBeNull()
+    expect(screen.queryByTestId('mensagem-promocoes')).toBeNull()
+    fireEvent.click(screen.getByTestId('editar-promocoes'))
+    expect(screen.getByTestId('hora-promocoes')).toBeInTheDocument()
+    expect(screen.getByTestId('mensagem-promocoes')).toBeInTheDocument()
+  })
+
   it('"Pular hoje" manda pularHoje e desabilita o botão', async () => {
     const { chamadas } = fetchFalso()
     render(<Recorrentes restauranteId="L1" onToast={vi.fn()} />)

@@ -21,6 +21,21 @@ const ILUSTRACAO_CARD: Partial<Record<TipoRecorrente, string>> = {
 }
 
 const DIAS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S']
+
+/** Cor do toggle LIGADO de cada card, tirada da ilustração (03/11): azul, roxo, rosa. Desligado = cinza. */
+const COR_TOGGLE: Record<TipoRecorrente, { ligado: string; bolinha: string }> = {
+  recuperacao: { ligado: 'border-[#2563eb] bg-[#2563eb]', bolinha: 'bg-white' },
+  promocoes: { ligado: 'border-[#7c3aed] bg-[#7c3aed]', bolinha: 'bg-white' },
+  nunca_compraram: { ligado: 'border-[#db2777] bg-[#db2777]', bolinha: 'bg-white' },
+}
+
+/** "Todos os dias", "Nenhum", ou "Seg, Qua e Sex" — texto do resumo do card. */
+function textoDias(dias: number[]): string {
+  if (dias.length === 0) return 'nenhum dia'
+  if (dias.length === 7) return 'todos os dias'
+  const nomes = DIAS_NOME.filter((_, i) => dias.includes(i)).map((n) => n.slice(0, 3).replace(/^./, (c) => c.toUpperCase()))
+  return nomes.length === 1 ? nomes[0] : `${nomes.slice(0, -1).join(', ')} e ${nomes[nomes.length - 1]}`
+}
 const DIAS_NOME = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado']
 /** Teto padrão da plataforma (0190) — a tela não lê o teto da loja; serve para "cabem ~N". */
 const TETO_PADRAO = 150
@@ -100,6 +115,8 @@ function CardRecorrente({ card, estimativa, onPatch, onGaleria }: {
   const [hora, setHora] = useState(card.hora)
   const [fim, setFim] = useState(card.janelaFim)
   const [ocupado, setOcupado] = useState(false)
+  // Campos de edição só aparecem com "Editar"; fora dele o card mostra só texto (03/11, pedido do dono).
+  const [editando, setEditando] = useState(false)
   // Texto vindo do servidor (outro PATCH devolveu o card): acompanha sem perder o que está sendo digitado.
   const ultimoServidor = useRef(card.mensagem)
   if (ultimoServidor.current !== card.mensagem) { ultimoServidor.current = card.mensagem; if (mensagem !== card.mensagem) setMensagem(card.mensagem) }
@@ -121,9 +138,10 @@ function CardRecorrente({ card, estimativa, onPatch, onGaleria }: {
     <section className="campanha-cartao flex flex-col overflow-hidden rounded-[8px] border border-[#e5e7eb] bg-white" data-testid={`card-${card.tipo}`} data-ativa={card.ativa ? '1' : '0'} data-destaque={card.ativa ? '' : undefined}>
       {/* Ilustração do card (pasta public/ilustracoes/campanhas). Sem ilustração: faixa azul com o nome e o estado. */}
       {ILUSTRACAO_CARD[card.tipo] ? (
-        <div className="flex aspect-[16/9] items-center justify-center overflow-hidden bg-[#eef3fb]" data-bordo="ilustracao">
+        <div className="flex items-center justify-center bg-[#eef3fb]" data-bordo="ilustracao">
+          {/* Imagem inteira, sem corte (card vertical): largura do card, altura natural da ilustração. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={ILUSTRACAO_CARD[card.tipo]} alt="" width={640} height={360} loading="lazy" className="h-full w-full object-cover" />
+          <img src={ILUSTRACAO_CARD[card.tipo]} alt="" width={640} height={640} loading="lazy" className="block h-auto w-full" />
         </div>
       ) : (
         <div className="relative flex aspect-[16/7] items-end bg-[#112f6b] px-4 pb-3" data-bordo>
@@ -148,38 +166,46 @@ function CardRecorrente({ card, estimativa, onPatch, onGaleria }: {
           <Ajuda texto="Com 60–150 s entre mensagens, a janela escolhida comporta este tanto. Amplie o horário final para alcançar mais pessoas por dia." />
         </div>
 
-        <button type="button" onClick={onGaleria} className="inline-flex h-10 items-center justify-center gap-2 rounded-[5px] border border-[#d6dae1] bg-white px-3 text-[13px] font-semibold text-[#374151] hover:border-[#f6bd28] hover:bg-[#f6bd28] hover:text-[#1f2937]" data-testid={`galeria-${card.tipo}`}>
-          <Images className="h-4 w-4" /> Galeria · {card.imagens.length}/{IMAGENS_MAX} {card.imagens.length ? `· próxima: ${(card.imagemIndice % card.imagens.length) + 1}ª` : ''}
-        </button>
-
-        <div>
-          <p className="mb-1 text-[11.5px] font-semibold uppercase tracking-[0.04em] text-[#6b7280]">Dias</p>
-          <div className="flex gap-1" role="group" aria-label="Dias da semana">
-            {DIAS.map((d, i) => (
-              <button key={i} type="button" onClick={() => alternarDia(i)} disabled={ocupado} aria-pressed={card.diasSemana.includes(i)} aria-label={DIAS_NOME[i]}
-                className={`h-9 w-9 rounded-[5px] border text-[12px] font-semibold ${card.diasSemana.includes(i) ? 'border-[#0688d4] bg-[#0688d4] text-white' : 'border-[#d6dae1] bg-white text-[#5b6472]'}`}>
-                {d}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <label className="text-[11.5px] font-semibold uppercase tracking-[0.04em] text-[#6b7280]">Começa
-            <input type="time" value={hora} onChange={(e) => setHora(e.target.value)} onBlur={salvarHora} className="campanha-data mt-1 w-full" data-testid={`hora-${card.tipo}`} />
-          </label>
-          <label className="text-[11.5px] font-semibold uppercase tracking-[0.04em] text-[#6b7280]">Termina
-            <input type="time" value={fim} onChange={(e) => setFim(e.target.value)} onBlur={salvarHora} className="campanha-data mt-1 w-full" data-testid={`fim-${card.tipo}`} />
-          </label>
+        {/* Resumo em texto (sempre): dias ativos e horário. */}
+        <div className="space-y-1 text-[13px] text-[#374151]" data-testid={`resumo-${card.tipo}`}>
+          <p><span className="font-semibold">Dias:</span> {textoDias(card.diasSemana)}</p>
+          <p><span className="font-semibold">Horário:</span> das {card.hora} às {card.janelaFim}</p>
         </div>
 
-        <label className="block">
-          <span className="mb-1 flex items-center justify-between text-[11.5px] font-semibold uppercase tracking-[0.04em] text-[#6b7280]">
-            Mensagem <span className="font-normal normal-case tracking-normal">{mensagem.length}/4096</span>
-          </span>
-          <textarea value={mensagem} onChange={(e) => setMensagem(e.target.value)} onBlur={salvarTexto} rows={4} maxLength={4096}
-            className="w-full rounded-[5px] border border-[#d6dae1] px-3 py-2 text-[13px] text-[#1f2937] focus:border-[#0688d4] focus:outline-none" data-testid={`mensagem-${card.tipo}`} />
-          <span className="mt-1 block text-[11.5px] text-[#6b7280]">Variáveis: {'{nome}'}, {'{loja}'}, {'{link}'}{card.tipo === 'recuperacao' ? ', {ultimo_item}' : ''}. O rodapé “Responda SAIR” vai sempre.</span>
-        </label>
+        {editando && (
+          <>
+            <button type="button" onClick={onGaleria} className="inline-flex h-10 items-center justify-center gap-2 rounded-[5px] border border-[#d6dae1] bg-white px-3 text-[13px] font-semibold text-[#374151] hover:border-[#f6bd28] hover:bg-[#f6bd28] hover:text-[#1f2937]" data-testid={`galeria-${card.tipo}`}>
+              <Images className="h-4 w-4" /> Galeria · {card.imagens.length}/{IMAGENS_MAX} {card.imagens.length ? `· próxima: ${(card.imagemIndice % card.imagens.length) + 1}ª` : ''}
+            </button>
+            <div>
+              <p className="mb-1 text-[11.5px] font-semibold uppercase tracking-[0.04em] text-[#6b7280]">Dias</p>
+              <div className="flex gap-1" role="group" aria-label="Dias da semana">
+                {DIAS.map((d, i) => (
+                  <button key={i} type="button" onClick={() => alternarDia(i)} disabled={ocupado} aria-pressed={card.diasSemana.includes(i)} aria-label={DIAS_NOME[i]}
+                    className={`h-9 w-9 rounded-[5px] border text-[12px] font-semibold ${card.diasSemana.includes(i) ? 'border-[#0688d4] bg-[#0688d4] text-white' : 'border-[#d6dae1] bg-white text-[#5b6472]'}`}>
+                    {d}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="text-[11.5px] font-semibold uppercase tracking-[0.04em] text-[#6b7280]">Começa
+                <input type="time" value={hora} onChange={(e) => setHora(e.target.value)} onBlur={salvarHora} className="campanha-data mt-1 w-full" data-testid={`hora-${card.tipo}`} />
+              </label>
+              <label className="text-[11.5px] font-semibold uppercase tracking-[0.04em] text-[#6b7280]">Termina
+                <input type="time" value={fim} onChange={(e) => setFim(e.target.value)} onBlur={salvarHora} className="campanha-data mt-1 w-full" data-testid={`fim-${card.tipo}`} />
+              </label>
+            </div>
+            <label className="block">
+              <span className="mb-1 flex items-center justify-between text-[11.5px] font-semibold uppercase tracking-[0.04em] text-[#6b7280]">
+                Mensagem <span className="font-normal normal-case tracking-normal">{mensagem.length}/4096</span>
+              </span>
+              <textarea value={mensagem} onChange={(e) => setMensagem(e.target.value)} onBlur={salvarTexto} rows={4} maxLength={4096}
+                className="w-full rounded-[5px] border border-[#d6dae1] px-3 py-2 text-[13px] text-[#1f2937] focus:border-[#0688d4] focus:outline-none" data-testid={`mensagem-${card.tipo}`} />
+              <span className="mt-1 block text-[11.5px] text-[#6b7280]">Variáveis: {'{nome}'}, {'{loja}'}, {'{link}'}{card.tipo === 'recuperacao' ? ', {ultimo_item}' : ''}. O rodapé “Responda SAIR” vai sempre.</span>
+            </label>
+          </>
+        )}
         <div className="rounded-[5px] bg-[#f6f7f9] px-3 py-2 text-[12.5px] text-[#374151]"><TextoComVariaveis texto={mensagem} /></div>
 
         <p className="text-[12.5px] text-[#5b6472]" data-testid={`rodada-${card.tipo}`}>
@@ -199,10 +225,13 @@ function CardRecorrente({ card, estimativa, onPatch, onGaleria }: {
       <div className="flex items-center justify-between gap-2 border-t border-[#e5e7eb] px-4 py-3">
         <button type="button" role="switch" aria-checked={card.ativa} disabled={ocupado} onClick={() => void agir({ ativa: !card.ativa }, card.ativa ? 'Card desligado.' : 'Card ligado: dispara sozinho na programação.')}
           className="inline-flex items-center gap-2 text-[13px] font-semibold text-[#1f2937]" data-testid={`toggle-${card.tipo}`}>
-          <span className={`relative inline-block h-7 w-12 rounded-full border-2 transition-colors ${card.ativa ? 'border-[#f6bd28] bg-[#f6bd28]' : 'border-[#cbd2d9] bg-[#cbd2d9]'}`} aria-hidden>
-            <span className={`absolute left-[2px] top-[2px] h-5 w-5 rounded-full shadow transition-transform motion-reduce:transition-none ${card.ativa ? 'translate-x-[20px] bg-[#112f6b]' : 'translate-x-0 bg-white'}`} />
+          <span className={`relative inline-block h-7 w-12 rounded-full border-2 transition-colors ${card.ativa ? COR_TOGGLE[card.tipo].ligado : 'border-[#cbd2d9] bg-[#cbd2d9]'}`} aria-hidden>
+            <span className={`absolute left-[2px] top-[2px] h-5 w-5 rounded-full shadow transition-transform motion-reduce:transition-none ${card.ativa ? `translate-x-[20px] ${COR_TOGGLE[card.tipo].bolinha}` : 'translate-x-0 bg-white'}`} />
           </span>
           {ocupado ? <Loader2 className="h-4 w-4 animate-spin" /> : card.ativa ? 'Ligado' : 'Desligado'}
+        </button>
+        <button type="button" onClick={() => { if (editando) { salvarHora(); salvarTexto() } setEditando((v) => !v) }} className="inline-flex h-10 items-center rounded-[5px] border border-[#d6dae1] bg-white px-3 text-[12.5px] font-semibold text-[#374151] hover:border-[#f6bd28] hover:bg-[#f6bd28] hover:text-[#1f2937]" data-testid={`editar-${card.tipo}`}>
+          {editando ? 'Concluir' : 'Editar'}
         </button>
         <button type="button" disabled={ocupado || puladoHoje || !card.ativa} onClick={() => void agir({ pularHoje: true }, 'Hoje não dispara. Amanhã volta sozinho.')}
           className="inline-flex h-10 items-center gap-1.5 rounded-[5px] border border-[#112f6b] bg-white px-3 text-[12.5px] font-semibold text-[#112f6b] hover:border-[#f6bd28] hover:bg-[#f6bd28] hover:text-[#1f2937] disabled:opacity-50" data-testid={`pular-${card.tipo}`}>
