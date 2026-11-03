@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest'
-import { processarCampanhas } from './campanhas-envio'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { _resetChecagemCards, processarCampanhas } from './campanhas-envio'
 import type { ProvedorWhatsapp } from './provedor'
 
 vi.mock('./historico', () => ({ registrarSaida: vi.fn(async () => ({ mensagemId: 'm' })), concluirSaida: vi.fn(async () => undefined) }))
@@ -26,6 +26,53 @@ const provedor = {
   conexao: vi.fn(async () => 'aberto'),
   enviarTexto: vi.fn(async () => ({ ok: true, idExterno: 'x' })),
 } as unknown as ProvedorWhatsapp
+
+/**
+ * 03/11/2026 (0245): os cards recorrentes viram rodadas por uma RPC que o cron chama no máximo a cada 10 min —
+ * nunca a cada tique — e cuja falha não derruba o envio do lote.
+ */
+describe('processarCampanhas: rodadas dos cards a cada 10 min', () => {
+  // O provedor é compartilhado com os describes abaixo: não deixa chamada contada para trás.
+  beforeEach(() => { _resetChecagemCards(); (provedor.enviarTexto as ReturnType<typeof vi.fn>).mockClear() })
+  afterEach(() => (provedor.enviarTexto as ReturnType<typeof vi.fn>).mockClear())
+  function adminComRodadas(rpcRodadas: () => { data?: unknown; error?: unknown }) {
+    const chamadas: string[] = []
+    const vazio = { select: () => vazio, in: () => vazio, lte: async () => ({ data: [] }), update: () => vazio, eq: () => vazio }
+    const admin = {
+      from: () => vazio,
+      rpc: vi.fn(async (fn: string) => {
+        chamadas.push(fn)
+        if (fn === 'campanha_reservar_envios') return { data: [envio('e1')], error: null }
+        if (fn === 'modulo_liberado') return { data: true, error: null }
+        if (fn === 'campanha_recorrentes_gerar_rodadas') return rpcRodadas()
+        return { data: 'enviado', error: null }
+      }),
+    }
+    return { admin: admin as never, chamadas }
+  }
+  it('duas chamadas seguidas → a RPC das rodadas roda UMA vez; o resumo conta as rodadas criadas', async () => {
+    const { admin, chamadas } = adminComRodadas(() => ({ data: [{ motivo: 'ok' }, { motivo: 'sem_publico' }, { motivo: 'ok' }], error: null }))
+    const r1 = await processarCampanhas(admin, provedor, { limite: 10, intervalo: () => 0 })
+    await processarCampanhas(admin, provedor, { limite: 10, intervalo: () => 0 })
+    expect(chamadas.filter((c) => c === 'campanha_recorrentes_gerar_rodadas')).toHaveLength(1)
+    expect(r1.rodadas).toBe(2)
+  })
+  it('depois de zerar a lembrança (deploy) a RPC roda de novo', async () => {
+    const { admin, chamadas } = adminComRodadas(() => ({ data: [], error: null }))
+    await processarCampanhas(admin, provedor, { limite: 10, intervalo: () => 0 })
+    _resetChecagemCards()
+    await processarCampanhas(admin, provedor, { limite: 10, intervalo: () => 0 })
+    expect(chamadas.filter((c) => c === 'campanha_recorrentes_gerar_rodadas')).toHaveLength(2)
+  })
+  it('RPC com erro não derruba o lote: os envios saem do mesmo jeito', async () => {
+    ;(provedor.enviarTexto as ReturnType<typeof vi.fn>).mockClear()
+    const { admin } = adminComRodadas(() => ({ data: null, error: { message: 'boom' } }))
+    const r = await processarCampanhas(admin, provedor, { limite: 10, intervalo: () => 0 })
+    expect(provedor.enviarTexto).toHaveBeenCalledTimes(1)
+    expect(r.processados).toBe(1)
+    expect(r.rodadas).toBe(0)
+  })
+})
 
 describe('processarCampanhas (B13)', () => {
   it('erro ao gravar o resultado de um envio não aborta o lote', async () => {

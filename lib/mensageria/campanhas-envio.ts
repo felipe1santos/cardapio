@@ -20,6 +20,7 @@ import { concluirSaida, registrarSaida } from './historico'
 import { moduloLiberado } from '@/lib/modulos'
 import { decidirFreio } from './disparo-regras'
 import { criarAlerta } from '@/lib/financeiro/alertas'
+import { checagemDevida } from './recorrentes'
 
 interface EnvioReservado {
   id: string
@@ -52,9 +53,34 @@ export interface ResumoCampanhas {
   pausados: number
   campanhasPausadas: number
   campanhasRetomadas: number
+  /** Rodadas de cards recorrentes criadas nesta chamada (0245). */
+  rodadas: number
 }
 
 const espera = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+// ── Cards recorrentes (0245) ────────────────────────────────────────────────────────────────────────────────────
+// O cron roda a cada 60 s para empurrar a fila; os CARDS são olhados no máximo a cada 10 min (pedido do dono: menos
+// consulta). Lembrança em memória do processo (um container): reinício = olha de novo, sem efeito colateral, porque a
+// RPC só encontra card vencido uma vez (a agenda avança na mesma transação).
+let ultimaChecagemCards: number | null = null
+/** Só para testes. */
+export function _resetChecagemCards() { ultimaChecagemCards = null }
+
+/** Se já passaram 10 min, transforma cards vencidos em rodadas. Falha aqui NUNCA derruba o envio do lote. */
+export async function gerarRodadasSeDevido(admin: SupabaseClient, agora = Date.now()): Promise<{ rodadas: number } | null> {
+  if (!checagemDevida(ultimaChecagemCards, agora)) return null
+  ultimaChecagemCards = agora
+  try {
+    const { data, error } = await admin.rpc('campanha_recorrentes_gerar_rodadas')
+    if (error) throw error
+    const linhas = Array.isArray(data) ? (data as { motivo?: string }[]) : []
+    return { rodadas: linhas.filter((l) => l.motivo === 'ok').length }
+  } catch (err) {
+    console.error('[campanhas] rodadas recorrentes não geradas:', (err as { message?: string })?.message ?? err)
+    return { rodadas: 0 }
+  }
+}
 
 function textoDoEnvio(e: EnvioReservado): string {
   return montarTextoCampanha(e.mensagem, { incluirLink: e.incluir_link, token: e.token, nome: e.nome_cliente, incluirDescadastro: true, botoes: e.tipo_mensagem === 'audio' ? [] : e.botoes, loja: e.nome_loja, ultimoItem: e.ultimo_item })
@@ -136,8 +162,9 @@ export async function processarCampanhas(
   provedor: ProvedorWhatsapp,
   opcoes: { limite: number; intervalo: () => number },
 ): Promise<ResumoCampanhas> {
-  const r: ResumoCampanhas = { processados: 0, enviados: 0, novasTentativas: 0, erros: 0, incertos: 0, pausados: 0, campanhasPausadas: 0, campanhasRetomadas: 0 }
+  const r: ResumoCampanhas = { processados: 0, enviados: 0, novasTentativas: 0, erros: 0, incertos: 0, pausados: 0, campanhasPausadas: 0, campanhasRetomadas: 0, rodadas: 0 }
   await sincronizarPausas(admin, provedor, r)
+  r.rodadas = (await gerarRodadasSeDevido(admin))?.rodadas ?? 0
 
   const { data, error } = await admin.rpc('campanha_reservar_envios', { p_limite: opcoes.limite })
   if (error) throw error
@@ -218,12 +245,17 @@ async function aplicarFreio(admin: SupabaseClient, campanhas: string[], r: Resum
       const motivo = n ? decidirFreio(n) : null
       if (!motivo) continue
       const { data: pausou } = await admin.from('campanhas').update({ status: 'pausada', pausada_em: new Date().toISOString(), pausa_motivo: motivo, atualizado_em: new Date().toISOString() })
-        .eq('id', id).in('status', ['agendada', 'enviando']).select('restaurante_id, nome').maybeSingle()
+        .eq('id', id).in('status', ['agendada', 'enviando']).select('restaurante_id, nome, recorrente_id').maybeSingle()
       if (!pausou) continue
       r.campanhasPausadas++
+      // Rodada de card recorrente (0245): desliga o card, senão amanhã nasce outra rodada com o mesmo problema.
+      const recorrenteId = (pausou as { recorrente_id?: string | null }).recorrente_id ?? null
+      if (recorrenteId) {
+        await admin.from('campanha_recorrentes').update({ ativa: false, desligado_motivo: motivo, atualizado_em: new Date().toISOString() }).eq('id', recorrenteId)
+      }
       await criarAlerta(admin, {
         restauranteId: pausou.restaurante_id as string, tipo: 'campanha_pausada', gravidade: 'grave',
-        mensagem: `Campanha "${String(pausou.nome).slice(0, 60)}" pausada pelo freio: ${motivo === 'erro_alto' ? 'muitas mensagens com erro' : 'muitos clientes pedindo para sair'}. Revise o público em Campanhas antes de retomar.`,
+        mensagem: `Campanha "${String(pausou.nome).slice(0, 60)}" pausada pelo freio: ${motivo === 'erro_alto' ? 'muitas mensagens com erro' : 'muitos clientes pedindo para sair'}. Revise o público em Campanhas antes de retomar.${recorrenteId ? ' O card recorrente foi desligado.' : ''}`,
         dados: { campanha: id, ...n }, dedupeMin: 24 * 60, dedupeChave: `freio:${id}`,
       }).catch(() => null)
     } catch { /* freio nunca derruba o envio */ }

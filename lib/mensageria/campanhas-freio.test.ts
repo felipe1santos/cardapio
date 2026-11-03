@@ -9,13 +9,13 @@ import { processarCampanhas } from './campanhas-envio'
 import type { ProvedorWhatsapp } from './provedor'
 
 /** Supabase falso: guarda os updates em `campanhas` e responde às RPCs da fila. */
-function cenario(o: { conexao: 'aberto' | 'fechado'; freio?: { enviados: number; erros: number; sair: number }; ativas?: { id: string; status: string; pausa_motivo?: string | null }[] }) {
+function cenario(o: { conexao: 'aberto' | 'fechado'; freio?: { enviados: number; erros: number; sair: number }; ativas?: { id: string; status: string; pausa_motivo?: string | null }[]; recorrenteId?: string }) {
   const updates: { tabela: string; dados: Record<string, unknown> }[] = []
   const envio = { id: 'e1', campanha_id: 'c1', restaurante_id: 'L', telefone: '27999990001', nome_cliente: 'Ana', token: null, tipo_mensagem: 'texto', mensagem: 'Oi {nome}', imagem_url: null, audio_url: null, incluir_link: false, evolution_instance: 'inst', slug: 'menuzia', incluir_descadastro: true, ultimo_item: null, nome_loja: 'Menuzia' }
   const chain = (tabela: string, dados?: Record<string, unknown>) => {
     const b: Record<string, unknown> = {}
     for (const m of ['select', 'in', 'lte', 'eq', 'neq', 'not', 'order', 'limit']) b[m] = () => b
-    b.maybeSingle = async () => ({ data: dados ? { restaurante_id: 'L', nome: 'Campanha teste' } : null })
+    b.maybeSingle = async () => ({ data: dados ? { restaurante_id: 'L', nome: 'Campanha teste', recorrente_id: o.recorrenteId ?? null } : null })
     b.then = (ok: (v: unknown) => unknown) => Promise.resolve({ data: tabela === 'campanhas' && !dados ? (o.ativas ?? []).map((c) => ({ ...c, restaurante_id: 'L', restaurantes: { evolution_instance: 'inst' } })) : [], error: null }).then(ok)
     return b
   }
@@ -60,6 +60,19 @@ describe('freio automático das campanhas', () => {
     const s = cenario({ conexao: 'aberto', freio: { enviados: 40, erros: 0, sair: 2 } })
     await processarCampanhas(s.admin, s.provedor, { limite: 5, intervalo: () => 0 })
     expect(s.updates.some((u) => u.dados.pausa_motivo === 'sair_alto')).toBe(true)
+  })
+  it('freio numa rodada de card recorrente DESLIGA o card (0245) e o alerta avisa', async () => {
+    alertas.length = 0
+    const s = cenario({ conexao: 'aberto', freio: { enviados: 30, erros: 3, sair: 0 }, recorrenteId: 'rc1' })
+    await processarCampanhas(s.admin, s.provedor, { limite: 5, intervalo: () => 0 })
+    const card = s.updates.find((u) => u.tabela === 'campanha_recorrentes')
+    expect(card?.dados).toMatchObject({ ativa: false, desligado_motivo: 'erro_alto' })
+    expect(alertas[0]?.mensagem).toContain('card recorrente foi desligado')
+  })
+  it('freio numa campanha comum não mexe em card nenhum', async () => {
+    const s = cenario({ conexao: 'aberto', freio: { enviados: 30, erros: 3, sair: 0 } })
+    await processarCampanhas(s.admin, s.provedor, { limite: 5, intervalo: () => 0 })
+    expect(s.updates.some((u) => u.tabela === 'campanha_recorrentes')).toBe(false)
   })
   it('pausa manual ou do freio NÃO volta sozinha quando a conexão está boa', async () => {
     const s = cenario({ conexao: 'aberto', ativas: [{ id: 'c9', status: 'pausada', pausa_motivo: 'manual' }] })

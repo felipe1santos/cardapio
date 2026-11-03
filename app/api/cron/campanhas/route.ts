@@ -9,7 +9,9 @@ import { baterCron, umaPorVez } from '@/lib/saude/cron'
 // com header "x-cron-secret: <CRON_SECRET>".
 //
 // Cada invocação processa até BATCH_SIZE mensagens com intervalos aleatórios entre elas.
-// A fila (reserva, novas tentativas, expiração em 24h) mora na 0104.
+// A fila (reserva, novas tentativas, expiração) mora na 0104/0190/0245.
+// Cards recorrentes (0245): dentro de processarCampanhas, no máximo a cada 10 min, a RPC
+// campanha_recorrentes_gerar_rodadas transforma cards vencidos em campanhas comuns. Sem cron novo (B2).
 
 const BATCH_SIZE = 5
 const DELAY_MIN_MS = 4_000
