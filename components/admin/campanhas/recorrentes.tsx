@@ -14,6 +14,12 @@ import { Ajuda, TextoComVariaveis, formatarDataHora } from './comum'
  * Visual nas cores mestre entra na Tarefa 12 do plano; aqui é a estrutura.
  */
 
+/** Ilustrações dos cards (03/11, enviadas pelo dono). Nunca compraram ainda não tem a sua. */
+const ILUSTRACAO_CARD: Partial<Record<TipoRecorrente, string>> = {
+  recuperacao: '/ilustracoes/campanhas/recuperacao.jpg',
+  promocoes: '/ilustracoes/campanhas/promocoes.jpg',
+}
+
 const DIAS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S']
 const DIAS_NOME = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado']
 /** Teto padrão da plataforma (0190) — a tela não lê o teto da loja; serve para "cabem ~N". */
@@ -113,14 +119,24 @@ function CardRecorrente({ card, estimativa, onPatch, onGaleria }: {
 
   return (
     <section className="campanha-cartao flex flex-col overflow-hidden rounded-[8px] border border-[#e5e7eb] bg-white" data-testid={`card-${card.tipo}`} data-ativa={card.ativa ? '1' : '0'} data-destaque={card.ativa ? '' : undefined}>
-      {/* Imagem de bordo: o dono manda depois; até lá, faixa azul profundo com o nome e o estado. */}
-      <div className="relative flex aspect-[16/7] items-end bg-[#112f6b] px-4 pb-3" data-bordo>
-        <div className="min-w-0">
-          <h3 className="text-[18px] font-semibold text-white">{rotulo.nome}</h3>
-          <span className={`mt-1 inline-block rounded-[4px] px-2 py-[2px] text-[11px] font-semibold uppercase tracking-[0.04em] ${card.ativa ? 'bg-[#f6bd28] text-[#1f2937]' : 'bg-white/15 text-white'}`}>
-            {card.ativa ? 'Ligado' : 'Desligado'}
-          </span>
+      {/* Ilustração do card (pasta public/ilustracoes/campanhas). Sem ilustração: faixa azul com o nome e o estado. */}
+      {ILUSTRACAO_CARD[card.tipo] ? (
+        <div className="flex aspect-[16/9] items-center justify-center overflow-hidden bg-[#eef3fb]" data-bordo="ilustracao">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={ILUSTRACAO_CARD[card.tipo]} alt="" width={640} height={360} loading="lazy" className="h-full w-full object-cover" />
         </div>
+      ) : (
+        <div className="relative flex aspect-[16/7] items-end bg-[#112f6b] px-4 pb-3" data-bordo>
+          <div className="min-w-0">
+            <h3 className="text-[18px] font-semibold text-white">{rotulo.nome}</h3>
+          </div>
+        </div>
+      )}
+      <div className="flex items-center gap-2 px-4 pt-3">
+        {ILUSTRACAO_CARD[card.tipo] && <h3 className="text-[17px] font-semibold text-[#112f6b]">{rotulo.nome}</h3>}
+        <span className={`inline-block rounded-[4px] px-2 py-[2px] text-[11px] font-semibold uppercase tracking-[0.04em] ${card.ativa ? 'bg-[#f6bd28] text-[#1f2937]' : 'bg-[#eef0f3] text-[#374151]'}`}>
+          {card.ativa ? 'Ligado' : 'Desligado'}
+        </span>
       </div>
       <div className="flex flex-1 flex-col gap-3 p-4">
         <p className="text-[12.5px] text-[#5b6472]">{rotulo.publico}</p>
