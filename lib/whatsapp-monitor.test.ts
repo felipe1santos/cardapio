@@ -31,6 +31,18 @@ describe('monitor do WhatsApp: decisão', () => {
     // O close do logout pode chegar minutos depois do clique.
     expect(decidirMonitor({ ...base, manualEm: iso(20), motivo: 401 })).toMatchObject({ estado: 'close', avisarSuperadmin: false })
   })
+  // 03/11/2026 (Ferraz Burguer): sessão oscilando — cai, reconecta, cai… — gerava 1 aviso por minuto, porque cada queda
+  // nova virava incidente novo. Aviso ao Super Admin: no máximo 1 por loja a cada 6 h, mesmo que ela reconecte no meio.
+  it('loja que já foi avisada há menos de 6 h (oscilando): desconecta de novo SEM novo aviso', () => {
+    expect(decidirMonitor({ ...base, motivo: 440, alertadoEm: iso(50) })).toMatchObject({ estado: 'close', avisarSuperadmin: false })
+    expect(decidirMonitor({ ...base, anterior: 'connecting', novo: 'connecting', caiuEm: iso(6), tentativas: MAX_TENTATIVAS, alertadoEm: iso(5 * 60) })).toMatchObject({ estado: 'close', avisarSuperadmin: false })
+  })
+  it('loja instável (avisada há < 6 h) que cai por rede: NEM tenta reconectar — fecha na hora, até o dono ler o QR', () => {
+    expect(decidirMonitor({ ...base, novo: 'close', motivo: 503, alertadoEm: iso(30) })).toMatchObject({ estado: 'close', reconectar: false, avisarSuperadmin: false, mudou: true })
+  })
+  it('aviso antigo (mais de 6 h): queda nova avisa de novo', () => {
+    expect(decidirMonitor({ ...base, motivo: 440, alertadoEm: iso(7 * 60) })).toMatchObject({ estado: 'close', avisarSuperadmin: true })
+  })
   it('loja que já estava desconectada: nada muda (sem reconectar, sem aviso de novo)', () => {
     expect(decidirMonitor({ ...base, anterior: 'close', novo: 'close', caiuEm: iso(9000) })).toMatchObject({ estado: 'close', reconectar: false, avisarSuperadmin: false, mudou: false })
     expect(decidirMonitor({ ...base, anterior: 'close', novo: 'connecting', caiuEm: iso(9000) })).toMatchObject({ estado: 'close', reconectar: false, avisarSuperadmin: false, mudou: false })

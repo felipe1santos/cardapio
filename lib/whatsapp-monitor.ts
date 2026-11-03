@@ -21,6 +21,8 @@ import { registrarAuditoria } from '@/lib/auditoria'
  */
 export const THROTTLE_MS = 2 * 60_000
 export const MAX_TENTATIVAS = 3
+/** 03/11/2026 (Ferraz): sessão oscilando (cai → reconecta → cai) avisava a cada minuto. 1 aviso por loja a cada 6 h. */
+export const ALERTA_REPETIDO_MS = 6 * 3600_000
 const MANUAL_MS = 30 * 60_000
 const JANELA_REENVIO_MS = 2 * 3600_000
 
@@ -37,14 +39,16 @@ export function deveVigiar(estado: string | null): boolean {
 export interface Decisao { estado: string; caiuEm: string | null; reconectar: boolean; avisarSuperadmin: boolean; voltou: boolean; mudou: boolean }
 
 /** Decide o que fazer com o estado lido. Pura (testada). */
-export function decidirMonitor(p: { anterior: string | null; novo: EstadoConexao | null; caiuEm: string | null; manualEm: string | null; motivo?: number | string | null; tentativas: number; agora: number }): Decisao {
+export function decidirMonitor(p: { anterior: string | null; novo: EstadoConexao | null; caiuEm: string | null; manualEm: string | null; motivo?: number | string | null; tentativas: number; agora: number; alertadoEm?: string | null }): Decisao {
   const nada = { reconectar: false, avisarSuperadmin: false, voltou: false }
   if (p.novo === null) return { ...nada, estado: p.anterior ?? 'close', caiuEm: p.caiuEm, mudou: false }
   if (p.novo === 'open') return { ...nada, estado: 'open', caiuEm: null, voltou: p.anterior !== null && p.anterior !== 'open', mudou: p.anterior !== 'open' }
   // Já desconectada: fica assim até o dono ler o QR.
   if (p.anterior === 'close') return { ...nada, estado: 'close', caiuEm: p.caiuEm, mudou: false }
   const caiuEm = p.caiuEm ?? new Date(p.agora).toISOString()
-  const fechar = (avisar: boolean): Decisao => ({ ...nada, estado: 'close', caiuEm, avisarSuperadmin: avisar, mudou: true })
+  // Sessão oscilando: já avisou nas últimas 6 h → desconecta de novo em silêncio.
+  const avisouHaPouco = !!p.alertadoEm && p.agora - Date.parse(p.alertadoEm) < ALERTA_REPETIDO_MS
+  const fechar = (avisar: boolean): Decisao => ({ ...nada, estado: 'close', caiuEm, avisarSuperadmin: avisar && !avisouHaPouco, mudou: true })
   // Desconectou pelo painel (o close do logout pode chegar minutos depois do clique): silêncio.
   if (p.manualEm && Date.parse(caiuEm) >= Date.parse(p.manualEm) && Date.parse(caiuEm) - Date.parse(p.manualEm) < MANUAL_MS) return fechar(false)
   // Nunca vista conectada: não estava em uso.
@@ -52,6 +56,8 @@ export function decidirMonitor(p: { anterior: string | null; novo: EstadoConexao
   const motivo = Number(p.motivo)
   if (motivo === 401 || motivo === 440) return fechar(true)
   if (p.tentativas >= MAX_TENTATIVAS) return fechar(true)
+  // Instável (caiu de novo depois de já ter sido avisada há pouco): não fica reconectando a cada minuto — fecha e espera o QR.
+  if (avisouHaPouco) return fechar(false)
   return { ...nada, estado: 'connecting', caiuEm, reconectar: true, mudou: p.anterior !== 'connecting' || p.caiuEm === null }
 }
 
@@ -110,7 +116,7 @@ export async function monitorarLoja(admin: SupabaseClient, loja: Loja, opcoes: {
   if (!evolutionConfigurado()) return 'indisponivel'
   conferida.set(loja.id, agora)
   const novo = await estadoConexao(loja.evolution_instance)
-  let d = decidirMonitor({ anterior: loja.whatsapp_estado, novo, caiuEm: loja.whatsapp_caiu_em, manualEm: loja.whatsapp_desconexao_manual_em, motivo: opcoes.motivo, tentativas: tentativas.get(loja.id) ?? 0, agora })
+  let d = decidirMonitor({ anterior: loja.whatsapp_estado, novo, caiuEm: loja.whatsapp_caiu_em, manualEm: loja.whatsapp_desconexao_manual_em, motivo: opcoes.motivo, tentativas: tentativas.get(loja.id) ?? 0, agora, alertadoEm: loja.whatsapp_alertado_em })
   let reconectou = false
   if (d.reconectar) {
     tentativas.set(loja.id, (tentativas.get(loja.id) ?? 0) + 1)
@@ -122,7 +128,8 @@ export async function monitorarLoja(admin: SupabaseClient, loja: Loja, opcoes: {
   if (d.estado !== 'connecting') tentativas.delete(loja.id)
   if (!d.mudou && !reconectou) return d.estado === 'open' ? 'open' : d.estado === 'close' ? 'parado' : 'caiu'
 
-  const patch = { whatsapp_estado: d.estado, whatsapp_estado_em: new Date(agora).toISOString(), whatsapp_caiu_em: d.caiuEm, ...(d.estado === 'open' ? { whatsapp_alertado_em: null } : {}) }
+  // whatsapp_alertado_em NÃO zera ao reconectar (03/11): é o freio de 6 h contra a sessão que oscila.
+  const patch = { whatsapp_estado: d.estado, whatsapp_estado_em: new Date(agora).toISOString(), whatsapp_caiu_em: d.caiuEm, ...(d.avisarSuperadmin ? { whatsapp_alertado_em: new Date(agora).toISOString() } : {}) }
   if (d.estado === 'open' && d.voltou && loja.whatsapp_caiu_em) {
     // Só quem "pega" a volta reenvia os avisos (revisão 26/10): evento + cron ao mesmo tempo mandavam em dobro.
     const { data: pegou } = await admin.from('restaurantes').update(patch).eq('id', loja.id).eq('whatsapp_caiu_em', loja.whatsapp_caiu_em).select('id').maybeSingle()
@@ -182,7 +189,7 @@ export async function marcarConectadaPeloPainel(admin: SupabaseClient, restauran
   const loja = data as Loja | null
   if (!loja || loja.whatsapp_estado === 'open') return
   tentativas.delete(loja.id)
-  const patch = { whatsapp_estado: 'open', whatsapp_estado_em: new Date().toISOString(), whatsapp_caiu_em: null, whatsapp_alertado_em: null }
+  const patch = { whatsapp_estado: 'open', whatsapp_estado_em: new Date().toISOString(), whatsapp_caiu_em: null }
   if (!loja.whatsapp_caiu_em) { await admin.from('restaurantes').update(patch).eq('id', loja.id); return }
   const { data: pegou } = await admin.from('restaurantes').update(patch).eq('id', loja.id).eq('whatsapp_caiu_em', loja.whatsapp_caiu_em).select('id').maybeSingle()
   if (pegou) await reenviarAvisosFalhados(admin, loja, loja.whatsapp_caiu_em).catch(() => 0)
@@ -191,5 +198,5 @@ export async function marcarConectadaPeloPainel(admin: SupabaseClient, restauran
 /** Desconexão pelo painel: desconectada em silêncio (sem aviso, sem reconexão). */
 export async function marcarDesconexaoManual(admin: SupabaseClient, restauranteId: string): Promise<void> {
   tentativas.delete(restauranteId)
-  await admin.from('restaurantes').update({ whatsapp_desconexao_manual_em: new Date().toISOString(), whatsapp_estado: 'close', whatsapp_estado_em: new Date().toISOString(), whatsapp_caiu_em: null, whatsapp_alertado_em: null }).eq('id', restauranteId)
+  await admin.from('restaurantes').update({ whatsapp_desconexao_manual_em: new Date().toISOString(), whatsapp_estado: 'close', whatsapp_estado_em: new Date().toISOString(), whatsapp_caiu_em: null }).eq('id', restauranteId)
 }
