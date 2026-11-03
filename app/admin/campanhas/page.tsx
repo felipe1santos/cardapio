@@ -13,7 +13,7 @@ import { CampanhasMetricas } from '@/components/admin/campanhas-metricas'
 import { SubmenuVertical, type ItemSubmenu } from '@/components/admin/submenu-vertical'
 import { PilhaToasts, useToasts } from '@/components/admin/toasts'
 import { VisaoGeral } from '@/components/admin/campanhas/visao-geral'
-import { Agendamentos, ListaCampanhas, type AcoesCampanha } from '@/components/admin/campanhas/listas'
+import { Agendamentos, type AcoesCampanha } from '@/components/admin/campanhas/listas'
 import { Modelos, useModelos, type ModeloMensagem } from '@/components/admin/campanhas/modelos'
 import { PushNotificacoes } from '@/components/admin/push-notificacoes'
 import { useEstadoSessao } from '@/lib/sessao-cliente'
@@ -27,16 +27,19 @@ import { AVISO_DISPAROS } from '@/lib/mensageria/disparo-regras'
 // e "Notificações do app" (push do app do cardápio para os CLIENTES) moram aqui, sob o mesmo cadeado (Disparos). Sem a
 // chave, como antes: elas ficam em Ajustes e ?aba=modelos|notificacoes leva para lá. As mensagens automáticas de STATUS
 // do pedido ficam sempre em Ajustes (livres).
-type Aba = 'visao' | 'campanhas' | 'agendamentos' | 'modelos' | 'notificacoes'
+// 03/11/2026: "Campanhas" = os 3 cards recorrentes; "Modelos de mensagem" mora dentro de Agendamentos (é lá que o
+// disparo pontual nasce). ?aba=modelos continua funcionando e cai em Agendamentos.
+type Aba = 'visao' | 'campanhas' | 'agendamentos' | 'notificacoes'
 const ABAS: ItemSubmenu<Aba>[] = [
   { id: 'visao', label: 'Visão geral', icone: 'dashboard' },
   { id: 'campanhas', label: 'Campanhas', icone: 'campaign' },
   { id: 'agendamentos', label: 'Agendamentos', icone: 'schedule' },
-  { id: 'modelos', label: 'Modelos de mensagem', icone: 'description' },
   { id: 'notificacoes', label: 'Notificações do app', icone: 'notifications' },
 ]
 /** Abas antigas que moram em Ajustes. */
 const MOVIDAS: Record<string, string> = { automaticas: 'mensagens' }
+/** Abas antigas desta página que viraram parte de outra. */
+const ABSORVIDAS: Record<string, Aba> = { modelos: 'agendamentos' }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -339,6 +342,7 @@ export default function CampanhasPage() {
     if (!sessaoPronta) return
     const q = new URLSearchParams(window.location.search).get('aba')
     if (q && MOVIDAS[q]) { router.replace(`/admin/ajustes?aba=${MOVIDAS[q]}`); return }
+    if (q && ABSORVIDAS[q]) { setAba(ABSORVIDAS[q]); router.replace(`/admin/campanhas?aba=${ABSORVIDAS[q]}`); return }
     if (q && ABAS.some((a) => a.id === q)) setAba(q as Aba)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessaoPronta])
@@ -573,9 +577,19 @@ export default function CampanhasPage() {
           )}
           {/* Campanhas (03/11): os 3 cards recorrentes. A lista com ações vai para Agendamentos. */}
           {aba === 'campanhas' && <Recorrentes restauranteId={restauranteId} onToast={toasts.mostrar} />}
-          {aba === 'agendamentos' && <Agendamentos campanhas={campanhas} carregando={loading} acoes={acoes} onNovo={abrirNovo} />}
-          {/* "Usar" abre o disparo com o modelo, aqui mesmo. */}
-          {aba === 'modelos' && <Modelos api={modelos} onUsar={usarModelo} onUsarPush={(m) => { router.replace(`/admin/campanhas?aba=notificacoes&modelo=${encodeURIComponent(m.id)}`); setAba('notificacoes') }} onToast={toasts.mostrar} />}
+          {aba === 'agendamentos' && (
+            <div className="space-y-6">
+              {/* Modelos moram aqui (03/11): "No WhatsApp" abre o disparo com o modelo, aqui mesmo. */}
+              <section data-testid="agendamentos-modelos">
+                <h2 className="mb-2 text-[15px] font-semibold text-[#1f2937]">Modelos de mensagem</h2>
+                <Modelos api={modelos} onUsar={usarModelo} onUsarPush={(m) => { router.replace(`/admin/campanhas?aba=notificacoes&modelo=${encodeURIComponent(m.id)}`); setAba('notificacoes') }} onToast={toasts.mostrar} />
+              </section>
+              <section>
+                <h2 className="mb-2 text-[15px] font-semibold text-[#1f2937]">Agendamentos</h2>
+                <Agendamentos campanhas={campanhas} carregando={loading} acoes={acoes} onNovo={abrirNovo} />
+              </section>
+            </div>
+          )}
           {aba === 'notificacoes' && <PushNotificacoes />}
         </div>
       </div>

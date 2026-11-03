@@ -57,7 +57,7 @@ export function Modelos({ api, onUsar, onUsarPush, onToast }: { api: ReturnType<
   return (
     <div className="space-y-3" data-testid="modelos">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[12.5px] text-[#5b6472]">Textos prontos para o disparo de WhatsApp e para as notificações do app.</p>
+        <p className="text-[12.5px] text-[#5b6472]">Textos prontos para usar ao criar um agendamento de WhatsApp ou uma notificação do app.</p>
         <button type="button" onClick={() => setEditor({ nome: '', mensagem: '', imagem_url: null })} className="inline-flex h-10 items-center gap-1.5 rounded-[5px] bg-[#0688d4] px-4 text-[13px] font-semibold text-white hover:bg-[#0570ae]" data-testid="novo-modelo">
           <Plus className="h-4 w-4" /> Novo modelo
         </button>
