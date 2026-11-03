@@ -30,15 +30,15 @@ describe('efeitoDoEvento / cobrancaPaga', () => {
     expect(efeitoDoEvento('PAYMENT_CONFIRMED')).toBe('pago')
     expect(efeitoDoEvento('PAYMENT_RECEIVED')).toBe('pago')
     expect(efeitoDoEvento('PAYMENT_OVERDUE')).toBe('atrasado')
-    expect(efeitoDoEvento('PAYMENT_DELETED')).toBe('cancelado')
-    expect(efeitoDoEvento('PAYMENT_REFUNDED')).toBe('cancelado')
+    expect(efeitoDoEvento('PAYMENT_DELETED')).toBe('cobranca_apagada')
+    expect(efeitoDoEvento('PAYMENT_REFUNDED')).toBe('estornado')
     expect(efeitoDoEvento('PAYMENT_CREATED')).toBe('ignorar')
     expect(cobrancaPaga('RECEIVED_IN_CASH')).toBe(true)
     expect(cobrancaPaga('PENDING')).toBe(false)
   })
 })
 
-function cenario(opcoes: { restauranteId?: string | null; acessoExpiraEm?: string | null; statusCobranca?: string; assinaturaDaCobranca?: string | null } = {}) {
+function cenario(opcoes: { restauranteId?: string | null; acessoExpiraEm?: string | null; statusCobranca?: string; assinaturaDaCobranca?: string | null; statusAssinatura?: string } = {}) {
   const eventos = new Set<string>()
   const assinatura: AssinaturaRegistro = { id: 'ass_1', usuarioId: 'u1', restauranteId: opcoes.restauranteId ?? null, plano: 'completo', status: 'aguardando' }
   const usuario: UsuarioRegistro = { id: 'u1', email: 'dono@x.com', nome: 'Dono', usuario: 'dono', nomeLoja: 'Burger do Dono', restauranteId: opcoes.restauranteId ?? null, acessoExpiraEm: opcoes.acessoExpiraEm ?? null }
@@ -49,13 +49,15 @@ function cenario(opcoes: { restauranteId?: string | null; acessoExpiraEm?: strin
     buscarAssinatura: vi.fn(async (id) => (id === 'sub_1' ? assinatura : null)),
     buscarUsuario: vi.fn(async () => usuario),
     criarLoja: vi.fn(async () => ({ restauranteId: 'r1', slug: 'burger-do-dono' })),
-    estenderValidade: vi.fn(async () => {}),
+    renovarAcesso: vi.fn(async () => {}),
+    encerrarAcesso: vi.fn(async () => {}),
     ligarModulos: vi.fn(async () => {}),
     atualizarAssinatura: vi.fn(async () => {}),
   }
   const deps = {
     repo,
     buscarCobranca: vi.fn(async (id: string) => ({ id, status: opcoes.statusCobranca ?? 'RECEIVED', vencimento: '2026-11-02', faturaUrl: 'https://fatura', assinaturaId: opcoes.assinaturaDaCobranca === undefined ? 'sub_1' : opcoes.assinaturaDaCobranca })),
+    buscarAssinaturaAsaas: vi.fn(async (id: string) => ({ id, status: opcoes.statusAssinatura ?? 'ACTIVE' })),
     avisarAcessoLiberado: vi.fn(async () => {}),
     agora: () => new Date('2026-11-02T20:00:00Z'),
   }
@@ -85,7 +87,7 @@ describe('processarEventoAsaas', () => {
   it('renovação: só estende a validade (nunca encurta) e não cria loja nem manda e-mail', async () => {
     const { repo, deps } = cenario({ restauranteId: 'r1', acessoExpiraEm: '2027-03-01T02:59:59.000Z' })
     expect(await processarEventoAsaas({ ...pago, id: 'evt_2' }, deps)).toBe('renovado')
-    expect(repo.estenderValidade).toHaveBeenCalledWith('u1', '2027-03-01T02:59:59.000Z')
+    expect(repo.renovarAcesso).toHaveBeenCalledWith('u1', '2027-03-01T02:59:59.000Z')
     expect(repo.criarLoja).not.toHaveBeenCalled()
     expect(deps.avisarAcessoLiberado).not.toHaveBeenCalled()
   })
@@ -109,11 +111,11 @@ describe('processarEventoAsaas', () => {
     expect(repo.marcarEvento).toHaveBeenCalledWith('evt_1', 'ativado')
   })
 
-  it('atrasada: marca status e guarda a fatura; cancelada: marca sem consultar a API', async () => {
+  it('atrasada: marca status e guarda a fatura; estorno: cancela sem reconsultar a cobrança', async () => {
     const { repo, deps } = cenario({ restauranteId: 'r1', statusCobranca: 'OVERDUE' })
     expect(await processarEventoAsaas({ ...pago, id: 'evt_3', evento: 'PAYMENT_OVERDUE' }, deps)).toBe('atrasada')
     expect(repo.atualizarAssinatura).toHaveBeenCalledWith('ass_1', expect.objectContaining({ status: 'atrasada', ultimaFaturaUrl: 'https://fatura' }))
-    expect(await processarEventoAsaas({ ...pago, id: 'evt_4', evento: 'PAYMENT_DELETED' }, deps)).toBe('cancelada')
+    expect(await processarEventoAsaas({ ...pago, id: 'evt_4', evento: 'PAYMENT_REFUNDED' }, deps)).toBe('cancelada')
     expect(deps.buscarCobranca).toHaveBeenCalledTimes(1)
   })
 
@@ -147,5 +149,44 @@ describe('falha no meio do processamento: o reenvio do Asaas reprocessa', () => 
     expect(await processarEventoAsaas(pago, deps)).toBe('repetido')
     expect(repo.desfazerEvento).not.toHaveBeenCalled()
     expect(repo.criarLoja).toHaveBeenCalledTimes(1)
+  })
+})
+
+/**
+ * Regras do dono (03/11/2026):
+ *  · estorno encerra o acesso NA HORA;
+ *  · loja "sem validade" (acesso_expira_em null) é vitalícia: pagamento não cria validade;
+ *  · loja com validade que venceu e pagou volta sozinha (autorizado + nova validade);
+ *  · cobrança avulsa apagada no Asaas (PAYMENT_DELETED) não é cancelamento: reconsulta a assinatura; só cancela se ela
+ *    estiver inativa, e mesmo assim o acesso fica até a validade (ele paga depois e volta).
+ */
+describe('regras de acesso da assinatura (03/11)', () => {
+  const evento = (tipo: string) => ({ ...pago, evento: tipo })
+  it('estorno: assinatura cancelada e acesso encerrado na hora', async () => {
+    const { repo, deps } = cenario({ restauranteId: 'r1', acessoExpiraEm: '2026-12-08T02:59:59.000Z' })
+    expect(await processarEventoAsaas(evento('PAYMENT_REFUNDED'), deps)).toBe('cancelada')
+    expect(repo.encerrarAcesso).toHaveBeenCalledWith('u1', '2026-11-02T20:00:00.000Z')
+    expect(repo.atualizarAssinatura).toHaveBeenCalledWith('ass_1', expect.objectContaining({ status: 'cancelada' }))
+  })
+  it('cobrança apagada com a assinatura ainda ativa no Asaas → ignorado, acesso intacto', async () => {
+    const { repo, deps } = cenario({ restauranteId: 'r1', statusAssinatura: 'ACTIVE' })
+    expect(await processarEventoAsaas(evento('PAYMENT_DELETED'), deps)).toBe('ignorado')
+    expect(repo.encerrarAcesso).not.toHaveBeenCalled()
+    expect(repo.atualizarAssinatura).not.toHaveBeenCalled()
+  })
+  it('cobrança apagada com a assinatura inativa no Asaas → cancelada, mas o acesso fica até a validade', async () => {
+    const { repo, deps } = cenario({ restauranteId: 'r1', statusAssinatura: 'INACTIVE' })
+    expect(await processarEventoAsaas(evento('PAYMENT_DELETED'), deps)).toBe('cancelada')
+    expect(repo.encerrarAcesso).not.toHaveBeenCalled()
+  })
+  it('renovação de loja com validade: reautoriza e grava a nova validade (pagou → volta sozinha)', async () => {
+    const { repo, deps } = cenario({ restauranteId: 'r1', acessoExpiraEm: '2026-11-01T02:59:59.000Z' })
+    expect(await processarEventoAsaas(pago, deps)).toBe('renovado')
+    expect(repo.renovarAcesso).toHaveBeenCalledWith('u1', '2026-12-08T02:59:59.000Z')
+  })
+  it('renovação de loja vitalícia (sem validade): continua sem validade', async () => {
+    const { repo, deps } = cenario({ restauranteId: 'r1', acessoExpiraEm: null })
+    expect(await processarEventoAsaas(pago, deps)).toBe('renovado')
+    expect(repo.renovarAcesso).toHaveBeenCalledWith('u1', null)
   })
 })

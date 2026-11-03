@@ -56,3 +56,21 @@ de pagar.** Mensal a partir da data da compra, **5 dias de carência**. Dois pla
 
 `lib/assinatura/*.test.ts`: regras de plano, nova validade (fuso SP, nunca encurta), parse/validação do evento,
 idempotência, token do webhook, validação do formulário (CPF/CNPJ, e-mail, usuário).
+
+## Regras de acesso (decisão do dono, 03/11/2026)
+
+- **Estorno (`PAYMENT_REFUNDED`) encerra o acesso na hora**: `acesso_expira_em = agora`, assinatura `cancelada`.
+- **Loja "sem validade" é vitalícia**: `acesso_expira_em = null` nunca ganha validade, mesmo pagando pelo Asaas. No Super
+  Admin o selo é **"Vitalícia"**.
+- **Loja com validade que venceu fica disponível até a data** (vencimento + 1 mês + 5 dias de carência). Pagou depois →
+  volta sozinha: o webhook reautoriza (`autorizado = true`) e grava a nova validade. Se o webhook se perdeu, o **login de
+  quem está expirado confere no Asaas** (`lib/assinatura/reconciliar.ts`, 1 chamada pela guarda) e aplica a mesma renovação.
+- **Cobrança apagada no Asaas (`PAYMENT_DELETED`) não é cancelamento**: o sistema reconsulta a assinatura lá; só marca
+  `cancelada` se ela estiver inativa, e mesmo assim o acesso fica até a validade.
+- **Aviso no painel** (`components/admin/aviso-assinatura.tsx`, `/api/admin/assinatura/aviso`, 1 leitura ao abrir e a cada
+  30 min): "Sua assinatura precisa ser regularizada: pagamento pendente. O acesso continua até dd/mm" + **Pagar agora**, quando
+  a mensalidade venceu (ou o Asaas marcou atrasada) e a loja está na carência.
+- **Webhook com falha no meio** (03/11): o id do evento é desfeito e o reenvio do Asaas reprocessa; erro gera alerta ao
+  Super Admin; cadastro desfeito e lojista excluído cancelam a assinatura no Asaas.
+- **Exclusão definitiva** (Super Admin › Excluir dados, 0244): `plataforma_excluir_loja(uuid)` apaga tudo da loja (inclusive
+  financeiro e auditoria, como postgres) e as contas de autenticação; irreversível e só com acesso já revogado/expirado.

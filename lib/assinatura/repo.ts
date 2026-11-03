@@ -45,8 +45,12 @@ export function repoSupabase(admin: SupabaseClient): Repositorio {
       }
       return { restauranteId: r.id as string, slug }
     },
-    async estenderValidade(usuarioId, acessoExpiraEm) {
-      const { error } = await admin.from('usuarios').update({ acesso_expira_em: acessoExpiraEm }).eq('id', usuarioId)
+    async renovarAcesso(usuarioId, acessoExpiraEm) {
+      const { error } = await admin.from('usuarios').update({ autorizado: true, acesso_expira_em: acessoExpiraEm }).eq('id', usuarioId)
+      if (error) throw error
+    },
+    async encerrarAcesso(usuarioId, quandoIso) {
+      const { error } = await admin.from('usuarios').update({ acesso_expira_em: quandoIso }).eq('id', usuarioId)
       if (error) throw error
     },
     async ligarModulos(restauranteId, modulos) {
@@ -69,13 +73,13 @@ export function repoSupabase(admin: SupabaseClient): Repositorio {
   }
 }
 
-export interface ResumoAssinatura { plano: Plano; status: 'aguardando' | 'em_dia' | 'atrasada' | 'cancelada'; faturaUrl: string | null; proximoVencimento: string | null }
+export interface ResumoAssinatura { id: string; asaasAssinaturaId: string; ultimaCobrancaId: string | null; plano: Plano; status: 'aguardando' | 'em_dia' | 'atrasada' | 'cancelada'; faturaUrl: string | null; proximoVencimento: string | null }
 
-/** Assinatura do usuário (dono), para a tela de login mostrar "Pagar agora" e o Super Admin mostrar a situação. */
+/** Assinatura do usuário (dono), para a tela de login mostrar "Pagar agora", a conferência no login e o Super Admin. */
 export async function buscarAssinaturaDoUsuario(admin: SupabaseClient, usuarioId: string): Promise<ResumoAssinatura | null> {
-  const { data } = await admin.from('assinaturas').select('plano, status, ultima_fatura_url, proximo_vencimento').eq('usuario_id', usuarioId).maybeSingle()
+  const { data } = await admin.from('assinaturas').select('id, asaas_assinatura_id, ultima_cobranca_id, plano, status, ultima_fatura_url, proximo_vencimento').eq('usuario_id', usuarioId).maybeSingle()
   if (!data) return null
-  return { plano: data.plano as Plano, status: data.status as ResumoAssinatura['status'], faturaUrl: data.ultima_fatura_url, proximoVencimento: data.proximo_vencimento }
+  return { id: data.id, asaasAssinaturaId: data.asaas_assinatura_id, ultimaCobrancaId: data.ultima_cobranca_id, plano: data.plano as Plano, status: data.status as ResumoAssinatura['status'], faturaUrl: data.ultima_fatura_url, proximoVencimento: data.proximo_vencimento }
 }
 
 /** Só links de fatura do próprio Asaas entram num botão "Pagar agora". */

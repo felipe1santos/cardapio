@@ -66,7 +66,7 @@ function valorOrdem(l: LojaPlataforma, c: Coluna): number | string {
 /** Selo de status: fundo sólido vivo, texto branco (contraste ≥ 4,5:1). */
 export function SeloSituacao({ l }: { l: Pick<LojaPlataforma, 'situacao' | 'acessoExpiraEm'> }) {
   const [texto, cor, fundo] =
-    l.situacao === 'ativo' ? ['Ativo', '#008361', '#DEF4F0']
+    l.situacao === 'ativo' ? ['Vitalícia', '#008361', '#DEF4F0']
       : l.situacao === 'ativo_temporario' ? [`Ativo até ${dataCurta(l.acessoExpiraEm)}`, '#673DE6', '#EBE4FF']
         : l.situacao === 'pendente' ? ['Aguardando 1º acesso', '#8A6100', '#FFF8E2']
           : l.situacao === 'expirado' ? [`Expirou em ${dataCurta(l.acessoExpiraEm)}`, '#D63163', '#FFE8EF']

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
-import { buscarCobrancaAsaas } from '@/lib/custo/asaas'
+import { buscarAssinaturaAsaas, buscarCobrancaAsaas } from '@/lib/custo/asaas'
 import { avisarSuporte } from '@/lib/custo/alerta-whatsapp'
 import { enviarEmail } from '@/lib/custo/resend'
 import { emailAcessoLiberado } from '@/lib/assinatura/email'
@@ -29,6 +29,7 @@ export async function POST(request: Request) {
     const resultado = await processarEventoAsaas(ev, {
       repo: repoSupabase(admin),
       buscarCobranca: (id) => buscarCobrancaAsaas(admin, id),
+      buscarAssinaturaAsaas: (id) => buscarAssinaturaAsaas(admin, id),
       avisarAcessoLiberado: async (d) => {
         const m = emailAcessoLiberado({ ...d, urlBase: urlPublica() })
         const r = await enviarEmail(admin, { para: d.email, assunto: m.assunto, html: m.html, texto: m.texto })

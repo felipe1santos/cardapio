@@ -108,6 +108,18 @@ export async function cancelarAssinaturaAsaas(admin: SupabaseClient, assinaturaI
   }
 }
 
+/** Assinatura no Asaas (ACTIVE | INACTIVE | EXPIRED): usada quando uma cobrança é apagada, para saber se é cancelamento. */
+export async function buscarAssinaturaAsaas(admin: SupabaseClient, assinaturaId: string): Promise<{ id: string; status: string }> {
+  const p = await requisicao<Record<string, unknown>>(admin, 'GET', `/subscriptions/${encodeURIComponent(assinaturaId)}`, `assinatura-status:${assinaturaId}`)
+  return { id: String(p.id ?? ''), status: String(p.status ?? '') }
+}
+
+/** Últimas cobranças da assinatura (conferência no login de loja expirada, lib/assinatura/reconciliar.ts). */
+export async function listarCobrancasAsaas(admin: SupabaseClient, assinaturaId: string, limite = 5): Promise<CobrancaAsaas[]> {
+  const r = await requisicao<{ data?: Record<string, unknown>[] }>(admin, 'GET', `/subscriptions/${encodeURIComponent(assinaturaId)}/payments?limit=${limite}`, `cobrancas:${assinaturaId}`)
+  return (r.data ?? []).map(lerCobranca)
+}
+
 /** Reconsulta da cobrança (o webhook nunca é tomado como verdade). */
 export async function buscarCobrancaAsaas(admin: SupabaseClient, cobrancaId: string): Promise<CobrancaAsaas> {
   const p = await requisicao<Record<string, unknown>>(admin, 'GET', `/payments/${encodeURIComponent(cobrancaId)}`, `cobranca:${cobrancaId}`)

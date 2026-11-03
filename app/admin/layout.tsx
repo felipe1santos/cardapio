@@ -23,6 +23,7 @@ import { AvisoNovaImpressao } from '@/components/admin/aviso-nova-impressao'
 import { AlertasImpressao } from '@/components/admin/alertas-impressao'
 import { NovaVersao } from '@/components/admin/nova-versao'
 import { AvisoSenhaPadrao } from '@/components/admin/aviso-senha-padrao'
+import { AvisoAssinatura } from '@/components/admin/aviso-assinatura'
 import { TravaSessao } from '@/components/admin/trava-sessao'
 import { JanelaSairComCaixa } from '@/components/financeiro/aviso-caixa'
 import { buscarEstadoSessao, estadoMudou, sairDoPainel, useEstadoSessao } from '@/lib/sessao-cliente'
@@ -385,6 +386,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <NovaVersao />
       {/* Senha resetada pelo Super Admin (123456): faixa amarela até trocar em Minha conta. */}
       <AvisoSenhaPadrao />
+      <AvisoAssinatura />
       {/* Som de pedido bloqueado pelo navegador: aviso grande em qualquer tela (some no 1º toque). */}
       <AvisoSomBloqueado />
       <TravaSessao />

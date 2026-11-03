@@ -377,11 +377,17 @@ export async function excluirLojistaCompleto(admin: SupabaseClient, usuarioId: s
     await cancelarAssinaturaAsaas(admin, asaasId)
   }
 
-  await admin.from('usuarios').delete().eq('id', usuarioId)
   if (usuario.restaurante_id) {
-    const { error } = await admin.from('restaurantes').delete().eq('id', usuario.restaurante_id)
-    if (error) return { ok: false, error: 'A conta foi removida, mas não foi possível excluir a loja. Tente novamente.' }
+    // 03/11 (0244): tudo da loja numa função só, como postgres (gatilhos imutáveis e FKs RESTRICT impediam antes).
+    // Contas de autenticação da equipe saem depois, uma a uma (não têm cascade com `usuarios`).
+    const { data: equipe } = await admin.from('usuarios').select('id').eq('restaurante_id', usuario.restaurante_id)
+    const { error } = await admin.rpc('plataforma_excluir_loja', { p_restaurante: usuario.restaurante_id })
+    if (error) return { ok: false, error: `Não foi possível excluir a loja: ${error.message.slice(0, 120)}` }
+    for (const u of (equipe ?? []) as { id: string }[]) await admin.auth.admin.deleteUser(u.id).catch(() => null)
+    return { ok: true }
   }
+  const { error } = await admin.from('usuarios').delete().eq('id', usuarioId)
+  if (error) return { ok: false, error: `Não foi possível excluir a conta: ${error.message.slice(0, 120)}` }
   await admin.auth.admin.deleteUser(usuarioId)
   return { ok: true }
 }

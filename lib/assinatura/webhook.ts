@@ -42,13 +42,23 @@ export function tokenConfere(recebido: string | null | undefined, esperado: stri
   return a.length === b.length && timingSafeEqual(a, b)
 }
 
-export type Efeito = 'pago' | 'atrasado' | 'cancelado' | 'ignorar'
+/**
+ * 03/11 (regras do dono): estorno encerra o acesso na hora; cobrança apagada no Asaas só vira cancelamento se a
+ * assinatura lá estiver inativa (e mesmo assim o acesso fica até a validade — ele paga depois e volta).
+ */
+export type Efeito = 'pago' | 'atrasado' | 'estornado' | 'cobranca_apagada' | 'ignorar'
 
 export function efeitoDoEvento(evento: string): Efeito {
   if (evento === 'PAYMENT_CONFIRMED' || evento === 'PAYMENT_RECEIVED') return 'pago'
   if (evento === 'PAYMENT_OVERDUE') return 'atrasado'
-  if (evento === 'PAYMENT_DELETED' || evento === 'PAYMENT_REFUNDED') return 'cancelado'
+  if (evento === 'PAYMENT_REFUNDED') return 'estornado'
+  if (evento === 'PAYMENT_DELETED') return 'cobranca_apagada'
   return 'ignorar'
+}
+
+/** Status da assinatura no Asaas que ainda cobra (reconsultado quando uma cobrança é apagada). */
+export function assinaturaAtivaNoAsaas(status: string): boolean {
+  return status === 'ACTIVE'
 }
 
 /** Status da cobrança (reconsultada) que vale como paga. RECEIVED_IN_CASH = baixa manual no painel do Asaas. */
@@ -84,8 +94,10 @@ export interface Repositorio {
   buscarUsuario(usuarioId: string): Promise<UsuarioRegistro | null>
   /** Cria a loja e amarra ao dono (papel dono, autorizado, validade). Devolve id e slug da loja. */
   criarLoja(usuarioId: string, nomeLoja: string, acessoExpiraEm: string): Promise<{ restauranteId: string; slug: string }>
-  /** Renovação: só a validade (não mexe em `autorizado`, que é decisão do Super Admin). */
-  estenderValidade(usuarioId: string, acessoExpiraEm: string): Promise<void>
+  /** Renovação paga: reautoriza e grava a validade; `null` = vitalícia (loja sem validade continua sem). */
+  renovarAcesso(usuarioId: string, acessoExpiraEm: string | null): Promise<void>
+  /** Estorno: acesso encerrado na hora (validade = agora). */
+  encerrarAcesso(usuarioId: string, quandoIso: string): Promise<void>
   ligarModulos(restauranteId: string, modulos: Record<string, boolean>): Promise<void>
   atualizarAssinatura(id: string, campos: Partial<{ restauranteId: string; status: AssinaturaRegistro['status']; ultimaCobrancaId: string; ultimaFaturaUrl: string | null; proximoVencimento: string; pagoEm: string }>): Promise<void>
 }
@@ -95,6 +107,8 @@ export interface CobrancaConsultada { id: string; status: string; vencimento: st
 export interface Dependencias {
   repo: Repositorio
   buscarCobranca(cobrancaId: string): Promise<CobrancaConsultada>
+  /** Cobrança apagada: a assinatura ainda está ativa no Asaas? */
+  buscarAssinaturaAsaas(asaasAssinaturaId: string): Promise<{ id: string; status: string }>
   /** Primeira ativação: dados para o e-mail "acesso liberado". Falha é só registrada. */
   avisarAcessoLiberado(d: { email: string; nome: string; usuario: string; nomeLoja: string; slug: string; plano: Plano }): Promise<void>
   agora?: () => Date
@@ -127,7 +141,16 @@ async function aplicarEvento(ev: EventoAsaas, deps: Dependencias): Promise<Resul
   const assinatura = await repo.buscarAssinatura(ev.cobranca.assinaturaId)
   if (!assinatura) return terminar('assinatura_desconhecida')
 
-  if (efeito === 'cancelado') {
+  if (efeito === 'estornado') {
+    // Regra do dono (03/11): estorno encerra o acesso na hora.
+    await repo.encerrarAcesso(assinatura.usuarioId, (deps.agora?.() ?? new Date()).toISOString())
+    await repo.atualizarAssinatura(assinatura.id, { status: 'cancelada', ultimaCobrancaId: ev.cobranca.id })
+    return terminar('cancelada')
+  }
+  if (efeito === 'cobranca_apagada') {
+    // O Asaas apaga cobrança pendente ao regerar boleto/trocar forma: só é cancelamento se a assinatura lá morreu.
+    const ass = await deps.buscarAssinaturaAsaas(ev.cobranca.assinaturaId)
+    if (assinaturaAtivaNoAsaas(ass.status)) return terminar('ignorado')
     await repo.atualizarAssinatura(assinatura.id, { status: 'cancelada', ultimaCobrancaId: ev.cobranca.id })
     return terminar('cancelada')
   }
@@ -161,7 +184,8 @@ async function aplicarEvento(ev: EventoAsaas, deps: Dependencias): Promise<Resul
     return terminar('ativado')
   }
 
-  await repo.estenderValidade(usuario.id, validade)
+  // Renovação (03/11): pagou → acesso volta sozinho (reautoriza). Vitalícia (sem validade) continua sem validade.
+  await repo.renovarAcesso(usuario.id, usuario.acessoExpiraEm === null ? null : validade)
   await repo.atualizarAssinatura(assinatura.id, { status: 'em_dia', ultimaCobrancaId: cobranca.id, ultimaFaturaUrl: cobranca.faturaUrl, proximoVencimento, pagoEm })
   return terminar('renovado')
 }
