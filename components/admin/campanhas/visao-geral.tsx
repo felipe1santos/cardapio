@@ -1,15 +1,17 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, ChevronRight, Clock3, DollarSign, History, Repeat, Send, ShoppingBag, Users } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { CalendarDays, ChevronLeft, ChevronRight, Clock3, DollarSign, History, Repeat, Send, ShoppingBag, Users } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { formatarReal } from '@/lib/moeda'
-import { Ajuda, IlustracaoVazio, Paginacao, SeloStatusCampanha, formatarDataHora } from './comum'
+import { Ajuda } from './comum'
 
 /**
- * Visão geral das campanhas (repaginação 2026-10). Números vêm de `campanhas_visao_geral`
- * (0129): atribuição pelo mesmo telefone até 72 h depois do envio. Leitura e clique só
- * aparecem quando existem de verdade — sem rastreio, "Indisponível", nunca um número inventado.
+ * Visão geral das campanhas (repaginação 2026-10; enxuta em 03/11/2026). Números vêm de `campanhas_visao_geral`
+ * (0129): atribuição pelo mesmo telefone até 72 h depois do envio. Leitura e clique só aparecem quando existem de
+ * verdade — sem rastreio, "Indisponível", nunca um número inventado.
+ * Uma linha com os 5 resultados, uma com as 4 taxas e UM gráfico. A lista de envios saiu: os agendamentos têm a
+ * sua aba e os cards recorrentes mostram a própria rodada. Rodadas dos cards entram aqui como qualquer envio.
  */
 
 interface Totais {
@@ -17,8 +19,7 @@ interface Totais {
   tentados: number; enviadas: number; leitura_rastreada: boolean; lidas: number; enviadas_rastreadas: number
   com_link: number; clicaram: number; minutos_para_pedir: number | null
 }
-interface Envio { id: string; nome: string; status: string; quando: string; contatos: number; enviadas: number; lidas: number; com_retorno: number; pedidos: number; convertidos: number; receita: number; imagem_url: string | null }
-interface Dados { totais: Totais; serie: { dia: string; enviadas: number; pedidos: number; receita: number }[]; envios: Envio[] }
+interface Dados { totais: Totais; serie: { dia: string; enviadas: number; pedidos: number; receita: number }[]; envios: { id: string }[] }
 
 const DIA = 86_400_000
 function inicioDoDia(d: Date) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x }
@@ -36,17 +37,12 @@ function tempoLegivel(min: number | null): string {
   return m ? `${h} h ${m} min` : `${h} h`
 }
 
-type Coluna = 'quando' | 'nome' | 'status' | 'contatos' | 'enviadas' | 'leitura' | 'conversao' | 'receita'
-
 export function VisaoGeral({ onDisparar, detalhado }: { onDisparar: () => void; detalhado: React.ReactNode }) {
   const [periodo, setPeriodo] = useState(() => ({ de: inicioDoDia(new Date(Date.now() - 29 * DIA)), ate: fimDoDia(new Date()) }))
   const [calendario, setCalendario] = useState(false)
   const [dados, setDados] = useState<Dados | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [carregando, setCarregando] = useState(true)
-  const [ordem, setOrdem] = useState<{ col: Coluna; desc: boolean }>({ col: 'quando', desc: true })
-  const [pagina, setPagina] = useState(0)
-  const [porPagina, setPorPagina] = useState(10)
   const [serie, setSerie] = useState<'receita' | 'pedidos' | 'enviadas'>('receita')
   const [verDetalhado, setVerDetalhado] = useState(false)
 
@@ -56,7 +52,6 @@ export function VisaoGeral({ onDisparar, detalhado }: { onDisparar: () => void; 
     const j = await r.json().catch(() => null)
     if (!r.ok) { setErro(j?.error ?? 'Não foi possível carregar.'); setDados(null) } else { setErro(null); setDados(j) }
     setCarregando(false)
-    setPagina(0)
   }, [periodo])
   useEffect(() => { void carregar() }, [carregar])
 
@@ -65,39 +60,13 @@ export function VisaoGeral({ onDisparar, detalhado }: { onDisparar: () => void; 
   const futuro = periodo.ate.getTime() >= fimDoDia(new Date()).getTime()
 
   const t = dados?.totais
-  const envios = useMemo(() => {
-    const lista = [...(dados?.envios ?? [])]
-    const valor = (e: Envio): number | string => {
-      switch (ordem.col) {
-        case 'quando': return e.quando
-        case 'nome': return e.nome.toLowerCase()
-        case 'status': return e.status
-        case 'contatos': return e.contatos
-        case 'enviadas': return e.enviadas
-        case 'leitura': return e.enviadas ? e.lidas / e.enviadas : 0
-        case 'conversao': return e.enviadas ? e.convertidos / e.enviadas : 0
-        case 'receita': return Number(e.receita)
-      }
-    }
-    lista.sort((a, b) => { const x = valor(a), y = valor(b); const c = x < y ? -1 : x > y ? 1 : 0; return ordem.desc ? -c : c })
-    return lista
-  }, [dados, ordem])
-  const visiveis = envios.slice(pagina * porPagina, (pagina + 1) * porPagina)
-
-  const Th = ({ col, children, alinhar = 'left' }: { col: Coluna; children: React.ReactNode; alinhar?: 'left' | 'right' }) => (
-    <th className={`px-4 py-3 ${alinhar === 'right' ? 'text-right' : ''}`}>
-      <button type="button" className={`inline-flex items-center gap-1 font-semibold hover:text-[#0688d4] ${ordem.col === col ? 'text-[#1f2937]' : ''}`} onClick={() => { setOrdem((o) => ({ col, desc: o.col === col ? !o.desc : true })); setPagina(0) }} data-testid={`ordenar-${col}`}>
-        {children}
-        {ordem.col === col && (ordem.desc ? <ArrowDown className="h-3.5 w-3.5" /> : <ArrowUp className="h-3.5 w-3.5" />)}
-      </button>
-    </th>
-  )
+  const semEnvios = !!dados && dados.envios.length === 0
 
   return (
     <div className="space-y-4" data-testid="visao-geral">
       {/* Período */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-[12.5px] text-[#5b6472]">Resultados das mensagens enviadas no período. Pedido conta para o envio quando o mesmo telefone pede em até 72 h.</p>
+        <p className="text-[12.5px] text-[#5b6472]">Resultados das mensagens enviadas no período (agendamentos e cards recorrentes). Pedido conta para o envio quando o mesmo telefone pede em até 72 h.</p>
         <div className="relative flex items-center gap-1" data-testid="filtro-periodo">
           <button type="button" className="campanha-seta border border-[#d6dae1] bg-white" onClick={() => mover(-1)} aria-label="Período anterior" data-testid="periodo-anterior"><ChevronLeft className="h-4 w-4" /></button>
           <button type="button" onClick={() => setCalendario((v) => !v)} className="inline-flex h-[34px] items-center gap-2 rounded-[5px] border border-[#d6dae1] bg-white px-3 text-[13px] font-semibold text-[#1f2937] hover:border-[#0688d4]" data-testid="periodo-rotulo">
@@ -126,91 +95,48 @@ export function VisaoGeral({ onDisparar, detalhado }: { onDisparar: () => void; 
 
       {erro && <p className="rounded-[6px] border border-[#fecaca] bg-[#fef2f2] px-4 py-3 text-[13px] text-[#b91c1c]">{erro}</p>}
 
-      {/* Cartões de métrica */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 [&>*:first-child]:col-span-2 sm:[&>*:first-child]:col-span-1" data-carregando={carregando ? 'sim' : 'nao'}>
+      {/* Linha de cima: os 5 resultados */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5" data-testid="resultados" data-carregando={carregando ? 'sim' : 'nao'}>
         <Metrica icone={DollarSign} tom="verde" rotulo="Receita gerada" ajuda="Soma dos pedidos (não cancelados) feitos pelo mesmo telefone em até 72 h depois de receber a mensagem." valor={t ? formatarReal(Number(t.receita)) : '—'} testid="m-receita" />
-        <Metrica icone={ShoppingBag} tom="laranja" rotulo="Quantidade de pedidos" ajuda="Pedidos atribuídos às mensagens (mesmo telefone, até 72 h depois)." valor={t ? String(t.pedidos) : '—'} testid="m-pedidos" />
-        <Metrica icone={Users} tom="azul" rotulo="Contatos impactados" ajuda="Telefones diferentes que receberam pelo menos uma mensagem no período." valor={t ? String(t.contatos) : '—'} testid="m-contatos" />
+        <Metrica icone={ShoppingBag} tom="laranja" rotulo="Pedidos gerados" ajuda="Pedidos atribuídos às mensagens (mesmo telefone, até 72 h depois)." valor={t ? String(t.pedidos) : '—'} testid="m-pedidos" />
+        <Metrica icone={Users} tom="azul" rotulo="Pessoas impactadas" ajuda="Telefones diferentes que receberam pelo menos uma mensagem no período." valor={t ? String(t.contatos) : '—'} testid="m-contatos" />
+        <Metrica icone={Repeat} tom="ceu" rotulo="Pedidos recorrentes" ajuda="Pedidos atribuídos de quem já tinha pedido nos 30 dias antes da mensagem." valor={t ? String(t.recorrentes) : '—'} testid="m-recorrentes" />
+        <Metrica icone={History} tom="roxo" rotulo="Clientes recuperados" ajuda="Pedidos atribuídos de quem estava há 30 dias ou mais sem pedir." valor={t ? String(t.recuperados) : '—'} testid="m-recuperados" />
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <Metrica icone={Repeat} tom="ceu" rotulo="Pedidos de clientes recorrentes" ajuda="Pedidos atribuídos de quem já tinha pedido nos 30 dias antes da mensagem." valor={t ? String(t.recorrentes) : '—'} testid="m-recorrentes" />
-        <Metrica icone={History} tom="roxo" rotulo="Pedidos de clientes recuperados" ajuda="Pedidos atribuídos de quem estava há 30 dias ou mais sem pedir." valor={t ? String(t.recuperados) : '—'} testid="m-recuperados" />
-      </div>
-      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-[6px] border border-[#e5e7eb] bg-[#e5e7eb] lg:grid-cols-4">
-        <Indicador rotulo="Envios com sucesso" ajuda="Mensagens que o WhatsApp aceitou, sobre as tentadas (enviadas + falhas)." valor={t ? `${t.enviadas} de ${t.tentados}` : '—'} extra={t && t.tentados ? pct(t.enviadas, t.tentados) : undefined} testid="m-sucesso" />
+      {/* Linha de baixo: as 4 taxas */}
+      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-[6px] border border-[#e5e7eb] bg-[#e5e7eb] lg:grid-cols-4" data-testid="taxas">
+        <Indicador rotulo="Sucesso" ajuda="Mensagens que o WhatsApp aceitou, sobre as tentadas (enviadas + falhas)." valor={t && t.tentados ? pct(t.enviadas, t.tentados) : '—'} extra={t ? `${t.enviadas} de ${t.tentados}` : undefined} testid="m-sucesso" />
         <Indicador rotulo="Taxa de leitura" ajuda="Lidas sobre enviadas. Só existe quando o WhatsApp devolve a confirmação de leitura." valor={!t ? '—' : t.leitura_rastreada ? pct(t.lidas, t.enviadas_rastreadas) : 'Indisponível'} indisponivel={!!t && !t.leitura_rastreada} testid="m-leitura" />
-        <Indicador rotulo="Taxa de cliques (CTR)" ajuda="Quem tocou no link do cardápio, sobre quem recebeu mensagem com link." valor={!t ? '—' : t.com_link > 0 ? pct(t.clicaram, t.com_link) : 'Indisponível'} indisponivel={!!t && t.com_link === 0} testid="m-cliques" />
+        <Indicador rotulo="CTR" ajuda="Quem tocou no link do cardápio, sobre quem recebeu mensagem com link." valor={!t ? '—' : t.com_link > 0 ? pct(t.clicaram, t.com_link) : 'Indisponível'} indisponivel={!!t && t.com_link === 0} testid="m-cliques" />
         <Indicador rotulo="Tempo médio para pedir" ajuda="Tempo entre a mensagem e o pedido atribuído." valor={t ? tempoLegivel(t.minutos_para_pedir) : '—'} icone={Clock3} testid="m-tempo" />
       </div>
 
-      {/* Gráficos */}
-      {dados && dados.envios.length > 0 && (
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-5">
-          <section className="campanha-cartao rounded-[6px] border border-[#e5e7eb] bg-white p-4 xl:col-span-3" data-testid="grafico-dias">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-[14px] font-semibold text-[#1f2937]">Resultado por dia</h3>
-              <div className="flex rounded-[5px] border border-[#d6dae1] p-0.5">
-                {(['receita', 'pedidos', 'enviadas'] as const).map((s) => (
-                  <button key={s} type="button" onClick={() => setSerie(s)} className={`h-7 rounded-[4px] px-2.5 text-[12px] font-semibold ${serie === s ? 'bg-[#0688d4] text-white' : 'text-[#5b6472] hover:text-[#1f2937]'}`}>
-                    {s === 'receita' ? 'Receita' : s === 'pedidos' ? 'Pedidos' : 'Envios'}
-                  </button>
-                ))}
-              </div>
+      {/* O gráfico */}
+      {dados && !semEnvios && (
+        <section className="campanha-cartao rounded-[6px] border border-[#e5e7eb] bg-white p-4" data-testid="grafico-dias">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-[14px] font-semibold text-[#1f2937]">Resultado por dia</h3>
+            <div className="flex rounded-[5px] border border-[#d6dae1] p-0.5" role="group" aria-label="O que mostrar">
+              {(['receita', 'pedidos', 'enviadas'] as const).map((s) => (
+                <button key={s} type="button" onClick={() => setSerie(s)} aria-pressed={serie === s} className={`h-7 rounded-[4px] px-2.5 text-[12px] font-semibold ${serie === s ? 'bg-[#0688d4] text-white' : 'text-[#5b6472] hover:text-[#1f2937]'}`}>
+                  {s === 'receita' ? 'Receita' : s === 'pedidos' ? 'Pedidos' : 'Envios'}
+                </button>
+              ))}
             </div>
-            <BarrasDias serie={dados.serie} campo={serie} />
-          </section>
-          <section className="campanha-cartao rounded-[6px] border border-[#e5e7eb] bg-white p-4 xl:col-span-2" data-testid="grafico-campanhas">
-            <h3 className="mb-3 text-[14px] font-semibold text-[#1f2937]">Receita por campanha</h3>
-            <BarrasCampanhas envios={dados.envios} />
-          </section>
+          </div>
+          <BarrasDias serie={dados.serie} campo={serie} />
+        </section>
+      )}
+      {semEnvios && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[6px] border border-[#e5e7eb] bg-white px-4 py-3" data-testid="vazio-envios">
+          <p className="text-[13px] text-[#374151]"><span className="font-semibold">Nenhum envio neste período.</span> <span className="text-[#5b6472]">Mude o período nas setas acima, ligue um card em Campanhas ou dispare uma mensagem.</span></p>
+          <button type="button" onClick={onDisparar} className="inline-flex h-9 items-center gap-2 rounded-[5px] bg-[#0688d4] px-3.5 text-[12.5px] font-semibold text-white hover:bg-[#0570ae]"><Send className="h-4 w-4" /> Disparar mensagem</button>
         </div>
       )}
 
-      {/* Envios */}
-      <section className="overflow-hidden rounded-[6px] border border-[#e5e7eb] bg-white">
-        {dados && dados.envios.length === 0 ? (
-          <div className="flex flex-col items-center px-6 py-12 text-center" data-testid="vazio-envios">
-            <IlustracaoVazio />
-            <p className="mt-3 text-[15px] font-semibold text-[#374151]">Nenhum envio neste período</p>
-            <p className="mt-1 text-[12.5px] text-[#5b6472]">Mude o período nas setas acima ou dispare uma mensagem para seus clientes.</p>
-            <button type="button" onClick={onDisparar} className="mt-4 inline-flex h-10 items-center gap-2 rounded-[5px] bg-[#0688d4] px-4 text-[13px] font-semibold text-white hover:bg-[#0570ae]"><Send className="h-4 w-4" /> Disparar mensagem</button>
-          </div>
-        ) : (
-          <>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[880px] text-left text-[13px]" data-testid="tabela-envios">
-                <thead className="border-b border-[#e5e7eb] bg-[#f9fafb] text-[12px] text-[#5b6472]">
-                  <tr>
-                    <Th col="quando">Data do envio</Th><Th col="nome">Título do envio</Th><Th col="status">Status</Th>
-                    <Th col="contatos" alinhar="right">Contatos</Th><Th col="enviadas" alinhar="right">Enviadas</Th><Th col="leitura" alinhar="right">Leitura</Th>
-                    <Th col="conversao" alinhar="right">Conversão</Th><Th col="receita" alinhar="right">Receita gerada</Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {carregando && !dados && <tr><td colSpan={8} className="px-4 py-8 text-center text-[#5b6472]">Carregando…</td></tr>}
-                  {visiveis.map((e) => (
-                    <tr key={e.id} className="campanha-linha border-b border-[#f0f1f3] last:border-0" data-testid="linha-envio">
-                      <td className="whitespace-nowrap px-4 py-3 text-[#374151]">{formatarDataHora(e.quando)}</td>
-                      <td className="max-w-[240px] truncate px-4 py-3 font-semibold text-[#1f2937]" title={e.nome}>{e.nome}</td>
-                      <td className="px-4 py-3"><SeloStatusCampanha status={e.status} /></td>
-                      <td className="px-4 py-3 text-right tabular-nums">{e.contatos}</td>
-                      <td className="px-4 py-3 text-right tabular-nums">{e.enviadas}</td>
-                      <td className="px-4 py-3 text-right tabular-nums">{e.com_retorno > 0 ? pct(e.lidas, e.enviadas) : <span className="text-[#9ca3af]" title="O WhatsApp não devolveu leitura para esta campanha">Indisponível</span>}</td>
-                      <td className="px-4 py-3 text-right tabular-nums">{pct(e.convertidos, e.enviadas)}</td>
-                      <td className="px-4 py-3 text-right font-semibold tabular-nums text-[#15803d]">{formatarReal(Number(e.receita))}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {envios.length > 0 && <Paginacao total={envios.length} pagina={pagina} porPagina={porPagina} onPagina={setPagina} onPorPagina={setPorPagina} />}
-          </>
-        )}
-      </section>
-
       <div>
         <button type="button" className="text-[12.5px] font-semibold text-[#0688d4] hover:underline" onClick={() => setVerDetalhado((v) => !v)} data-testid="ver-detalhado">
-          {verDetalhado ? 'Esconder o relatório detalhado' : 'Ver relatório detalhado (entregues, respostas, falhas e destinatários)'}
+          {verDetalhado ? 'Esconder o relatório detalhado' : 'Ver relatório detalhado (por campanha: entregues, respostas, falhas e destinatários)'}
         </button>
         {verDetalhado && <div className="mt-3">{detalhado}</div>}
       </div>
@@ -242,7 +168,7 @@ function Indicador({ rotulo, ajuda, valor, extra, indisponivel, testid }: { rotu
       <div className="flex items-center gap-1 text-[12.5px] text-[#5b6472]">{rotulo}<Ajuda texto={ajuda} /></div>
       <div className={`mt-0.5 text-[17px] font-semibold tabular-nums ${indisponivel ? 'text-[#9ca3af]' : 'text-[#1f2937]'}`} data-valor>
         {valor}
-        {extra && <span className="ml-1.5 text-[12px] font-semibold text-[#15803d]">{extra}</span>}
+        {extra && <span className="ml-1.5 text-[12px] font-semibold text-[#5b6472]">{extra}</span>}
       </div>
     </div>
   )
@@ -274,25 +200,5 @@ function BarrasDias({ serie, campo }: { serie: Dados['serie']; campo: 'receita' 
         )
       })}
     </svg>
-  )
-}
-
-/** Barras horizontais (estilo da referência 144019): receita das campanhas que mais venderam. */
-function BarrasCampanhas({ envios }: { envios: Envio[] }) {
-  const top = envios.filter((e) => Number(e.receita) > 0).sort((a, b) => Number(b.receita) - Number(a.receita)).slice(0, 6)
-  const max = Math.max(1, ...top.map((e) => Number(e.receita)))
-  if (top.length === 0) return <p className="py-10 text-center text-[12.5px] text-[#5b6472]">Nenhuma campanha gerou pedido no período.</p>
-  return (
-    <ul className="space-y-2.5">
-      {top.map((e) => (
-        <li key={e.id}>
-          <div className="mb-1 truncate text-[12px] text-[#374151]" title={e.nome}>{e.nome}</div>
-          <div className="flex items-center gap-2">
-            <div className="h-[18px] rounded-[4px] bg-[#2779bd] transition-[width] duration-300" style={{ width: `${Math.max(2, (Number(e.receita) / max) * 72)}%` }} />
-            <span className="whitespace-nowrap text-[12px] font-semibold tabular-nums text-[#1f2937]">{formatarReal(Number(e.receita))}</span>
-          </div>
-        </li>
-      ))}
-    </ul>
   )
 }
