@@ -59,7 +59,7 @@ update public.plataforma_config set valor = '2'::jsonb, atualizado_em = now(), a
 create or replace function public.campanha_recorrente_proximo(p_dias smallint[], p_hora time, p_a_partir timestamptz)
 returns timestamptz
 language plpgsql
-immutable
+stable
 set search_path = public
 as $$
 declare
@@ -178,3 +178,98 @@ begin
 end $$;
 revoke execute on function public.campanha_recorrente_estimativa(text) from public, anon;
 grant execute on function public.campanha_recorrente_estimativa(text) to authenticated;
+
+-- ── Rodadas (Tarefa 3): card vencido vira UMA campanha comum + fila ─────────────────────────────────────────────
+-- Chamada pelo cron de campanhas no máximo a cada 10 min. Zero cards vencidos = uma leitura do índice parcial e nada mais.
+-- Trava contra rodada dupla: a agenda (proximo_disparo_em) avança na MESMA transação, antes de criar a campanha, e a
+-- leitura é `for update skip locked` — outra chamada simultânea não encontra o card vencido.
+-- Casos cobertos pelo e2e (scripts/seguranca/e2e-campanhas-metricas.mjs, seção recorrentes):
+--   · duas chamadas seguidas → 1 rodada;  · 0 imagens → tipo texto e índice parado;  · descadastro sem 55 × conversa com 55 → fora.
+create or replace function public.campanha_recorrentes_gerar_rodadas()
+returns table (recorrente_id uuid, campanha_id uuid, destinatarios integer, motivo text)
+language plpgsql
+security definer
+set search_path = public
+as $$
+#variable_conflict use_column
+declare
+  v record;
+  v_hoje date := (now() at time zone 'America/Sao_Paulo')::date;
+  v_campanha uuid;
+  v_n integer;
+  v_n_img integer;
+  v_imagem text;
+  v_limite integer;
+  v_rotulo text;
+begin
+  for v in
+    select r.id, r.restaurante_id, r.tipo, r.mensagem, r.incluir_link, r.imagens, r.imagem_indice, r.hora, r.janela_fim, r.pular_ate,
+           l.disparo_limite_dia,
+           case r.tipo when 'recuperacao' then 0 when 'nunca_compraram' then 1 else 2 end as prioridade
+      from public.campanha_recorrentes r
+      join public.restaurantes l on l.id = r.restaurante_id
+      join public.loja_modulos m on m.restaurante_id = r.restaurante_id and m.modulo = 'disparos' and m.liberado
+     where r.ativa and r.proximo_disparo_em <= now()
+     order by r.restaurante_id, case r.tipo when 'recuperacao' then 0 when 'nunca_compraram' then 1 else 2 end
+     for update of r skip locked
+  loop
+    -- 1. Trava: a agenda avança antes de qualquer outra coisa.
+    update public.campanha_recorrentes
+       set proximo_disparo_em = public.campanha_recorrente_proximo(dias_semana, hora, now() + interval '1 minute')
+     where id = v.id;
+
+    -- 2. "Pular hoje" (defesa: a trigger já empurra a agenda para amanhã ao marcar).
+    if v.pular_ate is not null and v.pular_ate = v_hoje then
+      update public.campanha_recorrentes set ultima_rodada_motivo = 'pulado' where id = v.id;
+      recorrente_id := v.id; campanha_id := null; destinatarios := 0; motivo := 'pulado';
+      return next;
+      continue;
+    end if;
+
+    -- 3. Imagem da vez (rodízio) e quanto cabe na janela com 60–150 s por mensagem (média 105 s).
+    v_n_img := jsonb_array_length(v.imagens);
+    v_imagem := case when v_n_img > 0 then v.imagens ->> (v.imagem_indice % v_n_img) else null end;
+    v_limite := greatest(1, least(v.disparo_limite_dia, floor(extract(epoch from (v.janela_fim - v.hora)) / 105)::int));
+    v_rotulo := case v.tipo when 'recuperacao' then 'Recuperação de clientes' when 'nunca_compraram' then 'Quem nunca comprou' else 'Promoções' end;
+
+    -- 4. A rodada é uma campanha comum: entra na fila (reserva, teto, freio, pausa) e nas métricas de sempre.
+    --    agendado_em escalonado por prioridade: a reserva ordena por agendado_em (Recuperação antes de Promoções).
+    insert into public.campanhas (restaurante_id, nome, status, tipo_mensagem, mensagem, imagem_url, filtro, agendado_em,
+                                  janela_inicio, janela_fim, incluir_link, incluir_descadastro, recorrente_id)
+    values (v.restaurante_id, v_rotulo || ' · ' || to_char(v_hoje, 'DD/MM'), 'agendada',
+            case when v_imagem is not null then 'imagem' else 'texto' end, v.mensagem, v_imagem,
+            jsonb_build_object('tipo', 'recorrente'), now() + make_interval(secs => v.prioridade),
+            v.hora, v.janela_fim, v.incluir_link, true, v.id)
+    returning id into v_campanha;
+
+    -- 5. Público: quem nunca recebeu primeiro, depois quem recebeu há mais tempo; só o que cabe na janela.
+    insert into public.campanha_envios (campanha_id, restaurante_id, telefone, nome_cliente, ultimo_item)
+    select v_campanha, v.restaurante_id, p.telefone, coalesce(p.nome_cliente, ''), left(p.ultimo_item, 120)
+      from public.campanha_recorrente_publico(v.restaurante_id, v.tipo) p
+     order by p.ultimo_disparo_em nulls first, random()
+     limit v_limite;
+    get diagnostics v_n = row_count;
+
+    -- 6. Sem público: não fica campanha vazia para trás.
+    if v_n = 0 then
+      delete from public.campanhas where id = v_campanha;
+      update public.campanha_recorrentes
+         set ultima_rodada_em = now(), ultima_rodada_motivo = 'sem_publico', ultima_campanha_id = null
+       where id = v.id;
+      recorrente_id := v.id; campanha_id := null; destinatarios := 0; motivo := 'sem_publico';
+      return next;
+      continue;
+    end if;
+
+    -- 7. Rodada criada: totais e rodízio da imagem.
+    update public.campanhas set total_destinatarios = v_n, atualizado_em = now() where id = v_campanha;
+    update public.campanha_recorrentes
+       set ultima_rodada_em = now(), ultima_campanha_id = v_campanha, ultima_rodada_motivo = 'ok',
+           imagem_indice = case when v_n_img > 0 then (imagem_indice + 1) % v_n_img else imagem_indice end
+     where id = v.id;
+    recorrente_id := v.id; campanha_id := v_campanha; destinatarios := v_n; motivo := 'ok';
+    return next;
+  end loop;
+end $$;
+revoke execute on function public.campanha_recorrentes_gerar_rodadas() from public, anon, authenticated;
+grant execute on function public.campanha_recorrentes_gerar_rodadas() to service_role;

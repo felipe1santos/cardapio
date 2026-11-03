@@ -47,3 +47,32 @@ describe('0245 público dos cards', () => {
     expect(sql).toMatch(/grant execute on function public\.campanha_recorrente_estimativa\(text\) to authenticated/)
   })
 })
+
+describe('0245 geração de rodadas', () => {
+  const rod = sql.slice(sql.indexOf('function public.campanha_recorrentes_gerar_rodadas()'))
+  it('lê só cards vencidos de loja com o módulo ligado, em ordem de prioridade, com skip locked', () => {
+    expect(rod).toMatch(/join public\.loja_modulos/)
+    expect(rod).toMatch(/r\.ativa and r\.proximo_disparo_em <= now\(\)/)
+    expect(rod).toMatch(/when 'recuperacao' then 0 when 'nunca_compraram' then 1 else 2 end/)
+    expect(rod).toMatch(/for update of r skip locked/)
+  })
+  it('avança a agenda ANTES de criar a campanha (trava contra rodada dupla) e pula o dia marcado', () => {
+    const avanca = rod.indexOf('proximo_disparo_em = public.campanha_recorrente_proximo(')
+    const cria = rod.indexOf('insert into public.campanhas')
+    expect(avanca).toBeGreaterThan(0)
+    expect(cria).toBeGreaterThan(avanca)
+    expect(rod).toMatch(/'pulado'/)
+  })
+  it('público em ordem de quem nunca recebeu, limitado ao que cabe na janela; sem público apaga a campanha', () => {
+    expect(rod).toMatch(/order by p\.ultimo_disparo_em nulls first, random\(\)/)
+    expect(rod).toMatch(/\/ 105/)
+    expect(rod).toMatch(/least\(/)
+    expect(rod).toMatch(/'sem_publico'/)
+    expect(rod).toMatch(/delete from public\.campanhas where id = v_campanha/)
+  })
+  it('imagem da vez e rodízio; só service_role', () => {
+    expect(rod).toMatch(/imagem_indice \+ 1\) % v_n_img/)
+    expect(rod).toMatch(/revoke execute on function public\.campanha_recorrentes_gerar_rodadas\(\) from public, anon, authenticated/)
+    expect(rod).toMatch(/grant execute on function public\.campanha_recorrentes_gerar_rodadas\(\) to service_role/)
+  })
+})
