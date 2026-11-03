@@ -521,3 +521,10 @@ begin
     from public.campanha_envios e where e.campanha_id = p_campanha
   ), '[]'::jsonb);
 end $$;
+-- Permissões iguais às da 0104 (create or replace preserva, mas a guarda B7 exige dizer quem executa).
+revoke execute on function public.campanha_atribuicoes(uuid, timestamptz, timestamptz) from public, anon, authenticated;
+revoke execute on function public.campanhas_metricas(timestamptz, timestamptz, uuid) from public, anon;
+revoke execute on function public.campanha_destinatarios(uuid) from public, anon;
+grant execute on function public.campanha_atribuicoes(uuid, timestamptz, timestamptz) to service_role;
+grant execute on function public.campanhas_metricas(timestamptz, timestamptz, uuid) to authenticated, service_role;
+grant execute on function public.campanha_destinatarios(uuid) to authenticated, service_role;
