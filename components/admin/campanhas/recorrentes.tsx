@@ -112,10 +112,15 @@ function CardRecorrente({ card, estimativa, onPatch, onGaleria }: {
   }
 
   return (
-    <section className="campanha-cartao flex flex-col overflow-hidden rounded-[8px] border border-[#e5e7eb] bg-white" data-testid={`card-${card.tipo}`} data-ativa={card.ativa ? '1' : '0'}>
-      {/* Imagem de bordo: o dono manda depois; até lá, um espaço neutro com o nome. */}
-      <div className="flex aspect-[16/9] items-end bg-[#edeef1] px-4 pb-3" data-bordo>
-        <h3 className="text-[17px] font-semibold text-[#1f2937]">{rotulo.nome}</h3>
+    <section className="campanha-cartao flex flex-col overflow-hidden rounded-[8px] border border-[#e5e7eb] bg-white" data-testid={`card-${card.tipo}`} data-ativa={card.ativa ? '1' : '0'} data-destaque={card.ativa ? '' : undefined}>
+      {/* Imagem de bordo: o dono manda depois; até lá, faixa azul profundo com o nome e o estado. */}
+      <div className="relative flex aspect-[16/7] items-end bg-[#112f6b] px-4 pb-3" data-bordo>
+        <div className="min-w-0">
+          <h3 className="text-[18px] font-semibold text-white">{rotulo.nome}</h3>
+          <span className={`mt-1 inline-block rounded-[4px] px-2 py-[2px] text-[11px] font-semibold uppercase tracking-[0.04em] ${card.ativa ? 'bg-[#f6bd28] text-[#1f2937]' : 'bg-white/15 text-white'}`}>
+            {card.ativa ? 'Ligado' : 'Desligado'}
+          </span>
+        </div>
       </div>
       <div className="flex flex-1 flex-col gap-3 p-4">
         <p className="text-[12.5px] text-[#5b6472]">{rotulo.publico}</p>
@@ -127,7 +132,7 @@ function CardRecorrente({ card, estimativa, onPatch, onGaleria }: {
           <Ajuda texto="Com 60–150 s entre mensagens, a janela escolhida comporta este tanto. Amplie o horário final para alcançar mais pessoas por dia." />
         </div>
 
-        <button type="button" onClick={onGaleria} className="inline-flex h-10 items-center justify-center gap-2 rounded-[5px] border border-[#d6dae1] bg-white px-3 text-[13px] font-semibold text-[#374151] hover:border-[#0688d4] hover:text-[#0688d4]" data-testid={`galeria-${card.tipo}`}>
+        <button type="button" onClick={onGaleria} className="inline-flex h-10 items-center justify-center gap-2 rounded-[5px] border border-[#d6dae1] bg-white px-3 text-[13px] font-semibold text-[#374151] hover:border-[#f6bd28] hover:bg-[#f6bd28] hover:text-[#1f2937]" data-testid={`galeria-${card.tipo}`}>
           <Images className="h-4 w-4" /> Galeria · {card.imagens.length}/{IMAGENS_MAX} {card.imagens.length ? `· próxima: ${(card.imagemIndice % card.imagens.length) + 1}ª` : ''}
         </button>
 
@@ -163,9 +168,9 @@ function CardRecorrente({ card, estimativa, onPatch, onGaleria }: {
 
         <p className="text-[12.5px] text-[#5b6472]" data-testid={`rodada-${card.tipo}`}>
           {card.desligadoMotivo
-            ? <span className="inline-flex items-center gap-1 font-semibold text-[#b91c1c]"><AlertTriangle className="h-3.5 w-3.5" /> Desligado pelo freio ({card.desligadoMotivo === 'erro_alto' ? 'muitos erros' : 'muitos pedidos de SAIR'}). Revise a mensagem antes de religar.</span>
+            ? <span className="inline-flex items-start gap-1.5 rounded-[5px] border border-[#ea1d2c] bg-[#fdecee] px-2.5 py-1.5 font-semibold text-[#b91c1c]"><AlertTriangle className="mt-[1px] h-3.5 w-3.5 flex-shrink-0 text-[#ea1d2c]" /> Desligado pelo freio ({card.desligadoMotivo === 'erro_alto' ? 'muitos erros' : 'muitos pedidos de SAIR'}). Revise a mensagem antes de religar.</span>
             : card.ultimaRodadaMotivo === 'sem_publico'
-              ? `Última rodada ${formatarDataHora(card.ultimaRodadaEm, false)}: sem público.`
+              ? <span className="inline-block rounded-[4px] bg-[#fff1d6] px-2 py-[3px] font-semibold text-[#1f2937]">Última rodada {formatarDataHora(card.ultimaRodadaEm, false)}: sem público.</span>
               : card.ultimaRodada && card.ultimaRodadaEm
                 ? `Última rodada ${formatarDataHora(card.ultimaRodadaEm, false)}: ${card.ultimaRodada.enviados} de ${card.ultimaRodada.destinatarios} enviados${card.ultimaRodada.erros ? `, ${card.ultimaRodada.erros} com erro` : ''}.`
                 : 'Nenhuma rodada ainda.'}
@@ -176,13 +181,13 @@ function CardRecorrente({ card, estimativa, onPatch, onGaleria }: {
       <div className="flex items-center justify-between gap-2 border-t border-[#e5e7eb] px-4 py-3">
         <button type="button" role="switch" aria-checked={card.ativa} disabled={ocupado} onClick={() => void agir({ ativa: !card.ativa }, card.ativa ? 'Card desligado.' : 'Card ligado: dispara sozinho na programação.')}
           className="inline-flex items-center gap-2 text-[13px] font-semibold text-[#1f2937]" data-testid={`toggle-${card.tipo}`}>
-          <span className={`relative inline-block h-6 w-11 rounded-full transition-colors ${card.ativa ? 'bg-[#16a34a]' : 'bg-[#cbd2d9]'}`} aria-hidden>
-            <span className={`absolute top-[2px] h-5 w-5 rounded-full bg-white shadow transition-[left] ${card.ativa ? 'left-[22px]' : 'left-[2px]'}`} />
+          <span className={`relative inline-block h-7 w-12 rounded-full border-2 transition-colors ${card.ativa ? 'border-[#f6bd28] bg-[#f6bd28]' : 'border-[#cbd2d9] bg-[#cbd2d9]'}`} aria-hidden>
+            <span className={`absolute left-[2px] top-[2px] h-5 w-5 rounded-full shadow transition-transform motion-reduce:transition-none ${card.ativa ? 'translate-x-[20px] bg-[#112f6b]' : 'translate-x-0 bg-white'}`} />
           </span>
           {ocupado ? <Loader2 className="h-4 w-4 animate-spin" /> : card.ativa ? 'Ligado' : 'Desligado'}
         </button>
         <button type="button" disabled={ocupado || puladoHoje || !card.ativa} onClick={() => void agir({ pularHoje: true }, 'Hoje não dispara. Amanhã volta sozinho.')}
-          className="inline-flex h-9 items-center gap-1.5 rounded-[5px] border border-[#d6dae1] bg-white px-3 text-[12.5px] font-semibold text-[#374151] hover:border-[#0688d4] hover:text-[#0688d4] disabled:opacity-50" data-testid={`pular-${card.tipo}`}>
+          className="inline-flex h-10 items-center gap-1.5 rounded-[5px] border border-[#112f6b] bg-white px-3 text-[12.5px] font-semibold text-[#112f6b] hover:border-[#f6bd28] hover:bg-[#f6bd28] hover:text-[#1f2937] disabled:opacity-50" data-testid={`pular-${card.tipo}`}>
           <CalendarOff className="h-4 w-4" /> {puladoHoje ? 'Pulado hoje' : 'Pular hoje'}
         </button>
       </div>
@@ -229,12 +234,12 @@ function Galeria({ card, restauranteId, onPatch, onFechar, onToast }: {
           </div>
           <button type="button" onClick={onFechar} aria-label="Fechar" className="grid h-9 w-9 place-items-center rounded-[5px] hover:bg-[#f6f7f9]"><X className="h-5 w-5" /></button>
         </header>
-        <div className="flex-1 space-y-3 overflow-y-auto p-4">
+        <div className="flex-1 space-y-3 overflow-y-auto overscroll-contain p-4">
           {card.imagens.length === 0 && <p className="rounded-[5px] bg-[#f6f7f9] px-3 py-4 text-center text-[13px] text-[#5b6472]">Sem imagens: a mensagem sai só com texto.</p>}
           {card.imagens.map((url, i) => (
             <div key={url} className={`flex items-center gap-3 rounded-[6px] border p-2 ${i === proxima ? 'border-[#0688d4]' : 'border-[#e5e7eb]'}`} data-testid={`imagem-${i}`}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={url} alt={`Imagem ${i + 1}`} className="h-16 w-16 flex-shrink-0 rounded-[4px] object-cover" />
+              <img src={url} alt={`Imagem ${i + 1}`} width={64} height={64} loading="lazy" className="h-16 w-16 flex-shrink-0 rounded-[4px] object-cover" />
               <div className="min-w-0 flex-1 text-[12.5px]">
                 <p className="font-semibold text-[#1f2937]">{i + 1}ª imagem</p>
                 {i === proxima && <p className="text-[#0369a1]">Próxima a sair</p>}

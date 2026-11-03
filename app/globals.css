@@ -1169,6 +1169,46 @@ html:has(.vitrine-sem-zoom) {
 .campanha-cartao:hover { border-color: #c9d2dc; box-shadow: 0 4px 14px rgba(16, 24, 40, 0.06); }
 .campanha-linha { transition: background-color 150ms; }
 .campanha-linha:hover { background-color: #f7f9fb; }
+
+/* ── Tema das telas de Campanhas (03/11/2026, cores mestre do dono) ─────────────────────────────────────────────
+   Azul profundo nos controles e números fortes, amarelo no que está selecionado/ligado e no hover das ferramentas,
+   vermelho só no destrutivo e no freio, laranja nos avisos. Amarelo e laranja sempre com texto escuro (#1f2937):
+   contraste >= 9:1; vermelho #ea1d2c só em borda/ícone/fundo de botão com texto branco em peso 600 (4,0:1 — texto
+   corrido em vermelho usa #b91c1c). O azul genérico #0688d4 das telas vira o azul mestre por seletor, sem reescrever
+   cada componente. Radius, fonte e estrutura do painel ficam. */
+.campanhas-tema {
+  --camp-azul: #112f6b;
+  --camp-azul-hover: #0d2555;
+  --camp-amarelo: #f6bd28;
+  --camp-amarelo-claro: #fdf1c7;
+  --camp-vermelho: #ea1d2c;
+  --camp-laranja: #ffa400;
+  --camp-laranja-claro: #fff1d6;
+  --camp-texto: #1f2937;
+}
+.campanhas-tema .bg-\[\#0688d4\] { background-color: var(--camp-azul); }
+.campanhas-tema .hover\:bg-\[\#0570ae\]:hover { background-color: var(--camp-amarelo); color: var(--camp-texto); }
+.campanhas-tema .text-\[\#0688d4\], .campanhas-tema .hover\:text-\[\#0688d4\]:hover { color: var(--camp-azul); }
+.campanhas-tema .border-\[\#0688d4\], .campanhas-tema .hover\:border-\[\#0688d4\]:hover, .campanhas-tema .focus\:border-\[\#0688d4\]:focus { border-color: var(--camp-azul); }
+.campanhas-tema .hover\:bg-\[\#eef6fc\]:hover { background-color: var(--camp-amarelo-claro); }
+.campanhas-tema .bg-\[\#E0F2FE\], .campanhas-tema .bg-\[\#e0f2fe\] { background-color: #e8edf7; }
+.campanhas-tema .text-\[\#0369a1\] { color: var(--camp-azul); }
+/* Submenu: seção ativa em amarelo; hover das ferramentas (ações de linha, setas de período) em amarelo. */
+.campanhas-tema [data-submenu] [aria-current='page'] { background-color: var(--camp-amarelo); color: var(--camp-texto); }
+.campanhas-tema [data-submenu] [aria-current='page'] > span { color: var(--camp-texto); }
+.campanhas-tema .equipe-acao:hover { background-color: var(--camp-amarelo); color: var(--camp-texto); }
+.campanhas-tema .equipe-acao.perigo { color: var(--camp-vermelho); }
+.campanhas-tema .equipe-acao.perigo:hover { background-color: var(--camp-vermelho); color: #fff; }
+.campanhas-tema .campanha-seta:hover:not(:disabled) { background-color: var(--camp-amarelo); color: var(--camp-texto); }
+/* Números fortes e barras do gráfico em azul profundo. */
+.campanhas-tema [data-valor] { color: var(--camp-azul); }
+.campanhas-tema svg rect[fill='#2779bd'] { fill: var(--camp-azul); }
+.campanhas-tema .campanha-cartao { border-top: 3px solid var(--camp-azul); }
+.campanhas-tema .campanha-cartao[data-destaque] { border-top-color: var(--camp-amarelo); }
+.campanhas-tema .campanha-cartao:hover { border-color: #c9d2dc; border-top-color: var(--camp-azul); }
+.campanhas-tema .campanha-cartao[data-destaque]:hover { border-top-color: var(--camp-amarelo); }
+/* Foco visível em azul mestre em tudo que é interativo dentro do tema. */
+.campanhas-tema :is(button, a, input, select, textarea):focus-visible { outline: 2px solid var(--camp-azul); outline-offset: 2px; }
 [data-admin-shell] main textarea.campanha-texto {
   min-height: 104px; padding: 10px 12px !important; font-size: 13.5px !important; line-height: 1.5;
   background: #fff !important; border: 1px solid #d6dae1 !important; border-radius: 5px !important; color: #1f2937 !important;

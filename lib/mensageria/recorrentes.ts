@@ -41,7 +41,7 @@ export function checagemDevida(ultimaMs: number | null, agoraMs: number, interva
 }
 
 /** Intervalo da checagem: 10 min; só a suíte local (provedor simulado) encurta, como CAMPANHA_INTERVALO_MS. */
-export function intervaloChecagemCards(env: NodeJS.ProcessEnv = process.env): number {
+export function intervaloChecagemCards(env: Record<string, string | undefined> = process.env): number {
   if (env.WHATSAPP_PROVEDOR === 'simulado' && env.CAMPANHA_CHECAGEM_CARDS_MS !== undefined) return Math.max(0, Number(env.CAMPANHA_CHECAGEM_CARDS_MS) || 0)
   return CHECAGEM_CARDS_MS
 }

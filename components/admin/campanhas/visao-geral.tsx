@@ -97,7 +97,7 @@ export function VisaoGeral({ onDisparar, detalhado }: { onDisparar: () => void; 
 
       {/* Linha de cima: os 5 resultados */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5" data-testid="resultados" data-carregando={carregando ? 'sim' : 'nao'}>
-        <Metrica icone={DollarSign} tom="verde" rotulo="Receita gerada" ajuda="Soma dos pedidos (não cancelados) feitos pelo mesmo telefone em até 72 h depois de receber a mensagem." valor={t ? formatarReal(Number(t.receita)) : '—'} testid="m-receita" />
+        <Metrica icone={DollarSign} tom="verde" rotulo="Receita gerada" ajuda="Soma dos pedidos (não cancelados) feitos pelo mesmo telefone em até 72 h depois de receber a mensagem." valor={t ? formatarReal(Number(t.receita)) : '—'} testid="m-receita" destaque />
         <Metrica icone={ShoppingBag} tom="laranja" rotulo="Pedidos gerados" ajuda="Pedidos atribuídos às mensagens (mesmo telefone, até 72 h depois)." valor={t ? String(t.pedidos) : '—'} testid="m-pedidos" />
         <Metrica icone={Users} tom="azul" rotulo="Pessoas impactadas" ajuda="Telefones diferentes que receberam pelo menos uma mensagem no período." valor={t ? String(t.contatos) : '—'} testid="m-contatos" />
         <Metrica icone={Repeat} tom="ceu" rotulo="Pedidos recorrentes" ajuda="Pedidos atribuídos de quem já tinha pedido nos 30 dias antes da mensagem." valor={t ? String(t.recorrentes) : '—'} testid="m-recorrentes" />
@@ -149,10 +149,10 @@ const TOM: Record<string, { fundo: string; cor: string }> = {
   ceu: { fundo: '#E0F7FA', cor: '#0891B2' }, roxo: { fundo: '#F3E8FF', cor: '#9333EA' },
 }
 
-function Metrica({ icone: Icone, tom, rotulo, ajuda, valor, testid }: { icone: LucideIcon; tom: keyof typeof TOM; rotulo: string; ajuda: string; valor: string; testid: string }) {
+function Metrica({ icone: Icone, tom, rotulo, ajuda, valor, testid, destaque }: { icone: LucideIcon; tom: keyof typeof TOM; rotulo: string; ajuda: string; valor: string; testid: string; destaque?: boolean }) {
   const c = TOM[tom]
   return (
-    <div className="campanha-cartao flex items-center gap-3 rounded-[6px] border border-[#e5e7eb] bg-white px-3 py-3 sm:gap-3.5 sm:px-4 sm:py-4" data-testid={testid}>
+    <div className="campanha-cartao flex items-center gap-3 rounded-[6px] border border-[#e5e7eb] bg-white px-3 py-3 sm:gap-3.5 sm:px-4 sm:py-4" data-testid={testid} data-destaque={destaque ? '' : undefined}>
       <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full sm:h-12 sm:w-12" style={{ backgroundColor: c.fundo, color: c.cor }}><Icone className="h-5 w-5 sm:h-6 sm:w-6" strokeWidth={2.2} /></span>
       <div className="min-w-0">
         <div className="flex items-center gap-1 text-[12px] leading-tight text-[#5b6472] sm:text-[12.5px]">{rotulo}<Ajuda texto={ajuda} /></div>

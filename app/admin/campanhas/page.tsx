@@ -551,7 +551,7 @@ export default function CampanhasPage() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div className="campanhas-tema flex h-full flex-col overflow-hidden">
       {/* Topo compacto (16/10): caminho com a seção, e Boas práticas / Disparar mensagem na barra do topo
           (antes ocupavam uma faixa só delas). O "Envio automático" saiu na noite 5. */}
       <TopBar
