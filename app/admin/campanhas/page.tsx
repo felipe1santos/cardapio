@@ -563,9 +563,12 @@ export default function CampanhasPage() {
           <button type="button" onClick={() => setBoasPraticas(true)} className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-[5px] border border-[#d6dae1] bg-white px-3 text-[12.5px] font-semibold text-[#374151] hover:border-[#0688d4] hover:text-[#0688d4]" data-testid="abrir-boas-praticas">
             <Lightbulb className="h-4 w-4" /> Boas práticas
           </button>
-          <button type="button" onClick={abrirNovo} className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-[5px] bg-[#0688d4] px-3.5 text-[12.5px] font-semibold text-white hover:bg-[#0570ae]" data-testid="disparar-mensagem">
-            <Send className="h-4 w-4" /> Disparar mensagem
-          </button>
+          {/* Só na aba Agendamentos (disparo pontual). Campanhas e Visão geral não disparam por aqui (03/11). */}
+          {aba === 'agendamentos' && (
+            <button type="button" onClick={abrirNovo} className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-[5px] bg-[#0688d4] px-3.5 text-[12.5px] font-semibold text-white hover:bg-[#0570ae]" data-testid="disparar-mensagem">
+              <Send className="h-4 w-4" /> Disparar mensagem
+            </button>
+          )}
         </>}
       />
 
