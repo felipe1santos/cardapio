@@ -84,6 +84,31 @@ export function agregarCustoMensal(
   return [...meses.values()].sort((a, b) => (a.mes < b.mes ? 1 : -1))
 }
 
+/**
+ * Faixa da cota grátis do Google (03/11, pedido do dono): "grátis" só com MARGEM — a contagem do painel e a do Google
+ * podem diferir em algumas unidades. Abaixo de 70% da cota = grátis (selo verde); 70–100% = perto; acima = cobrado. Pura.
+ */
+export type FaixaGoogle = 'gratis' | 'perto' | 'cobrado'
+export const MARGEM_GRATIS_GOOGLE = 0.7
+export function faixaGoogle(chamadas: number, cota = COTA_GRATIS_GOOGLE_MES): FaixaGoogle {
+  if (chamadas > cota) return 'cobrado'
+  if (chamadas >= cota * MARGEM_GRATIS_GOOGLE) return 'perto'
+  return 'gratis'
+}
+
+const PESO: Record<FaixaGoogle, number> = { gratis: 0, perto: 1, cobrado: 2 }
+/** A pior faixa entre os três serviços do mês e qual serviço pesa (null quando tudo está grátis). Pura. */
+export function situacaoGoogleDoMes(chamadas: Record<ApiGoogle, number>): { faixa: FaixaGoogle; pior: { api: ApiGoogle; chamadas: number } | null } {
+  let faixa: FaixaGoogle = 'gratis'
+  let pior: { api: ApiGoogle; chamadas: number } | null = null
+  for (const api of APIS) {
+    const f = faixaGoogle(chamadas[api])
+    if (PESO[f] > PESO[faixa] || (f !== 'gratis' && PESO[f] === PESO[faixa] && pior && chamadas[api] > pior.chamadas)) { faixa = f; pior = { api, chamadas: chamadas[api] } }
+    else if (f !== 'gratis' && !pior) pior = { api, chamadas: chamadas[api] }
+  }
+  return { faixa, pior: faixa === 'gratis' ? null : pior }
+}
+
 export async function lerCustoFixoConfig(admin: SupabaseClient): Promise<CustoFixo> {
   const { data } = await admin.from('plataforma_config').select('valor').eq('chave', CHAVE_CUSTO_FIXO).maybeSingle()
   return lerCustoFixo((data as { valor?: unknown } | null)?.valor)

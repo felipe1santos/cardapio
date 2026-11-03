@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState, useTransition } from 'react'
-import { ArrowLeft, ChevronRight, X } from 'lucide-react'
-import type { CustoFixo, CustoMes as Mes } from '@/lib/custo/custo-mensal'
+import { AlertTriangle, ArrowLeft, CheckCircle2, ChevronRight, X, XCircle } from 'lucide-react'
+import { situacaoGoogleDoMes, type CustoFixo, type CustoMes as Mes, type FaixaGoogle } from '@/lib/custo/custo-mensal'
 import { definirCustoFixoAction } from '@/app/superadmin/actions'
 import { CabecalhoHp, CLASSE_BOTAO_SECUNDARIO, PainelHp } from './hp'
 
@@ -16,6 +16,22 @@ const num = (n: number) => n.toLocaleString('pt-BR')
 const nomeMes = (mes: string) => {
   const [a, m] = mes.split('-').map(Number)
   return new Date(Date.UTC(a, m - 1, 15)).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric', timeZone: 'UTC' }).replace(/^./, (c) => c.toUpperCase())
+}
+
+const NOME_API: Record<string, string> = { geocoding: 'Geocoding', directions: 'Directions', maps_js: 'Mapas' }
+/** Selo da cota grátis do Google no mês: verde abaixo de 70% da cota em todos os serviços (margem para diferença de contagem). */
+function SeloGoogle({ m, curto = false }: { m: Mes; curto?: boolean }) {
+  const s = situacaoGoogleDoMes(m.googleChamadas)
+  const cls: Record<FaixaGoogle, string> = { gratis: 'bg-[#E3F5E9] text-[#1E7A3C]', perto: 'bg-[#FFF8E2] text-[#8A6100]', cobrado: 'bg-[#FDE7EA] text-[#B3122D]' }
+  const Icone = s.faixa === 'gratis' ? CheckCircle2 : s.faixa === 'perto' ? AlertTriangle : XCircle
+  const texto = s.faixa === 'gratis' ? (curto ? 'Grátis' : 'Grátis este mês')
+    : s.faixa === 'perto' ? `Perto da cota: ${NOME_API[s.pior!.api]} ${num(s.pior!.chamadas)}/10.000`
+      : `Cobrado: ${NOME_API[s.pior!.api]} ${num(s.pior!.chamadas)}/10.000`
+  return (
+    <span className={`inline-flex items-center gap-[4px] whitespace-nowrap rounded-[8px] px-[6px] text-[11px] font-semibold leading-[18px] ${cls[s.faixa]}`} data-testid="selo-google" data-faixa={s.faixa}>
+      <Icone className="h-[13px] w-[13px]" aria-hidden />{texto}
+    </span>
+  )
 }
 
 function Modal({ titulo, onFechar, children, testid }: { titulo: string; onFechar: () => void; children: React.ReactNode; testid: string }) {
@@ -43,10 +59,10 @@ export function CustoMes({ meses, cotacao }: { meses: Mes[]; cotacao: number }) 
   const [aberto, setAberto] = useState(false)
   const m = meses[0]
   if (!m) return null
-  const itens: { rotulo: string; detalhe: string; valor: number; cor: string }[] = [
+  const itens: { rotulo: string; detalhe: string; valor: number; cor: string; selo?: React.ReactNode }[] = [
     { rotulo: 'Supabase (banco)', detalhe: `plano Pro · US$ ${(m.supabaseBrl / cotacao).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} × ${cotacao.toLocaleString('pt-BR')}`, valor: m.supabaseBrl, cor: '#3ECF8E' },
     { rotulo: 'VPS e outros', detalhe: m.vpsBrl + m.outrosBrl > 0 ? `VPS ${brl(m.vpsBrl)} · outros ${brl(m.outrosBrl)}` : 'preencha em Gastos de API › Custos fixos', valor: m.vpsBrl + m.outrosBrl, cor: '#673DE6' },
-    { rotulo: 'Google Maps', detalhe: m.googleBrl > 0 ? 'acima da cota grátis' : `dentro da cota grátis (tabela ${brl(m.googleTabelaBrl)})`, valor: m.googleBrl, cor: '#0B86C9' },
+    { rotulo: 'Google Maps', detalhe: `${num(m.googleChamadas.geocoding)} endereços · ${num(m.googleChamadas.directions)} rotas · ${num(m.googleChamadas.maps_js)} mapas · cota 10.000 cada (tabela ${brl(m.googleTabelaBrl)})`, valor: m.googleBrl, cor: '#0B86C9', selo: <SeloGoogle m={m} /> },
     { rotulo: 'IA (Claude e áudio)', detalhe: `${num(m.iaChamadas)} respostas`, valor: m.iaBrl, cor: '#18181A' },
   ]
   const max = Math.max(1, ...itens.map((i) => i.valor))
@@ -63,8 +79,8 @@ export function CustoMes({ meses, cotacao }: { meses: Mes[]; cotacao: number }) 
         <ul className="m-0 grid list-none gap-x-[32px] gap-y-[10px] p-0 sm:grid-cols-2">
           {itens.map((i) => (
             <li key={i.rotulo} className="min-w-0">
-              <div className="flex items-baseline justify-between gap-[8px] text-[13px] leading-[18px]">
-                <span className="min-w-0 truncate text-[#18181A]">{i.rotulo}</span>
+              <div className="flex items-center justify-between gap-[8px] text-[13px] leading-[18px]">
+                <span className="flex min-w-0 items-center gap-[6px] text-[#18181A]"><span className="truncate">{i.rotulo}</span>{i.selo}</span>
                 <span className="flex-shrink-0 font-semibold tabular-nums text-[#18181A]">{brl(i.valor)}</span>
               </div>
               <div className="my-[3px] h-[8px] overflow-hidden rounded-full bg-[#F2F3F6]" aria-hidden>
@@ -77,7 +93,7 @@ export function CustoMes({ meses, cotacao }: { meses: Mes[]; cotacao: number }) 
       </div>
       {aberto && (
         <Modal titulo="Histórico de custo do sistema" onFechar={() => setAberto(false)} testid="modal-custo-historico">
-          <p className="mb-3 text-[13px] leading-[18px] text-[#58585E]">Um mês por linha, do mais recente ao mais antigo. Fixos valem o valor configurado hoje para todos os meses; Google só acima da cota grátis; IA pelo custo real. O mês atual é parcial.</p>
+          <p className="mb-3 text-[13px] leading-[18px] text-[#58585E]">Um mês por linha, do mais recente ao mais antigo. Fixos valem o valor configurado hoje para todos os meses; Google só acima da cota grátis (selo verde = todos os serviços abaixo de 70% da cota, com margem para a contagem do Google); IA pelo custo real. O mês atual é parcial.</p>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[560px] border-collapse text-[13px] leading-[18px]">
               <thead>
@@ -95,7 +111,7 @@ export function CustoMes({ meses, cotacao }: { meses: Mes[]; cotacao: number }) 
                     <td className="py-2 pr-3 text-[#18181A]">{nomeMes(x.mes)}{x.parcial && <span className="ml-2 rounded-[8px] bg-[#EBE4FF] px-[6px] text-[11px] font-semibold text-[#673DE6]">parcial</span>}</td>
                     <td className="py-2 pr-3 text-right tabular-nums text-[#18181A]">{brl(x.fixoBrl)}</td>
                     <td className="py-2 pr-3 text-right tabular-nums text-[#18181A]">{brl(x.iaBrl)}<span className="block text-[11px] text-[#58585E]">{num(x.iaChamadas)} resp.</span></td>
-                    <td className="py-2 pr-3 text-right tabular-nums text-[#18181A]">{brl(x.googleBrl)}<span className="block text-[11px] text-[#58585E]">tabela {brl(x.googleTabelaBrl)}</span></td>
+                    <td className="py-2 pr-3 text-right tabular-nums text-[#18181A]">{brl(x.googleBrl)}<span className="mt-[2px] block"><SeloGoogle m={x} curto /></span></td>
                     <td className="py-2 pr-3 text-right font-semibold tabular-nums text-[#18181A]">{brl(x.totalBrl)}</td>
                   </tr>
                 ))}

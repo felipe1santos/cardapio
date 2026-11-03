@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { agregarCustoMensal, CUSTO_FIXO_PADRAO, lerCustoFixo, type CustoFixo } from './custo-mensal'
+import { agregarCustoMensal, CUSTO_FIXO_PADRAO, faixaGoogle, lerCustoFixo, MARGEM_GRATIS_GOOGLE, situacaoGoogleDoMes, type CustoFixo } from './custo-mensal'
 
 /**
  * Custo do sistema por mês (03/11/2026, pedido do dono): o que a Menuzia paga para funcionar — Supabase e VPS (fixos,
@@ -37,5 +37,26 @@ describe('lerCustoFixo (plataforma_config › custo_fixo)', () => {
     expect(lerCustoFixo(null)).toEqual(CUSTO_FIXO_PADRAO)
     expect(lerCustoFixo('lixo')).toEqual(CUSTO_FIXO_PADRAO)
     expect(CUSTO_FIXO_PADRAO).toEqual({ supabaseUsd: 25, vpsBrl: 0, outrosBrl: 0 })
+  })
+})
+
+/**
+ * 03/11/2026 (pedido do dono): selo verde "grátis este mês" no Google só com MARGEM — a contagem do painel e a do Google
+ * podem diferir em algumas unidades, então "grátis" é abaixo de 70% da cota (7.000 de 10.000 por serviço); entre 70% e
+ * 100% é "perto da cota"; acima, cobrado.
+ */
+describe('faixa da cota grátis do Google', () => {
+  it('faixaGoogle: grátis < 70%, perto entre 70% e 100%, cobrado acima', () => {
+    expect(faixaGoogle(0)).toBe('gratis')
+    expect(faixaGoogle(6_999)).toBe('gratis')
+    expect(faixaGoogle(7_000)).toBe('perto')
+    expect(faixaGoogle(10_000)).toBe('perto')
+    expect(faixaGoogle(10_001)).toBe('cobrado')
+    expect(MARGEM_GRATIS_GOOGLE).toBe(0.7)
+  })
+  it('situacaoGoogleDoMes: a pior faixa entre os três serviços, com o serviço que pesa', () => {
+    expect(situacaoGoogleDoMes({ geocoding: 12, directions: 0, maps_js: 249 })).toEqual({ faixa: 'gratis', pior: null })
+    expect(situacaoGoogleDoMes({ geocoding: 8_000, directions: 0, maps_js: 249 })).toEqual({ faixa: 'perto', pior: { api: 'geocoding', chamadas: 8_000 } })
+    expect(situacaoGoogleDoMes({ geocoding: 8_000, directions: 11_000, maps_js: 249 })).toEqual({ faixa: 'cobrado', pior: { api: 'directions', chamadas: 11_000 } })
   })
 })
