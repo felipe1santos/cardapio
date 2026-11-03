@@ -41,8 +41,8 @@ alter table public.campanha_recorrentes enable row level security;
 drop policy if exists "Gestores gerenciam cards recorrentes" on public.campanha_recorrentes;
 create policy "Gestores gerenciam cards recorrentes" on public.campanha_recorrentes
   for all to authenticated
-  using (restaurante_id = public.auth_restaurante_id() and public.auth_e_gestor())
-  with check (restaurante_id = public.auth_restaurante_id() and public.auth_e_gestor());
+  using (restaurante_id = (select public.auth_restaurante_id()) and (select public.auth_e_gestor()))
+  with check (restaurante_id = (select public.auth_restaurante_id()) and (select public.auth_e_gestor()));
 -- Sem delete: os 3 cards são fixos (liga/desliga, nunca apaga).
 grant select, insert, update on public.campanha_recorrentes to authenticated;
 
@@ -100,6 +100,12 @@ begin
   if new.desligado_motivo is not null and (tg_op = 'INSERT' or old.ativa = false) then new.desligado_motivo := null; end if;
   return new;
 end $$;
+
+-- Puras e sem efeito fora da linha: a trigger dispara em updates do painel (authenticated) e do cron (service_role).
+revoke all on function public.campanha_recorrente_proximo(smallint[], time, timestamptz) from public, anon;
+grant execute on function public.campanha_recorrente_proximo(smallint[], time, timestamptz) to authenticated, service_role;
+revoke all on function public.campanha_recorrentes_agenda_fn() from public, anon;
+grant execute on function public.campanha_recorrentes_agenda_fn() to authenticated, service_role;
 
 drop trigger if exists campanha_recorrentes_agenda on public.campanha_recorrentes;
 create trigger campanha_recorrentes_agenda before insert or update of ativa, dias_semana, hora, pular_ate
