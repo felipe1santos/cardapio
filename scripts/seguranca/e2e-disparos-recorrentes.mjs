@@ -207,7 +207,7 @@ try {
   ok('rodadas concluídas; card mostra a última rodada', (await card('promocoes')).ultima_rodada_motivo === 'ok' && (await um(`select status from campanhas where id=$1`, [rp[0].id])).status === 'concluida')
 
   secao('5. Sem público, pular hoje, rodada expira no fim da janela')
-  await api(dono.p, `${R}/nunca_compraram`, 'PATCH', { ativa: true })
+  await api(dono.p, `${R}/nunca_compraram`, 'PATCH', { ativa: true, hora: '09:00', janelaFim: '21:30' })
   await vencer('nunca_compraram'); await cron()
   const cn = await card('nunca_compraram')
   ok('Nunca compraram sem público hoje (C5 já saiu): sem campanha vazia para trás', cn.ultima_rodada_motivo === 'sem_publico' && cn.ultima_campanha_id === null && (await rodadas('nunca_compraram')).length === 0)
@@ -219,6 +219,20 @@ try {
   await db.query(`insert into campanha_envios (campanha_id, restaurante_id, telefone, nome_cliente) values ($1,$2,$3,'Velho')`, [velha, A, '5511912340177'])
   await liberarLoja(); await cron()
   ok('rodada do dia anterior: pendente expira ("Rodada do dia encerrada"), nada sai', (await um(`select status, erro from campanha_envios where campanha_id=$1`, [velha])).erro === 'Rodada do dia encerrada' && !enviados().some((x) => x.numero === '5511912340177'))
+
+  // Card atrasado (revisão 03/11): agenda marcada para ontem → não dispara em dia não escolhido; só avança e marca 'atrasado'.
+  await api(dono.p, `${R}/nunca_compraram`, 'PATCH', { ativa: true })
+  await db.query(`update campanha_recorrentes set proximo_disparo_em = now() - interval '1 day' where restaurante_id=$1 and tipo='nunca_compraram'`, [A])
+  await cron()
+  const atrasado = await card('nunca_compraram')
+  ok('card atrasado (agenda de ontem): nenhuma rodada, motivo "atrasado", agenda no futuro', atrasado.ultima_rodada_motivo === 'atrasado' && atrasado.ultima_campanha_id === null && new Date(atrasado.proximo_disparo_em) > new Date() && (await rodadas('nunca_compraram')).length === 0, JSON.stringify({ m: atrasado.ultima_rodada_motivo, prox: atrasado.proximo_disparo_em }))
+  // Isolamento do "pular hoje" (revisão 03/11): o id de outra loja gravado no card não cancela a fila dela.
+  const campB = (await um(`insert into campanhas (restaurante_id, nome, status, mensagem, agendado_em, total_destinatarios) values ($1,'Da loja B','agendada','x', now() + interval '1 hour', 1) returning id`, [B])).id
+  await db.query(`insert into campanha_envios (campanha_id, restaurante_id, telefone, nome_cliente) values ($1,$2,$3,'B')`, [campB, B, '5511912340188'])
+  await db.query(`update campanha_recorrentes set ultima_campanha_id=$2, ultima_rodada_em=now() where restaurante_id=$1 and tipo='nunca_compraram'`, [A, campB])
+  await api(dono.p, `${R}/nunca_compraram`, 'PATCH', { pularHoje: true })
+  ok('"pular hoje" com id de campanha de OUTRA loja no card: a fila da outra loja fica intacta', (await um(`select status from campanha_envios where campanha_id=$1`, [campB])).status === 'pendente')
+  await db.query(`delete from campanhas where id=$1`, [campB])
 
   secao('6. Freio desliga o card')
   await db.query(`update campanhas set status='enviando' where id=$1`, [rp[0].id])

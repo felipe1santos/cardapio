@@ -28,13 +28,23 @@ create table if not exists public.campanha_recorrentes (
   proximo_disparo_em timestamptz,
   ultima_rodada_em timestamptz,
   ultima_campanha_id uuid,
-  ultima_rodada_motivo text check (ultima_rodada_motivo is null or ultima_rodada_motivo in ('ok', 'sem_publico', 'pulado')),
+  ultima_rodada_motivo text,
   desligado_motivo text check (desligado_motivo is null or length(desligado_motivo) <= 40),
   criado_em timestamptz not null default now(),
   atualizado_em timestamptz not null default now(),
   unique (restaurante_id, tipo)
 );
 comment on table public.campanha_recorrentes is 'Cards de disparo recorrente (0245): 3 por loja, sempre ligados quando ativa. proximo_disparo_em vem da trigger.';
+-- Revisão 03/11: o que o painel pode gravar passa pelas mesmas regras da API, mesmo escrevendo direto na tabela.
+alter table public.campanha_recorrentes drop constraint if exists campanha_recorrentes_dias_check;
+alter table public.campanha_recorrentes add constraint campanha_recorrentes_dias_check check (dias_semana <@ '{0,1,2,3,4,5,6}'::smallint[]);
+alter table public.campanha_recorrentes drop constraint if exists campanha_recorrentes_janela_check;
+alter table public.campanha_recorrentes add constraint campanha_recorrentes_janela_check check (janela_fim > hora);
+-- Motivo da última rodada: constraint nomeada (a inline de uma versão anterior da tabela, se existir, sai).
+alter table public.campanha_recorrentes drop constraint if exists campanha_recorrentes_ultima_rodada_motivo_check;
+alter table public.campanha_recorrentes drop constraint if exists campanha_recorrentes_motivo_check;
+alter table public.campanha_recorrentes add constraint campanha_recorrentes_motivo_check
+  check (ultima_rodada_motivo is null or ultima_rodada_motivo in ('ok', 'sem_publico', 'pulado', 'atrasado'));
 create index if not exists campanha_recorrentes_vencidos on public.campanha_recorrentes (proximo_disparo_em) where ativa;
 
 alter table public.campanha_recorrentes enable row level security;
@@ -43,8 +53,10 @@ create policy "Gestores gerenciam cards recorrentes" on public.campanha_recorren
   for all to authenticated
   using (restaurante_id = (select public.auth_restaurante_id()) and (select public.auth_e_gestor()))
   with check (restaurante_id = (select public.auth_restaurante_id()) and (select public.auth_e_gestor()));
--- Sem delete: os 3 cards são fixos (liga/desliga, nunca apaga).
-grant select, insert, update on public.campanha_recorrentes to authenticated;
+-- Sem delete: os 3 cards são fixos (liga/desliga, nunca apaga). Update só nas colunas que a tela mexe (revisão 03/11):
+-- agenda (proximo_disparo_em), índice da imagem e dados da última rodada são do cron (service_role).
+grant select, insert on public.campanha_recorrentes to authenticated;
+grant update (ativa, mensagem, incluir_link, imagens, dias_semana, hora, janela_fim, pular_ate) on public.campanha_recorrentes to authenticated;
 
 -- ── Rodada de card é uma campanha comum ──────────────────────────────────────────────────────────────────────────
 alter table public.campanhas add column if not exists recorrente_id uuid references public.campanha_recorrentes(id) on delete set null;
@@ -88,6 +100,10 @@ declare
   v_base timestamptz := now();
 begin
   new.atualizado_em := now();
+  -- Galeria: só URLs https em texto (a API valida; isto segura quem escreve direto na tabela).
+  if exists (select 1 from jsonb_array_elements(new.imagens) x where jsonb_typeof(x) <> 'string' or (x #>> '{}') !~ '^https://') then
+    raise exception 'imagens: só URLs https' using errcode = '23514';
+  end if;
   if not new.ativa then
     new.proximo_disparo_em := null;
     return new;
@@ -138,7 +154,7 @@ as $$
                         where d.restaurante_id = p_restaurante and d.telefone_chave = public.telefone_chave(c.telefone))
        and not exists (select 1 from public.campanha_envios e, hoje
                         where e.restaurante_id = p_restaurante and e.criado_em >= hoje.inicio
-                          and public.telefone_chave(e.telefone) = public.telefone_chave(c.telefone))
+                          and e.chave_destino = public.telefone_chave(c.telefone))
      order by public.telefone_chave(c.telefone), c.ultima_atividade_em desc nulls last, length(c.telefone) desc, c.criado_em desc
   ), ped as (
     select public.telefone_chave(p.cliente_telefone) as k, max(p.criado_em) as ultimo_em,
@@ -146,18 +162,28 @@ as $$
       from public.pedidos p
      where p.restaurante_id = p_restaurante and p.status <> 'cancelado' and public.telefone_chave(p.cliente_telefone) is not null
      group by 1
+  ), nomes as (
+    -- Um nome por chave (o cadastro mais antigo), agrupado uma vez — não por linha (revisão 03/11).
+    select distinct on (public.telefone_chave(cl.telefone)) public.telefone_chave(cl.telefone) as k, cl.nome
+      from public.clientes cl
+     where cl.restaurante_id = p_restaurante and nullif(btrim(cl.nome), '') is not null and public.telefone_chave(cl.telefone) is not null
+     order by public.telefone_chave(cl.telefone), cl.criado_em
+  ), ult as (
+    -- Último disparo por chave; chave_destino já está gravada (0104), sem recalcular telefone_chave.
+    select e.chave_destino as k, max(e.enviado_em) as ultimo
+      from public.campanha_envios e
+     where e.restaurante_id = p_restaurante and e.status in ('enviado', 'incerto')
+     group by 1
   )
   select b.telefone,
-         coalesce((select cl.nome from public.clientes cl
-                    where cl.restaurante_id = p_restaurante and public.telefone_chave(cl.telefone) = b.k and nullif(btrim(cl.nome), '') is not null
-                    order by cl.criado_em limit 1), b.nome_contato, '') as nome_cliente,
+         coalesce(n.nome, b.nome_contato, '') as nome_cliente,
          case when p_tipo = 'recuperacao'
               then (select i.nome from public.pedido_itens i where i.pedido_id = ped.ultimo_id order by i.id limit 1) end as ultimo_item,
-         (select max(e.enviado_em) from public.campanha_envios e
-           where e.restaurante_id = p_restaurante and e.status in ('enviado', 'incerto')
-             and public.telefone_chave(e.telefone) = b.k) as ultimo_disparo_em
+         ult.ultimo as ultimo_disparo_em
     from base b
     left join ped on ped.k = b.k
+    left join nomes n on n.k = b.k
+    left join ult on ult.k = b.k
    where case p_tipo
            when 'recuperacao' then ped.ultimo_em is not null and ped.ultimo_em <= now() - interval '30 days'
            when 'nunca_compraram' then ped.k is null
@@ -191,6 +217,8 @@ grant execute on function public.campanha_recorrente_estimativa(text) to authent
 -- leitura é `for update skip locked` — outra chamada simultânea não encontra o card vencido.
 -- Casos cobertos pelo e2e (scripts/seguranca/e2e-campanhas-metricas.mjs, seção recorrentes):
 --   · duas chamadas seguidas → 1 rodada;  · 0 imagens → tipo texto e índice parado;  · descadastro sem 55 × conversa com 55 → fora.
+-- Card atrasado (servidor parado, módulo religado dias depois): a agenda marcava outro dia, ou a janela de hoje já fechou →
+-- só avança e marca 'atrasado'. Nunca manda em dia/hora que a loja não escolheu (revisão 03/11).
 create or replace function public.campanha_recorrentes_gerar_rodadas()
 returns table (recorrente_id uuid, campanha_id uuid, destinatarios integer, motivo text)
 language plpgsql
@@ -201,6 +229,8 @@ as $$
 declare
   v record;
   v_hoje date := (now() at time zone 'America/Sao_Paulo')::date;
+  v_agora_sp timestamp := now() at time zone 'America/Sao_Paulo';
+  v_dia_agenda date;
   v_campanha uuid;
   v_n integer;
   v_n_img integer;
@@ -210,7 +240,7 @@ declare
 begin
   for v in
     select r.id, r.restaurante_id, r.tipo, r.mensagem, r.incluir_link, r.imagens, r.imagem_indice, r.hora, r.janela_fim, r.pular_ate,
-           l.disparo_limite_dia,
+           r.proximo_disparo_em, l.disparo_limite_dia,
            case r.tipo when 'recuperacao' then 0 when 'nunca_compraram' then 1 else 2 end as prioridade
       from public.campanha_recorrentes r
       join public.restaurantes l on l.id = r.restaurante_id
@@ -228,6 +258,15 @@ begin
     if v.pular_ate is not null and v.pular_ate = v_hoje then
       update public.campanha_recorrentes set ultima_rodada_motivo = 'pulado' where id = v.id;
       recorrente_id := v.id; campanha_id := null; destinatarios := 0; motivo := 'pulado';
+      return next;
+      continue;
+    end if;
+
+    -- 2b. Atrasado: a agenda era de outro dia, ou a janela de hoje já fechou → não dispara fora do combinado.
+    v_dia_agenda := (v.proximo_disparo_em at time zone 'America/Sao_Paulo')::date;
+    if v_dia_agenda <> v_hoje or v_agora_sp::time > v.janela_fim then
+      update public.campanha_recorrentes set ultima_rodada_em = now(), ultima_rodada_motivo = 'atrasado', ultima_campanha_id = null where id = v.id;
+      recorrente_id := v.id; campanha_id := null; destinatarios := 0; motivo := 'atrasado';
       return next;
       continue;
     end if;

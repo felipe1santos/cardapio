@@ -171,6 +171,8 @@ function CardRecorrente({ card, estimativa, onPatch, onGaleria }: {
             ? <span className="inline-flex items-start gap-1.5 rounded-[5px] border border-[#ea1d2c] bg-[#fdecee] px-2.5 py-1.5 font-semibold text-[#b91c1c]"><AlertTriangle className="mt-[1px] h-3.5 w-3.5 flex-shrink-0 text-[#ea1d2c]" /> Desligado pelo freio ({card.desligadoMotivo === 'erro_alto' ? 'muitos erros' : 'muitos pedidos de SAIR'}). Revise a mensagem antes de religar.</span>
             : card.ultimaRodadaMotivo === 'sem_publico'
               ? <span className="inline-block rounded-[4px] bg-[#fff1d6] px-2 py-[3px] font-semibold text-[#1f2937]">Última rodada {formatarDataHora(card.ultimaRodadaEm, false)}: sem público.</span>
+            : card.ultimaRodadaMotivo === 'atrasado'
+              ? <span className="inline-block rounded-[4px] bg-[#fff1d6] px-2 py-[3px] font-semibold text-[#1f2937]">{formatarDataHora(card.ultimaRodadaEm, false)}: o horário já tinha passado, não disparou. Volta na próxima data programada.</span>
               : card.ultimaRodada && card.ultimaRodadaEm
                 ? `Última rodada ${formatarDataHora(card.ultimaRodadaEm, false)}: ${card.ultimaRodada.enviados} de ${card.ultimaRodada.destinatarios} enviados${card.ultimaRodada.erros ? `, ${card.ultimaRodada.erros} com erro` : ''}.`
                 : 'Nenhuma rodada ainda.'}

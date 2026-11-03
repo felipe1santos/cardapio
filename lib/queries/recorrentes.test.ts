@@ -1,5 +1,45 @@
 import { describe, expect, it, vi } from 'vitest'
-import { garantirRecorrentes, mapRecorrente } from './recorrentes'
+import { cancelarRodadaDeHoje, garantirRecorrentes, mapRecorrente } from './recorrentes'
+
+/** Revisão 03/11: "pular hoje" só cancela a fila de uma campanha que é DESTA loja e DESTE card (nunca pelo id solto). */
+function adminFalso(campanhaDaLoja: boolean) {
+  const filtros: Record<string, unknown>[] = []
+  let cancelou = false
+  const chain = (tabela: string) => {
+    const b: Record<string, unknown> = {}
+    b.select = () => b
+    b.eq = (col: string, val: unknown) => { filtros.push({ tabela, col, val }); return b }
+    b.maybeSingle = async () => ({ data: campanhaDaLoja ? { id: 'c1' } : null, error: null })
+    b.update = () => { cancelou = true; return b }
+    b.then = (ok: (v: unknown) => unknown) => Promise.resolve({ error: null }).then(ok)
+    return b
+  }
+  return { admin: { from: (t: string) => chain(t) } as never, filtros, cancelou: () => cancelou }
+}
+
+describe('cancelarRodadaDeHoje', () => {
+  const card = { id: 'card1', ultimaCampanhaId: 'c1', ultimaRodadaEm: '2026-11-03T15:00:00Z' }
+  // "Hoje" fixo em 03/11: sem argumento é hoje; com data, o dia daquela data.
+  const hoje = (d?: Date) => (d ?? new Date('2026-11-03T18:00:00Z')).toISOString().slice(0, 10)
+  it('confere loja e card antes de cancelar', async () => {
+    const f = adminFalso(true)
+    expect(await cancelarRodadaDeHoje(f.admin, 'L1', card, hoje)).toBe(true)
+    expect(f.filtros).toEqual(expect.arrayContaining([
+      { tabela: 'campanhas', col: 'id', val: 'c1' }, { tabela: 'campanhas', col: 'restaurante_id', val: 'L1' }, { tabela: 'campanhas', col: 'recorrente_id', val: 'card1' },
+    ]))
+    expect(f.cancelou()).toBe(true)
+  })
+  it('campanha de outra loja (ou de outro card): não cancela nada', async () => {
+    const f = adminFalso(false)
+    expect(await cancelarRodadaDeHoje(f.admin, 'L1', card, hoje)).toBe(false)
+    expect(f.cancelou()).toBe(false)
+  })
+  it('rodada de outro dia: não mexe', async () => {
+    const f = adminFalso(true)
+    expect(await cancelarRodadaDeHoje(f.admin, 'L1', { ...card, ultimaRodadaEm: '2026-10-01T12:00:00Z' }, hoje)).toBe(false)
+    expect(f.cancelou()).toBe(false)
+  })
+})
 
 /** 03/11/2026: os 3 cards nascem na primeira abertura da tela, desligados, na ordem fixa. */
 
