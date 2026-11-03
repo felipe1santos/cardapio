@@ -14,6 +14,23 @@ export const PLANOS: Record<Plano, { nome: string; valor: number; modulos: Recor
   completo: { nome: 'Menuzia Completo', valor: 149, modulos: { financeiro: true, agente_ia: true, disparos: true } },
 }
 
+/** O que cada plano inclui, na ordem do site (www.menuzia.com.br › Planos). O Completo lista só o que soma ao Básico. */
+export const BENEFICIOS: Record<Plano, { descricao: string; itens: string[]; condicao: string }> = {
+  basico: {
+    descricao: 'Cardápio, PDV e a operação do delivery e do salão.',
+    itens: [
+      'Cardápio digital personalizado', 'Mesas com QR Code, tablet e totem', 'Integração com iFood, 99Food e aiqfome', 'Dashboard e funil de vendas',
+      'Cupons, fidelidade e order bump', 'PDV touch e controle de caixa', 'Pix e cartão online', 'Impressão automática e KDS', 'Aplicativo do entregador com GPS', 'Configuração e suporte inclusos',
+    ],
+    condicao: 'Sem taxa por pedido. Sem contrato.',
+  },
+  completo: {
+    descricao: 'Tudo do Básico + automação no WhatsApp e gestão financeira.',
+    itens: ['Robô de atendimento 24h no WhatsApp', 'Disparo de mensagens e campanhas (API oficial)', 'Sistema financeiro: fluxo de caixa e contas', 'Insumos, ficha técnica e lucro real por produto'],
+    condicao: 'Sem taxa por pedido. Sem contrato. Cancele quando quiser.',
+  },
+}
+
 /** Dias depois do vencimento em que o acesso continua (decisão do dono, 02/11). */
 export const CARENCIA_DIAS = 5
 

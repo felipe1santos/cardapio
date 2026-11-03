@@ -5,6 +5,8 @@ import { SUPORTE_MENUZIA } from '@/lib/suporte'
 import { getServerSupabase } from '@/lib/supabase/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { buscarAssinaturaDoUsuario, urlDeFaturaAsaas } from '@/lib/assinatura/repo'
+import { planoValido } from '@/lib/assinatura/planos'
+import { ModalAdquirir } from '@/components/auth/modal-adquirir'
 import { signIn } from './actions'
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -25,9 +27,12 @@ const NOTICE_MESSAGES: Record<string, string> = {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; notice?: string; next?: string; pagar?: string }>
+  searchParams: Promise<{ error?: string; notice?: string; next?: string; pagar?: string; adquirir?: string; plano?: string; erro_assinar?: string }>
 }) {
-  const { error, notice, next, pagar } = await searchParams
+  const { error, notice, next, pagar, adquirir, plano, erro_assinar } = await searchParams
+  // Modal "Adquirir acesso" reaberto pelo servidor (erro ao gerar a cobrança): passo 2 com o plano e a mensagem.
+  const passoAdquirir: 0 | 1 | 2 = adquirir === '2' ? 2 : adquirir === '1' ? 1 : 0
+  const planoAdquirir = planoValido(plano) ? plano : 'completo'
   // Vindo do app do motoboy (10/10): depois de entrar, volta para lá (no pedido do QR). O servidor valida o destino.
   const voltar = typeof next === 'string' && next.startsWith('/motoboy') ? next : null
   const errorMessage = error ? ERROR_MESSAGES[error] ?? error : null
@@ -59,7 +64,7 @@ export default async function LoginPage({
           </p>
           <p className="text-[14px]">
             Ainda não tem uma conta?{' '}
-            <Link href="/assinar" className={authLink} data-testid="login-adquirir-acesso">Adquirir acesso</Link>
+            <ModalAdquirir passoInicial={passoAdquirir} planoInicial={planoAdquirir} erro={erro_assinar ?? null} />
             {' · '}
             <a href="https://menuzia.com.br" className={authLink}>Conheça o Menuzia</a>
           </p>

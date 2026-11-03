@@ -7,7 +7,7 @@ import { authAviso, authButton } from './auth-shell'
 /** Formulário de login; a moldura é o AuthShell. */
 
 /** Campo contornado com o rótulo dentro que sobe para a borda ao focar ou preencher. */
-function CampoFlutuante({ id, rotulo, extra, className = '', ...props }: ComponentProps<'input'> & { id: string; rotulo: string; extra?: ReactNode }) {
+export function CampoFlutuante({ id, rotulo, extra, className = '', ...props }: ComponentProps<'input'> & { id: string; rotulo: string; extra?: ReactNode }) {
   return (
     <div className="relative">
       <input

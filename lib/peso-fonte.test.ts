@@ -15,6 +15,9 @@ export const FORA_DA_REGRA = [
   'components/admin/qr-cardapio-folha.tsx',
   'lib/previa-loja.ts', // imagem de compartilhamento (não é tela)
   'components/auth/auth-shell.tsx', // telas de acesso: imagem-modelo do dono (26/10/2026) usa 700/800
+  // Modal "Adquirir acesso" e cadastro da assinatura (02/11/2026): mesmo desenho do login e da seção de preços do site.
+  'components/auth/modal-adquirir.tsx',
+  'lib/assinatura/email.ts', // e-mail "acesso liberado": mesmas cores/pesos do login (não é tela)
   ...DESPACHO_DE_ROTAS(),
   ...SUPER_ADMIN(),
 ]

@@ -12,7 +12,12 @@ const enviosPorIp = criarLimitador({ max: 5, janelaMs: 10 * 60_000 })
 
 export async function assinar(formData: FormData) {
   const plano = String(formData.get('plano') ?? '')
-  const voltar = (msg: string): never => redirect(`/assinar?plano=${encodeURIComponent(plano)}&error=${encodeURIComponent(msg)}`)
+  // Veio do modal do login: volta para o login com o modal reaberto no passo dos dados e o erro na tela.
+  const doLogin = String(formData.get('origem') ?? '') === 'login'
+  const voltar = (msg: string): never =>
+    redirect(doLogin
+      ? `/login?adquirir=2&plano=${encodeURIComponent(plano)}&erro_assinar=${encodeURIComponent(msg)}`
+      : `/assinar?plano=${encodeURIComponent(plano)}&error=${encodeURIComponent(msg)}`)
 
   const ip = ipDaRequisicao(await headers())
   if (enviosPorIp.excedeu(ip)) voltar('Muitas tentativas. Aguarde alguns minutos e tente de novo.')
