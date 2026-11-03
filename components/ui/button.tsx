@@ -6,8 +6,10 @@ const variantClasses: Record<Variant, string> = {
   primary: 'bg-primary text-white hover:bg-primary-dark',
   secondary: 'bg-border text-text-main hover:bg-gray-300',
   outline: 'bg-white text-text-main border border-border hover:border-primary hover:text-primary',
-  success: 'bg-status-ready text-white hover:brightness-95',
-  dispatch: 'bg-sidebar-bg text-white hover:bg-sidebar-hover',
+  // Verde sólido, com a mesma força de tinta do vermelho mestre (contraste >= 4,5:1 com branco).
+  success: 'bg-[#15803D] text-white hover:brightness-95',
+  // Preto em repouso; ao passar o mouse ou clicar, amarelo mestre (ação de voltar/sair).
+  dispatch: 'bg-sidebar-bg text-white hover:bg-[#f6bd28] hover:text-[#1F2937] active:bg-[#f6bd28] active:text-[#1F2937]',
   ghost: 'bg-transparent text-text-subtle hover:bg-page hover:text-text-main',
 }
 

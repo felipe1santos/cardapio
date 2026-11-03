@@ -46,7 +46,7 @@ export function GraficoVendas({ pedidos, anteriores, intervalo, intervaloAnterio
   return (
     <section className="fin-meta rounded-[8px] border border-[#E4E7EA] bg-white" data-testid="grafico-vendas">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 pt-3">
-        <div className="min-w-0 max-sm:w-full [&_[role=tab]]:flex-1 sm:[&_[role=tab]]:flex-none">
+        <div className="dash-abas-amarelo min-w-0 max-sm:w-full [&_[role=tab]]:flex-1 sm:[&_[role=tab]]:flex-none">
           <Abas<Aba> itens={[['faturamento', 'Faturamento'], ['pedidos', 'Pedidos'], ['ticket', 'Ticket médio']]} ativo={aba} onSelecionar={setAba} testidPrefixo="grafico-aba" />
         </div>
         {acoes && <div className="flex min-w-0 items-center gap-1 max-sm:w-full">{acoes}</div>}

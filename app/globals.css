@@ -553,7 +553,11 @@ html:has(.vitrine-sem-zoom) {
   --adm-menu-suave: rgba(0, 0, 0, 0.6);
   --adm-hover: rgba(0, 0, 0, 0.04);
   --adm-azul: #0b78d0;
-  --adm-azul-escuro: #0961a8;
+  --adm-azul-escuro: #003bb0;
+  /* Cores mestre do sistema: amarelo (destaque/hover), vermelho (crítico), azul (marca). */
+  --adm-amarelo: #f6bd28;
+  --adm-vermelho-mestre: #ea1d2c;
+  --adm-azul-mestre: #003bb0;
   --adm-azul-claro: #eff6ff;
   /* Vermelho de aviso em duas forcas: fundo solido e texto sobre fundo claro.
      O #ef4444 da paleta nao alcanca 4,5:1 em corpo pequeno — marcador de
@@ -1320,6 +1324,9 @@ html:has(.vitrine-sem-zoom) {
 .fin-aba:hover { background: #f5f6f7; color: var(--meta-texto); }
 .fin-aba:active { background: #e4e7ea; }
 .fin-aba[aria-pressed="true"], .fin-aba[aria-selected="true"] { background: var(--meta-ativo-fundo); color: var(--meta-azul-hover); }
+/* Dashboard (Faturamento / Pedidos / Ticket médio): aba selecionada em amarelo mestre. Só aqui; o financeiro segue azul. */
+.dash-abas-amarelo .fin-aba[aria-selected="true"] { background: #f6bd28; color: #1f2937; }
+.dash-abas-amarelo .fin-aba:hover { background: #fbe39a; color: #1f2937; }
 /* Cartão de número (components/admin/cartao-numero.tsx) dentro do financeiro: o cartão da Meta. */
 :is(.fin-meta, .meta-tema) [data-cartao-numero] {
   border: 1px solid rgba(203, 210, 217, 0.7);

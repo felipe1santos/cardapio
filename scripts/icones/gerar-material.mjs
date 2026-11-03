@@ -7,7 +7,11 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 const NOMES = ['store', 'delivery_dining', 'table_restaurant', 'qr_code_2', 'manage_accounts', 'chat', 'description', 'notifications', 'smart_toy',
   'dashboard', 'campaign', 'schedule', 'loyalty', 'local_offer', 'point_of_sale', 'swap_vert', 'two_wheeler', 'pix', 'sync_alt', 'calculate',
-  'receipt_long', 'insights', 'policy', 'person_search', 'rule', 'lightbulb']
+  'receipt_long', 'insights', 'policy', 'person_search', 'rule', 'lightbulb',
+  // Menu principal (2026-11-03): mesmo traço preenchido dos submenus, uma figura por seção.
+  'kitchen', 'list_alt', 'account_balance_wallet', 'restaurant_menu', 'group', 'extension', 'settings', 'redeem', 'print',
+  // Já usados nos submenus (estavam no módulo gerado, mas faltavam nesta lista).
+  'lock', 'auto_awesome']
 const linhas = NOMES.map((n) => {
   const svg = readFileSync(`node_modules/@material-design-icons/svg/filled/${n}.svg`, 'utf8')
   const corpo = svg.replace(/^<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '').trim()

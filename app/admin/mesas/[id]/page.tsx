@@ -704,10 +704,10 @@ export default function MesaDetalhePage() {
         {permissoesCarregadas && (
         <div className="mb-3 grid grid-flow-col auto-cols-fr gap-1.5 rounded-menuzia bg-main p-1 shadow-sm sm:mb-4 sm:inline-grid" role="tablist">
           {([
-            ['lancar', 'Lançar', ShoppingBag, 'bg-primary'],
-            ['conta', 'Conta', Receipt, 'bg-status-ready'],
-            ['historico', 'Histórico', History, 'bg-purple'],
-          ] as const).filter(([id]) => id !== 'lancar' || podeLancar).map(([id, rotulo, Icone, cor]) => (
+            ['lancar', 'Lançar', ShoppingBag],
+            ['conta', 'Conta', Receipt],
+            ['historico', 'Histórico', History],
+          ] as const).filter(([id]) => id !== 'lancar' || podeLancar).map(([id, rotulo, Icone]) => (
             <button
               key={id}
               role="tab"
@@ -715,7 +715,7 @@ export default function MesaDetalhePage() {
               onClick={() => setAba(id)}
               className={[
                 'flex min-h-[44px] items-center justify-center gap-1.5 whitespace-nowrap rounded-menuzia px-3 text-[12px] font-semibold uppercase tracking-wide transition-colors sm:px-5 lg:min-h-[40px]',
-                aba === id ? `${cor} text-white shadow-sm` : 'text-text-subtle hover:bg-page hover:text-text-main',
+                aba === id ? 'bg-[#f6bd28] text-[#1F2937] shadow-sm' : 'text-text-subtle hover:bg-[#f6bd28] hover:text-[#1F2937] active:bg-[#f6bd28] active:text-[#1F2937]',
               ].join(' ')}
             >
               <Icone className="h-4 w-4" />

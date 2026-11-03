@@ -396,7 +396,7 @@ export function PainelConta({
                   {!cancelado && (
                     <span className="hidden gap-1.5 md:flex">
                       {podeFazer('reimprimir') && (
-                        <Button variant="ghost" className="!px-2 text-[10px]" title="Reimprimir este lançamento"
+                        <Button variant="ghost" className="!px-2 text-[10px] hover:!bg-[#f6bd28] hover:!text-[#1F2937]" title="Reimprimir este lançamento"
                           onClick={() => executar('reimprimir', { pedidoId: l.id }, `Reimpressão do #${l.numero} pedida.`)}>
                           <Printer className="mr-1 inline h-3 w-3" />
                           Reimprimir
@@ -444,8 +444,8 @@ export function PainelConta({
                       ) : (
                         <span className="w-[13px] max-md:hidden" />
                       )}
-                      {/* Celular: foto do produto na conta. */}
-                      <FotoItem url={i.imagemUrl} nome={i.nome} tamanho={40} className="md:hidden" />
+                      {/* Foto do produto na conta: mesmo tamanho padrão do PDV (64 px). */}
+                      <FotoItem url={i.imagemUrl} nome={i.nome} tamanho={64} />
                       <span className="min-w-0 flex-1 text-[13px]">
                         <span className={i.cancelado ? 'line-through' : ''}>
                           <strong>{i.quantidade}×</strong> {i.nome}
@@ -1102,7 +1102,7 @@ export function ModalMotivo({
   const [motivo, setMotivo] = useState('')
   const [enviando, setEnviando] = useState(false)
   return (
-    <TelaPdv titulo={titulo} onVoltar={onCancelar} livre larguraMax={640} sujo={!!motivo.trim()} testid="tela-motivo" pequena>
+    <TelaPdv titulo={titulo} onVoltar={onCancelar} livre larguraMax={640} sujo={!!motivo.trim()} testid="tela-motivo" pequena tom="vermelho">
         <div className="p-5">
         <label className="block">
           <span className="mb-1 block text-[13px] font-semibold text-text-subtle">Motivo (obrigatório)</span>
@@ -1111,7 +1111,7 @@ export function ModalMotivo({
         <p className="mt-2 text-[13px] text-text-subtle">Fica registrado com o motivo e o seu nome.</p>
         </div>
         <div className="flex gap-2 border-t border-border px-4 py-3">
-          <Button variant="outline" className="flex-1" onClick={onCancelar} disabled={enviando}><ArrowLeft className="h-4 w-4" />Voltar</Button>
+          <Button variant="dispatch" className="flex-1" onClick={onCancelar} disabled={enviando}><ArrowLeft className="h-4 w-4" />Voltar</Button>
           <Button
             className="flex-1"
             disabled={!motivo.trim() || enviando}
@@ -1145,7 +1145,7 @@ export function ModalDestino({
   const [motivo, setMotivo] = useState('')
   const [enviando, setEnviando] = useState(false)
   return (
-    <TelaPdv titulo={titulo} onVoltar={onCancelar} livre larguraMax={640} sujo={!!motivo.trim()} testid="tela-destino" pequena>
+    <TelaPdv titulo={titulo} onVoltar={onCancelar} livre larguraMax={640} sujo={!!motivo.trim()} testid="tela-destino" pequena tom="azul">
         <div className="p-5">
         <select value={destino} onChange={(e) => setDestino(e.target.value)} className={INPUT} aria-label="Mesa de destino">
           {disponiveis.map((m) => (
@@ -1158,7 +1158,7 @@ export function ModalDestino({
         </label>
         </div>
         <div className="flex gap-2 border-t border-border px-4 py-3">
-          <Button variant="outline" className="flex-1" onClick={onCancelar} disabled={enviando}><ArrowLeft className="h-4 w-4" />Voltar</Button>
+          <Button variant="dispatch" className="flex-1" onClick={onCancelar} disabled={enviando}><ArrowLeft className="h-4 w-4" />Voltar</Button>
           <Button
             className="flex-1"
             disabled={!destino || !motivo.trim() || enviando}
@@ -1193,12 +1193,12 @@ export function Confirmacao({
 }) {
   const [enviando, setEnviando] = useState(false)
   return (
-    <TelaPdv titulo={titulo} onVoltar={onCancelar} livre larguraMax={640} testid="tela-confirmacao" papel="alertdialog" pequena>
+    <TelaPdv titulo={titulo} onVoltar={onCancelar} livre larguraMax={640} testid="tela-confirmacao" papel="alertdialog" pequena tom="vermelho">
         <div className="p-5">
         <p className="text-[15px] leading-relaxed text-text-main">{texto}</p>
         </div>
         <div className="flex gap-2 border-t border-border px-4 py-3">
-          <Button variant="outline" className="flex-1" onClick={onCancelar} disabled={enviando}><ArrowLeft className="h-4 w-4" />Voltar</Button>
+          <Button variant="dispatch" className="flex-1" onClick={onCancelar} disabled={enviando}><ArrowLeft className="h-4 w-4" />Voltar</Button>
           <Button
             variant={perigo ? 'primary' : 'success'}
             className="flex-1"

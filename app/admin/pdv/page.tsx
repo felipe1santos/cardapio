@@ -1228,8 +1228,8 @@ export default function PdvPage() {
             <p className="mt-1 text-[14px] text-text-subtle">Você volta ao menu principal.</p>
           </div>
           <div className="flex gap-2 border-t border-border px-4 py-3">
-            <BotaoPdv icone={ICONES_PDV.voltar} onClick={() => setSairConfirm(false)} className="flex-1">Continuar no PDV</BotaoPdv>
-            <BotaoPdv icone={ICONES_PDV.fechar} tipo="perigo" onClick={sairDoPdv} className="flex-1">Sair</BotaoPdv>
+            <BotaoPdv icone={ICONES_PDV.voltar} tipo="azul" onClick={() => setSairConfirm(false)} className="flex-1">Continuar no PDV</BotaoPdv>
+            <BotaoPdv icone={ICONES_PDV.fechar} tipo="critico" onClick={sairDoPdv} className="flex-1">Sair</BotaoPdv>
           </div>
         </TelaPdv>
       )}

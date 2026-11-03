@@ -6,7 +6,8 @@ import { urlCardapio } from '@/lib/qr-cardapio'
 import { SinoNotificacoes } from '@/components/admin/notificacoes-pedidos'
 import type { EstadoNotificacao } from '@/lib/notificacoes-pedido'
 import { ICONES } from '@/lib/icones-painel'
-import { Armchair, Bot, ChefHat, ClipboardList, Gift, LayoutDashboard, Lock, Megaphone, Plug, Printer, ReceiptText, Settings, Store, UserRound, UsersRound, UtensilsCrossed, Wallet, type LucideIcon } from 'lucide-react'
+import { Lock } from 'lucide-react'
+import { IconeMaterial, type NomeIconeMaterial } from '@/components/icones/material'
 
 export interface SidebarItem {
   href: string
@@ -59,33 +60,33 @@ export interface SidebarProps {
 }
 
 /**
- * Ícone de cada seção (25/10, pedido do dono): traço Lucide, mais limpo que o Material
- * preenchido de antes — tomada nas Integrações, pessoa na Equipe.
+ * Ícone de cada seção (2026-11-03, pedido do dono): o mesmo Material PREENCHIDO dos submenus
+ * (Campanhas, Financeiro), 20px, cinza escuro. Antes eram traços Lucide, de outro desenho.
  */
-const NAV_ICONS: Record<string, LucideIcon> = {
-  '/admin/dashboard': LayoutDashboard,
-  '/admin/pedidos': ReceiptText,
-  '/admin/pdv': Store,
-  '/admin/mesas': Armchair,
-  '/admin/kds': ChefHat,
-  '/admin/lista-pedidos': ClipboardList,
-  '/admin/financeiro': Wallet,
-  '/admin/cardapio': UtensilsCrossed,
-  '/admin/clientes': UsersRound,
-  '/admin/campanhas': Megaphone,
+const NAV_ICONS: Record<string, NomeIconeMaterial> = {
+  '/admin/dashboard': 'dashboard',
+  '/admin/pedidos': 'receipt_long',
+  '/admin/pdv': 'point_of_sale',
+  '/admin/mesas': 'table_restaurant',
+  '/admin/kds': 'kitchen',
+  '/admin/lista-pedidos': 'list_alt',
+  '/admin/financeiro': 'account_balance_wallet',
+  '/admin/cardapio': 'restaurant_menu',
+  '/admin/clientes': 'group',
+  '/admin/campanhas': 'campaign',
   // Sem "Novidades em teste" (0178) estes dois seguem no menu principal, como sempre.
-  '/admin/agente-ia': Bot,
-  '/admin/fidelidade': Gift,
-  '/admin/integracoes': Plug,
-  '/admin/equipe': UserRound,
-  '/admin/impressao': Printer,
-  '/admin/ajustes': Settings,
+  '/admin/agente-ia': 'smart_toy',
+  '/admin/fidelidade': 'loyalty',
+  '/admin/integracoes': 'extension',
+  '/admin/equipe': 'manage_accounts',
+  '/admin/impressao': 'print',
+  '/admin/ajustes': 'settings',
   // Gerente: "Ajustes" abre direto na Impressão (lib/menu-lateral.ts).
-  '/admin/ajustes/impressao': Settings,
+  '/admin/ajustes/impressao': 'settings',
 }
 
-/** Ícone do menu: 18px, traço 1,75 — o mesmo peso em todos os itens. */
-const ICONE_MENU = 'h-[18px] w-[18px] flex-shrink-0'
+/** Ícone do menu: mesma caixa de 20px dos submenus. */
+const ICONE_MENU = 'flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center [&>svg]:h-[20px] [&>svg]:w-[20px]'
 
 /** Fonte, cores e forma dos submenus (submenu-vertical.tsx) no menu principal; letra 14px e respiro
  *  de 10px (e não 14,5/12) para "Painel de Pedidos" e "Ver meu cardápio" caberem inteiros em 232px. */
@@ -96,8 +97,9 @@ const ITEM_MENU = [
 ].join(' ')
 // Visual do menu (pedido do dono 10/10; em todas as lojas desde 16/10): texto e ícone quase pretos (#111827, o escuro do
 // kit) e cadeado laranja ao passar o mouse.
+// Ícones e texto nas cores dos submenus: cinza escuro (#4B5563 parado, #374151 ativo).
 const VISUAL = {
-  novo: { ativo: 'bg-[#EEF0F3] font-semibold text-[#111827]', inativo: 'font-medium text-[#111827] hover:bg-[#F6F7F9] hover:text-[#111827]', icone: 'text-[#111827]', iconeAtivo: 'text-[#111827]', cadeado: 'text-[#111827] transition-colors group-hover:text-[#F97316]' },
+  novo: { ativo: 'bg-[#EEF0F3] font-semibold text-[#111827]', inativo: 'font-medium text-[#111827] hover:bg-[#F6F7F9] hover:text-[#111827]', icone: 'text-[#4B5563]', iconeAtivo: 'text-[#374151]', cadeado: 'text-[#111827] transition-colors group-hover:text-[#F97316]' },
 }
 
 export function Sidebar({
@@ -267,7 +269,7 @@ export function Sidebar({
                 data-testid="menu-item-bloqueado"
                 data-modulo={modulo}
               >
-                {Icone && <Icone className={`${ICONE_MENU} ${v.icone}`} strokeWidth={1.75} aria-hidden="true" />}
+                {Icone && <span className={`${ICONE_MENU} ${v.icone}`} aria-hidden="true"><IconeMaterial nome={Icone} /></span>}
                 <span className="rotulo-menu truncate">{item.label}</span>
                 <Lock className={`extra-menu ml-auto h-[14px] w-[14px] flex-shrink-0 ${v.cadeado}`} strokeWidth={2} aria-hidden="true" data-testid="menu-cadeado" />
               </button>
@@ -281,7 +283,7 @@ export function Sidebar({
               className={[ITEM_MENU, isActive ? ITEM_ATIVO : ITEM_INATIVO, recolhido ? 'relative' : ''].join(' ')}
               title={recolhido ? item.label : undefined}
             >
-              {Icone && <Icone className={[ICONE_MENU, isActive ? v.iconeAtivo : v.icone].join(' ')} strokeWidth={isActive ? 2 : 1.75} aria-hidden="true" />}
+              {Icone && <span className={[ICONE_MENU, isActive ? v.iconeAtivo : v.icone].join(' ')} aria-hidden="true"><IconeMaterial nome={Icone} /></span>}
               <span className="rotulo-menu truncate">{item.label}</span>
               {item.novidade && (
                 <span className="extra-menu flex-shrink-0 rounded-[4px] bg-[#e6f6ec] px-1.5 py-[2px] text-[10.5px] font-semibold leading-[14px] text-[var(--adm-alta)]">
@@ -308,7 +310,7 @@ export function Sidebar({
               className={['min-w-0 flex-1', ITEM_MENU, ITEM_INATIVO].join(' ')}
               title={recolhido ? 'Ver meu cardápio' : undefined}
             >
-              <svg viewBox="0 0 24 24" className={`h-[18px] w-[18px] flex-shrink-0 fill-current ${v.icone}`} aria-hidden="true">
+              <svg viewBox="0 0 24 24" className={`h-[20px] w-[20px] flex-shrink-0 fill-current ${v.icone}`} aria-hidden="true">
                 {ICONES.abrirFora.map((d) => (<path key={d} d={d} />))}
               </svg>
               <span className="rotulo-menu truncate">Ver meu cardápio</span>
@@ -321,7 +323,7 @@ export function Sidebar({
         )}
         {onSignOut && (
           <button type="button" onClick={onSignOut} title="Sair" className={['w-full', ITEM_MENU, ITEM_INATIVO].join(' ')}>
-            <svg viewBox="0 0 24 24" className={`h-[18px] w-[18px] flex-shrink-0 fill-current ${v.icone}`} aria-hidden="true">
+            <svg viewBox="0 0 24 24" className={`h-[20px] w-[20px] flex-shrink-0 fill-current ${v.icone}`} aria-hidden="true">
               {ICONES.sair.map((d) => (<path key={d} d={d} />))}
             </svg>
             <span className="rotulo-menu truncate">Sair</span>

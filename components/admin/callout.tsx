@@ -38,7 +38,7 @@ export function Callout({
   )
 
   const classeBotao =
-    'inline-flex flex-shrink-0 items-center justify-center gap-1.5 rounded-[var(--adm-raio-sm,6px)] bg-[var(--adm-azul,#0b78d0)] px-3.5 py-2 text-[12px] font-semibold text-white transition-colors hover:bg-[var(--adm-azul-escuro,#0961a8)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--adm-azul,#0b78d0)]'
+    'inline-flex flex-shrink-0 items-center justify-center gap-1.5 rounded-[var(--adm-raio-sm,6px)] bg-[var(--adm-azul,#0b78d0)] px-3.5 py-2 text-[12px] font-semibold text-white transition-colors hover:bg-[var(--adm-azul-escuro,#003bb0)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--adm-azul,#0b78d0)]'
 
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-[var(--adm-raio,8px)] border border-[#BFDBFE] bg-[var(--adm-azul-claro,#eff6ff)] px-4 py-3">

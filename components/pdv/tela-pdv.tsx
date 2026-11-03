@@ -115,6 +115,16 @@ export function CaminhoPilha({ trecho, children }: { trecho: string; children: R
   return <PilhaContext.Provider value={{ ...pai, caminho: [...pai.caminho, trecho] }}>{children}</PilhaContext.Provider>
 }
 
+export type TomTela = 'padrao' | 'azul' | 'vermelho' | 'amarelo'
+
+/** Cabeçalho por tom (cores mestre do sistema). Texto sempre com contraste >= 4,5:1. */
+const CABECALHO: Record<TomTela, { faixa: string; texto: string; suave: string; fechar: string }> = {
+  padrao: { faixa: 'border-border bg-white', texto: 'text-text-main', suave: 'text-text-subtle', fechar: 'border border-border bg-white text-text-subtle hover:bg-[#f6bd28] hover:text-[#1F2937]' },
+  azul: { faixa: 'border-[#003bb0] bg-[#003bb0]', texto: 'text-white', suave: 'text-white/75', fechar: 'bg-white/15 text-white hover:bg-[#f6bd28] hover:text-[#1F2937]' },
+  vermelho: { faixa: 'border-[#ea1d2c] bg-[#ea1d2c]', texto: 'text-white', suave: 'text-white/80', fechar: 'bg-white/15 text-white hover:bg-[#f6bd28] hover:text-[#1F2937]' },
+  amarelo: { faixa: 'border-[#f6bd28] bg-[#f6bd28]', texto: 'text-[#1F2937]', suave: 'text-[#1F2937]/70', fechar: 'bg-white/60 text-[#1F2937] hover:bg-[#111827] hover:text-white' },
+}
+
 const ICONE_VOLTAR = 'M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z'
 const ICONE_X = 'M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z'
 
@@ -132,6 +142,7 @@ export function TelaPdv({
   coluna = false,
   papel = 'dialog',
   pequena = false,
+  tom = 'padrao',
 }: {
   titulo: string
   /** Fecha esta tela e mostra a de trás. */
@@ -158,7 +169,10 @@ export function TelaPdv({
   papel?: 'dialog' | 'alertdialog'
   /** Janela pequena (~480–560 px) que abre SOBRE a atual sem escondê-la (Desconto, Taxas, confirmações). */
   pequena?: boolean
+  /** Cor do cabeçalho: azul (conta/receber), vermelho (cancelar/crítico), amarelo (atenção). */
+  tom?: TomTela
 }) {
+  const cab = CABECALHO[tom]
   const id = useId()
   const ctx = useContext(PilhaContext)
   const voltarRef = useRef(onVoltar)
@@ -219,22 +233,22 @@ export function TelaPdv({
           pequena ? 'max-h-[92vh] rounded-t-[12px] sm:max-h-[90vh]' : 'h-full sm:h-[94vh] sm:max-h-[94vh]'].join(' ')}
         style={{ maxWidth: pequena ? Math.min(larguraMax, 560) : larguraMax }}
       >
-        <header className="flex flex-shrink-0 items-center gap-2 border-b border-border px-3 py-2.5">
+        <header className={`flex flex-shrink-0 items-center gap-2 border-b px-3 py-2.5 ${cab.faixa}`} data-tom={tom}>
           {!semVoltar && (
             <button type="button" onClick={voltar} aria-label="Voltar" data-testid="tela-voltar"
-              className="flex h-[48px] flex-shrink-0 items-center gap-1.5 rounded-menuzia border border-border bg-white px-3 text-[14px] font-semibold text-text-main hover:border-primary hover:text-primary active:scale-[0.97]">
+              className="flex h-[48px] flex-shrink-0 items-center gap-1.5 rounded-menuzia bg-[#111827] px-3.5 text-[14px] font-semibold text-white transition-colors hover:bg-[#f6bd28] hover:text-[#1F2937] active:scale-[0.97] active:bg-[#f6bd28] active:text-[#1F2937]">
               <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden><path d={ICONE_VOLTAR} /></svg>
               Voltar
             </button>
           )}
           <nav className="min-w-0 flex-1 px-1" aria-label="Caminho">
             {caminho.length > 1 && (
-              <p className="truncate text-[12px] font-medium text-text-subtle" data-testid="tela-caminho">{caminho.slice(0, -1).join(' › ')} ›</p>
+              <p className={`truncate text-[12px] font-medium ${cab.suave}`} data-testid="tela-caminho">{caminho.slice(0, -1).join(' › ')} ›</p>
             )}
-            <h2 className="truncate text-[17px] font-semibold leading-tight text-text-main" data-testid="tela-titulo">{titulo}</h2>
+            <h2 className={`truncate text-[18px] font-semibold leading-tight ${cab.texto}`} data-testid="tela-titulo">{titulo}</h2>
           </nav>
           <button type="button" onClick={fecharTudo} aria-label="Fechar" data-testid="tela-fechar-tudo"
-            className="flex h-[48px] w-[48px] flex-shrink-0 items-center justify-center rounded-menuzia border border-border bg-white text-text-subtle hover:text-text-main active:scale-[0.97]">
+            className={`flex h-[48px] w-[48px] flex-shrink-0 items-center justify-center rounded-menuzia transition-colors active:scale-[0.97] ${cab.fechar}`}>
             <svg viewBox="0 0 24 24" className="h-6 w-6 fill-current" aria-hidden><path d={ICONE_X} /></svg>
           </button>
         </header>
@@ -273,7 +287,7 @@ export function BotaoPdv({
   icone?: string
   children: React.ReactNode
   onClick?: () => void
-  tipo?: 'principal' | 'secundario' | 'perigo' | 'sucesso'
+  tipo?: 'principal' | 'secundario' | 'perigo' | 'sucesso' | 'azul' | 'critico'
   disabled?: boolean
   testid?: string
   type?: 'button' | 'submit'
@@ -282,9 +296,11 @@ export function BotaoPdv({
 }) {
   const estilo = {
     principal: 'bg-primary text-white hover:bg-primary-dark border-primary',
-    sucesso: 'bg-status-ready text-white hover:brightness-95 border-status-ready',
+    sucesso: 'bg-[#15803D] text-white hover:brightness-95 border-[#15803D]',
     secundario: 'bg-white text-text-main border-border hover:border-primary hover:text-primary',
     perigo: 'bg-white text-danger border-danger/50 hover:bg-danger-bg',
+    azul: 'bg-[#003bb0] text-white hover:brightness-110 border-[#003bb0]',
+    critico: 'bg-[#ea1d2c] text-white hover:brightness-95 border-[#ea1d2c]',
   }[tipo]
   return (
     <button type={type} onClick={onClick} disabled={disabled} data-testid={testid} title={title}

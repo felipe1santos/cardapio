@@ -23,6 +23,6 @@ describe('Button', () => {
   it('applies the success variant classes when requested', () => {
     render(<Button variant="success">Pronto</Button>)
     const btn = screen.getByRole('button', { name: 'Pronto' })
-    expect(btn.className).toContain('bg-status-ready')
+    expect(btn.className).toContain('bg-[#15803D]')
   })
 })

@@ -12,7 +12,7 @@ const TOM: Record<TomSelo, { fundo: string; texto: string }> = {
   verde: { fundo: '#DCFCE7', texto: '#15803D' },
   cinza: { fundo: '#F1F2F4', texto: '#4B5563' },
   vermelho: { fundo: '#FEE2E2', texto: '#B91C1C' },
-  laranja: { fundo: '#FFEDD5', texto: '#C2410C' },
+  laranja: { fundo: '#FFEDD5', texto: '#FFA400' },
 }
 
 const ICONE = {

@@ -245,7 +245,7 @@ export function ContaPresencialModal({
   ) : undefined
   return (
     <RaizPilha fecharTudo={onFechar}>
-    <TelaPdv titulo={titulo} onVoltar={onFechar} rodape={barra} testid="conta-tela">
+    <TelaPdv titulo={titulo} onVoltar={onFechar} rodape={barra} testid="conta-tela" tom="azul">
       <div className="flex h-full min-h-0 flex-col">
         {/* Identificação da conta */}
         <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
@@ -267,7 +267,7 @@ export function ContaPresencialModal({
           </div>
           <div className="flex flex-shrink-0 items-center gap-2">
             {conta && !aberta && (
-              <button type="button" onClick={() => setSub({ tipo: 'historico' })} className="rounded-menuzia border border-border px-3 py-2 text-[12px] font-semibold text-text-main hover:border-primary hover:text-primary">
+              <button type="button" onClick={() => setSub({ tipo: 'historico' })} className="rounded-menuzia border border-white/40 bg-white/15 px-3 py-2 text-[12px] font-semibold text-white transition-colors hover:bg-[#f6bd28] hover:text-[#1F2937] active:bg-[#f6bd28] active:text-[#1F2937]">
                 Histórico
               </button>
             )}
@@ -738,7 +738,14 @@ function CartaoPedido({
         <Badge tone={TOM_COZINHA[p.status] ?? 'alert'}>{ROTULO_COZINHA[p.status as StatusCozinha] ?? p.status}</Badge>
         {at && <Badge tone={at === 'servido' || at === 'entregue_balcao' || at === 'concluido' ? 'ok' : at === 'nao_entregue' ? 'danger' : 'alert'}>{ROTULO_ATENDIMENTO[at]}</Badge>}
         {p.resolvidoForcado && <Badge tone="paused">Resolvido à força</Badge>}
-        <span className={['ml-auto text-[15px] font-semibold', cancelado ? 'text-text-subtle line-through' : 'text-text-main'].join(' ')}>{formatBRL(p.total)}</span>
+        <div className="ml-auto flex items-center gap-2">
+          <span className={['text-[15px] font-semibold', cancelado ? 'text-text-subtle line-through' : 'text-text-main'].join(' ')}>{formatBRL(p.total)}</span>
+          {pode.reimprimir && (
+            <button type="button" disabled={ocupado} onClick={() => void onAgir({ acao: 'reimprimir', pedidoId: p.id }, `Reimpressão do #${p.numero} pedida.`)} className="rounded-menuzia border border-border px-2.5 py-1.5 text-[12px] font-semibold text-text-subtle transition-colors hover:border-[#f6bd28] hover:bg-[#f6bd28] hover:text-[#1F2937] active:bg-[#f6bd28] disabled:opacity-50">
+              Reimprimir
+            </button>
+          )}
+        </div>
       </div>
       {!cancelado && p.status === 'pronto' && p.prontoEm && (
         <p className="mt-0.5 text-[11px] font-semibold text-status-ready">pronto há {minutosDesde(p.prontoEm, agora)} min</p>
@@ -747,7 +754,7 @@ function CartaoPedido({
       <ul className="mt-2 space-y-1">
         {p.itens.map((i) => (
           <li key={i.id} className={['flex items-start gap-2.5 text-[13px]', i.cancelado ? 'text-text-subtle line-through' : 'text-text-main'].join(' ')}>
-            <FotoItem url={i.imagemUrl} nome={i.nome} tamanho={40} className={i.cancelado ? 'opacity-50' : ''} />
+            <FotoItem url={i.imagemUrl} nome={i.nome} tamanho={64} className={i.cancelado ? 'opacity-50' : ''} />
             <span className="min-w-0 flex-1 pt-0.5">
               <span className="font-semibold">{i.quantidade}×</span> {i.nome}
               {(i.detalhe || i.complementos.length > 0) && (
@@ -778,11 +785,6 @@ function CartaoPedido({
           {p.status !== 'entregue' && (pode.cancelar_pedido || pode.solicitar_cancelamento) && (
             <button type="button" disabled={ocupado} onClick={onCancelar} className="ml-auto rounded-menuzia border border-danger/40 px-3 py-2 text-[12px] font-semibold text-danger hover:bg-danger hover:text-white disabled:opacity-50">
               Cancelar…
-            </button>
-          )}
-          {pode.reimprimir && (
-            <button type="button" disabled={ocupado} onClick={() => void onAgir({ acao: 'reimprimir', pedidoId: p.id }, `Reimpressão do #${p.numero} pedida.`)} className="rounded-menuzia border border-border px-3 py-2 text-[12px] font-semibold text-text-subtle hover:text-text-main disabled:opacity-50">
-              Reimprimir
             </button>
           )}
         </div>
@@ -1499,7 +1501,7 @@ function PreContaBloco({ comandaId, variante = 'bloco' }: { comandaId: string; v
         disabled={enviando}
         onClick={() => void imprimir(Boolean(ultima))}
         data-testid={ultima ? 'pre-conta-reimprimir' : 'pre-conta-imprimir'}
-        className="w-full rounded-menuzia border-2 border-sidebar-bg bg-white py-3 text-[14px] font-semibold text-sidebar-bg transition-all hover:bg-sidebar-bg hover:text-white disabled:opacity-50"
+        className="w-full rounded-menuzia border-2 border-sidebar-bg bg-white py-3 text-[14px] font-semibold text-sidebar-bg transition-all hover:border-[#f6bd28] hover:bg-[#f6bd28] hover:text-[#1F2937] active:bg-[#f6bd28] active:text-[#1F2937] disabled:opacity-50"
       >
         {enviando ? 'Enviando…' : ultima ? 'Reimprimir Recibo/Extrato' : 'Imprimir Recibo/Extrato'}
       </button>
@@ -1595,7 +1597,7 @@ function BotaoAcao({ icone, rotulo, onClick, disabled, testid, title, perigo = f
       title={title ?? rotulo}
       className={[
         'flex h-[84px] w-[88px] flex-shrink-0 flex-col items-center justify-center gap-1.5 rounded-menuzia border bg-white text-[12px] font-semibold leading-tight transition-colors active:scale-[0.97] disabled:opacity-50',
-        perigo ? 'border-danger/40 text-danger hover:bg-danger-bg' : 'border-border text-text-main hover:border-primary hover:text-primary',
+        perigo ? 'border-[#ea1d2c] text-[#ea1d2c] hover:bg-[#ea1d2c] hover:text-white' : 'border-border text-text-main hover:border-[#f6bd28] hover:bg-[#f6bd28] hover:text-[#1F2937] active:bg-[#f6bd28] active:text-[#1F2937]',
       ].join(' ')}
     >
       <svg viewBox="0 0 24 24" className="h-[28px] w-[28px] fill-current" aria-hidden><path d={icone} /></svg>
@@ -1642,9 +1644,7 @@ function BarraAcoesConta({
         )}
         {pode.fechar && (
           <button type="button" disabled={ocupado} onClick={onFechar} data-testid="conta-fechar"
-            className={['flex h-[84px] flex-1 items-center justify-center gap-2 rounded-menuzia border-2 border-status-ready px-7 text-[18px] font-semibold transition-all hover:brightness-95 active:scale-[0.98] disabled:opacity-50 sm:flex-none',
-              // Uma ação forte por vez: com saldo a receber, o destaque é o Receber.
-              pode.pagamento && conta.totais.restante > 0 ? 'bg-white text-status-ready' : 'bg-status-ready text-white'].join(' ')}>
+            className="flex h-[84px] flex-1 items-center justify-center gap-2 rounded-menuzia border-2 border-[#15803D] bg-[#15803D] px-7 text-[18px] font-semibold text-white transition-all hover:brightness-95 active:scale-[0.98] disabled:opacity-50 sm:flex-none">
             <Ic d={ICONES_PDV.check} />
             {ocupado ? 'Aguarde…' : 'Fechar conta'}
           </button>

@@ -141,7 +141,7 @@ export function FichaDaLoja({
           </button>
           <button
             onClick={onEditar}
-            className="inline-flex items-center gap-1.5 rounded-[var(--adm-raio-sm,6px)] bg-[var(--adm-azul,#0b78d0)] px-3.5 py-2 text-[12px] font-semibold text-white hover:bg-[var(--adm-azul-escuro,#0961a8)]"
+            className="inline-flex items-center gap-1.5 rounded-[var(--adm-raio-sm,6px)] bg-[var(--adm-azul,#0b78d0)] px-3.5 py-2 text-[12px] font-semibold text-white hover:bg-[var(--adm-azul-escuro,#003bb0)]"
           >
             <Pencil className="h-3.5 w-3.5" />
             Editar em Ajustes
