@@ -123,3 +123,21 @@ export function validarPatchRecorrente(
   if (Object.keys(row).length === 0) return { ok: false, erro: 'Nada para salvar.' }
   return { ok: true, row }
 }
+
+/**
+ * Aquecimento do número (0247): limite diário dos 3 cards JUNTOS. 15 nos 5 primeiros dias contados da 1ª rodada de
+ * card da loja, +5 a cada 5 dias (20, 25, 30…). O banco aplica a mesma conta em campanha_recorrente_limite_aquecimento.
+ */
+export function limiteAquecimento(diasDesdeInicio: number): number {
+  return 15 + 5 * Math.floor(Math.max(0, diasDesdeInicio) / 5)
+}
+
+/** O que falta para o card poder ligar (a trigger 0247 recusa o mesmo). Vazio = pronto. */
+export function pendenciasDoCard(c: { imagens: ImagemCard[]; mensagem: string; diasSemana: number[]; hora: string; janelaFim: string }): string[] {
+  const falta: string[] = []
+  if (c.imagens.length === 0) falta.push('Adicione pelo menos 1 imagem.')
+  if (!c.mensagem.trim() && (c.imagens.length === 0 || c.imagens.some((i) => !i.mensagem.trim()))) falta.push('Escreva a mensagem padrão ou uma mensagem em cada imagem.')
+  if (c.diasSemana.length === 0) falta.push('Escolha pelo menos um dia.')
+  if (!c.hora || !c.janelaFim || c.janelaFim <= c.hora) falta.push('Ajuste o horário (o fim precisa ser depois do início).')
+  return falta
+}

@@ -20,7 +20,7 @@ export interface Recorrente {
   proximoDisparoEm: string | null
   ultimaRodadaEm: string | null
   ultimaCampanhaId: string | null
-  ultimaRodadaMotivo: 'ok' | 'sem_publico' | 'atrasado' | null
+  ultimaRodadaMotivo: 'ok' | 'sem_publico' | 'atrasado' | 'limite_dia' | null
   desligadoMotivo: string | null
   /** Números da última rodada (campanha gerada), quando houve. */
   ultimaRodada: { destinatarios: number; enviados: number; erros: number; status: string } | null

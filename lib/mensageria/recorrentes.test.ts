@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CHECAGEM_CARDS_MS, IMAGENS_MAX, ROTULO_RECORRENTE, TIPOS_RECORRENTES, cabemNaJanela, checagemDevida, intervaloChecagemCards, validarPatchRecorrente } from './recorrentes'
+import { CHECAGEM_CARDS_MS, IMAGENS_MAX, ROTULO_RECORRENTE, TIPOS_RECORRENTES, cabemNaJanela, checagemDevida, intervaloChecagemCards, limiteAquecimento, pendenciasDoCard, validarPatchRecorrente } from './recorrentes'
 
 /** 03/11/2026: regras puras dos cards recorrentes (docs/superpowers/specs/2026-11-03-disparos-recorrentes-design.md). */
 
@@ -67,4 +67,20 @@ describe('validarPatchRecorrente', () => {
     expect(ok(validarPatchRecorrente('promocoes', { ativa: true })).row.ativa).toBe(true)
     expect(validarPatchRecorrente('promocoes', {}).ok).toBe(false)
   })
+})
+
+describe('limiteAquecimento: 15 nos 5 primeiros dias, +5 a cada 5 dias (0247)', () => {
+  it('dia 0 a 4 → 15; dia 5 a 9 → 20; dia 10 → 25', () => {
+    expect([0, 4, 5, 9, 10, 27].map(limiteAquecimento)).toEqual([15, 15, 20, 20, 25, 40])
+  })
+  it('dias negativos (relógio) contam como 0', () => expect(limiteAquecimento(-3)).toBe(15))
+})
+
+describe('pendenciasDoCard: o toggle só liga com tudo pronto', () => {
+  const base = { imagens: [{ url: 'https://x/a.jpg', mensagem: '' }], mensagem: 'Oi {nome}', diasSemana: [1], hora: '17:00', janelaFim: '19:00' }
+  it('card pronto: sem pendência', () => expect(pendenciasDoCard(base)).toEqual([]))
+  it('sem imagem', () => expect(pendenciasDoCard({ ...base, imagens: [] })).toContain('Adicione pelo menos 1 imagem.'))
+  it('sem mensagem padrão e imagem sem mensagem', () => expect(pendenciasDoCard({ ...base, mensagem: '  ' })).toContain('Escreva a mensagem padrão ou uma mensagem em cada imagem.'))
+  it('sem mensagem padrão mas toda imagem com mensagem: ok', () => expect(pendenciasDoCard({ ...base, mensagem: '', imagens: [{ url: 'https://x/a.jpg', mensagem: 'Promo' }] })).toEqual([]))
+  it('sem dia', () => expect(pendenciasDoCard({ ...base, diasSemana: [] })).toContain('Escolha pelo menos um dia.'))
 })

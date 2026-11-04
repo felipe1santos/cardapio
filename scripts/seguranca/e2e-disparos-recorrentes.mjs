@@ -229,6 +229,20 @@ try {
   const atrasado = await card('nunca_compraram')
   ok('card atrasado (agenda de ontem): nenhuma rodada, motivo "atrasado", agenda no futuro', atrasado.ultima_rodada_motivo === 'atrasado' && atrasado.ultima_campanha_id === null && new Date(atrasado.proximo_disparo_em) > new Date() && (await rodadas('nunca_compraram')).length === 0, JSON.stringify({ m: atrasado.ultima_rodada_motivo, prox: atrasado.proximo_disparo_em }))
 
+  // Aquecimento (0247): com o limite do dia gasto, a rodada não nasce e o card marca 'limite_dia'.
+  ok('aquecimento: dia 0 = 15 por dia', (await um(`select campanha_recorrente_limite_aquecimento($1) n`, [A])).n === 15)
+  const enchida = (await um(`insert into campanhas (restaurante_id, nome, status, mensagem, agendado_em, recorrente_id, total_destinatarios)
+    values ($1,'Enche o limite','concluida','x', now(), (select id from campanha_recorrentes where restaurante_id=$1 and tipo='nunca_compraram'), 15) returning id`, [A])).id
+  await db.query(`insert into campanha_envios (campanha_id, restaurante_id, telefone, nome_cliente, status, enviado_em)
+    select $1, $2, '55119980' || lpad(g::text, 5, '0'), 'x', 'enviado', now() from generate_series(1, 15) g`, [enchida, A])
+  await vencer('nunca_compraram'); await cron()
+  ok('limite do dia gasto: rodada não nasce, motivo "limite_dia"', (await card('nunca_compraram')).ultima_rodada_motivo === 'limite_dia')
+  const res = await api(dono.p, `${R}/resumo`)
+  ok('resumo do topo: limite 15, enviadas de hoje contadas', res.s === 200 && res.j.limite_hoje === 15 && res.j.hoje_enviadas >= 15 && typeof res.j.h16_perdidas === 'number', JSON.stringify(res.j))
+  await db.query(`update campanhas set criado_em = now() - interval '6 days' where id=$1`, [enchida])
+  ok('aquecimento: 6 dias depois da 1ª rodada = 20 por dia', (await um(`select campanha_recorrente_limite_aquecimento($1) n`, [A])).n === 20)
+  await db.query(`delete from campanhas where id=$1`, [enchida])
+
   secao('6. Freio desliga o card')
   await db.query(`update campanhas set status='enviando' where id=$1`, [rp[0].id])
   await db.query(`insert into campanha_envios (campanha_id, restaurante_id, telefone, nome_cliente, status, erro, enviado_em)

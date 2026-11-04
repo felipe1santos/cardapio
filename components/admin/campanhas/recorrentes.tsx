@@ -1,11 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, Loader2, Settings2, Trash2, Upload, X } from 'lucide-react'
+import { AlertTriangle, Lightbulb, Loader2, Settings2, Trash2, Upload, X } from 'lucide-react'
 import { getBrowserSupabase } from '@/lib/supabase/client'
 import { uploadMidiaCampanha } from '@/lib/queries/campanhas'
 import type { Recorrente } from '@/lib/queries/recorrentes'
-import { IMAGENS_MAX, ROTULO_RECORRENTE, TIPOS_RECORRENTES, cabemNaJanela, type ImagemCard, type TipoRecorrente } from '@/lib/mensageria/recorrentes'
+import { IMAGENS_MAX, ROTULO_RECORRENTE, TIPOS_RECORRENTES, cabemNaJanela, pendenciasDoCard, type ImagemCard, type TipoRecorrente } from '@/lib/mensageria/recorrentes'
+import { formatarReal } from '@/lib/moeda'
 import { Ajuda, formatarDataHora } from './comum'
 
 /**
@@ -50,6 +51,15 @@ export function Recorrentes({ restauranteId, onToast }: { restauranteId: string 
   const [erro, setErro] = useState<string | null>(null)
   const [estimativas, setEstimativas] = useState<Partial<Record<TipoRecorrente, number | null>>>({})
   const [configurando, setConfigurando] = useState<TipoRecorrente | null>(null)
+  const [resumo, setResumo] = useState<Resumo | null>(null)
+
+  // Números do topo: uma leitura ao abrir e depois de cada mudança (sem polling — regra de custo).
+  const carregarResumo = useCallback(() => {
+    fetch('/api/admin/campanhas/recorrentes/resumo', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => setResumo(j as Resumo | null))
+      .catch(() => setResumo(null))
+  }, [])
 
   const carregar = useCallback(async () => {
     setErro(null)
@@ -64,7 +74,7 @@ export function Recorrentes({ restauranteId, onToast }: { restauranteId: string 
         .catch(() => setEstimativas((s) => ({ ...s, [c.tipo]: null })))
     }
   }, [])
-  useEffect(() => { void carregar() }, [carregar])
+  useEffect(() => { void carregar(); carregarResumo() }, [carregar, carregarResumo])
 
   const patch: OnPatch = useCallback(async (tipo, body, aviso = 'Salvo.') => {
     const r = await fetch(`/api/admin/campanhas/recorrentes/${tipo}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => null)
@@ -72,8 +82,9 @@ export function Recorrentes({ restauranteId, onToast }: { restauranteId: string 
     if (!r || !r.ok) { onToast('erro', j?.error ?? 'Não foi possível salvar.'); return false }
     setCards((lista) => (lista ?? []).map((c) => (c.tipo === tipo ? (j as Recorrente) : c)))
     onToast('ok', aviso)
+    carregarResumo()
     return true
-  }, [onToast])
+  }, [onToast, carregarResumo])
 
   if (erro) {
     return (
@@ -92,15 +103,12 @@ export function Recorrentes({ restauranteId, onToast }: { restauranteId: string 
   const alvo = configurando ? cards.find((c) => c.tipo === configurando) ?? null : null
   return (
     <div className="flex min-h-full flex-col gap-4" data-testid="recorrentes">
-      <p className="text-[12.5px] text-[#5b6472]">
-        Três campanhas que rodam sozinhas: ligou, o sistema dispara nos dias e horário programados, para quem já falou com a loja no
-        WhatsApp, com pelo menos 1 minuto entre mensagens e no máximo uma mensagem por pessoa a cada 2 dias. Todo disparo sai com imagem.
-      </p>
+      <Topo resumo={resumo} />
       {/* Altura dos cards (03/11): a mesma da área do gráfico da Visão geral. */}
       <div className="grid items-stretch gap-4 lg:h-[560px] lg:grid-cols-3">
         {TIPOS_RECORRENTES.map((t) => {
           const c = cards.find((x) => x.tipo === t)
-          return c ? <CardRecorrente key={t} card={c} estimativa={estimativas[t]} onPatch={patch} onConfigurar={() => setConfigurando(t)} /> : null
+          return c ? <CardRecorrente key={t} card={c} estimativa={estimativas[t]} limiteHoje={resumo?.limite_hoje ?? null} onPatch={patch} onConfigurar={() => setConfigurando(t)} /> : null
         })}
       </div>
       {alvo && <ModalConfig card={alvo} restauranteId={restauranteId} onPatch={patch} onFechar={() => setConfigurando(null)} onToast={onToast} />}
@@ -108,17 +116,57 @@ export function Recorrentes({ restauranteId, onToast }: { restauranteId: string 
   )
 }
 
-function CardRecorrente({ card, estimativa, onPatch, onConfigurar }: {
+interface Resumo {
+  hoje_enviadas: number; hoje_enfileiradas: number; hoje_na_fila: number; limite_hoje: number; proximo_limite: number; dias_para_subir: number
+  h16_enviadas: number; h16_perdidas: number; h16_pedidos: number; h16_receita: number
+}
+
+const TEXTO_TOPO = 'Três campanhas que rodam sozinhas: ligou, o sistema dispara nos dias e horário programados, para quem já falou com a loja no WhatsApp, com pelo menos 1 minuto entre mensagens e no máximo uma mensagem por pessoa a cada 2 dias. Todo disparo sai com imagem. Para proteger o número, o limite diário dos 3 cards juntos começa em 15 mensagens e sobe 5 a cada 5 dias.'
+
+/** Topo da aba: lâmpada que abre/fecha a explicação; disparos de hoje x limite do aquecimento; últimas 16 h. */
+function Topo({ resumo }: { resumo: Resumo | null }) {
+  const [aberto, setAberto] = useState(false)
+  const n = (v: number | undefined) => (resumo ? String(v ?? 0) : '—')
+  return (
+    <div className="space-y-2" data-testid="recorrentes-topo">
+      <div className="flex flex-wrap items-stretch gap-2">
+        <button type="button" onClick={() => setAberto((v) => !v)} aria-expanded={aberto} aria-controls="recorrentes-explicacao" aria-label={aberto ? 'Fechar a explicação' : 'Como funcionam os cards'}
+          className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-[6px] bg-[#fdf1c7] text-[#92400e] hover:bg-[#f6bd28] hover:text-[#1f2937]" data-testid="lampada">
+          <Lightbulb className="h-5 w-5" />
+        </button>
+        <div className="flex flex-wrap items-center gap-2 rounded-[6px] border border-[#e5e7eb] bg-white px-3 py-1.5 text-[12.5px] text-[#374151]" data-testid="contador-hoje">
+          <span className="font-semibold text-[#112f6b]">Disparos hoje: {n(resumo?.hoje_enviadas)} de {n(resumo?.limite_hoje)}</span>
+          {resumo && resumo.hoje_na_fila > 0 && <span className="text-[#5b6472]">· {resumo.hoje_na_fila} na fila</span>}
+          {resumo && <span className="text-[#5b6472]">· sobe para {resumo.proximo_limite} em {resumo.dias_para_subir} {resumo.dias_para_subir === 1 ? 'dia' : 'dias'}</span>}
+        </div>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-[6px] border border-[#e5e7eb] bg-white px-3 py-1.5 text-[12.5px] text-[#374151]" data-testid="contador-16h">
+          <span className="font-semibold text-[#1f2937]">Últimas 16 h:</span>
+          <span>enviadas <b className="text-[#15803d]">{n(resumo?.h16_enviadas)}</b></span>
+          <span>perdidas <b className="text-[#b91c1c]">{n(resumo?.h16_perdidas)}</b></span>
+          <span>pedidos <b className="text-[#112f6b]">{n(resumo?.h16_pedidos)}</b></span>
+          <span>retorno <b className="text-[#112f6b]">{resumo ? formatarReal(Number(resumo.h16_receita)) : '—'}</b></span>
+        </div>
+      </div>
+      {aberto && <p id="recorrentes-explicacao" className="rounded-[6px] bg-[#f4f7fc] px-3 py-2 text-[12.5px] text-[#374151]" data-testid="recorrentes-explicacao">{TEXTO_TOPO}</p>}
+    </div>
+  )
+}
+
+function CardRecorrente({ card, estimativa, limiteHoje, onPatch, onConfigurar }: {
   card: Recorrente
   estimativa: number | null | undefined
+  /** Limite do aquecimento de hoje (3 cards juntos): o "cabem" nunca mostra mais que isso. */
+  limiteHoje: number | null
   onPatch: OnPatch
   onConfigurar: () => void
 }) {
   const rotulo = ROTULO_RECORRENTE[card.tipo]
   const [ocupado, setOcupado] = useState(false)
-  const cabem = cabemNaJanela(card.hora, card.janelaFim, TETO_PADRAO)
+  const cabem = Math.min(cabemNaJanela(card.hora, card.janelaFim, TETO_PADRAO), limiteHoje ?? Number.POSITIVE_INFINITY)
   const proxima = card.ativa && card.proximoDisparoEm ? formatarDataHora(card.proximoDisparoEm, false) : null
-  const semImagem = card.imagens.length === 0
+  const pendencias = pendenciasDoCard(card)
+  // Só liga com tudo pronto; desligar é sempre permitido.
+  const travado = !card.ativa && pendencias.length > 0
 
   const agir = async (body: Patch, aviso?: string) => { setOcupado(true); try { await onPatch(card.tipo, body, aviso) } finally { setOcupado(false) } }
 
@@ -145,7 +193,7 @@ function CardRecorrente({ card, estimativa, onPatch, onConfigurar }: {
             {estimativa === undefined ? 'Contando…' : estimativa === null ? 'Público indisponível' : `${estimativa} ${estimativa === 1 ? 'pessoa' : 'pessoas'} hoje`}
           </span>
           <span className="text-[#5b6472]">cabem ~{cabem} por rodada</span>
-          <Ajuda texto="Com 60–150 s entre mensagens, a janela escolhida comporta este tanto. Amplie o horário final para alcançar mais pessoas por dia." />
+          <Ajuda texto="O menor entre o que a janela comporta (60–150 s entre mensagens) e o limite de hoje do aquecimento do número (os 3 cards juntos)." />
         </div>
 
         <div className="space-y-1 text-[13px] text-[#374151]" data-testid={`resumo-${card.tipo}`}>
@@ -159,6 +207,8 @@ function CardRecorrente({ card, estimativa, onPatch, onConfigurar }: {
             ? <span className="inline-flex items-start gap-1.5 rounded-[5px] border border-[#ea1d2c] bg-[#fdecee] px-2.5 py-1.5 font-semibold text-[#b91c1c]"><AlertTriangle className="mt-[1px] h-3.5 w-3.5 flex-shrink-0 text-[#ea1d2c]" /> Desligado pelo freio ({card.desligadoMotivo === 'erro_alto' ? 'muitos erros' : 'muitos pedidos de SAIR'}). Revise antes de religar.</span>
             : card.ultimaRodadaMotivo === 'sem_publico'
               ? <span>Última rodada {formatarDataHora(card.ultimaRodadaEm, false)}: sem público.</span>
+              : card.ultimaRodadaMotivo === 'limite_dia'
+                ? <span>{formatarDataHora(card.ultimaRodadaEm, false)}: limite de hoje atingido (aquecimento do número). Volta no próximo dia.</span>
               : card.ultimaRodadaMotivo === 'atrasado'
                 ? <span>{formatarDataHora(card.ultimaRodadaEm, false)}: o horário já tinha passado, não disparou.</span>
                 : card.ultimaRodada && card.ultimaRodadaEm
@@ -166,12 +216,17 @@ function CardRecorrente({ card, estimativa, onPatch, onConfigurar }: {
                   : 'Nenhuma rodada ainda.'}
           {proxima && <span className="block">Próxima: {proxima}.</span>}
         </p>
-        {semImagem && <p className="rounded-[4px] bg-[#fff1d6] px-2 py-1.5 text-[12px] font-semibold text-[#1f2937]">Sem imagem: este card não liga. Configure ao menos 1 imagem.</p>}
+        {travado && (
+          <div className="rounded-[4px] bg-[#fff1d6] px-2.5 py-1.5 text-[12px] text-[#1f2937]" data-testid={`pendencias-${card.tipo}`}>
+            <p className="font-semibold">Para ligar, falta:</p>
+            <ul className="list-disc pl-4">{pendencias.map((p) => <li key={p}>{p}</li>)}</ul>
+          </div>
+        )}
       </div>
 
       <div className="flex items-center justify-between gap-2 border-t border-[#e5e7eb] px-4 py-3">
-        <button type="button" role="switch" aria-checked={card.ativa} disabled={ocupado} onClick={() => void agir({ ativa: !card.ativa }, card.ativa ? 'Card desligado.' : 'Card ligado: dispara sozinho na programação.')}
-          className="inline-flex items-center gap-2 text-[13px] font-semibold text-[#1f2937]" data-testid={`toggle-${card.tipo}`}>
+        <button type="button" role="switch" aria-checked={card.ativa} disabled={ocupado || travado} title={travado ? `Para ligar: ${pendencias.join(' ')}` : undefined} onClick={() => void agir({ ativa: !card.ativa }, card.ativa ? 'Card desligado.' : 'Card ligado: dispara sozinho na programação.')}
+          className="inline-flex items-center gap-2 text-[13px] font-semibold text-[#1f2937] disabled:cursor-not-allowed disabled:opacity-60" data-testid={`toggle-${card.tipo}`}>
           <span className={`relative inline-block h-7 w-12 rounded-full border-2 transition-colors ${card.ativa ? '' : 'border-[#cbd2d9] bg-[#cbd2d9]'}`} style={card.ativa ? { backgroundColor: COR[card.tipo], borderColor: COR[card.tipo] } : undefined} aria-hidden>
             <span className={`absolute left-[2px] top-[2px] h-5 w-5 rounded-full bg-white shadow transition-transform motion-reduce:transition-none ${card.ativa ? 'translate-x-[20px]' : 'translate-x-0'}`} />
           </span>

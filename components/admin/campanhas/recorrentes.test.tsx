@@ -22,6 +22,7 @@ function fetchFalso() {
     chamadas.push({ url, init })
     const json = (v: unknown, ok = true) => ({ ok, status: ok ? 200 : 400, json: async () => v })
     if (url.endsWith('/estimativa')) return json({ pessoas: 7 })
+    if (url.endsWith('/resumo')) return json({ hoje_enviadas: 4, hoje_enfileiradas: 6, hoje_na_fila: 2, limite_hoje: 15, proximo_limite: 20, dias_para_subir: 3, h16_enviadas: 9, h16_perdidas: 1, h16_pedidos: 2, h16_receita: 87.5 })
     if (init?.method === 'PATCH') {
       const tipo = url.split('/').pop()!
       const body = JSON.parse(String(init.body))
@@ -78,6 +79,38 @@ describe('Recorrentes', () => {
     fireEvent.change(screen.getByTestId('modal-msg-0'), { target: { value: 'Promo de terça!' } })
     fireEvent.click(screen.getByTestId('salvar-config'))
     await waitFor(() => expect(chamadas.some((c) => c.url.endsWith('/promocoes') && c.init?.method === 'PATCH' && String(c.init.body).includes('"mensagem":"Promo de terça!"'))).toBe(true))
+  })
+
+  it('topo: lâmpada abre e fecha a explicação; contadores de hoje (com limite) e das últimas 16 h', async () => {
+    fetchFalso()
+    render(<Recorrentes restauranteId="L1" onToast={vi.fn()} />)
+    await screen.findByTestId('card-promocoes')
+    expect(screen.queryByTestId('recorrentes-explicacao')).toBeNull()
+    fireEvent.click(screen.getByTestId('lampada'))
+    expect(screen.getByTestId('recorrentes-explicacao').textContent).toMatch(/começa em 15 mensagens/)
+    fireEvent.click(screen.getByTestId('lampada'))
+    expect(screen.queryByTestId('recorrentes-explicacao')).toBeNull()
+    await waitFor(() => expect(screen.getByTestId('contador-hoje').textContent).toMatch(/Disparos hoje: 4 de 15/))
+    expect(screen.getByTestId('contador-hoje').textContent).toMatch(/sobe para 20 em 3 dias/)
+    expect(screen.getByTestId('contador-16h').textContent).toMatch(/enviadas 9/)
+    expect(screen.getByTestId('contador-16h').textContent).toMatch(/perdidas 1/)
+    expect(screen.getByTestId('contador-16h').textContent).toMatch(/pedidos 2/)
+  })
+
+  it('card com pendência (sem imagem): toggle travado e a lista do que falta', async () => {
+    const { chamadas } = fetchFalso()
+    globalThis.fetch = (async (url: string, init?: RequestInit) => {
+      if (url === '/api/admin/campanhas/recorrentes') {
+        chamadas.push({ url, init })
+        return { ok: true, status: 200, json: async () => [card('recuperacao', { imagens: [] }), card('nunca_compraram'), card('promocoes')] }
+      }
+      return { ok: true, status: 200, json: async () => (url.endsWith('/resumo') ? null : { pessoas: 0 }) }
+    }) as unknown as typeof fetch
+    render(<Recorrentes restauranteId="L1" onToast={vi.fn()} />)
+    const toggle = await screen.findByTestId('toggle-recuperacao')
+    expect(toggle).toBeDisabled()
+    expect(screen.getByTestId('pendencias-recuperacao').textContent).toMatch(/pelo menos 1 imagem/)
+    expect(screen.getByTestId('toggle-promocoes')).not.toBeDisabled()
   })
 
   it('ligar sem imagem: a API recusa (400) e o toast mostra a mensagem', async () => {
