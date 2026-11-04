@@ -63,7 +63,7 @@ export function VisaoGeral({ onDisparar, detalhado }: { onDisparar: () => void; 
   const semEnvios = !!dados && dados.envios.length === 0
 
   return (
-    <div className="space-y-4" data-testid="visao-geral">
+    <div className="flex min-h-full flex-col gap-4" data-testid="visao-geral">
       {/* Período */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-[12.5px] text-[#5b6472]">Resultados das mensagens enviadas no período (agendamentos e cards recorrentes). Pedido conta para o envio quando o mesmo telefone pede em até 72 h.</p>
@@ -113,7 +113,7 @@ export function VisaoGeral({ onDisparar, detalhado }: { onDisparar: () => void; 
 
       {/* O gráfico */}
       {dados && !semEnvios && (
-        <section className="campanha-cartao rounded-[6px] border border-[#e5e7eb] bg-white p-4" data-testid="grafico-dias">
+        <section className="campanha-cartao flex min-h-[260px] flex-1 flex-col rounded-[6px] border border-[#e5e7eb] bg-white p-4" data-testid="grafico-dias">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-[14px] font-semibold text-[#1f2937]">Resultado por dia</h3>
             <div className="flex rounded-[5px] border border-[#d6dae1] p-0.5" role="group" aria-label="O que mostrar">
@@ -124,7 +124,7 @@ export function VisaoGeral({ onDisparar, detalhado }: { onDisparar: () => void; 
               ))}
             </div>
           </div>
-          <BarrasDias serie={dados.serie} campo={serie} />
+          <div className="min-h-0 flex-1"><BarrasDias serie={dados.serie} campo={serie} /></div>
         </section>
       )}
       {semEnvios && (
@@ -183,7 +183,7 @@ function BarrasDias({ serie, campo }: { serie: Dados['serie']; campo: 'receita' 
   const rotular = serie.length <= 16
   const fmt = (v: number) => (campo === 'receita' ? formatarReal(v) : String(v))
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="h-[190px] w-full" role="img" aria-label="Gráfico por dia">
+    <svg viewBox={`0 0 ${W} ${H}`} className="h-full min-h-[190px] w-full" role="img" aria-label="Gráfico por dia">
       {[0.25, 0.5, 0.75, 1].map((f) => <line key={f} x1="0" x2={W} y1={base - f * 130} y2={base - f * 130} stroke="#eef0f3" />)}
       <line x1="0" x2={W} y1={base} y2={base} stroke="#d6dae1" />
       {serie.map((s, i) => {
