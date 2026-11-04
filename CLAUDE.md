@@ -19,6 +19,9 @@
 
 - Publicar só **antes das 11h ou depois das 23h** (Brasília), salvo emergência (sistema fora, perda de pedido/dinheiro).
   O build roda na mesma VPS das lojas. Programar e testar pode a qualquer hora; o deploy espera a janela.
+- **Depois de cada deploy:** `npm run vps:lixo` (só leitura) — confere lixo na VPS (imagens, cache de build) e se a
+  limpeza automática do Coolify está rodando e sendo efetiva. "Atenção" → seguir o indicado em
+  [docs/infra/LIMPEZA-VPS.md](docs/infra/LIMPEZA-VPS.md). Nunca apagar volume nem imagem em uso.
 
 ## ⚠️ ANTES DE TODO DEPLOY: CHECAR BUGS (regra do dono, 22/10/2026)
 
