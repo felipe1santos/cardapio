@@ -56,16 +56,8 @@ export function cabemNaJanela(hora: string, janelaFim: string, limiteDia: number
   return Math.max(1, Math.min(limiteDia, cabem))
 }
 
-export interface PatchRecorrente {
-  ativa?: boolean
-  mensagem?: string
-  incluirLink?: boolean
-  imagens?: string[]
-  diasSemana?: number[]
-  hora?: string
-  janelaFim?: string
-  pularHoje?: boolean
-}
+/** Uma imagem do card com a mensagem dela (0246). Mensagem vazia = usa a mensagem padrão do card. */
+export interface ImagemCard { url: string; mensagem: string }
 
 /** Data de hoje em Brasília, "YYYY-MM-DD". */
 export function hojeSaoPaulo(agora: Date = new Date()): string {
@@ -74,12 +66,12 @@ export function hojeSaoPaulo(agora: Date = new Date()): string {
 
 /**
  * Valida o PATCH de um card e devolve as colunas a gravar (snake_case). Só o que veio no patch entra na linha.
- * `pularHoje` também volta à parte: a rota cancela a rodada de hoje se ela já nasceu.
+ * Imagens: objeto { url, mensagem } (texto antigo é aceito e convertido). "Pular hoje" não existe mais (0246).
  */
 export function validarPatchRecorrente(
   tipo: TipoRecorrente,
   p: unknown,
-): { ok: true; row: Record<string, unknown>; pularHoje: boolean } | { ok: false; erro: string } {
+): { ok: true; row: Record<string, unknown> } | { ok: false; erro: string } {
   if (!p || typeof p !== 'object') return { ok: false, erro: 'Nada para salvar.' }
   const patch = p as Record<string, unknown>
   const row: Record<string, unknown> = {}
@@ -103,8 +95,18 @@ export function validarPatchRecorrente(
   if ('imagens' in patch) {
     const lista = patch.imagens
     if (!Array.isArray(lista) || lista.length > IMAGENS_MAX) return { ok: false, erro: `Até ${IMAGENS_MAX} imagens por card.` }
-    if (!lista.every((u) => typeof u === 'string' && /^https:\/\/\S+$/.test(u) && u.length <= 1000)) return { ok: false, erro: 'Imagem inválida.' }
-    row.imagens = lista
+    const normal: ImagemCard[] = []
+    for (const item of lista) {
+      const url = typeof item === 'string' ? item : (item as { url?: unknown } | null)?.url
+      const mensagem = typeof item === 'string' ? '' : (item as { mensagem?: unknown } | null)?.mensagem ?? ''
+      if (typeof url !== 'string' || !/^https:\/\/\S+$/.test(url) || url.length > 1000) return { ok: false, erro: 'Imagem inválida.' }
+      if (typeof mensagem !== 'string' || mensagem.length > 4096) return { ok: false, erro: 'Mensagem de cada imagem: até 4096 caracteres.' }
+      if (tipo !== 'recuperacao' && mensagem.includes(MARCADOR_ULTIMO_ITEM)) return { ok: false, erro: 'Esta variável só vale na Recuperação.' }
+      const problemaImg = problemasDasVariaveis(mensagem, { incluirLink: typeof patch.incluirLink === 'boolean' ? patch.incluirLink : true })
+      if (problemaImg) return { ok: false, erro: problemaImg }
+      normal.push({ url, mensagem })
+    }
+    row.imagens = normal
   }
   if ('diasSemana' in patch) {
     const dias = patch.diasSemana
@@ -118,9 +120,6 @@ export function validarPatchRecorrente(
     row.hora = janela.inicio
     row.janela_fim = janela.fim
   }
-  const pularHoje = patch.pularHoje === true
-  if (pularHoje) row.pular_ate = hojeSaoPaulo()
-
   if (Object.keys(row).length === 0) return { ok: false, erro: 'Nada para salvar.' }
-  return { ok: true, row, pularHoje }
+  return { ok: true, row }
 }

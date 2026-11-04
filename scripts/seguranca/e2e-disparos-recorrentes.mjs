@@ -166,6 +166,10 @@ try {
   ok('estimativa de Nunca compraram: só C5', (await api(dono.p, `${R}/nunca_compraram/estimativa`)).j.pessoas === 1)
 
   secao('3. Ligar: agenda gravada; rodada única; público e prioridade')
+  ok('card sem imagem não liga (400)', (await api(dono.p, `${R}/promocoes`, 'PATCH', { ativa: true })).s === 400)
+  await api(dono.p, `${R}/promocoes`, 'PATCH', { imagens: [{ url: 'https://exemplo.test/img-1.jpg', mensagem: 'Imagem 1 {nome}' }, { url: 'https://exemplo.test/img-2.jpg', mensagem: '' }] })
+  await api(dono.p, `${R}/recuperacao`, 'PATCH', { imagens: [{ url: 'https://exemplo.test/img-1.jpg', mensagem: 'Imagem 1 {nome}' }, { url: 'https://exemplo.test/img-2.jpg', mensagem: '' }] })
+  await api(dono.p, `${R}/nunca_compraram`, 'PATCH', { imagens: [{ url: 'https://exemplo.test/img-1.jpg', mensagem: 'Imagem 1 {nome}' }, { url: 'https://exemplo.test/img-2.jpg', mensagem: '' }] })
   const liga = await api(dono.p, `${R}/promocoes`, 'PATCH', { ativa: true, hora: '09:00', janelaFim: '21:30', mensagem: 'Promo de hoje, {nome}! {link}' })
   ok('ligar grava proximo_disparo_em', liga.s === 200 && liga.j.ativa === true && !!liga.j.proximoDisparoEm, JSON.stringify(liga.j).slice(0, 160))
   const c0 = await cron()
@@ -181,7 +185,8 @@ try {
     JSON.stringify({ rec: (await envios(rr[0].id)).map((e) => e.telefone), promo: (await envios(rp[0].id)).map((e) => e.telefone) }))
   ok('entre C1 com 9 e sem 9, a fila fica com o formato completo (55 + 9)', (await envios(rp[0].id)).some((e) => e.telefone === C.c1))
   ok('Recuperação sai antes de Promoções (agendado_em escalonado)', new Date(rr[0].agendado_em) < new Date(rp[0].agendado_em))
-  ok('sem imagens: rodadas de texto; índice parado', rp[0].tipo_mensagem === 'texto' && (await card('promocoes')).imagem_indice === 0)
+  ok('rodada sai com imagem e a mensagem DA imagem da vez (1ª imagem)', rp[0].tipo_mensagem === 'imagem' && rp[0].imagem_url === 'https://exemplo.test/img-1.jpg' && /Imagem 1/.test(rp[0].mensagem), JSON.stringify({ t: rp[0].tipo_mensagem, u: rp[0].imagem_url, m: rp[0].mensagem }))
+  ok('rodízio: índice avançou para a 2ª imagem', (await card('promocoes')).imagem_indice === 1)
   ok('{ultimo_item} da Recuperação preenchido (X-Bacon)', (await envios(rr[0].id))[0].ultimo_item === 'X-Bacon' || (await envios(rr[0].id))[0].ultimo_item === null)
   ok('agenda avançou para o futuro', new Date((await card('promocoes')).proximo_disparo_em) > new Date())
   ok('estimativa agora 0: todo mundo já entrou em rodada hoje', (await api(dono.p, `${R}/promocoes/estimativa`)).j.pessoas === 0)
@@ -203,16 +208,14 @@ try {
     JSON.stringify({ crons: crons.map((c) => c && [c.processados, c.enviados, c.erros, c.pausados, c.campanhasPausadas]), fila: todas.map((e) => [e.telefone, e.status, e.erro]) }))
   ok('próxima mensagem da loja marcada entre 60 e 150 s depois de um envio', proxLoja && (new Date(proxLoja) - Date.now()) > 30_000 && (new Date(proxLoja) - Date.now()) <= 150_000, String(proxLoja))
   const saida = enviados().find((x) => x.numero === C.c1)
-  ok('texto com {nome} (primeiro nome) e link rastreável do próprio cliente', /Promo de hoje, Cliente!/.test(saida?.texto ?? '') && /\/c\/[0-9a-f]{24}/.test(saida?.texto ?? ''), saida?.texto)
+  ok('texto da imagem (com {nome} = primeiro nome) e link rastreável do próprio cliente', /Imagem 1 Cliente/.test(saida?.texto ?? '') && /\/c\/[0-9a-f]{24}/.test(saida?.texto ?? ''), saida?.texto)
   ok('rodadas concluídas; card mostra a última rodada', (await card('promocoes')).ultima_rodada_motivo === 'ok' && (await um(`select status from campanhas where id=$1`, [rp[0].id])).status === 'concluida')
 
-  secao('5. Sem público, pular hoje, rodada expira no fim da janela')
+  secao('5. Sem público e rodada que expira no fim da janela')
   await api(dono.p, `${R}/nunca_compraram`, 'PATCH', { ativa: true, hora: '09:00', janelaFim: '21:30' })
   await vencer('nunca_compraram'); await cron()
   const cn = await card('nunca_compraram')
   ok('Nunca compraram sem público hoje (C5 já saiu): sem campanha vazia para trás', cn.ultima_rodada_motivo === 'sem_publico' && cn.ultima_campanha_id === null && (await rodadas('nunca_compraram')).length === 0)
-  const pula = await api(dono.p, `${R}/promocoes`, 'PATCH', { pularHoje: true })
-  ok('"pular hoje" grava a data e empurra a agenda para amanhã', pula.s === 200 && !!pula.j.pularAte && new Date(pula.j.proximoDisparoEm) - Date.now() > 3600e3, JSON.stringify({ p: pula.j.pularAte, prox: pula.j.proximoDisparoEm }))
   // Rodada "de ontem" com pendente: expira no fim da janela daquele dia.
   const velha = (await um(`insert into campanhas (restaurante_id, nome, status, mensagem, agendado_em, janela_inicio, janela_fim, recorrente_id, total_destinatarios)
     values ($1,'Rodada velha','enviando','x', now() - interval '1 day', time '09:00', time '21:30', (select id from campanha_recorrentes where restaurante_id=$1 and tipo='promocoes'), 1) returning id`, [A])).id
@@ -221,18 +224,10 @@ try {
   ok('rodada do dia anterior: pendente expira ("Rodada do dia encerrada"), nada sai', (await um(`select status, erro from campanha_envios where campanha_id=$1`, [velha])).erro === 'Rodada do dia encerrada' && !enviados().some((x) => x.numero === '5511912340177'))
 
   // Card atrasado (revisão 03/11): agenda marcada para ontem → não dispara em dia não escolhido; só avança e marca 'atrasado'.
-  await api(dono.p, `${R}/nunca_compraram`, 'PATCH', { ativa: true })
   await db.query(`update campanha_recorrentes set proximo_disparo_em = now() - interval '1 day' where restaurante_id=$1 and tipo='nunca_compraram'`, [A])
   await cron()
   const atrasado = await card('nunca_compraram')
   ok('card atrasado (agenda de ontem): nenhuma rodada, motivo "atrasado", agenda no futuro', atrasado.ultima_rodada_motivo === 'atrasado' && atrasado.ultima_campanha_id === null && new Date(atrasado.proximo_disparo_em) > new Date() && (await rodadas('nunca_compraram')).length === 0, JSON.stringify({ m: atrasado.ultima_rodada_motivo, prox: atrasado.proximo_disparo_em }))
-  // Isolamento do "pular hoje" (revisão 03/11): o id de outra loja gravado no card não cancela a fila dela.
-  const campB = (await um(`insert into campanhas (restaurante_id, nome, status, mensagem, agendado_em, total_destinatarios) values ($1,'Da loja B','agendada','x', now() + interval '1 hour', 1) returning id`, [B])).id
-  await db.query(`insert into campanha_envios (campanha_id, restaurante_id, telefone, nome_cliente) values ($1,$2,$3,'B')`, [campB, B, '5511912340188'])
-  await db.query(`update campanha_recorrentes set ultima_campanha_id=$2, ultima_rodada_em=now() where restaurante_id=$1 and tipo='nunca_compraram'`, [A, campB])
-  await api(dono.p, `${R}/nunca_compraram`, 'PATCH', { pularHoje: true })
-  ok('"pular hoje" com id de campanha de OUTRA loja no card: a fila da outra loja fica intacta', (await um(`select status from campanha_envios where campanha_id=$1`, [campB])).status === 'pendente')
-  await db.query(`delete from campanhas where id=$1`, [campB])
 
   secao('6. Freio desliga o card')
   await db.query(`update campanhas set status='enviando' where id=$1`, [rp[0].id])

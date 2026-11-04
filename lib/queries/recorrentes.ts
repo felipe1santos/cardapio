@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { ROTULO_RECORRENTE, TIPOS_RECORRENTES, hojeSaoPaulo, type TipoRecorrente } from '@/lib/mensageria/recorrentes'
+import { ROTULO_RECORRENTE, TIPOS_RECORRENTES, type ImagemCard, type TipoRecorrente } from '@/lib/mensageria/recorrentes'
 
 /**
  * Cards de disparo recorrente (0245). Sempre pelo cliente da SESSÃO: a RLS (gestor da própria loja) é a permissão.
@@ -12,16 +12,15 @@ export interface Recorrente {
   ativa: boolean
   mensagem: string
   incluirLink: boolean
-  imagens: string[]
+  imagens: ImagemCard[]
   imagemIndice: number
   diasSemana: number[]
   hora: string
   janelaFim: string
-  pularAte: string | null
   proximoDisparoEm: string | null
   ultimaRodadaEm: string | null
   ultimaCampanhaId: string | null
-  ultimaRodadaMotivo: 'ok' | 'sem_publico' | 'pulado' | 'atrasado' | null
+  ultimaRodadaMotivo: 'ok' | 'sem_publico' | 'atrasado' | null
   desligadoMotivo: string | null
   /** Números da última rodada (campanha gerada), quando houve. */
   ultimaRodada: { destinatarios: number; enviados: number; erros: number; status: string } | null
@@ -39,12 +38,15 @@ export function mapRecorrente(row: any, rodada: Recorrente['ultimaRodada'] = nul
     ativa: row.ativa === true,
     mensagem: row.mensagem ?? '',
     incluirLink: row.incluir_link !== false,
-    imagens: Array.isArray(row.imagens) ? row.imagens.filter((u: unknown) => typeof u === 'string') : [],
+    imagens: Array.isArray(row.imagens)
+      ? row.imagens
+          .map((x: unknown) => (typeof x === 'string' ? { url: x, mensagem: '' } : { url: String((x as { url?: unknown })?.url ?? ''), mensagem: String((x as { mensagem?: unknown })?.mensagem ?? '') }))
+          .filter((x: ImagemCard) => x.url !== '')
+      : [],
     imagemIndice: Number(row.imagem_indice ?? 0),
     diasSemana: Array.isArray(row.dias_semana) ? row.dias_semana.map(Number) : [],
     hora: hhmm(row.hora),
     janelaFim: hhmm(row.janela_fim),
-    pularAte: row.pular_ate ?? null,
     proximoDisparoEm: row.proximo_disparo_em ?? null,
     ultimaRodadaEm: row.ultima_rodada_em ?? null,
     ultimaCampanhaId: row.ultima_campanha_id ?? null,
@@ -76,25 +78,6 @@ export async function garantirRecorrentes(supabase: SupabaseClient, restauranteI
     }
   }
   return linhas.map((l) => mapRecorrente(l, l.ultima_campanha_id ? (rodadas.get(l.ultima_campanha_id) ?? null) : null))
-}
-
-/**
- * "Pular hoje" com a rodada de hoje já nascida: cancela o que ainda não saiu — só se a campanha for DESTA loja e DESTE
- * card (revisão 03/11: `ultima_campanha_id` é gravável pelo painel, nunca cancelar por id solto). Devolve se cancelou.
- */
-export async function cancelarRodadaDeHoje(
-  admin: SupabaseClient,
-  restauranteId: string,
-  card: { id: string; ultimaCampanhaId: string | null; ultimaRodadaEm: string | null },
-  hoje: (d?: Date) => string = hojeSaoPaulo,
-): Promise<boolean> {
-  if (!card.ultimaCampanhaId || !card.ultimaRodadaEm) return false
-  if (hoje(new Date(card.ultimaRodadaEm)) !== hoje()) return false
-  const { data } = await admin.from('campanhas').select('id').eq('id', card.ultimaCampanhaId).eq('restaurante_id', restauranteId).eq('recorrente_id', card.id).maybeSingle()
-  if (!data) return false
-  const { error } = await admin.from('campanha_envios').update({ status: 'cancelado', erro: 'Campanha cancelada' }).eq('campanha_id', card.ultimaCampanhaId).eq('restaurante_id', restauranteId).eq('status', 'pendente')
-  if (error) throw error
-  return true
 }
 
 /** Grava o patch já validado (validarPatchRecorrente) e devolve o card atualizado. */

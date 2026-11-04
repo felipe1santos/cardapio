@@ -6,11 +6,12 @@ vi.mock('@/lib/queries/campanhas', () => ({ uploadMidiaCampanha: vi.fn(async () 
 
 import { Recorrentes } from './recorrentes'
 
-/** 03/11/2026: aba Campanhas = 3 cards fixos com toggle, galeria, programação e "pular hoje". */
+/** 03/11/2026: cards com resumo em texto; configuração no modal; sem "pular hoje"; ligar exige imagem (API). */
 
 const card = (tipo: string, extra: Record<string, unknown> = {}) => ({
-  id: `id-${tipo}`, tipo, ativa: false, mensagem: 'Oi {nome}! {link}', incluirLink: true, imagens: [], imagemIndice: 0,
-  diasSemana: [0, 1, 2, 3, 4, 5, 6], hora: '17:00', janelaFim: '19:00', pularAte: null, proximoDisparoEm: null,
+  id: `id-${tipo}`, tipo, ativa: false, mensagem: 'Oi {nome}! {link}', incluirLink: true,
+  imagens: [{ url: 'https://x/a.jpg', mensagem: '' }], imagemIndice: 0,
+  diasSemana: [0, 1, 2, 3, 4, 5, 6], hora: '17:00', janelaFim: '19:00', proximoDisparoEm: null,
   ultimaRodadaEm: null, ultimaCampanhaId: null, ultimaRodadaMotivo: null, desligadoMotivo: null, ultimaRodada: null, ...extra,
 })
 
@@ -45,10 +46,20 @@ describe('Recorrentes', () => {
     expect(screen.getByTestId('rodada-promocoes').textContent).toMatch(/12 de 40/)
   })
 
+  it('o card mostra resumo em texto (dias, horário) e NÃO mostra a mensagem nem campos de edição', async () => {
+    fetchFalso()
+    render(<Recorrentes restauranteId="L1" onToast={vi.fn()} />)
+    await screen.findByTestId('card-promocoes')
+    expect(screen.getByTestId('resumo-promocoes').textContent).toMatch(/todos os dias/)
+    expect(screen.getByTestId('resumo-promocoes').textContent).toMatch(/17:00 às 19:00/)
+    expect(screen.queryByTestId('mensagem-promocoes')).toBeNull()
+    expect(screen.queryByTestId('hora-promocoes')).toBeNull()
+    expect(screen.queryByTestId('pular-promocoes')).toBeNull()
+  })
+
   it('o toggle liga o card com PATCH {"ativa":true}', async () => {
     const { chamadas } = fetchFalso()
-    const onToast = vi.fn()
-    render(<Recorrentes restauranteId="L1" onToast={onToast} />)
+    render(<Recorrentes restauranteId="L1" onToast={vi.fn()} />)
     const toggle = await screen.findByTestId('toggle-recuperacao')
     expect(toggle).toHaveAttribute('aria-checked', 'false')
     fireEvent.click(toggle)
@@ -56,30 +67,32 @@ describe('Recorrentes', () => {
     await waitFor(() => expect(screen.getByTestId('toggle-recuperacao')).toHaveAttribute('aria-checked', 'true'))
   })
 
-  it('fora de edição: só texto (dias e horário); os campos aparecem ao clicar em Editar', async () => {
-    fetchFalso()
-    render(<Recorrentes restauranteId="L1" onToast={vi.fn()} />)
-    await screen.findByTestId('card-promocoes')
-    expect(screen.getByTestId('resumo-promocoes').textContent).toMatch(/todos os dias/)
-    expect(screen.queryByTestId('hora-promocoes')).toBeNull()
-    expect(screen.queryByTestId('mensagem-promocoes')).toBeNull()
-    fireEvent.click(screen.getByTestId('editar-promocoes'))
-    expect(screen.getByTestId('hora-promocoes')).toBeInTheDocument()
-    expect(screen.getByTestId('mensagem-promocoes')).toBeInTheDocument()
-  })
-
-  it('"Pular hoje" manda pularHoje e desabilita o botão', async () => {
+  it('"Configurar" abre o modal com a mensagem padrão e as imagens; salvar manda tudo num PATCH', async () => {
     const { chamadas } = fetchFalso()
     render(<Recorrentes restauranteId="L1" onToast={vi.fn()} />)
-    fireEvent.click(await screen.findByTestId('pular-promocoes'))
-    await waitFor(() => expect(chamadas.some((c) => c.url.endsWith('/promocoes') && c.init?.body === '{"pularHoje":true}')).toBe(true))
+    fireEvent.click(await screen.findByTestId('configurar-promocoes'))
+    const modal = await screen.findByTestId('modal-config')
+    expect(modal).toBeInTheDocument()
+    expect((screen.getByTestId('mensagem-padrao') as HTMLTextAreaElement).value).toBe('Oi {nome}! {link}')
+    expect(screen.getByTestId('modal-imagem-0')).toBeInTheDocument()
+    fireEvent.change(screen.getByTestId('modal-msg-0'), { target: { value: 'Promo de terça!' } })
+    fireEvent.click(screen.getByTestId('salvar-config'))
+    await waitFor(() => expect(chamadas.some((c) => c.url.endsWith('/promocoes') && c.init?.method === 'PATCH' && String(c.init.body).includes('"mensagem":"Promo de terça!"'))).toBe(true))
   })
 
-  it('erro na API vira toast de erro', async () => {
+  it('ligar sem imagem: a API recusa (400) e o toast mostra a mensagem', async () => {
     fetchFalso()
-    globalThis.fetch = vi.fn(async () => ({ ok: false, status: 500, json: async () => ({ error: 'Caiu' }) })) as unknown as typeof fetch
     const onToast = vi.fn()
     render(<Recorrentes restauranteId="L1" onToast={onToast} />)
+    await screen.findByTestId('card-recuperacao')
+    globalThis.fetch = vi.fn(async () => ({ ok: false, status: 400, json: async () => ({ error: 'o card precisa de pelo menos 1 imagem para ligar' }) })) as unknown as typeof fetch
+    fireEvent.click(screen.getByTestId('toggle-recuperacao'))
+    await waitFor(() => expect(onToast).toHaveBeenCalledWith('erro', 'o card precisa de pelo menos 1 imagem para ligar'))
+  })
+
+  it('erro ao carregar vira aviso com "Tentar de novo"', async () => {
+    globalThis.fetch = vi.fn(async () => ({ ok: false, status: 500, json: async () => ({ error: 'Caiu' }) })) as unknown as typeof fetch
+    render(<Recorrentes restauranteId="L1" onToast={vi.fn()} />)
     expect(await screen.findByTestId('recorrentes-erro')).toHaveTextContent('Caiu')
   })
 })

@@ -1,48 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import { cancelarRodadaDeHoje, garantirRecorrentes, mapRecorrente } from './recorrentes'
+import { garantirRecorrentes, mapRecorrente } from './recorrentes'
 
-/** Revisão 03/11: "pular hoje" só cancela a fila de uma campanha que é DESTA loja e DESTE card (nunca pelo id solto). */
-function adminFalso(campanhaDaLoja: boolean) {
-  const filtros: Record<string, unknown>[] = []
-  let cancelou = false
-  const chain = (tabela: string) => {
-    const b: Record<string, unknown> = {}
-    b.select = () => b
-    b.eq = (col: string, val: unknown) => { filtros.push({ tabela, col, val }); return b }
-    b.maybeSingle = async () => ({ data: campanhaDaLoja ? { id: 'c1' } : null, error: null })
-    b.update = () => { cancelou = true; return b }
-    b.then = (ok: (v: unknown) => unknown) => Promise.resolve({ error: null }).then(ok)
-    return b
-  }
-  return { admin: { from: (t: string) => chain(t) } as never, filtros, cancelou: () => cancelou }
-}
-
-describe('cancelarRodadaDeHoje', () => {
-  const card = { id: 'card1', ultimaCampanhaId: 'c1', ultimaRodadaEm: '2026-11-03T15:00:00Z' }
-  // "Hoje" fixo em 03/11: sem argumento é hoje; com data, o dia daquela data.
-  const hoje = (d?: Date) => (d ?? new Date('2026-11-03T18:00:00Z')).toISOString().slice(0, 10)
-  it('confere loja e card antes de cancelar', async () => {
-    const f = adminFalso(true)
-    expect(await cancelarRodadaDeHoje(f.admin, 'L1', card, hoje)).toBe(true)
-    expect(f.filtros).toEqual(expect.arrayContaining([
-      { tabela: 'campanhas', col: 'id', val: 'c1' }, { tabela: 'campanhas', col: 'restaurante_id', val: 'L1' }, { tabela: 'campanhas', col: 'recorrente_id', val: 'card1' },
-    ]))
-    expect(f.cancelou()).toBe(true)
-  })
-  it('campanha de outra loja (ou de outro card): não cancela nada', async () => {
-    const f = adminFalso(false)
-    expect(await cancelarRodadaDeHoje(f.admin, 'L1', card, hoje)).toBe(false)
-    expect(f.cancelou()).toBe(false)
-  })
-  it('rodada de outro dia: não mexe', async () => {
-    const f = adminFalso(true)
-    expect(await cancelarRodadaDeHoje(f.admin, 'L1', { ...card, ultimaRodadaEm: '2026-10-01T12:00:00Z' }, hoje)).toBe(false)
-    expect(f.cancelou()).toBe(false)
-  })
-})
-
-/** 03/11/2026: os 3 cards nascem na primeira abertura da tela, desligados, na ordem fixa. */
-
+/** Imita o Supabase: upsert gravado para conferir; select devolve as linhas dadas; campanhas para os números. */
 function supabaseFalso(linhas: Record<string, unknown>[], campanhas: Record<string, unknown>[] = []) {
   const upsert = vi.fn(async () => ({ error: null }))
   const chain = (tabela: string) => {
@@ -57,7 +16,7 @@ function supabaseFalso(linhas: Record<string, unknown>[], campanhas: Record<stri
 
 const linha = (tipo: string, extra: Record<string, unknown> = {}) => ({
   id: `id-${tipo}`, tipo, ativa: false, mensagem: 'm', incluir_link: true, imagens: [], imagem_indice: 0,
-  dias_semana: [0, 1, 2, 3, 4, 5, 6], hora: '17:00:00', janela_fim: '19:00:00', pular_ate: null, proximo_disparo_em: null,
+  dias_semana: [0, 1, 2, 3, 4, 5, 6], hora: '17:00:00', janela_fim: '19:00:00', proximo_disparo_em: null,
   ultima_rodada_em: null, ultima_campanha_id: null, ultima_rodada_motivo: null, desligado_motivo: null, ...extra,
 })
 
@@ -72,6 +31,7 @@ describe('garantirRecorrentes', () => {
     expect(opts).toMatchObject({ onConflict: 'restaurante_id,tipo', ignoreDuplicates: true })
     expect(lista.map((r) => r.tipo)).toEqual(['recuperacao', 'nunca_compraram', 'promocoes'])
   })
+
   it('card com última campanha traz os números da rodada', async () => {
     const { client } = supabaseFalso(
       [linha('recuperacao', { ultima_campanha_id: 'c1', ultima_rodada_motivo: 'ok' }), linha('nunca_compraram'), linha('promocoes')],
@@ -83,8 +43,13 @@ describe('garantirRecorrentes', () => {
 })
 
 describe('mapRecorrente', () => {
-  it('hora sem segundos, dias e imagens como arrays', () => {
-    const r = mapRecorrente(linha('promocoes', { imagens: ['https://x/a.jpg'], dias_semana: [1, 3] }))
-    expect(r).toMatchObject({ tipo: 'promocoes', hora: '17:00', janelaFim: '19:00', imagens: ['https://x/a.jpg'], diasSemana: [1, 3], ultimaRodada: null })
+  it('hora sem segundos, dias e imagens como objetos', () => {
+    const r = mapRecorrente(linha('promocoes', { imagens: [{ url: 'https://x/a.jpg', mensagem: '' }], dias_semana: [1, 3] }))
+    expect(r).toMatchObject({ tipo: 'promocoes', hora: '17:00', janelaFim: '19:00', imagens: [{ url: 'https://x/a.jpg', mensagem: '' }], diasSemana: [1, 3], ultimaRodada: null })
+  })
+
+  it('texto antigo vira objeto sem mensagem; objeto mantém a mensagem (0246)', () => {
+    const r = mapRecorrente(linha('promocoes', { imagens: ['https://x/a.jpg', { url: 'https://x/b.jpg', mensagem: 'Terça' }] }))
+    expect(r.imagens).toEqual([{ url: 'https://x/a.jpg', mensagem: '' }, { url: 'https://x/b.jpg', mensagem: 'Terça' }])
   })
 })

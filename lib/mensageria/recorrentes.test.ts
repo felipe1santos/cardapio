@@ -48,7 +48,9 @@ describe('validarPatchRecorrente', () => {
   it('mais de 5 imagens é erro; url sem https é erro', () => {
     expect(validarPatchRecorrente('promocoes', { imagens: Array(6).fill('https://x/a.jpg') }).ok).toBe(false)
     expect(validarPatchRecorrente('promocoes', { imagens: ['http://x/a.jpg'] }).ok).toBe(false)
-    expect(ok(validarPatchRecorrente('promocoes', { imagens: ['https://x/a.jpg'] })).row.imagens).toEqual(['https://x/a.jpg'])
+    expect(ok(validarPatchRecorrente('promocoes', { imagens: ['https://x/a.jpg'] })).row.imagens).toEqual([{ url: 'https://x/a.jpg', mensagem: '' }])
+    expect(ok(validarPatchRecorrente('promocoes', { imagens: [{ url: 'https://x/b.jpg', mensagem: 'Promo de terça {nome}' }] })).row.imagens).toEqual([{ url: 'https://x/b.jpg', mensagem: 'Promo de terça {nome}' }])
+    expect(validarPatchRecorrente('promocoes', { imagens: [{ url: 'https://x/b.jpg', mensagem: 'Oi {cupom}' }] }).ok).toBe(false)
   })
   it('variável desconhecida é erro; {ultimo_item} só na Recuperação', () => {
     expect(validarPatchRecorrente('promocoes', { mensagem: 'Oi {cupom}', incluirLink: true }).ok).toBe(false)
@@ -59,11 +61,6 @@ describe('validarPatchRecorrente', () => {
     const r = ok(validarPatchRecorrente('promocoes', { hora: '08:00', janelaFim: '23:00' }))
     expect(r.row.hora).toBe('09:00')
     expect(r.row.janela_fim).toBe('21:30')
-  })
-  it('pularHoje grava a data de hoje (Brasília) e avisa a rota', () => {
-    const r = ok(validarPatchRecorrente('promocoes', { pularHoje: true }))
-    expect(String(r.row.pular_ate)).toMatch(/^\d{4}-\d{2}-\d{2}$/)
-    expect(r.pularHoje).toBe(true)
   })
   it('ativa precisa ser boolean; patch vazio é erro', () => {
     expect(validarPatchRecorrente('promocoes', { ativa: 'sim' }).ok).toBe(false)

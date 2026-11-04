@@ -4,7 +4,7 @@ import { cookies } from 'next/headers'
 import { restauranteDaSessao } from '@/lib/auth/session'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { TIPOS_RECORRENTES, validarPatchRecorrente, type TipoRecorrente } from '@/lib/mensageria/recorrentes'
-import { atualizarRecorrente, cancelarRodadaDeHoje } from '@/lib/queries/recorrentes'
+import { atualizarRecorrente } from '@/lib/queries/recorrentes'
 
 async function getAuthSupabase() {
   const cookieStore = await cookies()
@@ -30,13 +30,15 @@ export async function PATCH(request: Request, { params }: Ctx) {
     const v = validarPatchRecorrente(tipo as TipoRecorrente, body)
     if (!v.ok) return NextResponse.json({ error: v.erro }, { status: 400 })
 
-    const card = await atualizarRecorrente(supabase, restauranteId, tipo as TipoRecorrente, v.row)
+    const card = await atualizarRecorrente(supabase, restauranteId, tipo as TipoRecorrente, v.row).catch((e: { code?: string; message?: string }) => {
+      // Regras de imagem da trigger (0246): sem imagem não liga; URL e mensagem inválidas.
+      if (e?.code === '23514') throw Object.assign(new Error(e.message ?? 'Dados inválidos.'), { badRequest: true })
+      throw e
+    })
     if (!card) return NextResponse.json({ error: 'Só o dono ou gerente mexe nos disparos.' }, { status: 403 })
-
-    // "Pular hoje" com a rodada de hoje já nascida: o que ainda não saiu é cancelado (decisão 4 do plano) — só desta loja e deste card.
-    if (v.pularHoje) await cancelarRodadaDeHoje(getAdminSupabase(), restauranteId, card)
     return NextResponse.json(card)
   } catch (err) {
+    if ((err as { badRequest?: boolean })?.badRequest) return NextResponse.json({ error: (err as Error).message }, { status: 400 })
     console.error('[campanhas/recorrentes] PATCH erro:', (err as Error).message?.slice(0, 200))
     return NextResponse.json({ error: 'Erro interno' }, { status: 500 })
   }
