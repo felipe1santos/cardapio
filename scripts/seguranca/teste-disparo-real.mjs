@@ -76,6 +76,18 @@ if (acao === 'conferir') {
        and right(regexp_replace(telefone, '\\D', '', 'g'), 8) = $2 and texto ilike '%dos _disparos_%'`, [loja.id, fim])
   console.log(`   mensagens de teste para ${mascara(tel)} nos últimos 30 min: conversa ${m.n}, fila do WhatsApp ${e.n}`)
   console.log(`   loja: próxima mensagem de campanha liberada em ${loja.disparo_proximo_em ? new Date(loja.disparo_proximo_em).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '—'} (se for daqui a 1–2,5 min, algo saiu agora há pouco)`)
+  // Histórico das últimas 3 h para esse número: o que saiu, status de entrega (ack do WhatsApp) e erro.
+  const hist = await c.query(`select m.criado_em, m.direcao, m.origem, m.tipo, m.status_envio, m.erro, left(m.wa_id, 6) as wa, left(replace(m.texto, E'\\n', ' '), 50) as texto,
+         right(cv.telefone, 4) as fim_conversa, length(regexp_replace(cv.telefone, '\\D', '', 'g')) as digitos
+       from whatsapp_mensagens m join whatsapp_conversas cv on cv.id = m.conversa_id
+      where m.restaurante_id=$1 and m.criado_em > now() - interval '3 hours' and right(regexp_replace(cv.telefone, '\\D', '', 'g'), 8) = $2
+      order by m.criado_em desc limit 6`, [loja.id, fim])
+  for (const h of hist.rows) console.log(`   ${new Date(h.criado_em).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })} ${h.direcao}/${h.origem ?? '-'} ${h.tipo} · status ${h.status_envio ?? '—'}${h.erro ? ` · erro ${h.erro}` : ''} · id ${h.wa ?? '—'} · conversa …${h.fim_conversa} (${h.digitos} dígitos) · "${h.texto ?? ''}"`)
+  if (!hist.rows.length) console.log('   nenhuma mensagem com esse número nas últimas 3 h')
+  // O número que leu o QR é o próprio número da loja? (mensagem para si mesmo não aparece como recebida)
+  const proprio = await um(`select count(*)::int n from whatsapp_mensagens m join whatsapp_conversas cv on cv.id = m.conversa_id
+      where m.restaurante_id=$1 and m.direcao = 'entrada' and right(regexp_replace(cv.telefone, '\\D', '', 'g'), 8) = $2`, [loja.id, fim])
+  console.log(`   esse número já MANDOU mensagem para a loja alguma vez? ${proprio.n > 0 ? `sim (${proprio.n})` : 'não'}`)
 }
 
 if (acao === 'limpar') {
