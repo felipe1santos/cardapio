@@ -293,7 +293,12 @@ try {
   const cp = await card('promocoes'); const rpz = await um(`select status, pausa_motivo from campanhas where id=$1`, [rp[0].id])
   ok('erro > 5%: rodada pausada pelo freio e card DESLIGADO', rpz.status === 'pausada' && rpz.pausa_motivo === 'erro_alto' && cp.ativa === false && cp.desligado_motivo === 'erro_alto', JSON.stringify({ rpz, ativa: cp.ativa, m: cp.desligado_motivo }))
   ok('pausa do freio não volta sozinha: a pendente fica na fila', (await um(`select count(*)::int n from campanha_envios where campanha_id=$1 and status='pendente'`, [rp[0].id])).n === 1 && (await (await liberarLoja(), cron())).j.enviados === 0)
-  ok('religar limpa o motivo', (await api(dono.p, `${R}/promocoes`, 'PATCH', { ativa: true })).j.desligadoMotivo === null)
+  // Com o rascunho incompleto (seção 3) o card não religa — o certo. Tira o rascunho e religa.
+  ok('religar com anúncio incompleto: recusado (400)', (await api(dono.p, `${R}/promocoes`, 'PATCH', { ativa: true })).s === 400)
+  const prontos = (await api(dono.p, R)).j.find((c) => c.tipo === 'promocoes').anuncios.slice(0, 2)
+  await api(dono.p, `${R}/promocoes/anuncios`, 'PUT', { anuncios: prontos })
+  const religa = await api(dono.p, `${R}/promocoes`, 'PATCH', { ativa: true })
+  ok('religar limpa o motivo', religa.s === 200 && religa.j.desligadoMotivo === null, JSON.stringify({ s: religa.s, j: religa.j?.desligadoMotivo ?? religa.j?.error }))
   }
 
   secao('7. Visão geral e isolamento')
