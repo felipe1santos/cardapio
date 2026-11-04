@@ -12,7 +12,7 @@ import {
 import { formatarReal } from '@/lib/moeda'
 import { Ajuda, Confirmar, formatarDataHora } from './comum'
 import { CopyVisual, EditorMensagem } from './editor-mensagem'
-import { DiasSemana, SeletorPublicos, TagsPublicos } from './pecas-disparo'
+import { DiasSemana, SeletorPublicos } from './pecas-disparo'
 
 /**
  * Aba Campanhas: os três cards de disparo recorrente (0245–0248). Ligado = dispara sozinho na programação.
@@ -114,7 +114,7 @@ export function Recorrentes({ restauranteId, onToast }: { restauranteId: string 
   if (!cards) {
     return (
       <div className="grid gap-4 lg:grid-cols-3" data-testid="recorrentes-carregando" aria-busy="true">
-        {[0, 1, 2].map((i) => <div key={i} className="h-[600px] animate-pulse rounded-[8px] border border-[#e5e7eb] bg-white" />)}
+        {[0, 1, 2].map((i) => <div key={i} className="h-[560px] animate-pulse rounded-[8px] border border-[#e5e7eb] bg-white" />)}
       </div>
     )
   }
@@ -122,7 +122,8 @@ export function Recorrentes({ restauranteId, onToast }: { restauranteId: string 
   return (
     <div className="flex min-h-full flex-col gap-4" data-testid="recorrentes">
       <Topo resumo={resumo} />
-      <div className="grid items-stretch gap-4 lg:h-[600px] lg:grid-cols-3">
+      {/* Altura dos cards (03/11): a mesma da área do gráfico da Visão geral. */}
+      <div className="grid items-stretch gap-4 lg:h-[560px] lg:grid-cols-3">
         {TIPOS_RECORRENTES.map((t) => {
           const c = cards.find((x) => x.tipo === t)
           return c ? <CardRecorrente key={t} card={c} estimativa={estimativas[t]} limiteHoje={resumo?.limite_hoje ?? null} onPatch={patch} onConfigurar={() => setConfigurando(t)} /> : null
@@ -180,15 +181,20 @@ function Foto({ url, alt, className = '' }: { url: string; alt: string; classNam
   )
 }
 
-function textoMotivo(a: { ultimaRodadaMotivo: string | null; ultimaRodadaEm: string | null }): string | null {
-  if (!a.ultimaRodadaEm || !a.ultimaRodadaMotivo) return null
-  const quando = formatarDataHora(a.ultimaRodadaEm, false)
-  if (a.ultimaRodadaMotivo === 'sem_publico') return `${quando}: sem público`
-  if (a.ultimaRodadaMotivo === 'limite_dia') return `${quando}: limite do dia atingido`
-  if (a.ultimaRodadaMotivo === 'atrasado') return `${quando}: horário já tinha passado`
-  return `Último envio ${quando}`
+const DIAS_NOME = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado']
+
+/** "Todos os dias", "nenhum dia", ou "seg, qua e sex". */
+function textoDias(dias: number[]): string {
+  if (dias.length === 0) return 'nenhum dia'
+  if (dias.length === 7) return 'todos os dias'
+  const nomes = DIAS_NOME.filter((_, i) => dias.includes(i)).map((n) => n.slice(0, 3))
+  return nomes.length === 1 ? nomes[0] : `${nomes.slice(0, -1).join(', ')} e ${nomes[nomes.length - 1]}`
 }
 
+/**
+ * Card como era (03/11): ilustração inteira no topo, faixa de cor, resumo só em texto, toggle e Configurar.
+ * Imagens, copies e anúncios aparecem só no modal.
+ */
 function CardRecorrente({ card, estimativa, limiteHoje, onPatch, onConfigurar }: {
   card: Recorrente
   estimativa: number | null | undefined
@@ -199,15 +205,26 @@ function CardRecorrente({ card, estimativa, limiteHoje, onPatch, onConfigurar }:
 }) {
   const rotulo = ROTULO_RECORRENTE[card.tipo]
   const [ocupado, setOcupado] = useState(false)
+  const recuperacao = card.tipo === 'recuperacao'
   const pendencias = pendenciasDoCardV2(card.tipo, card)
   // Só liga com tudo pronto; desligar é sempre permitido.
   const travado = !card.ativa && pendencias.length > 0
   const agir = async (body: Patch, aviso?: string) => { setOcupado(true); try { await onPatch(card.tipo, body, aviso) } finally { setOcupado(false) } }
 
+  // Promoções / Personalizado: a rodada e a próxima vêm dos anúncios.
+  const ultimaAn = [...card.anuncios].filter((a) => a.ultimaRodadaEm).sort((a, b) => String(b.ultimaRodadaEm).localeCompare(String(a.ultimaRodadaEm)))[0]
+  const proximaIso = recuperacao ? card.proximoDisparoEm : [...card.anuncios].map((a) => a.proximoDisparoEm).filter((x): x is string => !!x).sort()[0] ?? null
+  const proxima = card.ativa && proximaIso ? formatarDataHora(proximaIso, false) : null
+  const ref = recuperacao ? card : ultimaAn
+  const { lista: copies } = copiesDoCard(card)
+  const nomeItem = card.tipo === 'promocoes' ? 'Promoção' : 'Anúncio'
+  const cabem = Math.min(cabemNaJanela(card.hora, card.janelaFim, TETO_PADRAO), limiteHoje ?? Number.POSITIVE_INFINITY)
+
   return (
-    <section className="campanha-cartao flex h-full min-h-[520px] flex-col overflow-hidden rounded-[8px] border border-[#e5e7eb] border-t-[6px] bg-white"
+    <section className="campanha-cartao flex h-full flex-col overflow-hidden rounded-[8px] border border-[#e5e7eb] border-t-[6px] bg-white"
       style={{ borderTopColor: COR[card.tipo] }} data-testid={`card-${card.tipo}`} data-ativa={card.ativa ? '1' : '0'}>
-      <div className="flex h-[120px] flex-shrink-0 items-center justify-center bg-[#f4f7fc] p-2" data-bordo="ilustracao">
+      {/* Imagem inteira (sem corte), largura do card. */}
+      <div className="flex h-[200px] flex-shrink-0 items-center justify-center bg-[#f4f7fc] p-2" data-bordo="ilustracao">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={ILUSTRACAO[card.tipo]} alt="" width={640} height={400} loading="lazy" className="h-full w-full object-contain" />
       </div>
@@ -215,6 +232,7 @@ function CardRecorrente({ card, estimativa, limiteHoje, onPatch, onConfigurar }:
       <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto p-4">
         <div className="flex items-center justify-between gap-2">
           <h3 className="text-[16px] font-semibold text-[#1f2937]">{rotulo.nome}</h3>
+          {/* Ligado: verde (texto e fundo verde claro). Desligado: cinza. */}
           <span className={`rounded-[4px] px-2 py-[3px] text-[11px] font-semibold uppercase tracking-[0.04em] ${card.ativa ? 'bg-[#dcfce7] text-[#15803d]' : 'bg-[#eef0f3] text-[#4b5563]'}`} data-testid={`status-${card.tipo}`}>
             {card.ativa ? 'Ligado' : 'Desligado'}
           </span>
@@ -224,21 +242,50 @@ function CardRecorrente({ card, estimativa, limiteHoje, onPatch, onConfigurar }:
           <span className="rounded-[4px] bg-[#e0f2fe] px-2 py-[3px] font-semibold text-[#0369a1]" data-testid={`estimativa-${card.tipo}`}>
             {estimativa === undefined ? 'Contando…' : estimativa === null ? 'Público indisponível' : `${estimativa} ${estimativa === 1 ? 'pessoa' : 'pessoas'} hoje`}
           </span>
-          {card.tipo === 'recuperacao' && (
+          {recuperacao && (
             <>
-              <span className="text-[#5b6472]">cabem ~{Math.min(cabemNaJanela(card.hora, card.janelaFim, TETO_PADRAO), limiteHoje ?? Number.POSITIVE_INFINITY)} por rodada</span>
+              <span className="text-[#5b6472]">cabem ~{cabem} por rodada</span>
               <Ajuda texto="O menor entre o que a janela comporta (60–150 s entre mensagens) e o limite de hoje do aquecimento do número (os 3 cards juntos)." />
             </>
           )}
         </div>
 
-        {card.tipo === 'recuperacao' ? <CorpoRecuperacao card={card} /> : <CorpoAnuncios card={card} />}
+        <div className="space-y-1 text-[13px] text-[#374151]" data-testid={`resumo-${card.tipo}`}>
+          {recuperacao ? (
+            <>
+              <p><span className="font-semibold">Dias:</span> {textoDias(card.diasSemana)}</p>
+              <p><span className="font-semibold">Horário:</span> das {card.hora} às {card.janelaFim}</p>
+              <p><span className="font-semibold">Imagens:</span> {card.imagens.length}/{IMAGENS_RECUPERACAO}{card.imagens.length ? ` · próxima: ${(card.imagemIndice % card.imagens.length) + 1}ª` : ''}</p>
+              <p><span className="font-semibold">Copies:</span> {copies.length}/{COPIES_MAX}{copies.length > 1 ? ` · próxima: ${(card.mensagemIndice % copies.length) + 1}ª` : ''}</p>
+            </>
+          ) : (
+            <>
+              <p><span className="font-semibold">{card.tipo === 'promocoes' ? 'Promoções' : 'Anúncios'}:</span> {card.anuncios.length}/{ANUNCIOS_MAX}</p>
+              {card.anuncios.map((a, i) => (
+                <p key={a.id} className="truncate" data-testid={`linha-${card.tipo}-${i}`}>
+                  <span className="font-semibold">{a.nome || `${nomeItem} ${i + 1}`}:</span> {textoDias(a.diasSemana)}, das {a.hora} às {a.janelaFim}
+                </p>
+              ))}
+            </>
+          )}
+        </div>
 
-        {card.desligadoMotivo && (
-          <p className="inline-flex items-start gap-1.5 rounded-[5px] border border-[#ea1d2c] bg-[#fdecee] px-2.5 py-1.5 text-[12.5px] font-semibold text-[#b91c1c]" data-testid={`freio-${card.tipo}`}>
-            <AlertTriangle className="mt-[1px] h-3.5 w-3.5 flex-shrink-0 text-[#ea1d2c]" /> Desligado pelo freio ({card.desligadoMotivo === 'erro_alto' ? 'muitos erros' : 'muitos pedidos de SAIR'}). Revise antes de religar.
-          </p>
-        )}
+        <p className="text-[12.5px] text-[#5b6472]" data-testid={`rodada-${card.tipo}`}>
+          {card.desligadoMotivo
+            ? <span className="inline-flex items-start gap-1.5 rounded-[5px] border border-[#ea1d2c] bg-[#fdecee] px-2.5 py-1.5 font-semibold text-[#b91c1c]"><AlertTriangle className="mt-[1px] h-3.5 w-3.5 flex-shrink-0 text-[#ea1d2c]" /> Desligado pelo freio ({card.desligadoMotivo === 'erro_alto' ? 'muitos erros' : 'muitos pedidos de SAIR'}). Revise antes de religar.</span>
+            : !ref?.ultimaRodadaEm
+              ? 'Nenhuma rodada ainda.'
+              : ref.ultimaRodadaMotivo === 'sem_publico'
+                ? <span>Última rodada {formatarDataHora(ref.ultimaRodadaEm, false)}: sem público.</span>
+                : ref.ultimaRodadaMotivo === 'limite_dia'
+                  ? <span>{formatarDataHora(ref.ultimaRodadaEm, false)}: limite de hoje atingido (aquecimento do número). Volta no próximo dia.</span>
+                  : ref.ultimaRodadaMotivo === 'atrasado'
+                    ? <span>{formatarDataHora(ref.ultimaRodadaEm, false)}: o horário já tinha passado, não disparou.</span>
+                    : recuperacao && card.ultimaRodada
+                      ? <span>Última rodada {formatarDataHora(ref.ultimaRodadaEm, false)}: {card.ultimaRodada.enviados} de {card.ultimaRodada.destinatarios} enviados{card.ultimaRodada.erros ? `, ${card.ultimaRodada.erros} com erro` : ''}.</span>
+                      : <span>Última rodada {formatarDataHora(ref.ultimaRodadaEm, false)}.</span>}
+          {proxima && <span className="block">Próxima: {proxima}.</span>}
+        </p>
         {travado && (
           <div className="rounded-[4px] bg-[#fff1d6] px-2.5 py-1.5 text-[12px] text-[#1f2937]" data-testid={`pendencias-${card.tipo}`}>
             <p className="font-semibold">Para ligar, falta:</p>
@@ -249,7 +296,7 @@ function CardRecorrente({ card, estimativa, limiteHoje, onPatch, onConfigurar }:
 
       <div className="flex flex-shrink-0 items-center justify-between gap-2 border-t border-[#e5e7eb] px-4 py-3">
         <button type="button" role="switch" aria-checked={card.ativa} disabled={ocupado || travado} title={travado ? `Para ligar: ${pendencias.join(' ')}` : undefined} onClick={() => void agir({ ativa: !card.ativa }, card.ativa ? 'Card desligado.' : 'Card ligado: dispara sozinho na programação.')}
-          className="inline-flex min-h-[44px] items-center gap-2 text-[13px] font-semibold text-[#1f2937] disabled:cursor-not-allowed disabled:opacity-60" data-testid={`toggle-${card.tipo}`}>
+          className="inline-flex items-center gap-2 text-[13px] font-semibold text-[#1f2937] disabled:cursor-not-allowed disabled:opacity-60" data-testid={`toggle-${card.tipo}`}>
           <span className={`relative inline-block h-7 w-12 rounded-full border-2 transition-colors ${card.ativa ? '' : 'border-[#cbd2d9] bg-[#cbd2d9]'}`} style={card.ativa ? { backgroundColor: COR[card.tipo], borderColor: COR[card.tipo] } : undefined} aria-hidden>
             <span className={`absolute left-[2px] top-[2px] h-5 w-5 rounded-full bg-white shadow transition-transform motion-reduce:transition-none ${card.ativa ? 'translate-x-[20px]' : 'translate-x-0'}`} />
           </span>
@@ -263,92 +310,14 @@ function CardRecorrente({ card, estimativa, limiteHoje, onPatch, onConfigurar }:
   )
 }
 
-/** Recuperação: grade de fotos 3 × 2, copy da vez e agenda. */
-function CorpoRecuperacao({ card }: { card: Recorrente }) {
-  const { lista, atual } = copiesDoCard(card)
-  const proxImg = card.imagens.length ? card.imagemIndice % card.imagens.length : -1
-  const proxima = card.ativa && card.proximoDisparoEm ? formatarDataHora(card.proximoDisparoEm, false) : null
-  const motivo = textoMotivo(card)
-  return (
-    <div className="space-y-2.5" data-testid="resumo-recuperacao">
-      <div className="grid grid-cols-3 gap-1.5" data-testid="grade-recuperacao">
-        {Array.from({ length: IMAGENS_RECUPERACAO }, (_, i) => {
-          const img = card.imagens[i]
-          return img ? (
-            <span key={i} className={`relative aspect-square ${i === proxImg ? 'ring-2 ring-[#112f6b] ring-offset-1' : ''} rounded-[5px]`}>
-              <Foto url={img.url} alt={`Imagem ${i + 1}`} className="h-full w-full" />
-              {i === proxImg && <span className="absolute bottom-1 left-1 rounded-[3px] bg-[#112f6b] px-1.5 py-[1px] text-[10px] font-semibold text-white">próxima</span>}
-            </span>
-          ) : <span key={i} className="aspect-square rounded-[5px] border border-dashed border-[#d6dae1] bg-[#fafbfc]" aria-hidden />
-        })}
-      </div>
-      <div className="rounded-[5px] border border-[#e5e7eb] bg-[#fafbfc] px-2.5 py-2">
-        <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.04em] text-[#6b7280]">
-          {lista.length ? `Copy da vez · ${atual + 1} de ${lista.length}` : 'Sem copy'}
-        </p>
-        {lista.length > 0 && <CopyVisual texto={lista[atual]} className="line-clamp-3 text-[12.5px] leading-[19px] text-[#374151]" />}
-      </div>
-      <DiasSemana dias={card.diasSemana} mini testId="dias-recuperacao" />
-      <p className="text-[12.5px] text-[#374151]"><span className="font-semibold">Horário:</span> das {card.hora} às {card.janelaFim}</p>
-      <p className="text-[12px] text-[#5b6472]" data-testid="rodada-recuperacao">
-        {card.ultimaRodadaMotivo === 'ok' && card.ultimaRodada && card.ultimaRodadaEm
-          ? `Última rodada ${formatarDataHora(card.ultimaRodadaEm, false)}: ${card.ultimaRodada.enviados} de ${card.ultimaRodada.destinatarios} enviados${card.ultimaRodada.erros ? `, ${card.ultimaRodada.erros} com erro` : ''}.`
-          : motivo ?? 'Nenhuma rodada ainda.'}
-        {proxima && <span className="block">Próxima: {proxima}.</span>}
-      </p>
-    </div>
-  )
-}
-
-/** Promoções e Disparo personalizado: lista dos anúncios com foto grande, dias e horário. */
-function CorpoAnuncios({ card }: { card: Recorrente }) {
-  const promo = card.tipo === 'promocoes'
-  const nome = promo ? 'Promoção' : 'Anúncio'
-  if (card.anuncios.length === 0) {
-    return (
-      <p className="rounded-[5px] border border-dashed border-[#d6dae1] px-3 py-4 text-center text-[12.5px] text-[#5b6472]" data-testid={`resumo-${card.tipo}`}>
-        Nenhum{promo ? 'a promoção' : ' anúncio'} ainda. Clique em <b>Configurar</b> para criar até {ANUNCIOS_MAX}.
-      </p>
-    )
-  }
-  return (
-    <ul className="space-y-2" data-testid={`resumo-${card.tipo}`}>
-      {card.anuncios.map((a, i) => {
-        const proxima = card.ativa && a.proximoDisparoEm ? formatarDataHora(a.proximoDisparoEm, false) : null
-        const motivo = textoMotivo(a)
-        const incompleto = !a.imagens.length || !a.mensagem.trim() || !a.diasSemana.length || (!promo && !a.publicos.length)
-        return (
-          <li key={a.id} className="space-y-2 rounded-[6px] border border-[#e5e7eb] p-2" style={promo ? undefined : { borderLeft: `4px solid ${a.cor}` }} data-testid={`item-${card.tipo}-${i}`}>
-            <div className="flex gap-3">
-            {a.imagens[0]
-              ? <Foto url={a.imagens[0]} alt={a.nome || `${nome} ${i + 1}`} className={promo ? 'h-[96px] w-[96px] flex-shrink-0' : 'h-[80px] w-[80px] flex-shrink-0'} />
-              : <span className={`grid flex-shrink-0 place-items-center rounded-[5px] border border-dashed border-[#d6dae1] text-[#9ca3af] ${promo ? 'h-[96px] w-[96px]' : 'h-[80px] w-[80px]'}`} aria-label="Sem imagem"><ImagePlus className="h-5 w-5" /></span>}
-            <div className="min-w-0 flex-1 space-y-1">
-              <p className="flex items-center gap-1.5 truncate text-[13px] font-semibold text-[#1f2937]">
-                {!promo && <span className="inline-block h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ backgroundColor: a.cor }} aria-hidden />}
-                <span className="truncate">{a.nome || `${nome} ${i + 1}`}</span>
-                {!promo && a.imagens.length > 1 && <span className="flex-shrink-0 text-[11px] font-normal text-[#6b7280]">· {a.imagens.length} fotos</span>}
-              </p>
-              {!promo && a.publicos.length > 0 && <TagsPublicos publicos={a.publicos} max={2} />}
-              <p className="text-[11.5px] text-[#5b6472]">
-                {a.hora}–{a.janelaFim}
-                {incompleto ? <span className="ml-1 font-semibold text-[#b45309]">· incompleto, não dispara</span> : proxima ? ` · próxima ${proxima}` : motivo ? ` · ${motivo}` : ''}
-              </p>
-            </div>
-            </div>
-            <DiasSemana dias={a.diasSemana} mini />
-          </li>
-        )
-      })}
-    </ul>
-  )
-}
-
 // ── Modais ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-/** Janela grande no centro, com faixa da cor do card, Esc fecha (perguntando se houver mudança). */
-function Janela({ titulo, subtitulo, cor, onFechar, rodape, children, testId }: {
-  titulo: string; subtitulo: string; cor: string; onFechar: () => void; rodape: React.ReactNode; children: React.ReactNode; testId: string
+/**
+ * Janela grande no centro, como antes: ilustração do card inteira à esquerda; à direita, cabeçalho, conteúdo e rodapé.
+ * Faixa da cor do card; Esc fecha (perguntando se houver mudança).
+ */
+function Janela({ titulo, subtitulo, cor, ilustracao, onFechar, rodape, children, testId }: {
+  titulo: string; subtitulo: string; cor: string; ilustracao: string; onFechar: () => void; rodape: React.ReactNode; children: React.ReactNode; testId: string
 }) {
   const ref = useRef<HTMLDivElement>(null)
   // Foco só ao abrir (onFechar muda quando a configuração fica "suja" e não pode roubar o foco do campo).
@@ -365,16 +334,23 @@ function Janela({ titulo, subtitulo, cor, onFechar, rodape, children, testId }: 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:p-4" onMouseDown={onFechar} data-testid={testId}>
       <div ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-label={titulo} onMouseDown={(e) => e.stopPropagation()}
-        className="flex max-h-[94vh] w-full max-w-[1180px] flex-col overflow-hidden rounded-[10px] bg-white shadow-2xl outline-none" style={{ borderTop: `6px solid ${cor}` }}>
-        <header className="flex items-center justify-between gap-3 border-b border-[#e5e7eb] px-5 py-3">
-          <div className="min-w-0">
-            <h2 className="text-[17px] font-semibold text-[#1f2937]">{titulo}</h2>
-            <p className="text-[12px] text-[#5b6472]">{subtitulo}</p>
-          </div>
-          <button type="button" onClick={onFechar} aria-label="Fechar" className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-[5px] hover:bg-[#f6f7f9]"><X className="h-5 w-5" /></button>
-        </header>
-        <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
-        <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-[#e5e7eb] px-5 py-3">{rodape}</footer>
+        className="flex max-h-[94vh] w-full max-w-[1320px] flex-col overflow-hidden rounded-[10px] bg-white shadow-2xl outline-none lg:flex-row" style={{ borderTop: `6px solid ${cor}` }}>
+        {/* Ilustração do card, inteira (some no celular para sobrar espaço). */}
+        <div className="hidden items-center justify-center bg-[#f4f7fc] p-4 lg:flex lg:w-[320px] lg:flex-shrink-0" data-testid="modal-ilustracao">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={ilustracao} alt="" width={640} height={400} className="max-h-[320px] w-full object-contain" />
+        </div>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <header className="flex items-center justify-between gap-3 border-b border-[#e5e7eb] px-5 py-3">
+            <div className="min-w-0">
+              <h2 className="text-[17px] font-semibold text-[#1f2937]">{titulo}</h2>
+              <p className="text-[12px] text-[#5b6472]">{subtitulo}</p>
+            </div>
+            <button type="button" onClick={onFechar} aria-label="Fechar" className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-[5px] hover:bg-[#f6f7f9]"><X className="h-5 w-5" /></button>
+          </header>
+          <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+          <footer className="flex flex-wrap items-center justify-end gap-2 border-t border-[#e5e7eb] px-5 py-3">{rodape}</footer>
+        </div>
       </div>
     </div>
   )
@@ -519,7 +495,7 @@ function ModalRecuperacao({ card, restauranteId, onPatch, onFechar, onToast }: {
   }
 
   return (
-    <Janela titulo="Recuperação de clientes" subtitulo="Quem já pediu e está há 30 dias ou mais sem pedir. Copies e imagens se alternam a cada disparo." cor={cor} onFechar={fechar}
+    <Janela titulo="Recuperação de clientes" subtitulo="Quem já pediu e está há 30 dias ou mais sem pedir. Copies e imagens se alternam a cada disparo." cor={cor} ilustracao={ILUSTRACAO.recuperacao} onFechar={fechar}
       rodape={<BotoesRodape onCancelar={fechar} onSalvar={() => void salvar()} salvando={salvando} cor={cor} />} testId="modal-config">
       <div className="grid gap-6 p-5 lg:grid-cols-[minmax(0,1fr)_380px]">
         <section className="space-y-4">
@@ -674,7 +650,7 @@ function ModalAnuncios({ card, restauranteId, onSalvar, onFechar, onToast }: {
   const incompletos = lista.map((a, i) => ({ i, falta: faltaNoAnuncio(card.tipo, a) })).filter((x) => x.falta.length)
 
   return (
-    <Janela titulo={ROTULO_RECORRENTE[card.tipo].nome} cor={cor} onFechar={fechar} testId="modal-config"
+    <Janela titulo={ROTULO_RECORRENTE[card.tipo].nome} cor={cor} ilustracao={ILUSTRACAO[card.tipo]} onFechar={fechar} testId="modal-config"
       subtitulo={promo ? 'Cada promoção tem a sua foto, copy, dias e horário. Promoções no mesmo dia saem no mesmo dia, para pessoas diferentes.' : 'Cada anúncio tem a sua cor, público, copy, até 5 imagens (alternam a cada disparo), dias e horário.'}
       rodape={
         <>
@@ -686,13 +662,13 @@ function ModalAnuncios({ card, restauranteId, onSalvar, onFechar, onToast }: {
           <BotoesRodape onCancelar={fechar} onSalvar={() => void salvar()} salvando={salvando} cor={cor} />
         </>
       }>
-      <div className="flex min-h-[520px] flex-col lg:flex-row">
-        <nav className="flex gap-2 overflow-x-auto border-b border-[#e5e7eb] bg-[#fafbfc] p-3 lg:w-[270px] lg:flex-shrink-0 lg:flex-col lg:overflow-visible lg:border-b-0 lg:border-r" aria-label={`${nome}s`}>
+      <div className="flex min-h-[520px] flex-col">
+        <nav className="flex gap-2 overflow-x-auto border-b border-[#e5e7eb] bg-[#fafbfc] p-3" aria-label={`${nome}s`}>
           {lista.map((a, i) => {
             const falta = faltaNoAnuncio(card.tipo, a)
             return (
               <button key={a.chave} type="button" onClick={() => setSel(i)} aria-current={i === sel ? 'true' : undefined} data-testid={`aba-anuncio-${i}`}
-                className={`flex min-w-[200px] items-center gap-2.5 rounded-[6px] border p-2 text-left lg:min-w-0 ${i === sel ? 'border-[#112f6b] bg-white shadow-sm' : 'border-transparent hover:bg-white'}`}
+                className={`flex min-w-[190px] flex-shrink-0 items-center gap-2.5 rounded-[6px] border p-2 text-left ${i === sel ? 'border-[#112f6b] bg-white shadow-sm' : 'border-transparent hover:bg-white'}`}
                 style={!promo ? { borderLeft: `4px solid ${a.cor}` } : undefined}>
                 {a.imagens[0] ? <Foto url={a.imagens[0]} alt="" className="h-12 w-12 flex-shrink-0" /> : <span className="grid h-12 w-12 flex-shrink-0 place-items-center rounded-[5px] border border-dashed border-[#d6dae1] text-[#9ca3af]"><ImagePlus className="h-4 w-4" /></span>}
                 <span className="min-w-0">
@@ -703,7 +679,7 @@ function ModalAnuncios({ card, restauranteId, onSalvar, onFechar, onToast }: {
             )
           })}
           <button type="button" onClick={criar} disabled={lista.length >= ANUNCIOS_MAX} data-testid="novo-anuncio"
-            className="flex min-h-[48px] min-w-[160px] items-center justify-center gap-1.5 rounded-[6px] border-2 border-dashed border-[#9fb0d0] px-3 text-[12.5px] font-semibold text-[#112f6b] hover:border-[#112f6b] hover:bg-white disabled:opacity-50 lg:min-w-0">
+            className="flex min-h-[48px] min-w-[160px] items-center justify-center gap-1.5 rounded-[6px] border-2 border-dashed border-[#9fb0d0] px-3 text-[12.5px] font-semibold text-[#112f6b] hover:border-[#112f6b] flex-shrink-0 hover:bg-white disabled:opacity-50">
             <Plus className="h-4 w-4" /> {promo ? 'Nova promoção' : 'Novo anúncio'} ({lista.length}/{ANUNCIOS_MAX})
           </button>
         </nav>
@@ -713,7 +689,7 @@ function ModalAnuncios({ card, restauranteId, onSalvar, onFechar, onToast }: {
             <p>Nenhum{promo ? 'a promoção' : ' anúncio'} ainda. Clique em <b>{promo ? 'Nova promoção' : 'Novo anúncio'}</b> para criar.</p>
           </div>
         ) : (
-          <div key={atual.chave} className="grid min-w-0 flex-1 gap-6 p-5 xl:grid-cols-[minmax(0,1fr)_340px]" data-testid="anuncio-form">
+          <div key={atual.chave} className="grid min-w-0 flex-1 gap-6 p-5 lg:grid-cols-[minmax(0,1fr)_330px]" data-testid="anuncio-form">
             <section className="min-w-0 space-y-4">
               <div className="flex flex-wrap items-end gap-3">
                 <label className="min-w-[200px] flex-1 text-[12px] font-semibold text-[#5b6472]">Nome {promo ? 'da promoção' : 'do anúncio'} (só para você)

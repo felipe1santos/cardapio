@@ -64,39 +64,21 @@ describe('Recorrentes', () => {
     expect(screen.getByTestId('rodada-recuperacao').textContent).toMatch(/12 de 40/)
   })
 
-  it('Recuperação: grade 3 × 2 (6 espaços) e a copy da vez com a marcação visual', async () => {
+  it('cards como antes: ilustração no topo e resumo só em texto (sem fotos, copies ou dias em chips)', async () => {
     fetchFalso()
     render(<Recorrentes restauranteId="L1" onToast={vi.fn()} />)
-    const grade = await screen.findByTestId('grade-recuperacao')
-    expect(grade.children.length).toBe(6)
-    const resumo = screen.getByTestId('resumo-recuperacao')
-    expect(resumo).toHaveTextContent('Copy da vez · 2 de 2')
-    expect(resumo.querySelector('b')?.textContent).toBe('B')
-  })
-
-  it('dias: ligado com fundo azul-escuro; desligado sem fundo e com X vermelho', async () => {
-    fetchFalso()
-    render(<Recorrentes restauranteId="L1" onToast={vi.fn()} />)
-    const item = await screen.findByTestId('item-promocoes-0')
-    const ter = item.querySelector('[data-dia="2"]')!
-    const seg = item.querySelector('[data-dia="1"]')!
-    expect(ter.getAttribute('data-on')).toBe('1')
-    expect(ter.className).toContain('bg-[#112f6b]')
-    expect(seg.getAttribute('data-on')).toBe('0')
-    expect(seg.className).toContain('bg-transparent')
-    expect(seg.querySelector('svg')?.getAttribute('class')).toContain('text-[#ea1d2c]')
-  })
-
-  it('Promoções e Personalizado listam os anúncios com foto, horário e públicos', async () => {
-    fetchFalso()
-    render(<Recorrentes restauranteId="L1" onToast={vi.fn()} />)
-    const promo = await screen.findByTestId('item-promocoes-0')
-    expect(promo).toHaveTextContent('Combo terça')
-    expect(promo.querySelector('img')?.getAttribute('src')).toBe('https://x/p.jpg')
-    expect(promo).toHaveTextContent('17:00–19:00')
-    const pers = screen.getByTestId('item-nunca_compraram-0')
-    expect(pers).toHaveTextContent('Sem comprar há mais de 30 dias')
-    expect(pers).toHaveTextContent('+1')
+    const rec = await screen.findByTestId('card-recuperacao')
+    expect(rec.querySelector('[data-bordo="ilustracao"] img')?.getAttribute('src')).toBe('/ilustracoes/campanhas/recuperacao.jpg')
+    expect(rec.querySelectorAll('img').length).toBe(1)
+    expect(screen.getByTestId('resumo-recuperacao')).toHaveTextContent('Dias: todos os dias')
+    expect(screen.getByTestId('resumo-recuperacao')).toHaveTextContent('Horário: das 17:00 às 19:00')
+    expect(screen.getByTestId('resumo-recuperacao')).toHaveTextContent('Copies: 2/5 · próxima: 2ª')
+    const promo = screen.getByTestId('card-promocoes')
+    expect(promo.querySelectorAll('img').length).toBe(1)
+    expect(screen.getByTestId('resumo-promocoes')).toHaveTextContent('Promoções: 1/5')
+    expect(screen.getByTestId('linha-promocoes-0')).toHaveTextContent('Combo terça: ter, das 17:00 às 19:00')
+    expect(screen.getByTestId('resumo-nunca_compraram')).toHaveTextContent('Anúncios: 1/5')
+    expect(promo.querySelector('[data-dia]')).toBeNull()
   })
 
   it('o toggle liga o card com PATCH {"ativa":true}', async () => {
@@ -115,7 +97,7 @@ describe('Recorrentes', () => {
     expect(screen.getByTestId('pendencias-promocoes')).toHaveTextContent('Crie pelo menos 1 promoção')
     expect(screen.getByTestId('toggle-recuperacao')).toBeDisabled()
     expect(screen.getByTestId('pendencias-recuperacao')).toHaveTextContent('pelo menos 1 imagem')
-    expect(screen.getByTestId('resumo-promocoes')).toHaveTextContent('Nenhuma promoção ainda')
+    expect(screen.getByTestId('resumo-promocoes')).toHaveTextContent('Promoções: 0/5')
   })
 
   it('Recuperação: modal mostra a copy da vez e todas; nova copy e salvar mandam mensagens no PATCH', async () => {
@@ -123,6 +105,7 @@ describe('Recorrentes', () => {
     render(<Recorrentes restauranteId="L1" onToast={vi.fn()} />)
     fireEvent.click(await screen.findByTestId('configurar-recuperacao'))
     const modal = await screen.findByTestId('modal-config')
+    expect(within(modal).getByTestId('modal-ilustracao').querySelector('img')?.getAttribute('src')).toBe('/ilustracoes/campanhas/recuperacao.jpg')
     expect(within(modal).getByTestId('copy-da-vez')).toHaveTextContent('Copy B')
     expect(within(modal).getByTestId('copy-0')).toBeInTheDocument()
     expect(within(modal).getByTestId('copy-1')).toHaveTextContent('da vez')

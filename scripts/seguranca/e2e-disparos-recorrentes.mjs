@@ -323,11 +323,13 @@ try {
   await dono.p.getByTestId('card-promocoes').waitFor({ timeout: 15000 })
   ok('3 cards na tela', (await dono.p.getByTestId(/^card-/).count()) === 3)
   await dono.p.screenshot({ path: join(SHOTS, 'cards-desktop.png'), fullPage: true })
-  ok('Promoções lista as promoções com foto; Personalizado mostra o anúncio com público',
-    (await dono.p.getByTestId('item-promocoes-0').count()) === 1 && (await dono.p.getByTestId('item-nunca_compraram-0').textContent()).includes('Todos que já compraram'))
+  ok('cards como antes: ilustração + resumo em texto (promoções e anúncios listados por nome)',
+    (await dono.p.getByTestId('linha-promocoes-0').count()) === 1 && (await dono.p.getByTestId('linha-nunca_compraram-0').textContent()).includes('Volta')
+    && (await dono.p.getByTestId('card-promocoes').locator('img').count()) === 1)
   for (const tipo of ['recuperacao', 'promocoes', 'nunca_compraram']) {
     await dono.p.getByTestId(`configurar-${tipo}`).click()
     await dono.p.getByTestId('modal-config').waitFor({ timeout: 10000 })
+    ok(`modal ${tipo}: ilustração à esquerda`, await dono.p.getByTestId('modal-ilustracao').isVisible())
     if (tipo === 'nunca_compraram') await dono.p.waitForTimeout(800) // tamanhos dos públicos
     await dono.p.screenshot({ path: join(SHOTS, `modal-${tipo}.png`) })
     if (tipo === 'recuperacao') {
