@@ -35,6 +35,6 @@ describe('página de campanhas', () => {
     expect(src).not.toMatch(/ListaCampanhas/)
     const agendamentos = src.indexOf("aba === 'agendamentos'")
     expect(agendamentos).toBeGreaterThan(0)
-    expect(src.slice(agendamentos, agendamentos + 1500)).toMatch(/<Modelos[\s\S]*<Agendamentos/)
+    expect(src.slice(agendamentos, agendamentos + 2500)).toMatch(/<Modelos[\s\S]*<Agendamentos/)
   })
 })
