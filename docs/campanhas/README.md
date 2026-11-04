@@ -1,4 +1,4 @@
-# Campanhas — disparo, cards recorrentes e métricas (0104 → 0245)
+# Campanhas — disparo, cards recorrentes e métricas (0104 → 0248)
 
 Desenho dos cards recorrentes: `docs/superpowers/specs/2026-11-03-disparos-recorrentes-design.md`.
 
@@ -24,20 +24,27 @@ painel (Visão geral) ──► /api/admin/campanhas/visao-geral ──► campa
 painel (detalhado)   ──► /api/admin/campanhas/metricas     ──► campanhas_metricas / campanha_destinatarios (72 h desde a 0245)
 ```
 
-## Cards recorrentes (0245)
+## Cards recorrentes (0245 → 0248)
 
-| Card | Público (sempre: já MANDOU mensagem para a loja; nunca quem pediu SAIR; nunca quem já entrou em rodada hoje) |
-|---|---|
-| Recuperação de clientes | tem pedido não cancelado e o último foi há 30 dias ou mais |
-| Quem nunca comprou | nenhum pedido não cancelado |
-| Promoções | a base inteira |
+Base de público (0248): quem tem **conversa** com a loja no WhatsApp (inclui quem recebeu aviso de pedido); nunca quem
+pediu SAIR; nunca quem já entrou em rodada hoje; 1 por `telefone_chave`.
 
-- Nascem **desligados**. Ligado = rodada todo dia programado, na hora escolhida (janela mínima 30 min, 09:00–21:30).
-- Prioridade no mesmo dia: Recuperação → Nunca compraram → Promoções (`agendado_em` +0/+1/+2 s); ninguém entra em dois cards no dia.
+| Card | O que guarda | Público |
+|---|---|---|
+| Recuperação de clientes | 1 agenda; até 5 copies em rodízio (`mensagens`, `mensagem_indice`); até 6 imagens em rodízio (grade 3 × 2) | já pediu e o último pedido foi há 30 dias ou mais |
+| Disparo personalizado (chave interna `nunca_compraram`) | até 5 anúncios (`campanha_recorrente_anuncios`), cada um com cor, copy, até 5 imagens em rodízio, dias, horário e públicos | união dos públicos escolhidos (13 opções em `campanha_publico_bate`) |
+| Promoções | até 5 anúncios, cada um com 1 foto, copy, dias e horário | a base inteira |
+
+- Nascem **desligados**. Só ligam prontos (trigger): Recuperação com imagem e copy; Promoções/Personalizado com pelo
+  menos 1 anúncio e todos completos. Anúncio que ficar incompleto com o card ligado fica **sem agenda** (não sai).
+- Agenda: Recuperação no card; Promoções/Personalizado em cada anúncio (`proximo_disparo_em`, índice parcial).
+- Aquecimento (0247): 15/dia nos 3 cards juntos, +5 a cada 5 dias. A cota que resta é **dividida** entre os disparos
+  que ainda saem hoje (`campanha_recorrente_pendentes_hoje`): 2 promoções no mesmo dia com 15 de cota = 8 + 7.
+- Prioridade no mesmo minuto: Recuperação → Personalizado → Promoções; ninguém entra em duas rodadas no dia.
 - Rodada só enfileira o que cabe na janela com 105 s por mensagem (média de 60–150 s), nunca acima do teto da loja;
   quem nunca recebeu vai primeiro, depois quem recebeu há mais tempo. O resto expira no fim da janela.
-- Galeria de até 5 imagens em rodízio (`imagem_indice` avança por rodada). Sem imagem = texto.
-- "Pular hoje" grava `pular_ate` = hoje; a trigger empurra a agenda para amanhã; se a rodada já nasceu, a fila pendente é cancelada.
+- Copy: editor visual (negrito/itálico/riscado e variáveis como etiquetas), gravado no formato do WhatsApp
+  (`*negrito*`, `_itálico_`, `~riscado~`, `{nome}`, `{loja}`, `{link_cardapio}`, `{ultimo_item}` só na Recuperação).
 - Freio numa rodada desliga o card (`desligado_motivo`); religar é decisão da loja.
 - Módulo `disparos` desligado no Super Admin = o card nem é lido pelo cron.
 

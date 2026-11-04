@@ -1,5 +1,8 @@
 /**
- * E2E dos cards de disparo recorrente (0245) — provedor SIMULADO, lojas isoladas, nenhuma comunicação externa.
+ * E2E dos cards de disparo recorrente (0245 → 0248) — provedor SIMULADO, lojas isoladas, nenhuma comunicação externa.
+ * v2 (0248): Recuperação com copies em rodízio; Promoções e Disparo personalizado com anúncios de agenda própria.
+ * O envio pelo simulado (seção 4) só acontece entre 09:00 e 21:30 de Brasília (regra do banco); fora disso a seção
+ * fica PENDENTE e o script sai com código 3.
  * Desenho: docs/superpowers/specs/2026-11-03-disparos-recorrentes-design.md
  *
  * Trava obrigatória (aborta antes de QUALQUER escrita):
@@ -84,7 +87,7 @@ await usuario('dono@camp-b.local', 'dono.campb', 'dono', B)
 const C = { c1: '5511912340101', c2: '5511912340102', c3: '5511912340103', c4: '5511912340104', c5: '5511912340105' }
 const C1_SEM_9 = '551112340101'
 const OUTRO = '5511912340199'
-const PERMITIDOS = new Set(Object.values(C))
+const PERMITIDOS = new Set([...Object.values(C), OUTRO])
 for (const [n, t] of Object.entries(C)) await db.query(`insert into clientes (restaurante_id, telefone, nome) values ($1,$2,$3)`, [A, t, `Cliente ${n.toUpperCase()}`])
 async function conversa(lojaId, tel, entrada = true) {
   const cid = (await um(`insert into whatsapp_conversas (restaurante_id, telefone) values ($1,$2) on conflict (restaurante_id, telefone) do update set telefone=excluded.telefone returning id`, [lojaId, tel])).id
@@ -113,7 +116,13 @@ const cron = () => fetch(`${BASE}/api/cron/campanhas`, { method: 'POST', headers
 const envios = (camp) => q(`select * from campanha_envios where campanha_id=$1 order by telefone`, [camp])
 const card = (tipo) => um(`select * from campanha_recorrentes where restaurante_id=$1 and tipo=$2`, [A, tipo])
 const rodadas = (tipo) => q(`select c.* from campanhas c join campanha_recorrentes r on r.id = c.recorrente_id where r.restaurante_id=$1 and r.tipo=$2`, [A, tipo])
-const vencer = (tipo) => db.query(`update campanha_recorrentes set proximo_disparo_em = now() - interval '1 minute' where restaurante_id=$1 and tipo=$2`, [A, tipo])
+const vencer = (tipo) => (tipo === 'recuperacao'
+  ? db.query(`update campanha_recorrentes set proximo_disparo_em = now() - interval '1 minute' where restaurante_id=$1 and tipo=$2`, [A, tipo])
+  : db.query(`update campanha_recorrente_anuncios a set proximo_disparo_em = now() - interval '1 minute' from campanha_recorrentes c
+      where c.id = a.recorrente_id and c.restaurante_id=$1 and c.tipo=$2 and a.proximo_disparo_em is not null`, [A, tipo]))
+const anuncios = (tipo) => q(`select a.* from campanha_recorrente_anuncios a join campanha_recorrentes c on c.id = a.recorrente_id where c.restaurante_id=$1 and c.tipo=$2 order by a.ordem`, [A, tipo])
+const naJanela = () => { const h = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date()); return h >= '09:00' && h <= '21:25' }
+const pendentes = []
 const liberarLoja = () => db.query(`update restaurantes set disparo_proximo_em = null where id=$1`, [A])
 
 const browser = await chromium.launch()
@@ -146,120 +155,152 @@ try {
   ok('próximo disparo: ter 03/11 21h → qua 04/11 17h (dias 1,3); vazio = todos os dias → hoje 17h',
     new Date(prox.p1).toISOString() === '2026-11-04T20:00:00.000Z' && new Date(prox.p2).toISOString() === '2026-11-03T20:00:00.000Z', `${prox.p1} ${prox.p2}`)
 
-  secao('2. API: os 3 cards nascem desligados; permissões; validação')
+  secao('2. API: os 3 cards nascem desligados; permissões; validação; públicos')
   const dono = await logar('dono.campa')
   const lista = await api(dono.p, R)
-  ok('GET cria os 3 cards desligados na ordem fixa', lista.s === 200 && lista.j.length === 3 && lista.j.every((c) => c.ativa === false) && lista.j.map((c) => c.tipo).join() === 'recuperacao,nunca_compraram,promocoes', JSON.stringify(lista.j).slice(0, 100))
-  ok('mensagem padrão com {nome} e {link}', lista.j.every((c) => c.mensagem.includes('{nome}') && c.mensagem.includes('{link}')))
+  ok('GET cria os 3 cards desligados na ordem fixa, sem anúncios', lista.s === 200 && lista.j.length === 3 && lista.j.every((c) => c.ativa === false && c.anuncios.length === 0) && lista.j.map((c) => c.tipo).join() === 'recuperacao,nunca_compraram,promocoes', JSON.stringify(lista.j).slice(0, 100))
   const garcom = await logar('garcom.campa')
   const lg = await api(garcom.p, R)
   ok('garçom não vê os cards (403)', lg.s === 403, String(lg.s))
+  ok('garçom não grava anúncio nem lê públicos', (await api(garcom.p, `${R}/promocoes/anuncios`, 'PUT', { anuncios: [] })).s >= 400 && (await api(garcom.p, `${R}/publicos`)).s >= 400)
   const semSessao = await fetch(`${BASE}${R}`).then((r) => r.status)
   ok('sem sessão: bloqueado', semSessao === 401 || semSessao === 307 || semSessao === 302, String(semSessao))
   ok('card inválido: 400', (await api(dono.p, `${R}/qualquer`, 'PATCH', { ativa: true })).s === 400)
-  ok('sem dia nenhum: 400', (await api(dono.p, `${R}/promocoes`, 'PATCH', { diasSemana: [] })).s === 400)
-  ok('{ultimo_item} fora da Recuperação: 400', (await api(dono.p, `${R}/promocoes`, 'PATCH', { mensagem: 'x {ultimo_item} {link}' })).s === 400)
-  ok('6 imagens: 400', (await api(dono.p, `${R}/promocoes`, 'PATCH', { imagens: Array(6).fill('https://x/a.jpg') })).s === 400)
+  ok('Recuperação não tem anúncios (400)', (await api(dono.p, `${R}/recuperacao/anuncios`, 'PUT', { anuncios: [] })).s === 400)
+  ok('Recuperação: 7 imagens = 400; 6 cabem', (await api(dono.p, `${R}/recuperacao`, 'PATCH', { imagens: Array(7).fill('https://x.test/a.jpg') })).s === 400
+    && (await api(dono.p, `${R}/recuperacao`, 'PATCH', { imagens: Array(6).fill('https://x.test/a.jpg') })).s === 200)
+  ok('Recuperação: 6 copies = 400', (await api(dono.p, `${R}/recuperacao`, 'PATCH', { mensagens: Array(6).fill('oi') })).s === 400)
+  const promoBase = { nome: 'A', mensagem: 'Promo A, {nome}! {link}', imagens: ['https://exemplo.test/img-1.jpg'], diasSemana: [0, 1, 2, 3, 4, 5, 6], hora: '09:00', janelaFim: '21:30', publicos: [] }
+  ok('promoção com 2 imagens: 400', (await api(dono.p, `${R}/promocoes/anuncios`, 'PUT', { anuncios: [{ ...promoBase, imagens: ['https://x.test/1.jpg', 'https://x.test/2.jpg'] }] })).s === 400)
+  ok('6 promoções: 400', (await api(dono.p, `${R}/promocoes/anuncios`, 'PUT', { anuncios: Array(6).fill(promoBase) })).s === 400)
+  ok('{ultimo_item} fora da Recuperação: 400', (await api(dono.p, `${R}/promocoes/anuncios`, 'PUT', { anuncios: [{ ...promoBase, mensagem: 'x {ultimo_item}' }] })).s === 400)
+  ok('público inexistente: 400', (await api(dono.p, `${R}/nunca_compraram/anuncios`, 'PUT', { anuncios: [{ ...promoBase, publicos: ['hackers'] }] })).s === 400)
   const est = await api(dono.p, `${R}/promocoes/estimativa`)
-  ok('estimativa de Promoções: C1, C2, C3, C5 (C4 pediu SAIR; OUTRO nunca escreveu; C1 sem 9 é o mesmo)', est.s === 200 && est.j.pessoas === 4, JSON.stringify(est.j))
+  ok('estimativa de Promoções: C1, C2, C3, C5 e OUTRO (quem recebeu aviso conta; C4 pediu SAIR; C1 sem 9 é o mesmo)', est.s === 200 && est.j.pessoas === 5, JSON.stringify(est.j))
   ok('estimativa de Recuperação: só C3 (40 dias sem pedir)', (await api(dono.p, `${R}/recuperacao/estimativa`)).j.pessoas === 1)
-  ok('estimativa de Nunca compraram: só C5', (await api(dono.p, `${R}/nunca_compraram/estimativa`)).j.pessoas === 1)
+  ok('estimativa do Personalizado sem anúncio: 0', (await api(dono.p, `${R}/nunca_compraram/estimativa`)).j.pessoas === 0)
+  const tam = await api(dono.p, `${R}/publicos`)
+  ok('tamanho dos públicos: todos que compraram 3 (C1, C2, C3), comprou em 7 dias 2, sem comprar há 30 dias 1, 13 chaves',
+    tam.s === 200 && Object.keys(tam.j).length === 13 && tam.j.todos_clientes === 3 && tam.j.compraram_7d === 2 && tam.j.sem_compra_30d === 1, JSON.stringify(tam.j))
+  const uni = await api(dono.p, `${R}/publicos`, 'POST', { publicos: ['compraram_7d', 'sem_compra_30d', 'todos_clientes'] })
+  ok('união dos públicos sem repetir pessoa: 3', uni.s === 200 && uni.j.pessoas === 3, JSON.stringify(uni.j))
 
-  secao('3. Ligar: agenda gravada; rodada única; público e prioridade')
-  ok('card sem imagem não liga (400)', (await api(dono.p, `${R}/promocoes`, 'PATCH', { ativa: true })).s === 400)
-  await api(dono.p, `${R}/promocoes`, 'PATCH', { imagens: [{ url: 'https://exemplo.test/img-1.jpg', mensagem: 'Imagem 1 {nome}' }, { url: 'https://exemplo.test/img-2.jpg', mensagem: '' }] })
-  await api(dono.p, `${R}/recuperacao`, 'PATCH', { imagens: [{ url: 'https://exemplo.test/img-1.jpg', mensagem: 'Imagem 1 {nome}' }, { url: 'https://exemplo.test/img-2.jpg', mensagem: '' }] })
-  await api(dono.p, `${R}/nunca_compraram`, 'PATCH', { imagens: [{ url: 'https://exemplo.test/img-1.jpg', mensagem: 'Imagem 1 {nome}' }, { url: 'https://exemplo.test/img-2.jpg', mensagem: '' }] })
-  const liga = await api(dono.p, `${R}/promocoes`, 'PATCH', { ativa: true, hora: '09:00', janelaFim: '21:30', mensagem: 'Promo de hoje, {nome}! {link}' })
-  ok('ligar grava proximo_disparo_em', liga.s === 200 && liga.j.ativa === true && !!liga.j.proximoDisparoEm, JSON.stringify(liga.j).slice(0, 160))
+  secao('3. Ligar: só pronto; agenda por anúncio; rodadas; cota dividida; ninguém duas vezes')
+  ok('Promoções sem anúncio não liga (400)', (await api(dono.p, `${R}/promocoes`, 'PATCH', { ativa: true })).s === 400)
+  const sv = await api(dono.p, `${R}/promocoes/anuncios`, 'PUT', { anuncios: [promoBase, { ...promoBase, nome: 'B', mensagem: 'Promo B {link}', imagens: ['https://exemplo.test/img-2.jpg'] }, { ...promoBase, nome: 'C rascunho', imagens: [] }] })
+  ok('salvar 3 promoções (1 rascunho sem foto)', sv.s === 200 && sv.j.anuncios.length === 3, JSON.stringify(sv.j).slice(0, 200))
+  ok('com rascunho incompleto, não liga (400)', (await api(dono.p, `${R}/promocoes`, 'PATCH', { ativa: true })).s === 400)
+  await api(dono.p, `${R}/promocoes/anuncios`, 'PUT', { anuncios: sv.j.anuncios.slice(0, 2) })
+  const liga = await api(dono.p, `${R}/promocoes`, 'PATCH', { ativa: true })
+  ok('ligar Promoções: cada anúncio ganha agenda própria', liga.s === 200 && liga.j.ativa && liga.j.anuncios.every((a) => !!a.proximoDisparoEm), JSON.stringify(liga.j.anuncios?.map((a) => a.proximoDisparoEm)))
+  // Rascunho incompleto com o card ligado: fica sem agenda (nunca sai pela metade).
+  const comRasc = await api(dono.p, `${R}/promocoes/anuncios`, 'PUT', { anuncios: [...liga.j.anuncios, { ...promoBase, nome: 'C rascunho', imagens: [] }] })
+  ok('card ligado + anúncio incompleto: salva, mas o incompleto fica sem agenda', comRasc.s === 200 && comRasc.j.anuncios[2].proximoDisparoEm === null && !!comRasc.j.anuncios[0].proximoDisparoEm)
+  await api(dono.p, `${R}/recuperacao`, 'PATCH', { imagens: [{ url: 'https://exemplo.test/rec-1.jpg', mensagem: '' }, { url: 'https://exemplo.test/rec-2.jpg', mensagem: '' }], mensagens: ['Rec 1, {nome}: {ultimo_item}? {link}', 'Rec 2 {link}'], mensagem: 'Rec 1, {nome}: {ultimo_item}? {link}' })
+  ok('Recuperação liga com copies e imagens', (await api(dono.p, `${R}/recuperacao`, 'PATCH', { ativa: true, hora: '09:00', janelaFim: '21:30' })).s === 200)
   const c0 = await cron()
-  ok('card ligado mas ainda não vencido: nenhuma rodada', c0.s === 200 && (await rodadas('promocoes')).length === 0, JSON.stringify(c0.j))
-  await api(dono.p, `${R}/recuperacao`, 'PATCH', { ativa: true, hora: '09:00', janelaFim: '21:30' })
+  ok('ligados mas ainda não vencidos: nenhuma rodada', c0.s === 200 && (await rodadas('promocoes')).length === 0 && (await rodadas('recuperacao')).length === 0, JSON.stringify(c0.j))
   await vencer('promocoes'); await vencer('recuperacao')
   const k1 = await cron(); const k2 = await cron()
   const rp = await rodadas('promocoes'); const rr = await rodadas('recuperacao')
-  ok('cron 2× seguidas: UMA rodada por card', k1.j?.rodadas === 2 && k2.j?.rodadas === 0 && rp.length === 1 && rr.length === 1, `${JSON.stringify(k1.j)} ${JSON.stringify(k2.j)}`)
+  const ans = await anuncios('promocoes')
+  // A cota (15) dividida por 3 disparos de hoje dá 5–7 por rodada; a base tem só 5 pessoas: Recuperação leva C3, a
+  // promoção A alcança as outras 4 e a B fica "sem público" (ninguém recebe duas mensagens no dia).
+  ok('cron 2× seguidas: Recuperação e promoção A geram rodada, B fica sem público; 2ª chamada não faz nada',
+    k1.j?.rodadas === 2 && k2.j?.rodadas === 0 && rr.length === 1 && ans[1].ultima_rodada_motivo === 'sem_publico', `${JSON.stringify(k1.j)} ${JSON.stringify(k2.j)} B=${ans[1].ultima_rodada_motivo}`)
+  ok('o rascunho incompleto não gerou rodada', ans[2].ultima_rodada_motivo === null && ans[2].proximo_disparo_em === null)
   const chave = (t) => t.replace(/^55/, '').replace(/^(\d\d)9?(\d{8})$/, '$1$2')
-  ok('Recuperação pegou C3; Promoções ficou com C1, C2, C5 (ninguém em dois cards no dia; C1 uma vez só)',
-    (await envios(rr[0].id)).map((e) => e.telefone).join() === C.c3 && (await envios(rp[0].id)).map((e) => chave(e.telefone)).sort().join() === [C.c1, C.c2, C.c5].map(chave).sort().join(),
-    JSON.stringify({ rec: (await envios(rr[0].id)).map((e) => e.telefone), promo: (await envios(rp[0].id)).map((e) => e.telefone) }))
-  ok('entre C1 com 9 e sem 9, a fila fica com o formato completo (55 + 9)', (await envios(rp[0].id)).some((e) => e.telefone === C.c1))
-  ok('Recuperação sai antes de Promoções (agendado_em escalonado)', new Date(rr[0].agendado_em) < new Date(rp[0].agendado_em))
-  ok('rodada sai com imagem e a mensagem DA imagem da vez (1ª imagem)', rp[0].tipo_mensagem === 'imagem' && rp[0].imagem_url === 'https://exemplo.test/img-1.jpg' && /Imagem 1/.test(rp[0].mensagem), JSON.stringify({ t: rp[0].tipo_mensagem, u: rp[0].imagem_url, m: rp[0].mensagem }))
-  ok('rodízio: índice avançou para a 2ª imagem', (await card('promocoes')).imagem_indice === 1)
-  ok('{ultimo_item} da Recuperação preenchido (X-Bacon)', (await envios(rr[0].id))[0].ultimo_item === 'X-Bacon' || (await envios(rr[0].id))[0].ultimo_item === null)
-  ok('agenda avançou para o futuro', new Date((await card('promocoes')).proximo_disparo_em) > new Date())
+  const filaRec = (await envios(rr[0].id)).map((e) => e.telefone)
+  const filaPromo = (await Promise.all(rp.map((c) => envios(c.id)))).flat().map((e) => chave(e.telefone))
+  ok('Recuperação pegou C3; as promoções juntas pegaram C1, C2, C5 e OUTRO, cada um uma vez',
+    filaRec.join() === C.c3 && filaPromo.length === new Set(filaPromo).size && [...filaPromo].sort().join() === [C.c1, C.c2, C.c5, OUTRO].map(chave).sort().join(),
+    JSON.stringify({ filaRec, filaPromo, rodadasPromo: rp.map((c) => [c.nome, c.total_destinatarios]) }))
+  ok('cota do aquecimento dividida: nenhuma rodada passou de ceil(15 / disparos de hoje)', [...rp, ...rr].every((c) => c.total_destinatarios <= 5 || c.total_destinatarios <= 8), JSON.stringify([...rp, ...rr].map((c) => [c.nome, c.total_destinatarios])))
+  const rpA = rp.find((c) => c.anuncio_id === ans[0].id)
+  ok('promoção A saiu com a foto e a copy dela', rpA && rpA.tipo_mensagem === 'imagem' && rpA.imagem_url === 'https://exemplo.test/img-1.jpg' && /Promo A/.test(rpA.mensagem) && /^Promoção — A/.test(rpA.nome), JSON.stringify(rpA && { n: rpA.nome, u: rpA.imagem_url, m: rpA.mensagem }))
+  ok('Recuperação saiu com a 1ª copy e a 1ª imagem; os dois rodízios avançaram',
+    /Rec 1/.test(rr[0].mensagem) && rr[0].imagem_url === 'https://exemplo.test/rec-1.jpg' && (await card('recuperacao')).mensagem_indice === 1 && (await card('recuperacao')).imagem_indice === 1)
+  ok('{ultimo_item} da Recuperação preenchido (X-Bacon)', (await envios(rr[0].id))[0].ultimo_item === 'X-Bacon')
+  ok('agendas avançaram para o futuro', ans.slice(0, 2).every((a) => new Date(a.proximo_disparo_em) > new Date()) && new Date((await card('recuperacao')).proximo_disparo_em) > new Date())
   ok('estimativa agora 0: todo mundo já entrou em rodada hoje', (await api(dono.p, `${R}/promocoes/estimativa`)).j.pessoas === 0)
 
   secao('4. Envio pelo provedor simulado com o ritmo da loja')
-  // Promoções nasce com agendado_em = agora + 2 s (prioridade entre cards): em produção o cron é a cada 60 s; aqui, espera.
-  await new Promise((r) => setTimeout(r, 2500))
-  const crons = []
-  let proxLoja = null
-  for (let i = 0; i < 5; i++) {
-    await liberarLoja()
-    const r = await cron()
-    crons.push(r.j)
-    // Logo depois de um cron que enviou, a loja fica marcada para 60–150 s.
-    if (r.j?.enviados > 0) proxLoja = (await um(`select disparo_proximo_em p from restaurantes where id=$1`, [A])).p
+  if (!naJanela()) {
+    pendentes.push('4. envio pelo simulado (fora da janela 09:00–21:30 de Brasília — rodar de novo de dia)')
+    console.log('   ⏸ fora da janela de envio (09:00–21:30): seção PENDENTE')
+  } else {
+    await new Promise((r) => setTimeout(r, 2500))
+    const crons = []
+    let proxLoja = null
+    for (let i = 0; i < 7; i++) {
+      await liberarLoja()
+      const r = await cron()
+      crons.push(r.j)
+      if (r.j?.enviados > 0) proxLoja = (await um(`select disparo_proximo_em p from restaurantes where id=$1`, [A])).p
+    }
+    const todas = [...(await envios(rr[0].id)), ...(await Promise.all(rp.map((c) => envios(c.id)))).flat()]
+    ok('5 mensagens enviadas (C3, C1, C2, C5, OUTRO), cada uma uma vez', todas.every((e) => e.status === 'enviado') && enviados().filter((x) => x.resultado === 'ok').length === 5,
+      JSON.stringify({ crons: crons.map((c) => c && [c.processados, c.enviados, c.erros]), fila: todas.map((e) => [e.telefone, e.status, e.erro]) }))
+    ok('próxima mensagem da loja marcada entre 60 e 150 s depois de um envio', proxLoja && (new Date(proxLoja) - Date.now()) > 30_000 && (new Date(proxLoja) - Date.now()) <= 150_000, String(proxLoja))
+    const saidaRec = enviados().find((x) => x.numero === C.c3)
+    ok('Recuperação: {nome} = primeiro nome, {ultimo_item} preenchido, link rastreável e rodapé SAIR', /Rec 1, Cliente: X-Bacon\?/.test(saidaRec?.texto ?? '') && /\/c\/[0-9a-f]{24}/.test(saidaRec?.texto ?? '') && /Responda SAIR/.test(saidaRec?.texto ?? ''), saidaRec?.texto)
   }
-  const todas = [...(await envios(rr[0].id)), ...(await envios(rp[0].id))]
-  ok('4 mensagens enviadas (C3, C1, C2, C5), cada uma uma vez', todas.every((e) => e.status === 'enviado') && enviados().filter((x) => x.resultado === 'ok').length === 4,
-    JSON.stringify({ crons: crons.map((c) => c && [c.processados, c.enviados, c.erros, c.pausados, c.campanhasPausadas]), fila: todas.map((e) => [e.telefone, e.status, e.erro]) }))
-  ok('próxima mensagem da loja marcada entre 60 e 150 s depois de um envio', proxLoja && (new Date(proxLoja) - Date.now()) > 30_000 && (new Date(proxLoja) - Date.now()) <= 150_000, String(proxLoja))
-  const saida = enviados().find((x) => x.numero === C.c1)
-  ok('texto da imagem (com {nome} = primeiro nome) e link rastreável do próprio cliente', /Imagem 1 Cliente/.test(saida?.texto ?? '') && /\/c\/[0-9a-f]{24}/.test(saida?.texto ?? ''), saida?.texto)
-  ok('rodadas concluídas; card mostra a última rodada', (await card('promocoes')).ultima_rodada_motivo === 'ok' && (await um(`select status from campanhas where id=$1`, [rp[0].id])).status === 'concluida')
 
-  secao('5. Sem público e rodada que expira no fim da janela')
-  await api(dono.p, `${R}/nunca_compraram`, 'PATCH', { ativa: true, hora: '09:00', janelaFim: '21:30' })
+  secao('5. Disparo personalizado: público, sem público, atrasado, limite do dia')
+  const pers = await api(dono.p, `${R}/nunca_compraram/anuncios`, 'PUT', { anuncios: [{ ...promoBase, nome: 'Volta', cor: '#be185d', mensagem: 'Oi {nome}', imagens: ['https://exemplo.test/p1.jpg', 'https://exemplo.test/p2.jpg'], publicos: ['todos_clientes'] }] })
+  ok('anúncio do personalizado salvo com cor, 2 imagens e público', pers.s === 200 && pers.j.anuncios[0].cor === '#be185d' && pers.j.anuncios[0].imagens.length === 2 && pers.j.anuncios[0].publicos.join() === 'todos_clientes')
+  ok('liga o personalizado', (await api(dono.p, `${R}/nunca_compraram`, 'PATCH', { ativa: true })).s === 200)
   await vencer('nunca_compraram'); await cron()
-  const cn = await card('nunca_compraram')
-  ok('Nunca compraram sem público hoje (C5 já saiu): sem campanha vazia para trás', cn.ultima_rodada_motivo === 'sem_publico' && cn.ultima_campanha_id === null && (await rodadas('nunca_compraram')).length === 0)
+  const ap = (await anuncios('nunca_compraram'))[0]
+  ok('público todo já entrou em rodada hoje: "sem público", sem campanha vazia para trás', ap.ultima_rodada_motivo === 'sem_publico' && ap.ultima_campanha_id === null && (await rodadas('nunca_compraram')).length === 0, ap.ultima_rodada_motivo)
+  await db.query(`update campanha_recorrente_anuncios set proximo_disparo_em = now() - interval '1 day' where id=$1`, [ap.id])
+  await cron()
+  const ap2 = (await anuncios('nunca_compraram'))[0]
+  ok('anúncio atrasado (agenda de ontem): não dispara, motivo "atrasado", agenda no futuro', ap2.ultima_rodada_motivo === 'atrasado' && new Date(ap2.proximo_disparo_em) > new Date())
   // Rodada "de ontem" com pendente: expira no fim da janela daquele dia.
   const velha = (await um(`insert into campanhas (restaurante_id, nome, status, mensagem, agendado_em, janela_inicio, janela_fim, recorrente_id, total_destinatarios)
     values ($1,'Rodada velha','enviando','x', now() - interval '1 day', time '09:00', time '21:30', (select id from campanha_recorrentes where restaurante_id=$1 and tipo='promocoes'), 1) returning id`, [A])).id
   await db.query(`insert into campanha_envios (campanha_id, restaurante_id, telefone, nome_cliente) values ($1,$2,$3,'Velho')`, [velha, A, '5511912340177'])
   await liberarLoja(); await cron()
   ok('rodada do dia anterior: pendente expira ("Rodada do dia encerrada"), nada sai', (await um(`select status, erro from campanha_envios where campanha_id=$1`, [velha])).erro === 'Rodada do dia encerrada' && !enviados().some((x) => x.numero === '5511912340177'))
-
-  // Card atrasado (revisão 03/11): agenda marcada para ontem → não dispara em dia não escolhido; só avança e marca 'atrasado'.
-  await db.query(`update campanha_recorrentes set proximo_disparo_em = now() - interval '1 day' where restaurante_id=$1 and tipo='nunca_compraram'`, [A])
-  await cron()
-  const atrasado = await card('nunca_compraram')
-  ok('card atrasado (agenda de ontem): nenhuma rodada, motivo "atrasado", agenda no futuro', atrasado.ultima_rodada_motivo === 'atrasado' && atrasado.ultima_campanha_id === null && new Date(atrasado.proximo_disparo_em) > new Date() && (await rodadas('nunca_compraram')).length === 0, JSON.stringify({ m: atrasado.ultima_rodada_motivo, prox: atrasado.proximo_disparo_em }))
-
-  // Aquecimento (0247): com o limite do dia gasto, a rodada não nasce e o card marca 'limite_dia'.
   ok('aquecimento: dia 0 = 15 por dia', (await um(`select campanha_recorrente_limite_aquecimento($1) n`, [A])).n === 15)
   const enchida = (await um(`insert into campanhas (restaurante_id, nome, status, mensagem, agendado_em, recorrente_id, total_destinatarios)
     values ($1,'Enche o limite','concluida','x', now(), (select id from campanha_recorrentes where restaurante_id=$1 and tipo='nunca_compraram'), 15) returning id`, [A])).id
   await db.query(`insert into campanha_envios (campanha_id, restaurante_id, telefone, nome_cliente, status, enviado_em)
     select $1, $2, '55119980' || lpad(g::text, 5, '0'), 'x', 'enviado', now() from generate_series(1, 15) g`, [enchida, A])
   await vencer('nunca_compraram'); await cron()
-  ok('limite do dia gasto: rodada não nasce, motivo "limite_dia"', (await card('nunca_compraram')).ultima_rodada_motivo === 'limite_dia')
+  ok('limite do dia gasto: rodada não nasce, motivo "limite_dia"', (await anuncios('nunca_compraram'))[0].ultima_rodada_motivo === 'limite_dia')
   const res = await api(dono.p, `${R}/resumo`)
   ok('resumo do topo: limite 15, enviadas de hoje contadas', res.s === 200 && res.j.limite_hoje === 15 && res.j.hoje_enviadas >= 15 && typeof res.j.h16_perdidas === 'number', JSON.stringify(res.j))
   await db.query(`update campanhas set criado_em = now() - interval '6 days' where id=$1`, [enchida])
   ok('aquecimento: 6 dias depois da 1ª rodada = 20 por dia', (await um(`select campanha_recorrente_limite_aquecimento($1) n`, [A])).n === 20)
   await db.query(`delete from campanhas where id=$1`, [enchida])
+  await db.query(`update campanhas set criado_em = now() where restaurante_id=$1 and recorrente_id is not null`, [A])
+  ok('desligar o card tira a agenda de todos os anúncios', (await api(dono.p, `${R}/nunca_compraram`, 'PATCH', { ativa: false })).s === 200 && (await anuncios('nunca_compraram')).every((a) => a.proximo_disparo_em === null))
 
   secao('6. Freio desliga o card')
+  if (!naJanela()) {
+    pendentes.push('6. freio (precisa de envio: rodar de dia)')
+    console.log('   ⏸ fora da janela de envio: seção PENDENTE')
+  } else {
   await db.query(`update campanhas set status='enviando' where id=$1`, [rp[0].id])
   await db.query(`insert into campanha_envios (campanha_id, restaurante_id, telefone, nome_cliente, status, erro, enviado_em)
     select $1, $2, '55119990' || lpad(g::text, 5, '0'), 'x', 'erro', 'falha simulada', now() from generate_series(1, 25) g`, [rp[0].id, A])
   // Duas pendentes: depois de enviar uma, a rodada segue "enviando" e o freio pausa; a outra fica na fila.
-  await db.query(`update campanha_envios set status='pendente', enviado_em=null, tentativas=0, travado_ate=null where campanha_id=$1 and telefone in ($2, $3)`, [rp[0].id, C.c5, C.c2])
+  const duas = (await envios(rp[0].id)).filter((e) => PERMITIDOS.has(e.telefone)).slice(0, 2).map((e) => e.telefone)
+  await db.query(`update campanha_envios set status='pendente', enviado_em=null, tentativas=0, travado_ate=null where campanha_id=$1 and telefone = any($2)`, [rp[0].id, duas])
   await liberarLoja(); await cron()
   const cp = await card('promocoes'); const rpz = await um(`select status, pausa_motivo from campanhas where id=$1`, [rp[0].id])
   ok('erro > 5%: rodada pausada pelo freio e card DESLIGADO', rpz.status === 'pausada' && rpz.pausa_motivo === 'erro_alto' && cp.ativa === false && cp.desligado_motivo === 'erro_alto', JSON.stringify({ rpz, ativa: cp.ativa, m: cp.desligado_motivo }))
   ok('pausa do freio não volta sozinha: a pendente fica na fila', (await um(`select count(*)::int n from campanha_envios where campanha_id=$1 and status='pendente'`, [rp[0].id])).n === 1 && (await (await liberarLoja(), cron())).j.enviados === 0)
   ok('religar limpa o motivo', (await api(dono.p, `${R}/promocoes`, 'PATCH', { ativa: true })).j.desligadoMotivo === null)
+  }
 
   secao('7. Visão geral e isolamento')
   const vg = await api(dono.p, `/api/admin/campanhas/visao-geral?de=${encodeURIComponent(new Date(Date.now() - 86400e3).toISOString())}&ate=${encodeURIComponent(new Date(Date.now() + 60e3).toISOString())}`)
   // Depois da seção 6 (duas devolvidas à fila, uma reenviada), o banco diz quantas estão "enviado": a visão geral tem que bater.
   const enviadasBanco = (await um(`select count(*)::int n from campanha_envios where restaurante_id=$1 and status='enviado'`, [A])).n
-  ok('visão geral conta os envios das rodadas (igual ao banco)', vg.s === 200 && vg.j.totais.enviadas === enviadasBanco && enviadasBanco >= 3 && vg.j.totais.contatos === enviadasBanco, JSON.stringify({ banco: enviadasBanco, totais: vg.j?.totais }))
+  ok('visão geral conta os envios das rodadas (igual ao banco)', vg.s === 200 && vg.j.totais.enviadas === enviadasBanco && (enviadasBanco >= 3 || !naJanela()) && vg.j.totais.contatos === enviadasBanco, JSON.stringify({ banco: enviadasBanco, totais: vg.j?.totais }))
   const lista2 = await api(dono.p, '/api/admin/campanhas')
   ok('rodadas não aparecem na lista de agendamentos', lista2.s === 200 && !lista2.j.some((c) => c.id === rp[0].id || c.id === rr[0].id))
   const donoB = await logar('dono.campb')
@@ -269,6 +310,12 @@ try {
   await sbB.auth.signInWithPassword({ email: 'dono@camp-b.local', password: SENHA })
   const { data: rlsB } = await sbB.from('campanha_recorrentes').select('id').eq('restaurante_id', A)
   ok('RLS: dono de B não lê os cards de A', (rlsB ?? []).length === 0)
+  const { data: rlsAn } = await sbB.from('campanha_recorrente_anuncios').select('id').eq('restaurante_id', A)
+  const { error: insAn } = await sbB.from('campanha_recorrente_anuncios').insert({ recorrente_id: (await card('promocoes')).id, restaurante_id: A, mensagem: 'invasão' })
+  const { data: rlsTam, error: tamB } = await sbB.rpc('campanha_publicos_tamanhos')
+  ok('RLS: dono de B não lê nem cria anúncio em A; os públicos dele são os da loja B (vazios)', (rlsAn ?? []).length === 0 && !!insAn && !tamB && rlsTam.todos_clientes === 0,
+    JSON.stringify({ n: rlsAn?.length, ins: insAn?.message, tam: rlsTam?.todos_clientes }))
+  ok('anúncios de A intactos', (await anuncios('promocoes')).every((a) => a.mensagem !== 'invasão'))
 
   secao('8. Tela')
   await dono.p.goto(`${BASE}/admin/campanhas?aba=campanhas`, { waitUntil: 'networkidle' })
@@ -276,6 +323,27 @@ try {
   await dono.p.getByTestId('card-promocoes').waitFor({ timeout: 15000 })
   ok('3 cards na tela', (await dono.p.getByTestId(/^card-/).count()) === 3)
   await dono.p.screenshot({ path: join(SHOTS, 'cards-desktop.png'), fullPage: true })
+  ok('Promoções lista as promoções com foto; Personalizado mostra o anúncio com público',
+    (await dono.p.getByTestId('item-promocoes-0').count()) === 1 && (await dono.p.getByTestId('item-nunca_compraram-0').textContent()).includes('Todos que já compraram'))
+  for (const tipo of ['recuperacao', 'promocoes', 'nunca_compraram']) {
+    await dono.p.getByTestId(`configurar-${tipo}`).click()
+    await dono.p.getByTestId('modal-config').waitFor({ timeout: 10000 })
+    if (tipo === 'nunca_compraram') await dono.p.waitForTimeout(800) // tamanhos dos públicos
+    await dono.p.screenshot({ path: join(SHOTS, `modal-${tipo}.png`) })
+    if (tipo === 'recuperacao') {
+      const caixa = dono.p.locator('[role="textbox"][data-testid^="copy-editor-"]').first() // aberto: a copy da vez
+      await caixa.click()
+      await dono.p.keyboard.press('End')
+      await dono.p.keyboard.type(' teste')
+      ok('editor: digitar mantém a etiqueta da variável e o texto novo', (await caixa.locator('[data-var]').count()) >= 1 && (await caixa.textContent()).includes('teste'))
+      await dono.p.screenshot({ path: join(SHOTS, 'modal-recuperacao-editando.png') })
+      await dono.p.getByRole('button', { name: 'Cancelar' }).last().click()
+      await dono.p.getByTestId('confirmar-ok').click() // descartar
+    } else {
+      await dono.p.getByRole('button', { name: 'Cancelar' }).last().click()
+    }
+    await dono.p.getByTestId('modal-config').waitFor({ state: 'detached', timeout: 5000 })
+  }
   await dono.p.goto(`${BASE}/admin/campanhas?aba=modelos`, { waitUntil: 'networkidle' })
   await dono.p.getByTestId('agendamentos-modelos').waitFor({ timeout: 15000 })
   ok('?aba=modelos cai em Agendamentos com os modelos acima da lista', await dono.p.getByTestId('agendamentos').isVisible())
@@ -291,6 +359,11 @@ try {
   const larg = await cel.p.evaluate(() => document.documentElement.scrollWidth)
   ok('celular (390px): sem rolagem horizontal', larg <= 392, String(larg))
   await cel.p.screenshot({ path: join(SHOTS, 'cards-celular.png'), fullPage: true })
+  await cel.p.getByTestId('configurar-nunca_compraram').click()
+  await cel.p.getByTestId('modal-config').waitFor({ timeout: 10000 })
+  const largModal = await cel.p.evaluate(() => document.documentElement.scrollWidth)
+  ok('celular: modal do personalizado sem rolagem horizontal', largModal <= 392, String(largModal))
+  await cel.p.screenshot({ path: join(SHOTS, 'modal-celular.png') })
 
   secao('9. Nada foi enviado fora do simulado')
   ok('todas as saídas foram para o provedor simulado, só para os clientes de teste', enviados().every((x) => PERMITIDOS.has(x.numero) || x.numero === undefined))
@@ -305,3 +378,4 @@ try {
 const f = res.filter((x) => !x.c)
 console.log(`\n${res.length - f.length}/${res.length} verificações passaram · capturas em ${SHOTS}`)
 if (f.length) { console.log('Falharam:\n' + f.map((x) => ` - ${x.n}`).join('\n')); process.exit(1) }
+if (pendentes.length) { console.log('PENDENTES (não aprovadas):\n' + pendentes.map((x) => ` - ${x}`).join('\n')); process.exit(3) }

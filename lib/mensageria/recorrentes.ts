@@ -14,22 +14,62 @@ export type TipoRecorrente = (typeof TIPOS_RECORRENTES)[number]
 export const ROTULO_RECORRENTE: Record<TipoRecorrente, { nome: string; publico: string; mensagemPadrao: string }> = {
   recuperacao: {
     nome: 'Recuperação de clientes',
-    publico: 'Quem já pediu, falou com a loja no WhatsApp e está há 30 dias ou mais sem pedir.',
+    publico: 'Quem já pediu, já conversou com a loja no WhatsApp e está há 30 dias ou mais sem pedir.',
     mensagemPadrao: 'Oi {nome}! Sentimos sua falta na {loja} 😊 Que tal pedir de novo hoje? Dá uma olhada no cardápio: {link}',
   },
   nunca_compraram: {
-    nome: 'Quem nunca comprou',
-    publico: 'Quem já falou com a loja no WhatsApp, mas nunca fez um pedido.',
-    mensagemPadrao: 'Oi {nome}! Aqui é da {loja}. Ainda não experimentou a gente? Veja o cardápio e faça seu primeiro pedido: {link}',
+    // 04/11: virou "Disparo personalizado" (a chave interna continua, para não converter dado existente).
+    nome: 'Disparo personalizado',
+    publico: 'Até 5 anúncios, cada um com o seu público, agenda, copy e imagens.',
+    mensagemPadrao: 'Oi {nome}! Novidade na {loja} para você. Veja no cardápio: {link}',
   },
   promocoes: {
     nome: 'Promoções',
-    publico: 'Todo mundo que já falou com a loja no WhatsApp, comprador ou não.',
+    publico: 'Até 5 promoções, cada uma com a sua foto, copy, dias e horário. Vai para quem já conversou com a loja.',
     mensagemPadrao: 'Oi {nome}! Promoção de hoje na {loja} 🔥 Confira no cardápio: {link}',
   },
 }
 
 export const IMAGENS_MAX = 5
+/** Recuperação (0248): até 6 imagens (grade 3 × 2) e até 5 copies em rodízio. */
+export const IMAGENS_RECUPERACAO = 6
+export const COPIES_MAX = 5
+/** Promoções e Disparo personalizado (0248): até 5 anúncios por card; personalizado com até 5 imagens por anúncio. */
+export const ANUNCIOS_MAX = 5
+/** Cores sólidas dos anúncios, uma diferente para cada (contraste de texto branco >= 4,5:1). */
+export const CORES_ANUNCIO = ['#1d4ed8', '#be185d', '#047857', '#b45309', '#6d28d9'] as const
+
+/** Os 13 públicos do Disparo personalizado (o banco tem a mesma lista em campanha_publico_bate). Escolher vários = união. */
+export const PUBLICOS = [
+  { chave: 'compraram_3d', rotulo: 'Compraram nos últimos 3 dias' },
+  { chave: 'compraram_7d', rotulo: 'Compraram nos últimos 7 dias' },
+  { chave: 'sem_compra_3d', rotulo: 'Sem comprar há mais de 3 dias' },
+  { chave: 'sem_compra_7d', rotulo: 'Sem comprar há mais de 7 dias' },
+  { chave: 'sem_compra_15d', rotulo: 'Sem comprar há mais de 15 dias' },
+  { chave: 'sem_compra_30d', rotulo: 'Sem comprar há mais de 30 dias' },
+  { chave: 'sem_compra_60d', rotulo: 'Sem comprar há mais de 60 dias' },
+  { chave: 'recorrentes', rotulo: 'Recorrentes (2+ pedidos em 30 dias)' },
+  { chave: 'nao_recorrentes', rotulo: 'Compraram só 1 vez' },
+  { chave: 'novos_30d', rotulo: 'Clientes novos (1º pedido em 30 dias)' },
+  { chave: 'gastou_100', rotulo: 'Gastaram R$ 100 ou mais no total' },
+  { chave: 'gastou_300', rotulo: 'Gastaram R$ 300 ou mais no total' },
+  { chave: 'todos_clientes', rotulo: 'Todos que já compraram' },
+] as const
+export type ChavePublico = (typeof PUBLICOS)[number]['chave']
+const CHAVES_PUBLICO = new Set<string>(PUBLICOS.map((p) => p.chave))
+
+/** Anúncio de Promoções / Disparo personalizado (0248). Promoção: 1 imagem; personalizado: até 5, em rodízio. */
+export interface Anuncio {
+  id?: string
+  nome: string
+  cor: string
+  mensagem: string
+  imagens: string[]
+  diasSemana: number[]
+  hora: string
+  janelaFim: string
+  publicos: string[]
+}
 /** O cron só pergunta "algum card venceu?" a cada 10 min (pedido do dono: menos consulta ao banco). */
 export const CHECAGEM_CARDS_MS = 10 * 60_000
 /** Média do intervalo de 60–150 s entre mensagens da loja (0245): quanto cabe numa janela. */
@@ -94,7 +134,8 @@ export function validarPatchRecorrente(
   }
   if ('imagens' in patch) {
     const lista = patch.imagens
-    if (!Array.isArray(lista) || lista.length > IMAGENS_MAX) return { ok: false, erro: `Até ${IMAGENS_MAX} imagens por card.` }
+    const maxImagens = tipo === 'recuperacao' ? IMAGENS_RECUPERACAO : IMAGENS_MAX
+    if (!Array.isArray(lista) || lista.length > maxImagens) return { ok: false, erro: `Até ${maxImagens} imagens por card.` }
     const normal: ImagemCard[] = []
     for (const item of lista) {
       const url = typeof item === 'string' ? item : (item as { url?: unknown } | null)?.url
@@ -120,6 +161,17 @@ export function validarPatchRecorrente(
     row.hora = janela.inicio
     row.janela_fim = janela.fim
   }
+  if ('mensagens' in patch) {
+    const copies = patch.mensagens
+    if (!Array.isArray(copies) || copies.length > COPIES_MAX) return { ok: false, erro: `Até ${COPIES_MAX} copies.` }
+    for (const [i, m] of copies.entries()) {
+      if (typeof m !== 'string' || m.length > 4096) return { ok: false, erro: `Copy ${i + 1}: texto de até 4096 caracteres.` }
+      const problema = problemasDasVariaveis(m, { incluirLink: true })
+      if (problema) return { ok: false, erro: `Copy ${i + 1}: ${problema}` }
+      if (tipo !== 'recuperacao' && m.includes(MARCADOR_ULTIMO_ITEM)) return { ok: false, erro: 'Esta variável só vale na Recuperação.' }
+    }
+    row.mensagens = copies
+  }
   if (Object.keys(row).length === 0) return { ok: false, erro: 'Nada para salvar.' }
   return { ok: true, row }
 }
@@ -139,5 +191,70 @@ export function pendenciasDoCard(c: { imagens: ImagemCard[]; mensagem: string; d
   if (!c.mensagem.trim() && (c.imagens.length === 0 || c.imagens.some((i) => !i.mensagem.trim()))) falta.push('Escreva a mensagem padrão ou uma mensagem em cada imagem.')
   if (c.diasSemana.length === 0) falta.push('Escolha pelo menos um dia.')
   if (!c.hora || !c.janelaFim || c.janelaFim <= c.hora) falta.push('Ajuste o horário (o fim precisa ser depois do início).')
+  return falta
+}
+
+
+/** Valida a lista de anúncios do card e devolve as linhas (snake_case) na ordem. */
+export function validarAnuncios(tipo: TipoRecorrente, lista: unknown): { ok: true; rows: Record<string, unknown>[] } | { ok: false; erro: string } {
+  if (tipo === 'recuperacao') return { ok: false, erro: 'A Recuperação não tem anúncios.' }
+  if (!Array.isArray(lista) || lista.length > ANUNCIOS_MAX) return { ok: false, erro: `Até ${ANUNCIOS_MAX} ${tipo === 'promocoes' ? 'promoções' : 'anúncios'} por card.` }
+  const rows: Record<string, unknown>[] = []
+  for (const [i, bruto] of lista.entries()) {
+    const a = (bruto ?? {}) as Partial<Anuncio>
+    const n = `${tipo === 'promocoes' ? 'Promoção' : 'Anúncio'} ${i + 1}`
+    const imagens = Array.isArray(a.imagens) ? a.imagens : []
+    const maxImg = tipo === 'promocoes' ? 1 : IMAGENS_MAX
+    if (imagens.length > maxImg) return { ok: false, erro: `${n}: até ${maxImg} ${maxImg === 1 ? 'imagem' : 'imagens'}.` }
+    if (!imagens.every((u) => typeof u === 'string' && /^https:\/\/\S+$/.test(u) && u.length <= 1000)) return { ok: false, erro: `${n}: imagem inválida.` }
+    const mensagem = typeof a.mensagem === 'string' ? a.mensagem : ''
+    if (mensagem.length > 4096) return { ok: false, erro: `${n}: copy de até 4096 caracteres.` }
+    const problema = problemasDasVariaveis(mensagem, { incluirLink: true })
+    if (problema) return { ok: false, erro: `${n}: ${problema}` }
+    if (mensagem.includes(MARCADOR_ULTIMO_ITEM)) return { ok: false, erro: `${n}: {ultimo_item} só vale na Recuperação.` }
+    const dias = Array.isArray(a.diasSemana) ? a.diasSemana : []
+    if (!dias.every((d) => Number.isInteger(d) && d >= 0 && d <= 6)) return { ok: false, erro: `${n}: dia da semana inválido.` }
+    const janela = janelaDoDisparo(a.hora ?? '17:00', a.janelaFim ?? '19:00')
+    if (!janela.ok) return { ok: false, erro: `${n}: ${janela.erro}` }
+    const publicos = tipo === 'nunca_compraram' ? (Array.isArray(a.publicos) ? a.publicos : []) : []
+    if (!publicos.every((p) => typeof p === 'string' && CHAVES_PUBLICO.has(p))) return { ok: false, erro: `${n}: público inválido.` }
+    const cor = typeof a.cor === 'string' && /^#[0-9a-fA-F]{6}$/.test(a.cor) ? a.cor : CORES_ANUNCIO[i % CORES_ANUNCIO.length]
+    rows.push({
+      ...(typeof a.id === 'string' && a.id ? { id: a.id } : {}),
+      ordem: i,
+      nome: typeof a.nome === 'string' ? a.nome.slice(0, 60) : '',
+      cor,
+      mensagem,
+      imagens,
+      dias_semana: [...new Set(dias)].sort((x, y) => x - y),
+      hora: janela.inicio,
+      janela_fim: janela.fim,
+      publicos: [...new Set(publicos)],
+    })
+  }
+  return { ok: true, rows }
+}
+
+/** O que falta para o card ligar (o banco recusa o mesmo, 0248). Vazio = pronto. */
+export function pendenciasDoCardV2(
+  tipo: TipoRecorrente,
+  c: { imagens: ImagemCard[]; mensagem: string; mensagens: string[]; diasSemana: number[]; hora: string; janelaFim: string; anuncios: Anuncio[] },
+): string[] {
+  const falta: string[] = []
+  if (tipo === 'recuperacao') {
+    if (c.imagens.length === 0) falta.push('Adicione pelo menos 1 imagem.')
+    if (!c.mensagem.trim() && !c.mensagens.some((m) => m.trim())) falta.push('Escreva pelo menos 1 copy.')
+    if (c.diasSemana.length === 0) falta.push('Escolha pelo menos um dia.')
+    return falta
+  }
+  const nome = tipo === 'promocoes' ? 'promoção' : 'anúncio'
+  if (c.anuncios.length === 0) return [`Crie pelo menos 1 ${nome}.`]
+  c.anuncios.forEach((a, i) => {
+    const n = `${nome[0].toUpperCase()}${nome.slice(1)} ${i + 1}`
+    if (a.imagens.length === 0) falta.push(`${n}: falta imagem.`)
+    if (!a.mensagem.trim()) falta.push(`${n}: falta a copy.`)
+    if (a.diasSemana.length === 0) falta.push(`${n}: escolha pelo menos um dia.`)
+    if (tipo === 'nunca_compraram' && a.publicos.length === 0) falta.push(`${n}: escolha pelo menos um público.`)
+  })
   return falta
 }

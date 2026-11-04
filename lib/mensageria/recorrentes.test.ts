@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CHECAGEM_CARDS_MS, IMAGENS_MAX, ROTULO_RECORRENTE, TIPOS_RECORRENTES, cabemNaJanela, checagemDevida, intervaloChecagemCards, limiteAquecimento, pendenciasDoCard, validarPatchRecorrente } from './recorrentes'
+import { CHECAGEM_CARDS_MS, IMAGENS_MAX, ROTULO_RECORRENTE, TIPOS_RECORRENTES, cabemNaJanela, checagemDevida, intervaloChecagemCards, limiteAquecimento, pendenciasDoCard, pendenciasDoCardV2, validarAnuncios, PUBLICOS, CORES_ANUNCIO, validarPatchRecorrente } from './recorrentes'
 
 /** 03/11/2026: regras puras dos cards recorrentes (docs/superpowers/specs/2026-11-03-disparos-recorrentes-design.md). */
 
@@ -83,4 +83,44 @@ describe('pendenciasDoCard: o toggle só liga com tudo pronto', () => {
   it('sem mensagem padrão e imagem sem mensagem', () => expect(pendenciasDoCard({ ...base, mensagem: '  ' })).toContain('Escreva a mensagem padrão ou uma mensagem em cada imagem.'))
   it('sem mensagem padrão mas toda imagem com mensagem: ok', () => expect(pendenciasDoCard({ ...base, mensagem: '', imagens: [{ url: 'https://x/a.jpg', mensagem: 'Promo' }] })).toEqual([]))
   it('sem dia', () => expect(pendenciasDoCard({ ...base, diasSemana: [] })).toContain('Escolha pelo menos um dia.'))
+})
+
+describe('0248: públicos, anúncios e copies', () => {
+  it('13 públicos, chaves únicas; 5 cores distintas', () => {
+    expect(PUBLICOS).toHaveLength(13)
+    expect(new Set(PUBLICOS.map((p) => p.chave)).size).toBe(13)
+    expect(new Set(CORES_ANUNCIO).size).toBe(5)
+  })
+  const anuncio = { nome: 'Terça do hambúrguer', cor: '#1d4ed8', mensagem: 'Oi {nome}! {link}', imagens: ['https://x/a.jpg'], diasSemana: [2], hora: '17:00', janelaFim: '19:00', publicos: [] as string[] }
+  it('promoção: 1 imagem só; anúncio pronto vira linha com ordem', () => {
+    const r = validarAnuncios('promocoes', [anuncio])
+    expect(r.ok && r.rows[0]).toMatchObject({ ordem: 0, nome: 'Terça do hambúrguer', imagens: ['https://x/a.jpg'], dias_semana: [2], hora: '17:00', janela_fim: '19:00', publicos: [] })
+    expect(validarAnuncios('promocoes', [{ ...anuncio, imagens: ['https://x/a.jpg', 'https://x/b.jpg'] }]).ok).toBe(false)
+  })
+  it('personalizado: até 5 imagens, públicos válidos; inválido é recusado', () => {
+    expect(validarAnuncios('nunca_compraram', [{ ...anuncio, imagens: Array(5).fill('https://x/a.jpg'), publicos: ['recorrentes', 'sem_compra_30d'] }]).ok).toBe(true)
+    expect(validarAnuncios('nunca_compraram', [{ ...anuncio, imagens: Array(6).fill('https://x/a.jpg') }]).ok).toBe(false)
+    expect(validarAnuncios('nunca_compraram', [{ ...anuncio, publicos: ['inventado'] }]).ok).toBe(false)
+  })
+  it('no máximo 5 anúncios; {ultimo_item} fora da Recuperação é recusado; cor padrão por posição', () => {
+    expect(validarAnuncios('promocoes', Array(6).fill(anuncio)).ok).toBe(false)
+    expect(validarAnuncios('promocoes', [{ ...anuncio, mensagem: 'Volta {ultimo_item}' }]).ok).toBe(false)
+    const r = validarAnuncios('nunca_compraram', [{ ...anuncio, cor: 'vermelho' }, { ...anuncio, cor: '' }])
+    expect(r.ok && r.rows.map((x) => x.cor)).toEqual([CORES_ANUNCIO[0], CORES_ANUNCIO[1]])
+  })
+  it('Recuperação: até 6 imagens e até 5 copies', () => {
+    const img = (n: number) => Array(n).fill({ url: 'https://x/a.jpg', mensagem: '' })
+    expect(validarPatchRecorrente('recuperacao', { imagens: img(6) }).ok).toBe(true)
+    expect(validarPatchRecorrente('recuperacao', { imagens: img(7) }).ok).toBe(false)
+    expect(validarPatchRecorrente('recuperacao', { mensagens: ['A {nome}', 'B {ultimo_item}'] }).ok).toBe(true)
+    expect(validarPatchRecorrente('recuperacao', { mensagens: Array(6).fill('x') }).ok).toBe(false)
+    expect(validarPatchRecorrente('recuperacao', { mensagens: ['Oi {cupom}'] }).ok).toBe(false)
+  })
+  it('pendências v2 por tipo', () => {
+    const base = { imagens: [], mensagem: '', mensagens: [], diasSemana: [1], hora: '17:00', janelaFim: '19:00', anuncios: [] }
+    expect(pendenciasDoCardV2('recuperacao', base)).toEqual(['Adicione pelo menos 1 imagem.', 'Escreva pelo menos 1 copy.'])
+    expect(pendenciasDoCardV2('recuperacao', { ...base, imagens: [{ url: 'https://x', mensagem: '' }], mensagens: ['Oi'] })).toEqual([])
+    expect(pendenciasDoCardV2('promocoes', base)).toEqual(['Crie pelo menos 1 promoção.'])
+    expect(pendenciasDoCardV2('nunca_compraram', { ...base, anuncios: [{ ...anuncio, publicos: [] }] })).toEqual(['Anúncio 1: escolha pelo menos um público.'])
+  })
 })
