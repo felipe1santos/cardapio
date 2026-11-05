@@ -128,3 +128,42 @@ describe('sincronizar pausas: loja desconectada não consulta a Evolution', () =
     expect(conexao).not.toHaveBeenCalled()
   })
 })
+
+/**
+ * 04/11/2026 (0249): sessão "zumbi" — a Evolution diz que a instância está conectada, mas o envio falha com
+ * "Connection Closed". Antes: pausa → no minuto seguinte retoma (estado aberto) → falha → pausa… sem fim e sem gastar
+ * tentativa. Agora a retomada automática respeita `retomar_apos` (espera crescente gravada pelo banco) e, depois de 4
+ * pausas seguidas, o motivo vira 'whatsapp_instavel', que não retoma sozinho.
+ */
+describe('sincronizar pausas: sessão zumbi não vira loop', () => {
+  function adminCom(campanha: Record<string, unknown>) {
+    const updates: unknown[] = []
+    const vazio: Record<string, unknown> = {}
+    for (const m of ['select', 'in', 'eq']) vazio[m] = () => vazio
+    vazio.update = (v: unknown) => { updates.push(v); return vazio }
+    vazio.lte = async () => ({ data: [campanha] })
+    const admin = { from: () => vazio, rpc: vi.fn(async () => ({ data: [], error: null })) }
+    return { admin, updates }
+  }
+  const base = { id: 'c7', status: 'pausada', restaurante_id: 'r7', restaurantes: { evolution_instance: 'inst7', whatsapp_estado: 'open' } }
+  const conexao = vi.fn(async () => 'aberto')
+
+  it('pausada por desconexão com retomar_apos no futuro: NÃO retoma, mesmo com a instância "aberta"', async () => {
+    const { admin, updates } = adminCom({ ...base, pausa_motivo: 'whatsapp_desconectado', retomar_apos: new Date(Date.now() + 10 * 60_000).toISOString() })
+    const r = await processarCampanhas(admin as never, { conexao, enviarTexto: vi.fn() } as unknown as ProvedorWhatsapp, { limite: 10, intervalo: () => 0 })
+    expect(r.campanhasRetomadas).toBe(0)
+    expect(updates).toHaveLength(0)
+  })
+
+  it('retomar_apos já passou: retoma', async () => {
+    const { admin } = adminCom({ ...base, pausa_motivo: 'whatsapp_desconectado', retomar_apos: new Date(Date.now() - 60_000).toISOString() })
+    const r = await processarCampanhas(admin as never, { conexao, enviarTexto: vi.fn() } as unknown as ProvedorWhatsapp, { limite: 10, intervalo: () => 0 })
+    expect(r.campanhasRetomadas).toBe(1)
+  })
+
+  it("motivo 'whatsapp_instavel' (4 pausas seguidas): nunca retoma sozinho", async () => {
+    const { admin } = adminCom({ ...base, pausa_motivo: 'whatsapp_instavel', retomar_apos: null })
+    const r = await processarCampanhas(admin as never, { conexao, enviarTexto: vi.fn() } as unknown as ProvedorWhatsapp, { limite: 10, intervalo: () => 0 })
+    expect(r.campanhasRetomadas).toBe(0)
+  })
+})

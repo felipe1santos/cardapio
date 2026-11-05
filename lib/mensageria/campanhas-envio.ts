@@ -133,10 +133,10 @@ async function enviarUm(provedor: ProvedorWhatsapp, e: EnvioReservado): Promise<
 async function sincronizarPausas(admin: SupabaseClient, provedor: ProvedorWhatsapp, r: ResumoCampanhas) {
   const { data } = await admin
     .from('campanhas')
-    .select('id, status, pausa_motivo, restaurante_id, restaurantes ( evolution_instance, whatsapp_estado )')
+    .select('id, status, pausa_motivo, retomar_apos, restaurante_id, restaurantes ( evolution_instance, whatsapp_estado )')
     .in('status', ['agendada', 'enviando', 'pausada'])
     .lte('agendado_em', new Date().toISOString())
-  const linhas = (data ?? []) as unknown as { id: string; status: string; pausa_motivo: string | null; restaurante_id: string; restaurantes: { evolution_instance: string | null; whatsapp_estado?: string | null } | null }[]
+  const linhas = (data ?? []) as unknown as { id: string; status: string; pausa_motivo: string | null; retomar_apos?: string | null; restaurante_id: string; restaurantes: { evolution_instance: string | null; whatsapp_estado?: string | null } | null }[]
   const estados = new Map<string, EstadoConexaoProvedor>()
   for (const c of linhas) {
     const inst = c.restaurantes?.evolution_instance ?? null
@@ -149,7 +149,9 @@ async function sincronizarPausas(admin: SupabaseClient, provedor: ProvedorWhatsa
       await admin.from('campanhas').update({ status: 'pausada', pausada_em: new Date().toISOString(), pausa_motivo: 'whatsapp_desconectado', atualizado_em: new Date().toISOString() })
         .eq('id', c.id).in('status', ['agendada', 'enviando'])
       r.campanhasPausadas++
-    } else if (estado === 'aberto' && c.status === 'pausada' && (c.pausa_motivo ?? 'whatsapp_desconectado') === 'whatsapp_desconectado') {
+    } else if (estado === 'aberto' && c.status === 'pausada' && (c.pausa_motivo ?? 'whatsapp_desconectado') === 'whatsapp_desconectado'
+      // 0249: espera crescente depois de cada pausa por falha de conexão (sessão "zumbi": aberta, mas não envia).
+      && (!c.retomar_apos || new Date(c.retomar_apos).getTime() <= Date.now())) {
       await admin.from('campanhas').update({ status: 'enviando', pausada_em: null, pausa_motivo: null, atualizado_em: new Date().toISOString() })
         .eq('id', c.id).eq('status', 'pausada').eq('pausa_motivo', 'whatsapp_desconectado')
       r.campanhasRetomadas++

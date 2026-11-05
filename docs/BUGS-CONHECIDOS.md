@@ -271,3 +271,16 @@ item disponível no cardápio hoje" em vez de página vazia. Nada mudou no que a
 toda condição que esconde algo do cliente tem que aparecer com o motivo no painel, ao lado do status. Suporte: item
 "disponível" sumido → conferir categoria, "Delivery e retirada", dias marcados e horário da categoria. Teste:
 `lib/item-visibilidade.test.ts`.
+
+## Disparo: sessão "zumbi" do WhatsApp retomava a campanha todo minuto · 04/11/2026 · teste (0249)
+
+**O que era.** Auditoria dos disparos (achado, sem incidente em produção). A Evolution pode dizer "conectado" (`open`)
+e mesmo assim recusar o envio com "Connection Closed". A campanha pausava por desconexão, devolvia a mensagem à fila
+**sem gastar tentativa**, o cron do minuto seguinte via "aberto" e retomava, falhava de novo… sem fim (1 chamada à
+Evolution a cada 1–2,5 min por loja até a rodada expirar). Fere a regra 1 das correções: retry sem espera e sem limite.
+**Correção.** 0249: `campanha_concluir_envio` conta as pausas (`campanhas.pausas_conexao`) e grava `retomar_apos`
+(5 min, 15 min, 1 h); `sincronizarPausas` só retoma depois disso; na 4ª pausa seguida o motivo vira
+`whatsapp_instavel` (não retoma sozinho — a loja reconecta o QR e toca em Retomar, que zera a conta). Envio que sai
+zera a conta. **Regra:** toda volta automática para a fila (mesmo "sem gastar tentativa") precisa de espera crescente e
+de um ponto final. Testes: `lib/mensageria/campanhas-envio.test.ts` (sessão zumbi),
+`supabase/migrations/0249_campanhas_pausa_conexao_espera.test.ts`.

@@ -79,6 +79,7 @@ export function decidirFreio(n: { enviados: number; erros: number; sair: number 
 
 export const ROTULO_PAUSA: Record<string, string> = {
   whatsapp_desconectado: 'WhatsApp da loja desconectado — volta sozinha quando reconectar',
+  whatsapp_instavel: 'WhatsApp da loja instável: conectado, mas as mensagens não saem. Reconecte o QR Code em Integrações e toque em Retomar',
   erro_alto: 'Pausada pelo freio: muitas mensagens com erro (mais de 5%)',
   sair_alto: 'Pausada pelo freio: muitos clientes pedindo para sair (mais de 3%)',
   manual: 'Pausada pela loja',

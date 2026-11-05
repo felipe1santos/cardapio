@@ -50,7 +50,7 @@ export async function PATCH(request: Request, { params }: Ctx) {
       // Retomar: pausa manual ou do freio. Desconexão volta sozinha quando o WhatsApp reconecta.
       if (atual.status !== 'pausada') return NextResponse.json({ error: 'A campanha não está pausada.' }, { status: 409 })
       if (atual.pausa_motivo === 'whatsapp_desconectado') return NextResponse.json({ error: 'Reconecte o WhatsApp da loja: a campanha volta sozinha.' }, { status: 409 })
-      const { data: r } = await admin.from('campanhas').update({ status: 'enviando', pausada_em: null, pausa_motivo: null, atualizado_em: new Date().toISOString() })
+      const { data: r } = await admin.from('campanhas').update({ status: 'enviando', pausada_em: null, pausa_motivo: null, pausas_conexao: 0, retomar_apos: null, atualizado_em: new Date().toISOString() })
         .eq('id', id).eq('restaurante_id', restauranteId).eq('status', 'pausada').select('id').maybeSingle()
       if (!r) return NextResponse.json({ error: 'Não foi possível retomar.' }, { status: 409 })
       return NextResponse.json({ ok: true })
