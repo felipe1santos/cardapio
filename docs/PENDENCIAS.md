@@ -38,6 +38,12 @@ Regra: deploy só antes das 11h ou depois das 23h (CLAUDE.md).
 | 22 | Acesso expirado: mensagem clara + pagamento | **Já existe parcialmente.** No login, `lib/auth/entrada.ts` manda para `/login` com "Seu acesso expirou. Fale com a Menuzia para renovar." (também "desativado" e "suspenso" para funcionário). **Falta:** (a) quem já estava logado quando venceu: a RLS (0060) deixa de devolver a loja e o painel fica vazio/`sem-acesso` sem explicar — o middleware precisa conferir `acesso_expira_em` e mandar para a tela de aviso; (b) texto no padrão pedido: "Seu acesso expirou. Regularize o pagamento para voltar a usar o sistema." com botão para pagar (link da fatura, item 23) e WhatsApp da Menuzia; (c) aviso prévio no painel (7 e 3 dias antes de vencer). |
 | 23 | Assinatura com liberação/bloqueio automáticos | Plano abaixo. **Recomendação: Asaas.** Depende do dono criar a conta Asaas e colar a chave no Coolify. |
 
+## Pedido do dono em 04/11/2026 (pendência para o futuro; nada começado)
+| # | O quê | Detalhe / como |
+|---|---|---|
+| 25 | Integrações iFood e 99Food (e Keeta, pede.ai, entregadores) | Checklist detalhado fora do git (tem dados do CNPJ): `C:\projetos\cardapio-estab\referencias\PENDENCIAS-INTEGRACOES.md`. **iFood:** falta perfil Empresa no Portal (chamado), Plataforma de Negociação (disputas), CPF/CNPJ na tela + CANCELLATION_REQUEST_FAILED + status alterado por outro sistema, app de produção, homologação e 1ª loja real. **99Food:** validada no sandbox (22/10); falta pedido de teste pelo app cliente (a 99 bloqueia GPS falso), call de homologação com a 99, app de produção e 1ª loja. |
+| 24 | Disparos pela API oficial do WhatsApp (Meta Cloud API) | Plano: [whatsapp-oficial/plano-disparos.md](whatsapp-oficial/plano-disparos.md) (estudo geral: [whatsapp-oficial/estudo.md](whatsapp-oficial/estudo.md)). Recomendado: Menuzia como Tech Provider, cada loja conecta o número com 1 clique (Embedded Signup) e **paga a Meta direto** (≈ R$ 0,32 por mensagem de marketing entregue); começar por um número só de promoções (≈ 10–14 dias de código + 2–6 semanas de espera da Meta). **Antes de começar, o dono decide:** número separado × número principal, e quem paga (loja direto × via BSP). Primeiro passo é do dono: verificação da empresa Menuzia na Meta. |
+
 ### Plano da assinatura (item 23) — Asaas × Mercado Pago, decidido em 02/11/2026
 
 **Por que Asaas.** Assinatura nativa: o Asaas gera a cobrança todo mês sozinho (Pix, boleto ou cartão), manda o lembrete ao
