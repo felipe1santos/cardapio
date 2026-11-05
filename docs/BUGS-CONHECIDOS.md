@@ -284,3 +284,19 @@ Evolution a cada 1–2,5 min por loja até a rodada expirar). Fere a regra 1 das
 zera a conta. **Regra:** toda volta automática para a fila (mesmo "sem gastar tentativa") precisa de espera crescente e
 de um ponto final. Testes: `lib/mensageria/campanhas-envio.test.ts` (sessão zumbi),
 `supabase/migrations/0249_campanhas_pausa_conexao_espera.test.ts`.
+
+## Despertador da impressão preso "desconectado" até o próximo deploy · 05/11/2026 · teste
+
+**O que era.** Alerta "requisições ao banco acima do normal" (607/min, 3,3× o normal das 18h). Desde ~12h o canal
+Realtime do servidor (`lib/impressao/despertador.ts`) não estava inscrito (nenhuma linha `service_role` em
+`realtime.subscription`; o Realtime do Supabase respondia normal de fora). Sem ele, cada espera longa do Assistente
+(20 s) vira checagem a cada 2 s: 3 Assistentes ≈ 99 voltas/min × 6 consultas ≈ 600 req/min — 594 das 595 req/min
+medidas no `pg_stat_statements`. Nada a ver com os disparos.
+**Causa.** `garantirCanal` só recriava o canal quando `e.canal` era nulo. Inscrição que nunca respondia deixava
+`e.canal` preso; e na queda, durante os 3 s até a recriação, outra espera chamava `cliente.channel(tópico)`, que no
+realtime-js 2.108 devolve o canal VELHO do mesmo tópico (fica no cliente quando a saída não confirma) — o despertador
+ficava desligado até o deploy.
+**Correção.** Sem SUBSCRIBED dentro do prazo, a próxima espera troca o cliente inteiro (socket novo; o velho é
+desligado), prazo crescente 30 s → 5 min (regra 1); queda depois de conectado = 3 s. Sem Assistente esperando, nenhuma
+tentativa. **Como conferir em produção:** `select claims_role, entity from realtime.subscription` precisa ter
+`service_role` em `pedidos` e `impressao_trabalhos`. Teste: `lib/impressao/despertador-reconexao.test.ts`.

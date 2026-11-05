@@ -19,17 +19,26 @@ interface Estado {
   /** Chave `${tipo}:${restauranteId}`. */
   ouvintes: Map<string, Set<Ouvinte>>
   canal: RealtimeChannel | null
-  /** Um cliente por processo, reaproveitado nas reconexões (antes: um createClient novo por queda). */
+  /** Um cliente vivo por vez: na reconexão o velho é desligado (05/11) — o canal velho do mesmo tópico não volta. */
   cliente: SupabaseClient | null
   conectado: boolean
   tentandoDesde: number
+  /** Sem SUBSCRIBED até aqui, a próxima espera recomeça do zero (canal pendurado ou caído). */
+  prazoAte: number
+  /** Tentativas seguidas sem conectar: espera crescente até o teto (regra 1). */
+  falhas: number
+}
+
+/** Prazo para a inscrição responder / esperar depois de uma queda: 30 s, 60 s, 2 min, 4 min, teto 5 min. */
+export function prazoReconexao(falhas: number): number {
+  return Math.min(30_000 * 2 ** falhas, 300_000)
 }
 
 const G = globalThis as unknown as { __menuziaDespertador?: Estado }
 
 function estado(): Estado {
   if (G.__menuziaDespertador) return G.__menuziaDespertador
-  const e: Estado = { ouvintes: new Map(), canal: null, cliente: null, conectado: false, tentandoDesde: 0 }
+  const e: Estado = { ouvintes: new Map(), canal: null, cliente: null, conectado: false, tentandoDesde: 0, prazoAte: 0, falhas: 0 }
   G.__menuziaDespertador = e
   return e
 }
@@ -53,15 +62,33 @@ function avisar(restauranteId: unknown, tipo: TipoAviso) {
   if (lista) for (const f of [...lista]) f()
 }
 
-/** Liga o canal (uma vez por processo; reconecta sozinho se cair). */
+/**
+ * Liga o canal (uma vez por processo) e o recomeça quando não conecta. Só roda quando alguma espera chama: sem
+ * Assistente ligado, nenhuma tentativa.
+ *
+ * 05/11 (607 req/min): antes, existindo `e.canal`, nunca recriava — uma inscrição que não respondia, ou o canal velho
+ * devolvido por `channel(tópico)` na janela da queda, deixava o despertador desligado até o próximo deploy, e cada
+ * espera do Assistente virava checagem a cada 2 s. Agora, passado o prazo sem SUBSCRIBED, o cliente inteiro é trocado
+ * (socket novo: o canal velho do mesmo tópico não volta), com espera crescente até 5 min.
+ */
 function garantirCanal() {
   const e = estado()
-  if (e.canal) return
+  if (e.canal && (e.conectado || Date.now() < e.prazoAte)) return
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const chave = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !chave) return
+  if (e.canal || e.cliente) {
+    // Recomeço: desliga o cliente velho por inteiro (canais e socket). Nada dele mexe mais no estado (e.canal !== canal).
+    if (e.canal) e.falhas++
+    const velho = e.cliente
+    e.canal = null
+    e.cliente = null
+    e.conectado = false
+    if (velho) void velho.removeAllChannels().catch(() => null).finally(() => { try { velho.realtime.disconnect() } catch { /* já caiu */ } })
+  }
   e.tentandoDesde = Date.now()
-  const cliente = (e.cliente ??= createClient(url, chave, { auth: { persistSession: false, autoRefreshToken: false } }))
+  e.prazoAte = e.tentandoDesde + prazoReconexao(e.falhas)
+  const cliente = (e.cliente = createClient(url, chave, { auth: { persistSession: false, autoRefreshToken: false } }))
   const canal: RealtimeChannel = cliente
     .channel('menuzia-impressao-despertador')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'impressao_trabalhos' }, (p) => avisar((p.new as { restaurante_id?: unknown }).restaurante_id, 'trabalhos'))
@@ -72,13 +99,12 @@ function garantirCanal() {
     // Antes (26/10), esse CLOSED derrubava o canal NOVO e a reconexão virava um ciclo a cada 3 s até o deploy.
     if (e.canal !== canal) return
     e.conectado = status === 'SUBSCRIBED'
+    if (e.conectado) e.falhas = 0
     if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-      // Recomeça daqui a pouco, no mesmo cliente (o supabase-js também tenta sozinho).
-      e.canal = null
-      e.conectado = false
-      // Recria só depois que o canal velho saiu: com o socket de pé, o realtime-js devolve o MESMO canal (mesmo tópico)
-      // enquanto a saída não fecha, e o novo nasceria morto (revisão 26/10).
-      setTimeout(() => { void cliente.removeChannel(canal).catch(() => null).finally(() => garantirCanal()) }, 3000)
+      // O canal fica em e.canal (sem janela para outra espera pegar o canal velho pelo tópico). Se o supabase-js não
+      // religar sozinho, a próxima espera depois do prazo troca o cliente: 3 s se estava conectado; senão, o prazo
+      // crescente da tentativa.
+      if (e.falhas === 0) e.prazoAte = Math.min(e.prazoAte, Date.now() + 3000)
     }
   })
 }
