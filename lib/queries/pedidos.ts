@@ -112,6 +112,8 @@ export interface Pedido {
   /** Origem do pedido da vitrine (item 55, 0149): canal e detalhe (campanha…); null = PDV/mesa ou antigo. */
   origemCanal: string | null
   origemCampanha: string | null
+  /** CPF/CNPJ que o cliente pôs na nota no app (iFood, 09/11). Só para o painel; não vai à comanda. */
+  clienteDocumento?: string | null
   /** Pago pelo Pix online (0148). */
   pagamentoOnline: boolean
   canceladoMotivo: string | null
@@ -199,7 +201,7 @@ interface PedidoRow {
   comanda?: { numero: number | null; senha?: number | null } | null
   lancado_via?: string | null
   origem_canal?: string | null
-  origem_detalhe?: { campanha?: string | null; meio?: string | null } | null
+  origem_detalhe?: { campanha?: string | null; meio?: string | null; documento?: string | null } | null
   pagamento_online?: boolean | null
   cancelado_motivo: string | null
   cancelado_observacao: string | null
@@ -289,6 +291,7 @@ export function mapPedido(row: PedidoRow): Pedido {
     lancadoVia: row.lancado_via === 'pdv' || row.lancado_via === 'salao' ? row.lancado_via : null,
     origemCanal: row.origem_canal ?? null,
     origemCampanha: row.origem_detalhe?.campanha ?? (row.origem_detalhe?.meio === 'robo' ? 'robô' : null),
+    clienteDocumento: typeof row.origem_detalhe?.documento === 'string' ? row.origem_detalhe.documento : null,
     pagamentoOnline: row.pagamento_online === true,
     comandaId: row.comanda_id ?? null,
     canceladoMotivo: row.cancelado_motivo ?? null,

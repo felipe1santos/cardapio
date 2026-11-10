@@ -4,15 +4,15 @@ import type { ConfigCanal } from './config'
 import type { EventoIfood } from './ifood/cliente'
 import { MAX_TENTATIVAS_CANAL } from '@/lib/espera-tentativas'
 
-const m = vi.hoisted(() => ({ polling: vi.fn(), ack: vi.fn(), detalhe: vi.fn(), importar: vi.fn(), listar: vi.fn(), alterar: vi.fn() }))
+const m = vi.hoisted(() => ({ polling: vi.fn(), ack: vi.fn(), detalhe: vi.fn(), importar: vi.fn(), listar: vi.fn(), alterar: vi.fn(), avancar: vi.fn(), recusado: vi.fn() }))
 vi.mock('./ifood/cliente', () => ({
-  EVENTO_IFOOD: { PLACED: 'PLC', CANCELLED: 'CAN', PATCHED: 'OPA' },
+  EVENTO_IFOOD: { PLACED: 'PLC', CANCELLED: 'CAN', PATCHED: 'OPA', CANCELLATION_REQUEST_FAILED: 'CARF' },
   pollingIfood: m.polling, acknowledgmentIfood: m.ack, detalheDoPedidoIfood: m.detalhe, enviarStatusIfood: vi.fn(),
 }))
-vi.mock('./importar', () => ({ importarPedidoExterno: m.importar, cancelarPeloApp: vi.fn(), atualizarPedidoPeloApp: m.alterar }))
+vi.mock('./importar', () => ({ importarPedidoExterno: m.importar, cancelarPeloApp: vi.fn(), atualizarPedidoPeloApp: m.alterar, avancarPeloApp: m.avancar, cancelamentoRecusadoPeloApp: m.recusado }))
 vi.mock('./config', () => ({ listarCanaisAtivos: m.listar, registrarPolling: vi.fn() }))
 vi.mock('./ifood/mapear', () => ({ mapearPedidoIfood: (b: unknown) => b }))
-vi.mock('@/lib/entregas/queries', () => ({ buscarCorridaPorExterno: vi.fn() }))
+vi.mock('@/lib/entregas/queries', () => ({ buscarCorridaPorExterno: async () => null }))
 vi.mock('@/lib/entregas/provedores', () => ({ aplicarEventoCorrida: vi.fn(), statusDeEventoIfood: vi.fn() }))
 
 import { limparFalhasDeEvento, pollingDaLoja, sincronizarCanais, type ResumoSincronizacao } from './sincronizar'
@@ -67,6 +67,31 @@ describe('polling do iFood: evento com erro não pode virar pedido perdido', () 
     expect(m.detalhe).toHaveBeenCalledTimes(1)
     expect(m.alterar).toHaveBeenCalledTimes(1)
     expect(m.ack).toHaveBeenCalledTimes(1)
+  })
+
+  it('status mudado por outro sistema (CFM/RTP/DSP/CON) move o pedido aqui', async () => {
+    m.polling.mockResolvedValue([
+      { id: 's1', code: 'CFM', fullCode: 'CONFIRMED', orderId: 'o-1' },
+      { id: 's2', code: 'RTP', fullCode: 'READY_TO_PICKUP', orderId: 'o-1' },
+      { id: 's3', code: 'DSP', fullCode: 'DISPATCHED', orderId: 'o-1' },
+      { id: 's4', code: 'CON', fullCode: 'CONCLUDED', orderId: 'o-1' },
+    ])
+    await pollingDaLoja(admin, cfg, resumo())
+    expect(m.avancar.mock.calls.map((c) => c[4])).toEqual(['preparando', 'pronto', 'em_rota', 'entregue'])
+    expect(m.ack).toHaveBeenCalledTimes(1)
+  })
+
+  it('evento que não muda status (ex.: SPS) não mexe no pedido', async () => {
+    m.polling.mockResolvedValue([{ id: 'x1', code: 'SPS', fullCode: 'SEPARATION_STARTED', orderId: 'o-1' }])
+    await pollingDaLoja(admin, cfg, resumo())
+    expect(m.avancar).not.toHaveBeenCalled()
+  })
+
+  it('cancelamento recusado (CARF) chama a nova tentativa com aviso', async () => {
+    m.polling.mockResolvedValue([{ id: 'c1', code: 'CARF', fullCode: 'CANCELLATION_REQUEST_FAILED', orderId: 'o-9' }])
+    await pollingDaLoja(admin, cfg, resumo())
+    expect(m.recusado).toHaveBeenCalledWith(admin, 'r1', 'ifood', 'o-9')
+    expect(m.avancar).not.toHaveBeenCalled()
   })
 })
 

@@ -80,6 +80,36 @@ export function etapasAEnviar(jaEnviado: StatusParaApp | null, alvo: StatusParaA
   return todas.filter((e) => ORDEM[e] > de && ORDEM[e] <= ORDEM[alvo])
 }
 
+/** Ordem dos status Menuzia que o app pode mover (09/11). Cancelado/entregue ficam fora: não se mexe neles. */
+const ORDEM_MENUZIA: Record<string, number> = { recebido: 1, preparando: 2, pronto: 3, em_rota: 4, entregue: 5 }
+export type StatusMovidoPeloApp = 'preparando' | 'pronto' | 'em_rota' | 'entregue'
+
+/** Evento do iFood que muda status (outro sistema confirmou/despachou…) → status Menuzia. null = não mexe. Puro. */
+export function statusMenuziaDeEventoIfood(code: string): StatusMovidoPeloApp | null {
+  switch (code) {
+    case 'CFM': return 'preparando'
+    case 'RTP': return 'pronto'
+    case 'DSP': return 'em_rota'
+    case 'CON': return 'entregue'
+    default: return null
+  }
+}
+
+/** true se ir de `atual` para `alvo` é avançar (nunca volta, nunca mexe em cancelado/entregue). Puro. */
+export function avancaPara(atual: string, alvo: StatusMovidoPeloApp): boolean {
+  if (atual === 'cancelado' || atual === 'entregue') return false
+  const de = ORDEM_MENUZIA[atual]
+  return de !== undefined && ORDEM_MENUZIA[alvo] > de
+}
+
+/** Cancelamento recusado pelo app: volta para a última etapa que o pedido já tinha alcançado (colunas da 0078). Puro. */
+export function statusAntesDoCancelamento(p: { preparando_em: string | null; pronto_em: string | null; em_rota_em: string | null; entregue_em: string | null }): 'recebido' | StatusMovidoPeloApp {
+  if (p.em_rota_em) return 'em_rota'
+  if (p.pronto_em) return 'pronto'
+  if (p.preparando_em) return 'preparando'
+  return 'recebido'
+}
+
 const brlNum = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0 }
 export const num2 = brlNum
 

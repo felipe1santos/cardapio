@@ -50,6 +50,11 @@ describe('iFood: dados exigidos na homologação', () => {
     expect(p.observacao).toContain('cupom pago pela loja R$ 10,00')
     expect(p.observacao).toContain('cupom pago pelo iFood R$ 4,99')
   })
+  it('CPF da nota vem no cliente e NÃO vai para a observação (sai na comanda do entregador)', () => {
+    const p = mapearPedidoIfood({ ...IFOOD, customer: { ...IFOOD.customer, documentNumber: '12345678909' } })
+    expect(p.cliente.documento).toBe('12345678909')
+    expect(p.observacao).not.toContain('12345678909')
+  })
 })
 
 describe('canais externos: Open Delivery → PedidoExterno', () => {

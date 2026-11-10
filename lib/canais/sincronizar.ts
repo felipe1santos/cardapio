@@ -1,8 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { listarCanaisAtivos, registrarPolling, type ConfigCanal } from './config'
 import { createHash } from 'node:crypto'
-import { atualizarPedidoPeloApp, cancelarPeloApp, importarPedidoExterno } from './importar'
-import { CANAL_DISPONIVEL, etapasAEnviar, statusParaApp, type Canal, type StatusParaApp } from './tipos'
+import { atualizarPedidoPeloApp, avancarPeloApp, cancelamentoRecusadoPeloApp, cancelarPeloApp, importarPedidoExterno } from './importar'
+import { CANAL_DISPONIVEL, etapasAEnviar, statusMenuziaDeEventoIfood, statusParaApp, type Canal, type StatusParaApp } from './tipos'
 import { acknowledgmentOd, detalheDoPedidoOd, enviarStatusOd, pollingOd, type EventoOd } from './opendelivery/cliente'
 import { mapearPedidoOpenDelivery } from './opendelivery/mapear'
 import { acknowledgmentIfood, detalheDoPedidoIfood, enviarStatusIfood, EVENTO_IFOOD, pollingIfood, type EventoIfood } from './ifood/cliente'
@@ -100,8 +100,14 @@ async function tratarEventoIfood(admin: SupabaseClient, c: ConfigCanal, e: Event
         const md = (e.metadata ?? {}) as { driverName?: string; driverPhone?: string; vehiclePlate?: string; trackingUrl?: string }
         await aplicarEventoCorrida(admin, corrida, novo, { motorista: md.driverName ? { nome: md.driverName, telefone: md.driverPhone ?? null, placa: md.vehiclePlate ?? null } : null, shareLink: md.trackingUrl ?? null, evento: { code: e.fullCode ?? code, em: e.createdAt }, origem: 'polling' })
       }
+    } else if (code === EVENTO_IFOOD.CANCELLATION_REQUEST_FAILED) {
+      // 09/11 (homologação): iFood recusou o cancelamento pedido pela loja → tenta de novo com limite e avisa a loja.
+      await cancelamentoRecusadoPeloApp(admin, c.restauranteId, 'ifood', e.orderId)
     } else {
       await admin.from('pedidos_externos').update({ status_externo: e.fullCode ?? code, atualizado_em: new Date().toISOString() }).eq('canal', 'ifood').eq('externo_id', e.orderId)
+      // 09/11 (homologação): status mudado por outro sistema (Gestor de Pedidos, entregador do iFood) → Kanban acompanha.
+      const alvo = statusMenuziaDeEventoIfood(code)
+      if (alvo) await avancarPeloApp(admin, c.restauranteId, 'ifood', e.orderId, alvo)
     }
   }
   await lembrarEvento(admin, c, e.id, e.fullCode ?? code, e.orderId)
@@ -190,7 +196,10 @@ export async function sincronizarStatusDaLoja(admin: SupabaseClient, c: ConfigCa
           : c.canal === '99food'
             ? await enviarStatus99(admin, c, ext.externo_id as string, etapa, { entregaPelaLoja: ped.origem_detalhe?.entregaPor === 'loja', motivo: ped.cancelado_motivo, texto: ped.cancelado_observacao })
             : await enviarStatusOd(admin, c, ext.externo_id as string, etapa, { motivoCancelamento: ped.cancelado_observacao ?? undefined })
-        await admin.from('pedidos_externos').update({ status_enviado: etapa, status_enviado_em: new Date().toISOString(), erro_envio: null, envio_tentativas: 0, envio_proxima_em: null, atualizado_em: new Date().toISOString() }).eq('id', ext.id)
+        // Cancelamento: o app pode aceitar o pedido agora e recusar depois (iFood CARF, 09/11). As tentativas NÃO
+        // zeram aqui — cada recusa soma uma (cancelamentoRecusadoPeloApp) até o limite; senão seria reenvio sem fim.
+        const zera = etapa !== 'cancelado'
+        await admin.from('pedidos_externos').update({ status_enviado: etapa, status_enviado_em: new Date().toISOString(), ...(zera ? { erro_envio: null, envio_tentativas: 0 } : {}), envio_proxima_em: null, atualizado_em: new Date().toISOString() }).eq('id', ext.id)
         if (r === 'ok') resumo.statusEnviados++
       } catch (err) {
         const m = (err as Error).message?.slice(0, 200) ?? 'erro'

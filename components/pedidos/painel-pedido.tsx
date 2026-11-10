@@ -237,6 +237,7 @@ export function PainelPedido({
               </span>
             </div>
           )}
+          {p.clienteDocumento && <div className={LINHA} data-testid="painel-documento"><span className={ROTULO}>{p.clienteDocumento.replace(/\D/g, '').length > 11 ? 'CNPJ' : 'CPF'} na nota</span><span className={VALOR}>{p.clienteDocumento}</span></div>}
           {linhaLanc && <div className={LINHA} data-testid="detalhes-lancamento"><span className={ROTULO}>Lançamento</span><span className={VALOR}>{linhaLanc}</span></div>}
           {p.status === 'preparando' && p.preparandoPor && <div className={LINHA}><span className={ROTULO}>Em preparo por</span><span className={VALOR}>{p.preparandoPor}</span></div>}
           {p.preparadoPor && <div className={LINHA}><span className={ROTULO}>Preparado por</span><span className={VALOR}>{p.preparadoPor}</span></div>}

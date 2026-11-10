@@ -162,6 +162,8 @@ export const ROTULO_EVENTO: Record<string, string> = {
   // Canais externos (0207, 19/10): Keeta/99Food (Open Delivery) e iFood.
   'canal.pedido_importado': 'Pedido de app externo entrou no Painel',
   'canal.pedido_alterado': 'Pedido de app externo alterado no app',
+  'canal.status_pelo_app': 'Status do pedido de app externo mudado no app',
+  'canal.cancelamento_recusado': 'App externo recusou o cancelamento do pedido',
   'canal.config': 'Alterou a configuração do canal de pedidos (app externo)',
   'canal.autorizado': 'Autorizou a loja no iFood',
   // Entregadores iFood Sob Demanda e Foody (0208, 19/10).

@@ -1,7 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { avisarPainelPedidoNovo } from '@/lib/push/painel-pedidos'
 import { registrarAuditoria } from '@/lib/auditoria'
-import type { Canal, ItemExterno, PedidoExterno } from './tipos'
+import { esperaEnvioCanal } from '@/lib/espera-tentativas'
+import { avancaPara, etapasAEnviar, NOME_CANAL, statusAntesDoCancelamento, statusParaApp, type Canal, type ItemExterno, type PedidoExterno, type StatusMovidoPeloApp, type StatusParaApp } from './tipos'
 
 /**
  * Grava o pedido do app como pedido Menuzia (0207). Idempotente por (canal, externo_id): o app pode reentregar o mesmo
@@ -53,7 +54,8 @@ export async function importarPedidoExterno(admin: SupabaseClient, restauranteId
   const observacao = [p.observacao, `Pedido ${p.canal === 'ifood' ? 'iFood' : p.canal === 'keeta' ? 'Keeta' : '99Food'} #${p.displayId}`, p.entregaPor === 'app' ? 'Entrega pelo entregador do app' : ''].filter(Boolean).join(' · ')
   const linha: Record<string, unknown> = {
     restaurante_id: restauranteId, origem: 'cardapio', canal: 'delivery', origem_canal: p.canal,
-    origem_detalhe: { meio: 'app', app: p.canal, externoId: p.externoId, displayId: p.displayId, entregaPor: p.entregaPor, pagamento: p.pagamento.descricao },
+    // documento (CPF/CNPJ da nota, homologação iFood 09/11): só no painel — NUNCA na observação, que sai na comanda do entregador.
+    origem_detalhe: { meio: 'app', app: p.canal, externoId: p.externoId, displayId: p.displayId, entregaPor: p.entregaPor, pagamento: p.pagamento.descricao, ...(p.cliente.documento ? { documento: p.cliente.documento.slice(0, 20) } : {}) },
     tipo: p.tipo, status: 'recebido',
     cliente_nome: p.cliente.nome.slice(0, 120), cliente_telefone: p.cliente.telefone.slice(0, 20), telefone_verificado: true,
     forma_pagamento: p.pagamento.forma, troco_para: p.pagamento.trocoPara, pago: p.pagamento.prepago, pagamento_online: false,
@@ -138,6 +140,59 @@ export async function atualizarPedidoPeloApp(admin: SupabaseClient, restauranteI
 export async function externoDoPedido(admin: SupabaseClient, pedidoId: string): Promise<{ id: string; canal: Canal; externoId: string; statusEnviado: string | null } | null> {
   const { data } = await admin.from('pedidos_externos').select('id, canal, externo_id, status_enviado').eq('pedido_id', pedidoId).maybeSingle()
   return data ? { id: data.id as string, canal: data.canal as Canal, externoId: data.externo_id as string, statusEnviado: (data.status_enviado as string | null) ?? null } : null
+}
+
+/**
+ * Outro sistema mudou o status no app (09/11, homologação iFood: ex. a loja confirmou pelo Gestor de Pedidos, o
+ * entregador do iFood saiu): o Kanban acompanha, só para frente. `status_enviado` sobe junto para o cron não mandar de
+ * volta ao app a etapa que veio dele. A troca só vale se o status ainda for o lido (outra aba pode ter movido antes).
+ */
+export async function avancarPeloApp(admin: SupabaseClient, restauranteId: string, canal: Canal, externoId: string, alvo: StatusMovidoPeloApp): Promise<boolean> {
+  const { data: ext } = await admin.from('pedidos_externos').select('id, pedido_id, status_enviado').eq('canal', canal).eq('externo_id', externoId).eq('restaurante_id', restauranteId).maybeSingle()
+  if (!ext?.pedido_id) return false
+  const { data: ped } = await admin.from('pedidos').select('status, tipo').eq('id', ext.pedido_id).eq('restaurante_id', restauranteId).maybeSingle()
+  if (!ped || !avancaPara(String(ped.status), alvo)) return false
+  const { data: mudou, error } = await admin.from('pedidos').update({ status: alvo }).eq('id', ext.pedido_id).eq('restaurante_id', restauranteId).eq('status', ped.status).select('id').maybeSingle()
+  if (error) throw error
+  if (!mudou) return false
+  const etapa = statusParaApp(alvo, ped.tipo as 'entrega' | 'retirada')
+  const jaEnviado = (ext.status_enviado as StatusParaApp | null) ?? null
+  // etapasAEnviar(jaEnviado, etapa) vazio = o que foi enviado já está à frente: não rebaixa.
+  const novoEnviado = etapa && etapasAEnviar(jaEnviado, etapa).length ? etapa : jaEnviado
+  await admin.from('pedidos_externos').update({ status_enviado: novoEnviado, atualizado_em: new Date().toISOString() }).eq('id', ext.id)
+  await registrarAuditoria(admin, { restauranteId, usuarioNome: 'Sistema', acao: 'canal.status_pelo_app', entidade: 'pedido', entidadeId: ext.pedido_id as string, dados: { canal, externoId, de: ped.status, para: alvo } }).catch(() => null)
+  return true
+}
+
+/**
+ * O app RECUSOU o cancelamento que a loja pediu (iFood CANCELLATION_REQUEST_FAILED, 09/11): no app o pedido segue
+ * valendo. O banco não deixa um pedido sair de "cancelado" (trigger 0083/0148/0185), então: o cron TENTA DE NOVO
+ * (status_enviado volta para a etapa anterior → etapasAEnviar manda 'cancelado' outra vez) com espera crescente e
+ * limite (esperaEnvioCanal / MAX_TENTATIVAS_CANAL — cada recusa conta uma tentativa), e a loja é avisada na observação
+ * do pedido e no erro do canal. Esgotou: a loja cancela pelo app (Gestor de Pedidos) ou faz o pedido.
+ */
+export async function cancelamentoRecusadoPeloApp(admin: SupabaseClient, restauranteId: string, canal: Canal, externoId: string): Promise<boolean> {
+  const { data: ext } = await admin.from('pedidos_externos').select('id, pedido_id, envio_tentativas').eq('canal', canal).eq('externo_id', externoId).eq('restaurante_id', restauranteId).maybeSingle()
+  if (!ext?.pedido_id) return false
+  const { data: ped } = await admin.from('pedidos').select('status, tipo, cancelado_por, observacao, preparando_em, pronto_em, em_rota_em, entregue_em').eq('id', ext.pedido_id).eq('restaurante_id', restauranteId).maybeSingle()
+  // Cancelado pelo próprio app (cancelado_por 'sistema') não é recusa nossa.
+  if (!ped || ped.status !== 'cancelado' || ped.cancelado_por === 'sistema') return false
+  const tentativas = (Number(ext.envio_tentativas) || 0) + 1
+  const espera = esperaEnvioCanal(tentativas)
+  const aviso = espera === null
+    ? `${NOME_CANAL[canal]} recusou o cancelamento ${tentativas} vezes: cancele pelo ${NOME_CANAL[canal]} ou faça o pedido`
+    : `${NOME_CANAL[canal]} recusou o cancelamento: tentando de novo`
+  const obs = String(ped.observacao ?? '').replace(new RegExp(`${NOME_CANAL[canal]} recusou o cancelamento[^·]*`, 'g'), '').replace(/( · )+$/, '').trim()
+  const { error } = await admin.from('pedidos').update({ observacao: [obs, aviso].filter(Boolean).join(' · ').slice(0, 500) }).eq('id', ext.pedido_id).eq('restaurante_id', restauranteId)
+  if (error) throw error
+  const antes = statusAntesDoCancelamento(ped as { preparando_em: string | null; pronto_em: string | null; em_rota_em: string | null; entregue_em: string | null })
+  const etapaAnterior = antes === 'recebido' ? null : statusParaApp(antes, ped.tipo as 'entrega' | 'retirada')
+  await admin.from('pedidos_externos').update({
+    status_externo: 'CANCELLATION_REQUEST_FAILED', status_enviado: etapaAnterior, erro_envio: aviso, envio_tentativas: tentativas,
+    envio_proxima_em: espera === null ? null : new Date(Date.now() + espera).toISOString(), atualizado_em: new Date().toISOString(),
+  }).eq('id', ext.id)
+  await registrarAuditoria(admin, { restauranteId, usuarioNome: 'Sistema', acao: 'canal.cancelamento_recusado', entidade: 'pedido', entidadeId: ext.pedido_id as string, dados: { canal, externoId, tentativas, desistiu: espera === null } }).catch(() => null)
+  return true
 }
 
 /** O app cancelou (CANCELLED): cancela o pedido aqui, sem mexer em pagamento (foi no app). Uma vez só. */

@@ -127,4 +127,4 @@ export async function enviarStatusIfood(admin: SupabaseClient, c: ConfigCanal, o
 }
 
 /** Códigos de evento do iFood que importam para o Kanban. */
-export const EVENTO_IFOOD = { PLACED: 'PLC', CONFIRMED: 'CFM', CANCELLED: 'CAN', CANCELLATION_REQUESTED: 'CAR', DISPATCHED: 'DSP', CONCLUDED: 'CON', PATCHED: 'OPA' } as const
+export const EVENTO_IFOOD = { PLACED: 'PLC', CONFIRMED: 'CFM', CANCELLED: 'CAN', CANCELLATION_REQUESTED: 'CAR', CANCELLATION_REQUEST_FAILED: 'CARF', DISPATCHED: 'DSP', CONCLUDED: 'CON', PATCHED: 'OPA' } as const
