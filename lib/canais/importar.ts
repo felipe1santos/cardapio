@@ -182,7 +182,8 @@ export async function cancelamentoRecusadoPeloApp(admin: SupabaseClient, restaur
   const aviso = espera === null
     ? `${NOME_CANAL[canal]} recusou o cancelamento ${tentativas} vezes: cancele pelo ${NOME_CANAL[canal]} ou faça o pedido`
     : `${NOME_CANAL[canal]} recusou o cancelamento: tentando de novo`
-  const obs = String(ped.observacao ?? '').replace(new RegExp(`${NOME_CANAL[canal]} recusou o cancelamento[^·]*`, 'g'), '').replace(/( · )+$/, '').trim()
+  const prefixo = `${NOME_CANAL[canal]} recusou o cancelamento`
+  const obs = String(ped.observacao ?? '').split(' · ').filter((t) => t && !t.startsWith(prefixo)).join(' · ')
   const { error } = await admin.from('pedidos').update({ observacao: [obs, aviso].filter(Boolean).join(' · ').slice(0, 500) }).eq('id', ext.pedido_id).eq('restaurante_id', restauranteId)
   if (error) throw error
   const antes = statusAntesDoCancelamento(ped as { preparando_em: string | null; pronto_em: string | null; em_rota_em: string | null; entregue_em: string | null })
