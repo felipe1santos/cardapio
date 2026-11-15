@@ -15,6 +15,7 @@ import { rotuloStatusPedidoCliente } from '@/lib/status-pedido-cliente'
 import { lojaEstaAberta, textoProximaAbertura, turnosDoDia, type HorarioFuncionamento, type StatusLoja } from '@/lib/timezone'
 import { classificar, normalizarTexto, ASSUNTOS, type Assunto, type Classificacao, type PalavrasExtras, perguntaSobreCardapio } from './classificador'
 import { decidir, ESTADO_VALIDADE_MS, type EstadoAuto } from './decisao'
+import { mensagemAntiga } from './mensagem-antiga'
 import { responder, type DadosLojaAuto, type PedidoAuto } from './respostas'
 import type { ChaveTexto } from './textos'
 import { itemCitado, modoIaAtivo, nomesDoCardapio, rotaDaMensagem } from '@/lib/agente-ia/gatilho'
@@ -313,6 +314,8 @@ export async function processarMensagemAuto(
     return { respostas, motivo: descadastro === 'sair' ? 'descadastro' : 'recadastro' }
   }
 
+  // Reentrega da Evolution ao reconectar (15/11): mensagem de horas atrás fica só gravada, sem resposta do robô/IA.
+  if (mensagemAntiga(m.instante)) return { respostas: 0, motivo: 'antiga' }
   if (e.acao !== 'decidir') return { respostas: 0, motivo: e.protecao ? 'protecao_loop' : e.limite ? 'limite' : e.silenciada ? 'silenciada' : 'nada' }
 
   const loja = await carregarLojaAuto(admin, restauranteId, cfg)

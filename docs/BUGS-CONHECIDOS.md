@@ -300,3 +300,17 @@ ficava desligado até o deploy.
 desligado), prazo crescente 30 s → 5 min (regra 1); queda depois de conectado = 3 s. Sem Assistente esperando, nenhuma
 tentativa. **Como conferir em produção:** `select claims_role, entity from realtime.subscription` precisa ter
 `service_role` em `pedidos` e `impressao_trabalhos`. Teste: `lib/impressao/despertador-reconexao.test.ts`.
+
+## Robô/IA respondia mensagens velhas reentregues pela Evolution · 15/11/2026 · teste
+
+**O que era.** Alerta "requisições ao banco acima do normal" (500–730/min às 00h, normal ~120). A instância da
+Gordelícia reconectou às 00:15 (manutenção no servidor da Evolution) e o WhatsApp reentregou ~30 h de mensagens
+pendentes como `messages.upsert` (~60 eventos/min, ~10 consultas cada). O robô e a IA responderam 162 mensagens
+velhas de 44 clientes de madrugada.
+**Causa.** `processarMensagemAuto` (`lib/robo-auto/motor.ts`) respondia qualquer mensagem sem olhar `instante`
+(hora de envio do cliente, `messageTimestamp`).
+**Correção.** `mensagemAntiga()` (`lib/robo-auto/mensagem-antiga.ts`): mensagem com mais de 10 min fica gravada na
+central, sem resposta automática (motivo `auto_antiga` no `whatsapp_eventos`). SAIR/VOLTAR antigo continua valendo
+(direito do cliente). **Como conferir:** `select direcao, round(avg(extract(epoch from criado_em-enviada_em))/60)
+from whatsapp_mensagens where criado_em > now()-interval '1 hour' group by 1` — atraso alto = reentrega.
+Teste: `lib/robo-auto/mensagem-antiga.test.ts`.
