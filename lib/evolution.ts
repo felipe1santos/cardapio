@@ -38,7 +38,8 @@ export async function obterQrCode(instance: string): Promise<QrCode> {
   const createRes = await fetch(evolutionUrl('/instance/create'), {
     method: 'POST',
     headers: evolutionHeaders(),
-    body: JSON.stringify({ instanceName: instance, qrcode: true, integration: 'WHATSAPP-BAILEYS' }),
+    // groupsIgnore (15/11): o Menuzia nunca usa grupo; sem isso a Evolution processava e mandava cada mensagem de grupo.
+    body: JSON.stringify({ instanceName: instance, qrcode: true, integration: 'WHATSAPP-BAILEYS', groupsIgnore: true }),
     // Com prazo (29/10): sem ele, uma Evolution travada segurava a tela de Integrações para sempre.
     signal: AbortSignal.timeout(15_000),
   })
