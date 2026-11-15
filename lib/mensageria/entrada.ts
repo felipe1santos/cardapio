@@ -125,6 +125,13 @@ async function processarEntradaInterna(admin: SupabaseClient, segredo: string, c
     }
   }
 
+  // Lote só de grupo/status/canal (ou sem nada aproveitável) é sempre descartado: sai antes de qualquer consulta
+  // (regra 2; 15/11: 740 webhooks de grupo na reentrega da Evolution, 3 consultas cada).
+  if (!evento.conexao && !evento.atualizacoes.length && evento.mensagens.every((m) => m.grupo || m.difusao)) {
+    for (const m of evento.mensagens) contar(r, m.grupo ? 'grupo' : 'difusao')
+    return r
+  }
+
   const { data: cfg } = await admin
     .from('whatsapp_robo_config')
     .select(`boas_vindas, ${COLUNAS_CONFIG_AUTO}`)

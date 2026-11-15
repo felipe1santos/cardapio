@@ -50,6 +50,14 @@ export interface LojaPlataforma {
   /** Etapa 3 (20/10): WhatsApp caiu sozinho (hora da queda) — linha vermelha no Super Admin. */
   whatsappCaiuEm: string | null
   sublogins: Sublogin[]
+  /** 15/11: assinatura do Asaas em dia → selo "Assinatura paga" (próximo vencimento, AAAA-MM-DD). */
+  assinaturaPagaAte?: string | null
+}
+
+/** Marca as lojas com assinatura Asaas em dia (status mantido pelo webhook do Asaas). */
+export function marcarAssinaturas(lojas: LojaPlataforma[], assinaturas: { restaurante_id: string | null; status: string; proximo_vencimento: string | null }[]): LojaPlataforma[] {
+  const pagas = new Map(assinaturas.filter((a) => a.restaurante_id && a.status === 'em_dia').map((a) => [a.restaurante_id as string, a.proximo_vencimento]))
+  return lojas.map((l) => ({ ...l, assinaturaPagaAte: (l.restauranteId && pagas.get(l.restauranteId)) || null }))
 }
 
 export interface ResumoPlataforma {
@@ -213,14 +221,15 @@ export async function metricasEntreguesPorLoja(admin: SupabaseClient): Promise<M
 }
 
 export async function listarLojasPlataforma(admin: SupabaseClient, agora = Date.now()): Promise<{ lojas: LojaPlataforma[]; resumo: ResumoPlataforma }> {
-  const [us, rs, metricas] = await Promise.all([
+  const [us, rs, metricas, ass] = await Promise.all([
     admin.from('usuarios').select('id, email, usuario, nome, nome_loja, telefone, papel, cargo, autorizado, restaurante_id, ultimo_login_em, criado_em, acesso_expira_em, logins_total, desativado_em, situacao'),
     admin.from('restaurantes').select('id, nome, slug, impressao_beta_liberado, whatsapp_caiu_em, whatsapp_estado, whatsapp_desconexao_manual_em'),
     metricasEntreguesPorLoja(admin),
+    admin.from('assinaturas').select('restaurante_id, status, proximo_vencimento').limit(1000),
   ])
   if (us.error) throw us.error
   if (rs.error) throw rs.error
-  const lojas = agruparPorLoja((us.data ?? []) as UsuarioRaw[], (rs.data ?? []) as { id: string; nome: string; slug: string; impressao_beta_liberado: boolean | null; whatsapp_caiu_em: string | null; whatsapp_estado: string | null; whatsapp_desconexao_manual_em: string | null }[], metricas, agora)
+  const lojas = marcarAssinaturas(agruparPorLoja((us.data ?? []) as UsuarioRaw[], (rs.data ?? []) as { id: string; nome: string; slug: string; impressao_beta_liberado: boolean | null; whatsapp_caiu_em: string | null; whatsapp_estado: string | null; whatsapp_desconexao_manual_em: string | null }[], metricas, agora), (ass.data ?? []) as { restaurante_id: string | null; status: string; proximo_vencimento: string | null }[])
   return { lojas, resumo: resumir(lojas) }
 }
 

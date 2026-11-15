@@ -78,3 +78,19 @@ describe('metricasEntreguesPorLoja', () => {
     expect(g.vezes('pedidos')).toBe(0)
   })
 })
+
+describe('selo "Assinatura paga" (Asaas)', () => {
+  it('só a loja com assinatura em dia ganha o selo; atrasada, aguardando ou sem assinatura não', async () => {
+    const { marcarAssinaturas } = await import('./plataforma')
+    const base = agruparPorLoja(
+      [u({ restaurante_id: 'A' }), u({ restaurante_id: 'B' }), u({ restaurante_id: 'C' }), u({ restaurante_id: 'D' })],
+      ['A', 'B', 'C', 'D'].map((id) => ({ id, nome: id, slug: id.toLowerCase() })), new Map(), AGORA,
+    )
+    const l = marcarAssinaturas(base, [
+      { restaurante_id: 'A', status: 'em_dia', proximo_vencimento: '2026-12-08' },
+      { restaurante_id: 'B', status: 'atrasada', proximo_vencimento: '2026-10-01' },
+      { restaurante_id: 'C', status: 'aguardando', proximo_vencimento: null },
+    ])
+    expect(l.map((x) => [x.chave, x.assinaturaPagaAte])).toEqual([['A', '2026-12-08'], ['B', null], ['C', null], ['D', null]])
+  })
+})

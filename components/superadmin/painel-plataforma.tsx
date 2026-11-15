@@ -74,6 +74,20 @@ export function SeloSituacao({ l }: { l: Pick<LojaPlataforma, 'situacao' | 'aces
   return <span className="inline-flex whitespace-nowrap rounded-[8px] px-[8px] py-[2px] text-[12px] font-semibold leading-[20px]" style={{ color: cor, backgroundColor: fundo }} data-testid="selo-situacao" data-situacao={l.situacao}>{texto}</span>
 }
 
+/** Assinatura Asaas em dia: ícone oficial do Asaas (favicon de asaas.com) + "Assinatura paga". */
+export function SeloAssinaturaPaga({ ate }: { ate: string | null | undefined }) {
+  if (!ate) return null
+  return (
+    <span className="inline-flex items-center gap-[5px] whitespace-nowrap rounded-[8px] bg-[#E6ECFF] px-[8px] py-[2px] text-[12px] font-semibold leading-[20px] text-[#0038E5]" title={`Assinatura em dia no Asaas · próximo vencimento ${dataCurta(ate)}`} data-testid="selo-assinatura-paga">
+      <svg width="14" height="14" viewBox="0 0 120 120" fill="none" aria-hidden="true">
+        <path d="M0 24C0 10.7452 10.7452 0 24 0H96C109.255 0 120 10.7452 120 24V96C120 109.255 109.255 120 96 120H24C10.7452 120 0 109.255 0 96V24Z" fill="#0038E5" />
+        <path d="M40.201 68.1642L59.807 32.4176L79.4131 68.0671C73.9081 65.5553 66.954 64.2989 59.5181 64.2989C52.5641 64.2989 45.8041 65.5553 40.2021 68.1631M49.956 30.582L12 98.5H23.59L28.322 89.7081C33.827 79.5638 43.292 74.0571 59.517 74.0571C75.742 74.0571 85.883 79.5638 91.388 89.8052L96.024 98.5H108L67.63 26.4276C65.698 22.9495 62.994 21.5 58.551 21.5H26.004L30.9747 26.5803C34.0004 29.6069 36.3772 30.5798 40.5913 30.5798L49.956 30.582Z" fill="white" />
+      </svg>
+      Assinatura paga
+    </span>
+  )
+}
+
 const SELO_SUB: Record<Sublogin['status'], [string, string]> = { ativo: ['Ativo', '#008361'], pausado: ['Pausado', '#8A6100'], bloqueado: ['Bloqueado', '#D63163'] }
 
 // ─── Modal: centralizado no computador, tela cheia com "← Voltar" no celular ───────────────────
@@ -315,7 +329,7 @@ export function PainelPlataforma({ lojas, resumo, usoApis, usoIa, modulos }: { l
                       </button>
                       <p className="truncate text-[12px] text-text-subtle">{l.responsavel || l.email}</p>
                     </td>
-                    <td className="px-3 py-[10px]"><div className="flex flex-wrap items-center gap-[6px]"><SeloSituacao l={l} />{l.whatsappCaiuEm && <span className="rounded-[8px] bg-[#FFE8EF] px-[8px] py-[2px] text-[12px] font-semibold text-[#B3122D]" data-testid="linha-whatsapp-caiu">WhatsApp off</span>}</div></td>
+                    <td className="px-3 py-[10px]"><div className="flex flex-wrap items-center gap-[6px]"><SeloSituacao l={l} /><SeloAssinaturaPaga ate={l.assinaturaPagaAte} />{l.whatsappCaiuEm && <span className="rounded-[8px] bg-[#FFE8EF] px-[8px] py-[2px] text-[12px] font-semibold text-[#B3122D]" data-testid="linha-whatsapp-caiu">WhatsApp off</span>}</div></td>
                     <td className="whitespace-nowrap px-3 py-[10px] text-right font-semibold tabular-nums text-[#008361]">{l.restauranteId ? brl(l.faturamento) : '—'}</td>
                     <td className="whitespace-nowrap px-3 py-[10px] text-right font-semibold tabular-nums">{l.restauranteId ? num(l.pedidos) : '—'}</td>
                     <td className="whitespace-nowrap px-3 py-[10px] text-[13px] text-text-subtle">{dataHora(l.ultimoLoginEm)}</td>
@@ -337,6 +351,7 @@ export function PainelPlataforma({ lojas, resumo, usoApis, usoIa, modulos }: { l
                 <p className="truncate text-[15px] font-semibold leading-[20px] text-text-main" data-testid="linha-loja-nome">{l.loja || <span className="font-normal italic text-text-subtle">Loja ainda sem nome</span>}</p>
                 <div className="mt-[4px] flex flex-wrap items-center gap-[6px]">
                   <SeloSituacao l={l} />
+                  <SeloAssinaturaPaga ate={l.assinaturaPagaAte} />
                   {l.whatsappCaiuEm && <span className="rounded-[8px] bg-[#FFE8EF] px-[8px] py-[2px] text-[12px] font-semibold text-[#B3122D]">WhatsApp off</span>}
                 </div>
               </div>
@@ -484,6 +499,7 @@ function ModalDetalhes({ loja, onFechar, usoApis, usoIa, modulos, acoes }: { loj
       <div className="flex flex-col gap-[10px]">
         <div className="flex flex-wrap items-center gap-[8px]">
           <SeloSituacao l={loja} />
+          <SeloAssinaturaPaga ate={loja.assinaturaPagaAte} />
           {loja.whatsappCaiuEm && <span className="rounded-[8px] bg-[#FFE8EF] px-[8px] py-[2px] text-[12px] font-semibold text-[#B3122D]">WhatsApp desconectado</span>}
           {loja.slug && <a href={`/loja/${loja.slug}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[13px] font-semibold text-[#673DE6] hover:underline"><ExternalLink className="h-3.5 w-3.5" />/loja/{loja.slug}</a>}
         </div>
