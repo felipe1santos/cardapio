@@ -58,7 +58,7 @@ const INTEGRACOES: Definicao[] = [
   { id: 'entregas-ifood', nome: 'Entregador iFood (Sob Demanda)', grupo: 'Entregas', logo: '/origens/ifood.svg', resumo: 'Chame um entregador do iFood para pedidos de fora do iFood, com cotação antes de confirmar.', situacao: 'em_breve' },
   { id: 'ifood', nome: 'iFood', grupo: 'Pedidos de apps', logo: '/origens/ifood.svg', resumo: 'Pedidos do iFood entram no Painel de Pedidos; aceite, pronto e despacho voltam ao iFood.', situacao: 'em_breve' },
   { id: 'keeta', nome: 'Keeta', grupo: 'Pedidos de apps', logo: '/origens/keeta.png', resumo: 'Pedidos da Keeta pelo padrão Open Delivery (Abrasel).', situacao: 'em_breve' },
-  { id: '99food', nome: '99Food', grupo: 'Pedidos de apps', logo: '/origens/99food.png', resumo: 'Pedidos do 99Food pelo padrão Open Delivery (Abrasel).', situacao: 'em_breve' },
+  { id: '99food', nome: '99Food', grupo: 'Pedidos de apps', logo: '/origens/99food.png', resumo: 'Pedidos do 99Food entram no Painel de Pedidos; aceite, pronto e entrega voltam à 99.', situacao: 'disponivel' },
   { id: 'aiqfome', nome: 'aiqfome', grupo: 'Pedidos de apps', logo: '/origens/aiqfome.svg', resumo: 'Pedidos do aiqfome no Painel de Pedidos (depende de parceria com integradora homologada).', situacao: 'em_breve' },
 ]
 const ORDEM_GRUPOS: Grupo[] = ['Pagamentos', 'Mensagens', 'Marketing e medição', 'Pedidos de apps', 'Entregas']
