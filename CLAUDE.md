@@ -15,10 +15,11 @@
   Assistente; regra nº 1 de custo; dados de clientes fora do git; publicado vale para TODAS as lojas; conferir que os
   pedidos seguem entrando depois de cada deploy.
 
-## ⚠️ DEPLOY SÓ FORA DO PICO (regra do dono, 29/10/2026)
+## ⚠️ DEPLOY FORA DO PICO DO JANTAR (regra do dono, atualizada 23/11/2026)
 
-- Publicar só **antes das 11h ou depois das 23h** (Brasília), salvo emergência (sistema fora, perda de pedido/dinheiro).
-  O build roda na mesma VPS das lojas. Programar e testar pode a qualquer hora; o deploy espera a janela.
+- Publicar em **qualquer horário, menos entre 18h e 00h** (Brasília). Com autorização do dono no chat, pode a
+  qualquer momento; emergência (sistema fora, perda de pedido/dinheiro) também. O build roda na mesma VPS das lojas.
+  Programar e testar pode a qualquer hora; dentro de 18h–00h o deploy espera (ou a autorização).
 - **Depois de cada deploy:** `npm run vps:lixo` (só leitura) — confere lixo na VPS (imagens, cache de build) e se a
   limpeza automática do Coolify está rodando e sendo efetiva. "Atenção" → seguir o indicado em
   [docs/infra/LIMPEZA-VPS.md](docs/infra/LIMPEZA-VPS.md). Nunca apagar volume nem imagem em uso.
