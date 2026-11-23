@@ -72,6 +72,8 @@ describe('criarPedido — encomendas (0250)', () => {
     const quando = instanteDoHorario('2026-11-26', '15:00')
     await criarPedido(f.client, 'r1', input(['bolo'], { agendadoPara: quando }))
     expect(f.pedidoInsert).toHaveBeenCalledWith(expect.objectContaining({ encomenda: true, agendado_para: quando, liberar_em: '2026-11-23T13:00:00.000Z' }))
+    // Aceita automaticamente (pedido do dono 23/11): nasce "em preparo", com a etapa carimbada.
+    expect(f.pedidoInsert).toHaveBeenCalledWith(expect.objectContaining({ status: 'preparando', preparando_em: '2026-11-23T13:00:00.000Z' }))
   })
 
   it('pagamento antecipado: dinheiro recusado, Pix online aceito', async () => {
@@ -81,7 +83,8 @@ describe('criarPedido — encomendas (0250)', () => {
     await expect(criarPedido(a.client, 'r1', input(['torta'], { agendadoPara: quando }))).rejects.toThrow(/antecipado/)
     const b = supabaseFake([TORTA])
     await criarPedido(b.client, 'r1', input(['torta'], { agendadoPara: quando, pagamento: 'pix', pixOnline: true }))
-    expect(b.pedidoInsert).toHaveBeenCalledWith(expect.objectContaining({ encomenda: true }))
+    // Pix online: espera o pagamento como qualquer pedido; a confirmação é que aceita (lib/pagamentos/pix-online.ts).
+    expect(b.pedidoInsert).toHaveBeenCalledWith(expect.objectContaining({ encomenda: true, status: 'aguardando_pagamento' }))
   })
 
   it('pedido comum segue igual (sem encomenda no insert); PDV pode vender o item de encomenda junto', async () => {

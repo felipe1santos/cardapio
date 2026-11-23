@@ -93,3 +93,16 @@ describe('confirmação do Pix com o pedido cancelado no meio', () => {
     expect(tabelas.pagamentos_online[0].status).toBe('pago')
   })
 })
+
+describe('encomenda paga online (pedido do dono 23/11)', () => {
+  beforeEach(() => {
+    consultar.mockReset().mockResolvedValue({ id: 'mp1', status: 'approved', valor: 50, externalReference: 'ped1', coletorId: 'mp-user', metodo: 'pix', moeda: 'BRL', taxa: 0.5, liquido: 49.5 })
+  })
+  it('confirmada já entra aceita ("preparando"), sem passar por "recebido"', async () => {
+    const { conferirPagamento } = await import('./pix-online')
+    const { tabelas, admin } = cenario(false)
+    tabelas.pedidos[0].encomenda = true
+    expect(await conferirPagamento(admin, 'mp1', 'webhook')).toBe('confirmado')
+    expect(tabelas.pedidos[0].status).toBe('preparando')
+  })
+})

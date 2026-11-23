@@ -215,3 +215,12 @@ describe('heartbeatDoKanbanRoda', () => {
     expect(heartbeatDoKanbanRoda(false, false)).toBe(false)
   })
 })
+
+describe('encomenda nunca fica na faixa de agendados (pedido do dono 23/11)', () => {
+  it('encomenda "recebido" com data longe vai para o quadro (coluna Encomendas); agendado comum continua na faixa', () => {
+    const longe = '2026-10-28T19:00:00.000Z'
+    const r = aplicarNoQuadro(QUADRO_VAZIO, [p('p1', { agendadoPara: longe, encomenda: true, liberarEm: '2026-10-27T19:00:00.000Z' }), p('p2', { agendadoPara: longe })], [], ctx)
+    expect(ids(r.orders)).toEqual(['p1'])
+    expect(ids(r.agendados)).toEqual(['p2'])
+  })
+})

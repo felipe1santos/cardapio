@@ -362,7 +362,7 @@ export async function conferirPagamento(admin: SupabaseClient, mpPaymentId: stri
     }).eq('id', reg.id)
     return semConta ? 'sem_conta' : 'erro_api'
   }
-  const { data: ped } = await admin.from('pedidos').select('id, numero, status, total, restaurante_id, tipo, agendado_para, cliente_telefone, diferenca_a_receber, diferenca_modo').eq('id', reg.pedido_id).single()
+  const { data: ped } = await admin.from('pedidos').select('id, numero, status, total, restaurante_id, tipo, agendado_para, encomenda, cliente_telefone, diferenca_a_receber, diferenca_modo').eq('id', reg.pedido_id).single()
   if (!ped) return 'desconhecido'
   await admin.from('pagamentos_online').update({ status_mp: pg.status, verificacoes: (reg.verificacoes ?? 0) + 1, ultima_verificacao_em: new Date().toISOString(), atualizado_em: new Date().toISOString() }).eq('id', reg.id)
   // Fase 3 (19/10): cobrança da DIFERENÇA de um pedido já pago — caminho próprio (nunca mexe no status do pedido).
@@ -428,7 +428,8 @@ async function lancarRecebimento(admin: SupabaseClient, reg: Reg, pg: PagamentoM
 
 async function confirmarPago(admin: SupabaseClient, reg: Reg, pg: PagamentoMp, ped: Reg, origem: string): Promise<ResultadoConferencia> {
   // A passagem acontece UMA vez: só quem acha o pedido ainda em "aguardando" muda.
-  const { data: mudou } = await admin.from('pedidos').update({ status: 'recebido', pago: true, pagamento_online: true }).eq('id', ped.id).eq('status', 'aguardando_pagamento').select('id').maybeSingle()
+  // Encomenda (pedido do dono 23/11): paga = já aceita ("em preparo"; o gatilho da 0078 carimba preparando_em).
+  const { data: mudou } = await admin.from('pedidos').update({ status: ped.encomenda === true ? 'preparando' : 'recebido', pago: true, pagamento_online: true }).eq('id', ped.id).eq('status', 'aguardando_pagamento').select('id').maybeSingle()
   if (!mudou) {
     // Achado #4 (26/10): o pedido saiu de "aguardando" entre a leitura e esta gravação. Cancelado no meio = dinheiro a
     // devolver (antes: a cobrança virava 'pago' e voltava 'ja_confirmado', sem caixa, sem alerta). Senão, outro caminho

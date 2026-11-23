@@ -1943,7 +1943,9 @@ export async function criarPedido(
       restaurante_id: restauranteId,
       tipo: input.tipo,
       // Pix online nasce esperando o pagamento (0147/0148): só vira "recebido" quando a API confirmar.
-      status: pagoOnline ? 'aguardando_pagamento' : 'recebido',
+      // Encomenda (pedido do dono 23/11): aceita automaticamente — nasce "em preparo" (o carimbo da 0078 só roda no update).
+      status: pagoOnline ? 'aguardando_pagamento' : encomenda ? 'preparando' : 'recebido',
+      ...(encomenda && !pagoOnline ? { preparando_em: new Date().toISOString() } : {}),
       pagamento_online: pagoOnline,
       origem_canal: input.origem === 'pdv' ? null : (input.origemCanal ?? null),
       origem_detalhe: input.origem === 'pdv' ? null : (input.origemDetalhe ?? null),

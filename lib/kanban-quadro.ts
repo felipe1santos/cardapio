@@ -36,7 +36,8 @@ type Coluna = keyof Quadro | null
 
 function colunaDe(p: Pedido, ctx: ContextoQuadro): Coluna {
   if (ATIVOS.has(p.status)) {
-    return p.status === 'recebido' && !pedidoLiberado(p.agendadoPara, ctx.liberaMin, ctx.agora, p.liberarEm) ? 'agendados' : 'orders'
+    // Encomenda vai sempre para o quadro (coluna Encomendas), nunca para a faixa de agendados (pedido do dono 23/11).
+    return p.status === 'recebido' && !p.encomenda && !pedidoLiberado(p.agendadoPara, ctx.liberaMin, ctx.agora, p.liberarEm) ? 'agendados' : 'orders'
   }
   if (p.status === 'em_rota') return p.tipo === 'entrega' ? 'transit' : null
   if (CONCLUIDOS.has(p.status)) return Date.parse(p.atualizadoEm) >= Date.parse(ctx.inicioDia) ? 'concluded' : null

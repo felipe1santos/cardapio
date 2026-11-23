@@ -592,7 +592,7 @@ export default function PedidosPage() {
         const concluidos = desdeConcluidos === inicio ? finalizados : mesclarConcluidos(quadroRef.current.concluded, finalizados, inicio, idsAtivos)
 
         const agora = new Date()
-        const esperando = kanban.filter((p) => p.status === 'recebido' && !pedidoLiberado(p.agendadoPara, liberaMinRef.current, agora, p.liberarEm))
+        const esperando = kanban.filter((p) => p.status === 'recebido' && !p.encomenda && !pedidoLiberado(p.agendadoPara, liberaMinRef.current, agora, p.liberarEm))
         const idsEsperando = new Set(esperando.map((p) => p.id))
         const ativos = kanban.filter((p) => !idsEsperando.has(p.id))
         aplicarQuadro({
@@ -1230,9 +1230,9 @@ export default function PedidosPage() {
       </Flutuante>
     </>
   )
-  // Colunas do quadro: as 3 de sempre + Encomendas (0250) quando há encomenda ativa e o operador não escondeu.
+  // Colunas do quadro: Encomendas (0250, primeira à esquerda) quando há encomenda ativa e o operador não escondeu + as 3 de sempre.
   const colunasQuadro: (Coluna | 'encomendas')[] = mostrarEncomendas && orders.some((o) => o.encomenda)
-    ? ['recebido', 'preparando', 'pronto', 'encomendas']
+    ? ['encomendas', 'recebido', 'preparando', 'pronto']
     : ['recebido', 'preparando', 'pronto']
   const avisosTopo = (
     <AvisosPedidos
@@ -1301,17 +1301,15 @@ export default function PedidosPage() {
 
         {agendados.length > 0 && (
           <div className="flex items-center gap-2 overflow-x-auto rounded-menuzia border border-border bg-white px-3 py-2" data-testid="faixa-agendados">
-            <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">{agendados.some((p) => p.encomenda) ? 'Agendados e encomendas' : 'Agendados'} ({agendados.length})</span>
+            <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Agendados ({agendados.length})</span>
             {agendados.map((p) => (
               <button
                 key={p.id}
                 type="button"
                 onClick={() => setDetail(p)}
-                className={`shrink-0 rounded-menuzia border px-2.5 py-1 text-[12px] hover:border-primary ${p.encomenda ? 'border-[#D8B4FE] bg-[#F3E8FF] text-[#6B21A8]' : 'border-border bg-page text-text-main'}`}
-                title={p.encomenda ? 'Encomenda: entra no painel, na cozinha e na impressão no prazo de preparo do item' : 'Entra no painel, na cozinha e na impressão perto do horário'}
-                data-encomenda={p.encomenda ? '1' : undefined}
+                className="shrink-0 rounded-menuzia border border-border bg-page px-2.5 py-1 text-[12px] text-text-main hover:border-primary"
+                title="Entra no painel, na cozinha e na impressão perto do horário"
               >
-                {p.encomenda && <span className="mr-1 rounded-[2px] bg-[#7E22CE] px-1 text-[10.5px] font-semibold uppercase text-white">Encomenda</span>}
                 <strong>#{p.numero}</strong> · {textoAgendado(p.agendadoPara!)} · {p.clienteNome}
               </button>
             ))}
@@ -1347,9 +1345,9 @@ export default function PedidosPage() {
               <div key={coluna} className="flex flex-col overflow-hidden rounded-[2px] border border-[#E3E6EA] bg-[#F3F4F6] max-lg:flex-shrink-0 max-lg:overflow-visible">
                 {/* Cabeçalho da coluna (redesign 18/10, rodada 2 — referência do dono): sem faixa colorida; bolinha com a
                     contagem na cor da etapa + título discreto. */}
-                <div className="flex items-center gap-2 px-2.5 py-2">
-                  <span className={`grid h-[18px] min-w-[18px] place-items-center rounded-full px-1 text-[10.5px] font-semibold text-white ${cfg.headerBg}`} data-testid={`coluna-${coluna}-contador`}>{colOrders.length}</span>
-                  <h3 className="text-[12.5px] font-semibold text-[#374151]">{cfg.label}</h3>
+                <div className={`flex items-center gap-2 px-2.5 py-2 ${coluna === 'encomendas' ? 'bg-[#7E22CE]' : ''}`}>
+                  <span className={`grid h-[18px] min-w-[18px] place-items-center rounded-full px-1 text-[10.5px] font-semibold ${coluna === 'encomendas' ? 'bg-white text-[#7E22CE]' : `text-white ${cfg.headerBg}`}`} data-testid={`coluna-${coluna}-contador`}>{colOrders.length}</span>
+                  <h3 className={`text-[12.5px] font-semibold ${coluna === 'encomendas' ? 'text-white' : 'text-[#374151]'}`}>{cfg.label}</h3>
                 </div>
                 <div className={`flex-1 space-y-1.5 overflow-y-auto px-2 pb-2 max-lg:overflow-visible ${comRotas ? 'pb-20' : ''}`}>
                   {colOrders.map((order) => {
@@ -1377,6 +1375,15 @@ export default function PedidosPage() {
                             <DespacharNoCard pedido={order} supabase={supabase} restauranteId={restauranteId} onDespachado={aoDespachar} onErro={setError}
                               seta={{ className: CARD_BOTAO_PRINCIPAL, children: <>Despachar <IcoSeguir className="h-[14px] w-[14px]" /></> }} />
                           )}
+                        </>
+                      )
+                    }
+                    // Encomenda (pedido do dono 23/11): já nasce aceita; no card ficam Cancelar + Pronto (/Entregue).
+                    if (order.encomenda && ['recebido', 'preparando', 'pronto'].includes(order.status)) {
+                      principal = (
+                        <>
+                          <button type="button" className={classeBotao('vermelho')} onClick={() => pedirCancelamento(order)} data-testid="card-encomenda-cancelar">Cancelar</button>
+                          {principal}
                         </>
                       )
                     }

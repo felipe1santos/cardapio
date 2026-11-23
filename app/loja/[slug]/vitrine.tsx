@@ -2575,6 +2575,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   // Confirmação pós-pedido + link wa.me para o cliente avisar a loja (conversa
   // bidirecional reduz risco de bloqueio dos disparos da loja).
   const [confirmacaoAberta, setConfirmacaoAberta] = useState(false)
+  // Encomenda (pedido do dono 23/11): a confirmação diz "Pedido encomendado com sucesso".
+  const [confirmacaoEncomenda, setConfirmacaoEncomenda] = useState(false)
   // Guarda de saída do botão voltar — ver "Botão voltar do celular" mais abaixo.
   const [saidaAberta, setSaidaAberta] = useState(false)
   const [pedidoWa, setPedidoWa] = useState<string | null>(null)
@@ -2932,6 +2934,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       // Monta o link de aviso pro WhatsApp da loja ANTES de limpar o carrinho.
       const numero = numeroWaLoja()
       setPedidoWa(numero ? `https://wa.me/${numero}?text=${encodeURIComponent(montarAvisoLoja())}` : null)
+      setConfirmacaoEncomenda(soEncomenda)
       setConfirmacaoAberta(true)
       setCheckoutOpen(false)
       setCart([])
@@ -4964,7 +4967,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-[#DCFCE7]">
               <svg viewBox="0 0 24 24" className="h-7 w-7 fill-[#16A34A]"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>
             </div>
-            <h2 className="text-center text-lg font-semibold text-text-main">Pedido enviado!</h2>
+            <h2 className="text-center text-lg font-semibold text-text-main">{confirmacaoEncomenda ? 'Pedido encomendado com sucesso!' : 'Pedido enviado!'}</h2>
             <p className="mx-auto mt-1 max-w-[300px] text-center text-[13px] text-text-subtle">
               A loja já recebeu seu pedido. Acompanhe o status na aba Pedidos.
             </p>
