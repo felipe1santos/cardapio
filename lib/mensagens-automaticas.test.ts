@@ -78,3 +78,20 @@ describe('padrão formatado para todas as lojas sem texto próprio (12/10)', () 
     expect(textoPadraoDaEtapa('aceito', v)).toBeNull()
   })
 })
+
+describe('encomenda (0250)', () => {
+  it('recebido e pronto de encomenda têm etapa própria; o resto segue igual', () => {
+    expect(etapaDoStatus('recebido', 'retirada', true, true)).toBe('encomenda')
+    expect(etapaDoStatus('pronto', 'retirada', true, true)).toBe('encomenda_pronta')
+    expect(etapaDoStatus('pronto', 'entrega', true, true)).toBe('encomenda_pronta')
+    expect(etapaDoStatus('preparando', 'entrega', true, true)).toBe('aceito')
+    expect(etapaDoStatus('recebido', 'entrega', true)).toBe('agendado')
+  })
+  it('textos padrão: data, número e retirada/entrega', () => {
+    const vars = { nome: 'Ana', numero: '12', loja: 'Doce', tipo: 'retirada', horario: 'sábado, 28/11 às 15:00', total: 'R$ 80,00' }
+    expect(textoPadraoDaEtapa('encomenda', vars)).toMatch(/ENCOMENDA RECEBIDA[\s\S]*`#12`[\s\S]*sábado, 28\/11 às 15:00/)
+    expect(textoPadraoDaEtapa('encomenda_pronta', vars)).toMatch(/pronta para retirada/)
+    expect(textoPadraoDaEtapa('encomenda_lembrete', vars)).toMatch(/LEMBRETE[\s\S]*sábado, 28\/11 às 15:00/)
+    expect(renderizar(PADRAO.encomenda_pronta, { ...vars, tipo: 'entrega' })).toMatch(/pronta para entrega/)
+  })
+})

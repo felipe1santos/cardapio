@@ -36,7 +36,7 @@ type Coluna = keyof Quadro | null
 
 function colunaDe(p: Pedido, ctx: ContextoQuadro): Coluna {
   if (ATIVOS.has(p.status)) {
-    return p.status === 'recebido' && !pedidoLiberado(p.agendadoPara, ctx.liberaMin, ctx.agora) ? 'agendados' : 'orders'
+    return p.status === 'recebido' && !pedidoLiberado(p.agendadoPara, ctx.liberaMin, ctx.agora, p.liberarEm) ? 'agendados' : 'orders'
   }
   if (p.status === 'em_rota') return p.tipo === 'entrega' ? 'transit' : null
   if (CONCLUIDOS.has(p.status)) return Date.parse(p.atualizadoEm) >= Date.parse(ctx.inicioDia) ? 'concluded' : null

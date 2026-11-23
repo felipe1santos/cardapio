@@ -8,6 +8,7 @@ import { Editado, EtiquetaEdicao } from '@/components/pedidos/marcas-edicao'
 import { BOTAO_NEUTRO, classeBotao, DINHEIRO, type TomBotao } from '@/components/ui/botoes'
 import { corTempoPedido, textoTempoPedido } from '@/lib/tempo-pedido'
 import { formatarReal } from '@/lib/moeda'
+import { textoAgendado } from '@/lib/agendamento'
 import { appIntegradoDoPedido, origemVisivelNoCard, rotuloOrigemPedido } from '@/lib/pedido-origem'
 import { IconeIaClaude, IconePix, LogoApp, SeloOrigem } from '@/components/icones/origens'
 import { Dica } from '@/components/ui/flutuante'
@@ -136,8 +137,10 @@ export function CardPedido({ order, now, selecionado, destaqueNovo, atencao = fa
       onClick={(e) => onAbrir(e.currentTarget)}
       onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onAbrir(e.currentTarget) } }}
       className={[
-        'cursor-pointer rounded-[2px] border bg-white shadow-[0_2px_4px_rgba(16,24,40,0.10),0_1px_2px_rgba(16,24,40,0.06)] transition-[box-shadow,border-color] hover:shadow-[0_4px_10px_rgba(16,24,40,0.14),0_1px_2px_rgba(16,24,40,0.06)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#0688D4]',
-        selecionado ? 'border-[#0688D4] ring-1 ring-[#0688D4]/40' : 'border-[#DFE3E8]',
+        // Encomenda (0250, pedido do dono): card todo roxo claro.
+        'cursor-pointer rounded-[2px] border shadow-[0_2px_4px_rgba(16,24,40,0.10),0_1px_2px_rgba(16,24,40,0.06)] transition-[box-shadow,border-color] hover:shadow-[0_4px_10px_rgba(16,24,40,0.14),0_1px_2px_rgba(16,24,40,0.06)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#0688D4]',
+        order.encomenda ? 'bg-[#F3E8FF]' : 'bg-white',
+        selecionado ? 'border-[#0688D4] ring-1 ring-[#0688D4]/40' : order.encomenda ? 'border-[#D8B4FE]' : 'border-[#DFE3E8]',
         destaqueNovo ? 'animate-new-order' : '',
         atencao ? 'card-atencao' : '',
         destaqueNovo && somBloqueado ? 'animate-pulse ring-4 ring-[#DC2626]' : '',
@@ -168,6 +171,13 @@ export function CardPedido({ order, now, selecionado, destaqueNovo, atencao = fa
             {hora(order.criadoEm)} · há {textoTempoPedido(idadeMs)}
           </span>
         </div>
+        {/* Encomenda (0250): selo roxo + para quando é. */}
+        {order.encomenda && (
+          <p className="mt-1 flex items-center gap-1.5 text-[11.5px] leading-[15px] text-[#6B21A8]" data-testid="card-encomenda">
+            <span className="rounded-[2px] bg-[#7E22CE] px-1.5 py-px text-[10.5px] font-semibold uppercase tracking-wide text-white">Encomenda</span>
+            {order.agendadoPara && <span className="truncate font-semibold">para {textoAgendado(order.agendadoPara)}</span>}
+          </p>
+        )}
         {/* Itens — item adicionado por edição em amarelo + "adicionado"; removido riscado + "removido" (Bloco A, 19/10) */}
         {(order.itens.length > 0 || removidos.length > 0) && (
           <p className="mt-1 line-clamp-2 text-[11.5px] leading-[15px] text-[#4B5563]" data-testid="card-itens">

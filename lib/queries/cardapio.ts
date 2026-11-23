@@ -13,6 +13,7 @@ import { normalizarForaDaLista, type FreteForaDaLista } from '@/lib/frete'
 import { itemDisponivelNoCanal } from '@/lib/canais-item'
 import { cardapioOrdenado, ordenar } from '@/lib/ordem-cardapio'
 import { videoDoBanner, videoDoItem, type VideoBanner, type VideoItem } from '@/lib/video-vitrine'
+import { colunasEncomenda, encomendaDoItem, type EncomendaItem } from '@/lib/encomenda'
 import { cabecalhoVitrine, type CabecalhoVitrine } from '@/lib/vitrine-cabecalho'
 import { ErroCadastroCardapio, chaveNomeCatalogo, ehViolacaoDeUnicidade, nomeRepetidoNoCatalogo } from '@/lib/nomes-catalogo'
 
@@ -168,6 +169,8 @@ export interface ItemCardapio {
   imagensExtras?: { url: string; thumb: string | null }[]
   /** Vídeo em loop (0213): card da home e/ou carrossel da ficha. */
   video?: VideoItem | null
+  /** Por encomenda (0250): pedido separado, data a partir de agora + prazo. Null = item de pronta entrega. */
+  encomenda?: EncomendaItem | null
   maisVendido: boolean
   /** Etiqueta de destaque exibida na vitrine (ex.: 'mais_pedido'). Null = sem tag. */
   tag: TagItem | null
@@ -233,6 +236,10 @@ interface ItemRow {
   promocao_hora_fim?: string | null
   imagens_extras?: { url: string; thumb: string | null }[] | null
   video?: unknown
+  encomenda?: boolean | null
+  encomenda_prazo_horas?: number | null
+  encomenda_cozinha_horas?: number | null
+  encomenda_pagamento_antecipado?: boolean | null
   mais_vendido: boolean
   tag: TagItem | null
   novidade_ate?: string | null
@@ -298,6 +305,7 @@ function mapItem(row: ItemRow): ItemCardapio {
     ...agendaDaLinha(row),
     imagensExtras: Array.isArray(row.imagens_extras) ? row.imagens_extras.filter((f) => f && typeof f.url === 'string') : [],
     video: videoDoItem(row.video),
+    encomenda: encomendaDoItem(row as unknown as Record<string, unknown>),
     maisVendido: row.mais_vendido,
     tag: row.tag ?? null,
     novidadeAte: row.novidade_ate ?? null,
@@ -519,6 +527,7 @@ export async function removerGrupo(supabase: SupabaseClient, grupoId: string) {
 const ITEM_SELECT = `
   id, grupo_id, nome, descricao, preco, imagem_url, imagem_thumb_url, status, dias_disponiveis, promocao_preco, mais_vendido, tag, tipo_item,
   promocao_inicio, promocao_fim, promocao_dias, promocao_hora_inicio, promocao_hora_fim, imagens_extras, video,
+  encomenda, encomenda_prazo_horas, encomenda_cozinha_horas, encomenda_pagamento_antecipado,
   novidade_ate, edicao_limitada, item_promocional, entrega_gratis, serve_pessoas, combo_especial, tag_personalizada, tag_personalizada_cor,
   disponivel_delivery, disponivel_salao, pizza_tamanhos_ocultos, posicao, criado_em,
   item_complementos ( id, nome, preco, grupo_id, preset_origem_id, imagem_url, pausado, posicao ),
@@ -546,6 +555,8 @@ export interface ExtrasItemInput {
   imagensExtras?: { url: string; thumb: string | null }[]
   /** Vídeo (0213). null apaga; ausente = não mexe. */
   video?: VideoItem | null
+  /** Encomenda (0250). null = item de pronta entrega; ausente = não mexe. */
+  encomenda?: EncomendaItem | null
 }
 
 function colunasExtras(input: ExtrasItemInput): Record<string, unknown> {
@@ -561,6 +572,7 @@ function colunasExtras(input: ExtrasItemInput): Record<string, unknown> {
   }
   if (input.imagensExtras) c.imagens_extras = input.imagensExtras.slice(0, 4)
   if (input.video !== undefined) c.video = input.video
+  if (input.encomenda !== undefined) Object.assign(c, colunasEncomenda(input.encomenda))
   return c
 }
 

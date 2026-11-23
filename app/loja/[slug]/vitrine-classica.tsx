@@ -50,6 +50,7 @@ import type { ClientePerfil, EnderecoCliente } from '@/lib/queries/clientes'
 import type { PedidoCliente } from '@/lib/queries/pedidos'
 import { instanteDoHorario, textoAgendado, type DiaAgendamento } from '@/lib/agendamento'
 import { motivoBloqueioSacola, type ConferenciaLinha } from '@/lib/sacola-conferencia'
+import { avisoSacolaMista, ERRO_SACOLA_MISTA, regraEncomenda, textoPrazoEncomenda, tipoDaSacola } from '@/lib/encomenda'
 import { mascararTelefoneBR, telefoneCompleto } from '@/lib/telefone'
 import { capitalizarTexto } from '@/lib/texto'
 import { assinaturaPremios, deveLembrarPremioNaSacola, premioDeBoasVindas, type PremioBoasVindas } from '@/lib/premio-boas-vindas'
@@ -184,6 +185,9 @@ const formatarNota = (nota: number) => nota.toLocaleString('pt-BR', { minimumFra
 // Motivo exato retornado pelo POST /cupom/validar quando o cupom exige sessão —
 // casado por string pra oferecer o CTA de login em vez de erro genérico (Task 8).
 const MOTIVO_LOGIN_CUPOM = 'Entre com seu telefone para usar este cupom.'
+// Encomendas (0250): checkout sem forma online / sem datas.
+const MSG_ENCOMENDA_SEM_ONLINE = 'Esta encomenda precisa de pagamento online, indisponível agora. Fale com a loja.'
+const MSG_ENCOMENDA_SEM_DATAS = 'Sem datas disponíveis para encomenda agora. Fale com a loja.'
 
 /** Rótulo curto do benefício de um cupom da vitrine ("10% de desconto", "Item grátis"…). */
 function labelCupom(c: Pick<CupomVitrine, 'tipo' | 'valor' | 'itemNome'>): string {
@@ -410,6 +414,15 @@ function NomeItem({ texto }: { texto: string }) {
   )
 }
 
+/** Selo "Por encomenda" (0250): roxo maciço, texto branco (contraste ~7:1). Cartão, linha e ficha do item. */
+function SeloEncomenda({ className = '' }: { className?: string }) {
+  return (
+    <span data-etiqueta="encomenda" className={`inline-flex h-[20px] w-fit items-center whitespace-nowrap rounded-[6px] bg-[#7E22CE] px-[6px] text-[11px] font-semibold leading-[20px] text-white ${className}`}>
+      Por encomenda
+    </span>
+  )
+}
+
 /**
  * Cardápio com o nome de cada item limpo. O original (com a marcação) fica em
  * `nomeFormatado` para o cartão e a ficha desenharem a cor. Só exibição: o pedido
@@ -616,6 +629,7 @@ function ProductCard({ item, onClick, className = '', compact = false }: { item:
           <DescricaoItem texto={item.descricao} className="mb-[8px] line-clamp-2 text-[12px] leading-[16px] text-[var(--v-secundario)]" />
         )}
         {!compact && <EtiquetasUtilitarias item={item} className="mb-[6px]" />}
+        {item.encomenda && <div className="mb-[6px]"><SeloEncomenda /></div>}
         <div className={compact ? 'pt-0.5' : ''}>
           {(() => {
             const pv = precoDeVitrine(item)
@@ -658,6 +672,7 @@ function ProductListRow({ item, onClick, imagemGrande = false }: { item: ItemCar
           <DescricaoItem texto={item.descricao} className="mt-[8px] line-clamp-3 text-[12px] leading-[16px] text-[var(--v-secundario)]" />
         )}
         <EtiquetasUtilitarias item={item} className="mt-[8px]" />
+        {item.encomenda && <div className="mt-[8px]"><SeloEncomenda /></div>}
         <div className="mt-[8px]">
           {(() => {
             const pv = precoDeVitrine(item)
@@ -2189,6 +2204,31 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     )
   }
 
+  // ── Encomendas (0250) ─────────────────────────────────────────────────────
+  // A linha da sacola não guarda nada de encomenda: sai do item carregado pelo itemId (vale também
+  // para a sacola restaurada do aparelho). Item que não está mais no cardápio conta como pronta entrega
+  // — a conferência da sacola já o marca indisponível.
+  const encomendaPorItem = useMemo(
+    () => new Map([...allItems, ...orderBumps].map((i) => [i.id, i.encomenda ?? null])),
+    [allItems, orderBumps],
+  )
+  const linhasEncomenda = cart.map((l) => {
+    const e = encomendaPorItem.get(l.itemId) ?? null
+    return { linha: l, encomenda: e !== null, prazoHoras: e?.prazoHoras ?? 0, cozinhaHoras: e?.cozinhaHoras ?? 0, pagamentoAntecipado: e?.pagamentoAntecipado ?? false }
+  })
+  const tipoSacola = tipoDaSacola(linhasEncomenda)
+  const sacolaMista = tipoSacola === 'mista'
+  const soEncomenda = tipoSacola === 'encomenda'
+  const regraEnc = regraEncomenda(linhasEncomenda)
+  // Primitivos para os efeitos (o objeto da regra muda a cada render).
+  const prazoEncomenda = soEncomenda && regraEnc ? regraEnc.prazoHoras : null
+  const pagamentoAntecipado = soEncomenda && Boolean(regraEnc?.pagamentoAntecipado)
+  const avisoMista = sacolaMista ? avisoSacolaMista(linhasEncomenda.filter((x) => x.encomenda).map((x) => nomeLimpo(x.linha.name))) : null
+  function tirarDaSacola(encomendas: boolean) {
+    setCart((prev) => prev.filter((l) => (encomendaPorItem.get(l.itemId) != null) !== encomendas))
+    setCheckoutError(null)
+  }
+
   // ── Checkout ──────────────────────────────────────────────────────────────
   const [checkoutOpen, setCheckoutOpen] = useState(false)
   const [checkoutStep, setCheckoutStep] = useState<CheckoutStep>(1)
@@ -2208,7 +2248,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   const [agDias, setAgDias] = useState<DiaAgendamento[] | null>(null)
   const [agData, setAgData] = useState('')
   const [agHora, setAgHora] = useState('')
-  const agendando = Boolean(restaurante?.somenteAgendado) || (Boolean(restaurante?.podeAgendar) && agendarEscolhido)
+  // Sacola só de encomenda: sempre com data (não existe "Agora"), mesmo com o agendamento da loja desligado.
+  const agendando = soEncomenda || Boolean(restaurante?.somenteAgendado) || (Boolean(restaurante?.podeAgendar) && agendarEscolhido)
 
   // ── Conferência da sacola (noite 5) ───────────────────────────────────────
   // A sacola fica guardada no aparelho por até 24 h: item pausado, esgotado, fora do dia/horário,
@@ -2262,9 +2303,11 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     if (cart.length === fora.size) { setCheckoutOpen(false); setTab('home') }
   }
   useEffect(() => {
-    if (!checkoutOpen || !restaurante?.podeAgendar) return
+    if (!checkoutOpen || (!restaurante?.podeAgendar && prazoEncomenda === null)) return
     let vivo = true
-    fetch(`/api/loja/${slug}/agendamento`, { cache: 'no-store' })
+    // Encomenda: horários a partir de agora + prazo (a rota vale mesmo com o agendamento da loja desligado).
+    if (prazoEncomenda !== null) setAgDias(null)
+    fetch(prazoEncomenda !== null ? `/api/loja/${slug}/agendamento?encomenda=${prazoEncomenda}` : `/api/loja/${slug}/agendamento`, { cache: 'no-store' })
       .then((r) => r.json())
       .then((d: { dias?: DiaAgendamento[] }) => {
         if (!vivo) return
@@ -2274,7 +2317,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       })
       .catch(() => { if (vivo) setAgDias([]) })
     return () => { vivo = false }
-  }, [checkoutOpen, restaurante?.podeAgendar, slug])
+  }, [checkoutOpen, restaurante?.podeAgendar, slug, prazoEncomenda])
   // Menu inferior SEMPRE visível (P8, 2026-10-04 — acabou o "some ao rolar"). A altura do que fica
   // fixo embaixo (sacola + WhatsApp + menu, já com a área segura do celular) é medida e vira o
   // espaço abaixo do último item: nem lacuna, nem item escondido atrás da barra.
@@ -2502,10 +2545,17 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     let vivo = true
     fetch(`/api/loja/${slug}/pix-online`, { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
-      .then((j: { ativo?: boolean } | null) => { if (vivo) setPixOnline(Boolean(j?.ativo)) })
-      .catch(() => { if (vivo) setPixOnline(false) })
+      .then((j: { ativo?: boolean } | null) => { if (vivo) { setPixOnline(Boolean(j?.ativo)); setPixOnlineConferido(true) } })
+      .catch(() => { if (vivo) { setPixOnline(false); setPixOnlineConferido(true) } })
     return () => { vivo = false }
   }, [checkoutOpen, slug])
+  // Encomenda com pagamento antecipado (0250): só sai pago online — o único online desta vitrine é o Pix online.
+  // `pixOnlineConferido` evita mostrar "indisponível" antes de a loja responder.
+  const [pixOnlineConferido, setPixOnlineConferido] = useState(false)
+  const semPagamentoOnline = pagamentoAntecipado && !pixOnline
+  useEffect(() => {
+    if (pagamentoAntecipado && payMethod !== 'Pix') setPayMethod('Pix')
+  }, [pagamentoAntecipado, payMethod])
 
   const PAY_MAP: Record<string, 'pix' | 'cartao' | 'dinheiro'> = {
     Pix: 'pix',
@@ -2684,7 +2734,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   }
 
   function checkoutNext() {
-    if (!restaurante?.lojaAberta && !restaurante?.somenteAgendado) {
+    if (sacolaMista) { setCheckoutError(ERRO_SACOLA_MISTA); return }
+    // Encomenda tem data: pode ser pedida com a loja fechada (o servidor aceita).
+    if (!restaurante?.lojaAberta && !restaurante?.somenteAgendado && !soEncomenda) {
       setCheckoutError('A loja está fechada no momento. Tente novamente durante o horário de funcionamento.')
       return
     }
@@ -2696,6 +2748,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     // Troco pedido tem que cobrir a conta: senão o entregador sai sem o troco
     // combinado e o caixa dele fecha errado (lib/troco.ts). O servidor confere de
     // novo — aqui o cliente descobre antes de mandar o pedido.
+    if (checkoutStep >= 1 && semPagamentoOnline) {
+      setCheckoutError(MSG_ENCOMENDA_SEM_ONLINE)
+      return
+    }
     if (checkoutStep === 1 && payMethod === 'Dinheiro') {
       const erroTroco = erroDoTroco(total, parseMoney(changeFor))
       if (erroTroco) {
@@ -2725,12 +2781,17 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       }
     }
     if (checkoutStep === 3 && agendando) {
+      if (soEncomenda && agDias !== null && agDias.length === 0) {
+        setCheckoutError(MSG_ENCOMENDA_SEM_DATAS)
+        return
+      }
       if (!agData || !agHora) {
-        setCheckoutError('Escolha o dia e o horário do agendamento.')
+        setCheckoutError(soEncomenda ? 'Escolha a data e o horário da encomenda.' : 'Escolha o dia e o horário do agendamento.')
         return
       }
       const ag = restaurante?.agendamento
-      if (ag && ((tipoPedido === 'entrega' && !ag.entrega) || (tipoPedido === 'retirada' && !ag.retirada))) {
+      // Encomenda vale para entrega e retirada (horários próprios, lib/encomenda.ts).
+      if (!soEncomenda && ag &&((tipoPedido === 'entrega' && !ag.entrega) || (tipoPedido === 'retirada' && !ag.retirada))) {
         setCheckoutError(tipoPedido === 'entrega' ? 'Agendamento não vale para entrega nesta loja.' : 'Agendamento não vale para retirada nesta loja.')
         return
       }
@@ -2896,6 +2957,21 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
    * Com um canal só não há decisão a tomar, e um seletor de uma opção só é ruído
    * entre o cliente e o botão de finalizar.
    */
+  // Sacola com encomenda + pronta entrega (0250): avisa e tira um dos lados num toque. O "Continuar" fica travado.
+  const avisoMistaBlock = avisoMista ? (
+    <div role="alert" className="mb-4 rounded-[8px] border border-[#D8B4FE] bg-[#F3E8FF] px-[12px] py-[10px]" data-testid="aviso-sacola-mista">
+      <p className="text-[13px] font-semibold leading-[18px] text-[#6B21A8]">{avisoMista}</p>
+      <div className="mt-[8px] grid grid-cols-2 gap-[8px]">
+        <button type="button" onClick={() => tirarDaSacola(true)} className="min-h-[40px] rounded-[6px] border border-[#7E22CE] bg-white px-[8px] py-[8px] text-[12px] font-semibold text-[#6B21A8] transition-colors hover:bg-[#FAF5FF]">
+          Tirar as encomendas
+        </button>
+        <button type="button" onClick={() => tirarDaSacola(false)} className="min-h-[40px] rounded-[6px] bg-[#7E22CE] px-[8px] py-[8px] text-[12px] font-semibold text-white transition-colors hover:bg-[#6B21A8]">
+          Tirar os outros itens
+        </button>
+      </div>
+    </div>
+  ) : null
+
   const canalSelector = aceitaEntrega && aceitaRetirada ? (
     <div className="mb-4">
       <div className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-text-subtle">Como você quer receber?</div>
@@ -2986,6 +3062,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             </div>
             <div className="flex flex-1 flex-col p-2">
               <div className="line-clamp-2 min-h-[30px] text-[11.5px] font-semibold leading-snug text-text-main"><NomeItem texto={item.nomeFormatado ?? item.nome} /></div>
+              {item.encomenda && <SeloEncomenda className="mt-[2px]" />}
               <div className="mt-0.5 text-[11.5px] font-semibold text-promo">{brl(item.promocaoPreco ?? item.preco)}</div>
               <div className="mt-1.5 rounded bg-[var(--tema-primaria)] py-1 text-center text-[10.5px] font-semibold tracking-wide text-white transition-colors group-hover:bg-[var(--tema-dark)]">
                 + Adicionar
@@ -3661,6 +3738,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                         {cart.map((line, i) => renderCartLine(line, i < cart.length - 1))}
                       </div>
                       <div className="border-t border-border p-4">
+                        {avisoMistaBlock}
                         {canalSelector}
                         {freteGratisBanner}
                         {beneficioBanner}
@@ -3685,7 +3763,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                         </button>
                         )}
                         <button
-                          disabled={(!restaurante.lojaAberta && !restaurante.somenteAgendado) || !!bloqueioSacola}
+                          disabled={(!restaurante.lojaAberta && !restaurante.somenteAgendado && !soEncomenda) || !!bloqueioSacola || sacolaMista}
                           onClick={() => {
                             if (!clienteSessao) { checkoutAposLogin.current = 0; setContaOpen(true); showToast('Entre com seu telefone para finalizar o pedido.'); return }
                             // Desktop entra pelo resumo (step 0) — inclui o "Peça também".
@@ -3693,7 +3771,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                           }}
                           className="flex w-full items-center justify-between rounded-lg bg-[#16A34A] px-4 py-3.5 text-[14px] font-semibold text-white shadow-sm transition-all hover:bg-[#15803D] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                          <span>{bloqueioSacola ? 'Remova o item indisponível' : 'Continuar para pagamento'}</span>
+                          <span>{bloqueioSacola ? 'Remova o item indisponível' : sacolaMista ? 'Separe as encomendas' : 'Continuar para pagamento'}</span>
                           <span>{brl(total)}</span>
                         </button>
                       </div>
@@ -3749,7 +3827,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             </p>
           </div>
         )}
-        {tab === 'cart' && !restaurante.lojaAberta && !restaurante.somenteAgendado && (
+        {tab === 'cart' && !restaurante.lojaAberta && !restaurante.somenteAgendado && !soEncomenda && (
           <div className="sticky top-0 z-20 flex items-start gap-2.5 border-b border-danger/30 bg-danger-bg px-4 py-3 shadow-sm">
             <Clock className="mt-[1px] h-4 w-4 flex-shrink-0 text-danger" strokeWidth={2.4} />
             <p className="text-[12px] font-semibold leading-[16px] text-danger">
@@ -3797,6 +3875,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 </div>
 
                 <div className="lg:sticky lg:top-24">
+                  {avisoMistaBlock}
                   {canalSelector}
                   {freteGratisBanner}
                   {beneficioBanner}
@@ -3831,7 +3910,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     Continuar comprando
                   </button>
                   <button
-                    disabled={(!restaurante.lojaAberta && !restaurante.somenteAgendado) || !!bloqueioSacola}
+                    disabled={(!restaurante.lojaAberta && !restaurante.somenteAgendado && !soEncomenda) || !!bloqueioSacola || sacolaMista}
                     onClick={() => {
                       if (!clienteSessao) { checkoutAposLogin.current = 1; setContaOpen(true); showToast('Entre com seu telefone para finalizar o pedido.'); return }
                       // Mobile: a aba carrinho já é o resumo — entra direto no pagamento.
@@ -3839,7 +3918,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     }}
                     className="mt-2.5 flex w-full items-center justify-between rounded-lg bg-[#16A34A] px-5 py-4 text-[15px] font-semibold text-white shadow-sm transition-all hover:bg-[#15803D] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    <span>{bloqueioSacola ? 'Remova o item indisponível' : 'Continuar para pagamento'}</span>
+                    <span>{bloqueioSacola ? 'Remova o item indisponível' : sacolaMista ? 'Separe as encomendas' : 'Continuar para pagamento'}</span>
                     <span>{brl(total)}</span>
                   </button>
                 </div>
@@ -4519,6 +4598,15 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 </NomeComEtiquetas>
                 <DescricaoItem texto={productSheet.descricao} className="my-2 text-[13px] leading-[19px] text-[var(--v-secundario)]" />
                 <EtiquetasUtilitarias item={productSheet} className="mb-2" />
+                {productSheet.encomenda && (
+                  <div className="mb-[8px]" data-testid="ficha-encomenda">
+                    <SeloEncomenda />
+                    <div className="mt-[8px] rounded-[8px] border border-[#D8B4FE] bg-[#F3E8FF] px-[12px] py-[10px] text-[13px] leading-[18px] text-[#6B21A8]">
+                      <p>Feito por encomenda · pronto em {textoPrazoEncomenda(productSheet.encomenda.prazoHoras)}. Peça separado dos itens de pronta entrega.</p>
+                      {productSheet.encomenda.pagamentoAntecipado && <p className="mt-[4px] font-semibold">Pagamento antecipado (Pix ou cartão online).</p>}
+                    </div>
+                  </div>
+                )}
                 {productSheet.tipoItem !== 'pizza' && productSheet.tamanhos.length === 0 && (
                   <PriceTag price={productSheet.promocaoPreco ?? productSheet.preco} originalPrice={productSheet.promocaoPreco ? productSheet.preco : null} />
                 )}
@@ -4859,6 +4947,11 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
           {checkoutStep === 1 && (
             <div className="px-4 pb-5">
               <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">Forma de pagamento</h3>
+              {pagamentoAntecipado && (
+                <p className={`mb-3 rounded-[8px] border border-[#D8B4FE] bg-[#F3E8FF] px-[12px] py-[10px] text-[13px] leading-[18px] text-[#6B21A8] ${semPagamentoOnline && pixOnlineConferido ? 'font-semibold' : ''}`} data-testid="encomenda-pagamento">
+                  {semPagamentoOnline ? (pixOnlineConferido ? MSG_ENCOMENDA_SEM_ONLINE : 'Conferindo o pagamento online…') : 'Encomenda com pagamento antecipado: pague agora pelo Pix online.'}
+                </p>
+              )}
               {[
                 {
                   id: 'Pix',
@@ -4878,7 +4971,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   icon: <Banknote className="h-6 w-6 text-[#16A34A]" strokeWidth={1.8} />,
                   chip: 'bg-[#F3F4F6]',
                 },
-              ].map((opt) => (
+                // Encomenda com pagamento antecipado: só o Pix online (some tudo "na entrega").
+              ].filter((opt) => !pagamentoAntecipado || (opt.id === 'Pix' && pixOnline)).map((opt) => (
                 <button key={opt.id} onClick={() => setPayMethod(opt.id)}
                   className={['mb-3 flex w-full items-center gap-3.5 rounded-lg border-2 p-4 text-left transition-all active:scale-[0.99]', payMethod === opt.id ? 'border-[var(--tema-primaria)] bg-[var(--tema-light)] shadow-sm' : 'border-border bg-white hover:border-text-subtle/40'].join(' ')}>
                   <span className={['flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg', opt.chip].join(' ')}>{opt.icon}</span>
@@ -5160,10 +5254,11 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
           {checkoutStep === 3 && (
             <div className="px-4 pb-5">
-              {restaurante.podeAgendar && (
+              {(restaurante.podeAgendar || soEncomenda) && (
                 <div className="mb-3 rounded-lg border border-border bg-white p-4" data-testid="checkout-agendamento">
-                  <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">Quando você quer {tipoPedido === 'retirada' ? 'retirar' : 'receber'}?</h3>
-                  {!restaurante.somenteAgendado && (
+                  <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">{soEncomenda ? 'Quando você quer a encomenda?' : `Quando você quer ${tipoPedido === 'retirada' ? 'retirar' : 'receber'}?`}</h3>
+                  {/* Encomenda: sem "Agora" — a data é obrigatória. */}
+                  {!restaurante.somenteAgendado && !soEncomenda && (
                     <div className="mb-3 grid grid-cols-2 gap-2">
                       {[{ v: false, t: 'Agora' }, { v: true, t: 'Agendar' }].map((o) => (
                         <button
@@ -5181,7 +5276,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     agDias === null ? (
                       <p className="text-[13px] text-text-subtle">Carregando horários…</p>
                     ) : agDias.length === 0 ? (
-                      <p className="text-[13px] font-semibold text-danger">Não há horários disponíveis para agendar agora.</p>
+                      <p className="text-[13px] font-semibold text-danger">{soEncomenda ? MSG_ENCOMENDA_SEM_DATAS : 'Não há horários disponíveis para agendar agora.'}</p>
                     ) : (
                       <div className="grid grid-cols-2 gap-2">
                         <label className="text-[12px] text-text-subtle">
@@ -5308,8 +5403,9 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   {linhasIndisponiveis.length === 1 ? 'Remover item e continuar' : 'Remover itens e continuar'}
                 </button>
               </div>
-            ) : checkoutError && <div className="mb-2.5 rounded border border-danger bg-danger-bg px-3 py-2 text-[13px] font-medium text-danger">{checkoutError}</div>}
-            <button onClick={checkoutNext} disabled={submitting || linhasIndisponiveis.length > 0}
+            ) : avisoMistaBlock ?? (checkoutError && <div className="mb-2.5 rounded border border-danger bg-danger-bg px-3 py-2 text-[13px] font-medium text-danger">{checkoutError}</div>)}
+            {/* Encomenda (0250): trava com sacola mista, sem forma online (pagamento antecipado) ou sem datas. */}
+            <button onClick={checkoutNext} disabled={submitting || linhasIndisponiveis.length > 0 || sacolaMista || (checkoutStep >= 1 && semPagamentoOnline) || (checkoutStep === 3 && soEncomenda && agDias !== null && agDias.length === 0)}
               // Padrão do Revisar pedido em todas as etapas: verde, largo, valor à direita (2026-10-01).
               className="flex w-full items-center justify-between rounded-lg bg-[#16A34A] px-5 py-4 text-[15px] font-semibold text-white shadow-sm transition-all hover:bg-[#15803D] disabled:opacity-60 active:scale-[0.98]">
               <span>{submitting ? 'Enviando…' : checkoutStep === 0 ? 'Ir para pagamento' : checkoutStep === 1 ? (tipoPedido === 'retirada' ? 'Continuar' : 'Ir para endereço') : checkoutStep === 2 ? 'Revisar pedido' : 'Fazer pedido'}</span>

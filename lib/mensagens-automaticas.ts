@@ -8,7 +8,7 @@
  * original (montarMensagemStatus / montarResumoPedido).
  */
 
-export const ETAPAS = ['recebido', 'agendado', 'aceito', 'pronto_retirada', 'pronto_entrega', 'em_rota', 'entregue', 'alterado'] as const
+export const ETAPAS = ['recebido', 'agendado', 'aceito', 'pronto_retirada', 'pronto_entrega', 'em_rota', 'entregue', 'alterado', 'encomenda', 'encomenda_pronta', 'encomenda_lembrete'] as const
 export type Etapa = (typeof ETAPAS)[number]
 
 export type TipoAutomatico = 'entrega' | 'retirada' | 'local'
@@ -30,6 +30,10 @@ export const INFO_ETAPA: Record<Etapa, { titulo: string; quando: string; persona
   entregue: { titulo: 'Pedido entregue', quando: 'Quando o pedido é marcado como entregue.', personalizavel: true },
   // Edição de pedido (18/10): a loja (ou uma solicitação do cliente aplicada) mudou itens, endereço ou pagamento.
   alterado: { titulo: 'Pedido alterado', quando: 'Quando a loja altera itens, endereço ou pagamento de um pedido já feito.', personalizavel: true },
+  // Encomendas (0250).
+  encomenda: { titulo: 'Encomenda recebida', quando: 'Quando o cliente faz uma encomenda (item marcado como encomenda).', personalizavel: true },
+  encomenda_pronta: { titulo: 'Encomenda pronta', quando: 'Encomenda marcada como pronta (retirada ou entrega).', personalizavel: true },
+  encomenda_lembrete: { titulo: 'Lembrete da encomenda', quando: 'Na véspera (até 24 h antes) do horário da encomenda.', personalizavel: true },
 }
 
 /** Textos padrão em forma de modelo — renderizados dão exatamente o texto de lib/whatsapp.ts. */
@@ -41,6 +45,9 @@ export const PADRAO: Record<Exclude<Etapa, 'aceito'>, string> = {
   em_rota: '🛵 Seu pedido *#{numero}* *saiu para entrega*! Chega rapidinho 🚀',
   entregue: '🎉 Pedido *#{numero}* entregue! Bom apetite 😋',
   alterado: '✏️ Seu pedido *#{numero}* foi alterado:\n{mudancas}\nNovo total: *{total}*',
+  encomenda: '🎂 Recebemos sua encomenda *#{numero}* para *{horario}* ({tipo}). Avisamos por aqui quando estiver pronta 🙌',
+  encomenda_pronta: '✅ Sua encomenda *#{numero}* está *pronta para {tipo}*!',
+  encomenda_lembrete: '⏰ Lembrete: sua encomenda *#{numero}* ({tipo}) é *{horario}*.',
 }
 
 /**
@@ -56,6 +63,9 @@ export const PADRAO_FORMATADO: Record<Exclude<Etapa, 'aceito'>, string> = {
   em_rota: ['*🛵 SAIU PARA ENTREGA!*', '', 'Olá, _{nome}_! Seu pedido `#{numero}` está a caminho.', '', '> Chega rapidinho 🚀'].join('\n'),
   entregue: ['*🎉 PEDIDO ENTREGUE!*', '', 'Bom apetite, _{nome}_! Obrigado por pedir na *{loja}*.'].join('\n'),
   alterado: ['*✏️ PEDIDO ALTERADO*', '', 'Olá, _{nome}_! Seu pedido `#{numero}` foi alterado:', '{mudancas}', '', 'Novo total: `{total}`'].join('\n'),
+  encomenda: ['*🎂 ENCOMENDA RECEBIDA!*', '', 'Olá, _{nome}_! Sua encomenda `#{numero}` ({tipo}) ficou para *{horario}*.', '', '> Avisamos por aqui quando estiver pronta.'].join('\n'),
+  encomenda_pronta: ['*✅ ENCOMENDA PRONTA!*', '', 'Olá, _{nome}_! Sua encomenda `#{numero}` está *pronta para {tipo}*.'].join('\n'),
+  encomenda_lembrete: ['*⏰ LEMBRETE DA ENCOMENDA*', '', 'Olá, _{nome}_! Sua encomenda `#{numero}` ({tipo}) é *{horario}*.', '', '> Qualquer dúvida, é só responder aqui.'].join('\n'),
 }
 
 /** Modelo formatado: sem nome do cliente, some o ", _{nome}_" junto (nada de "Olá, __!"). */
@@ -80,7 +90,7 @@ export const VARIAVEIS:{ chave: string; rotulo: string; exemplo: string }[] = [
   { chave: 'numero', rotulo: 'Número do pedido', exemplo: '1234' },
   { chave: 'loja', rotulo: 'Nome da loja', exemplo: 'Sua loja' },
   { chave: 'tipo', rotulo: 'entrega ou retirada', exemplo: 'entrega' },
-  { chave: 'horario', rotulo: 'Horário agendado (só no agendado)', exemplo: 'hoje às 19:30' },
+  { chave: 'horario', rotulo: 'Horário agendado (agendado e encomenda)', exemplo: 'hoje às 19:30' },
   { chave: 'total', rotulo: 'Total do pedido', exemplo: 'R$ 58,00' },
   { chave: 'mudancas', rotulo: 'O que mudou (só no pedido alterado)', exemplo: '• −1× Coca 2L' },
 ]
@@ -137,8 +147,9 @@ export function renderizar(texto: string, vars: Record<string, string>): string 
 }
 
 /** Etapa da mensagem para a transição de status. Null = nenhuma mensagem nessa transição. */
-export function etapaDoStatus(status: string, tipo: string, agendado: boolean): Etapa | null {
-  if (status === 'recebido') return agendado ? 'agendado' : 'recebido'
+export function etapaDoStatus(status: string, tipo: string, agendado: boolean, encomenda = false): Etapa | null {
+  if (status === 'recebido') return encomenda ? 'encomenda' : agendado ? 'agendado' : 'recebido'
+  if (status === 'pronto' && encomenda) return 'encomenda_pronta'
   if (status === 'preparando') return 'aceito'
   if (status === 'pronto') return tipo === 'retirada' ? 'pronto_retirada' : 'pronto_entrega'
   if (status === 'em_rota') return 'em_rota'

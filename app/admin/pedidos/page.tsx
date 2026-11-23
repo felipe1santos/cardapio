@@ -566,7 +566,7 @@ export default function PedidosPage() {
         const concluidos = desdeConcluidos === inicio ? finalizados : mesclarConcluidos(quadroRef.current.concluded, finalizados, inicio, idsAtivos)
 
         const agora = new Date()
-        const esperando = kanban.filter((p) => p.status === 'recebido' && !pedidoLiberado(p.agendadoPara, liberaMinRef.current, agora))
+        const esperando = kanban.filter((p) => p.status === 'recebido' && !pedidoLiberado(p.agendadoPara, liberaMinRef.current, agora, p.liberarEm))
         const idsEsperando = new Set(esperando.map((p) => p.id))
         const ativos = kanban.filter((p) => !idsEsperando.has(p.id))
         aplicarQuadro({
@@ -1271,15 +1271,17 @@ export default function PedidosPage() {
 
         {agendados.length > 0 && (
           <div className="flex items-center gap-2 overflow-x-auto rounded-menuzia border border-border bg-white px-3 py-2" data-testid="faixa-agendados">
-            <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">Agendados ({agendados.length})</span>
+            <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-text-subtle">{agendados.some((p) => p.encomenda) ? 'Agendados e encomendas' : 'Agendados'} ({agendados.length})</span>
             {agendados.map((p) => (
               <button
                 key={p.id}
                 type="button"
                 onClick={() => setDetail(p)}
-                className="shrink-0 rounded-menuzia border border-border bg-page px-2.5 py-1 text-[12px] text-text-main hover:border-primary"
-                title="Entra no painel, na cozinha e na impressão perto do horário"
+                className={`shrink-0 rounded-menuzia border px-2.5 py-1 text-[12px] hover:border-primary ${p.encomenda ? 'border-[#D8B4FE] bg-[#F3E8FF] text-[#6B21A8]' : 'border-border bg-page text-text-main'}`}
+                title={p.encomenda ? 'Encomenda: entra no painel, na cozinha e na impressão no prazo de preparo do item' : 'Entra no painel, na cozinha e na impressão perto do horário'}
+                data-encomenda={p.encomenda ? '1' : undefined}
               >
+                {p.encomenda && <span className="mr-1 rounded-[2px] bg-[#7E22CE] px-1 text-[10.5px] font-semibold uppercase text-white">Encomenda</span>}
                 <strong>#{p.numero}</strong> · {textoAgendado(p.agendadoPara!)} · {p.clienteNome}
               </button>
             ))}

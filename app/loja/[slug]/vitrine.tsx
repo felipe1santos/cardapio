@@ -70,6 +70,7 @@ import {
 import type { ClientePerfil, EnderecoCliente } from '@/lib/queries/clientes'
 import type { PedidoCliente } from '@/lib/queries/pedidos'
 import { instanteDoHorario, textoAgendado, type DiaAgendamento } from '@/lib/agendamento'
+import { avisoSacolaMista, regraEncomenda, textoPrazoEncomenda, tipoDaSacola } from '@/lib/encomenda'
 import { deveReconferirLoja } from '@/lib/loja-ao-vivo'
 import { motivoBloqueioSacola, type ConferenciaLinha } from '@/lib/sacola-conferencia'
 import { mascararTelefoneBR, telefoneCompleto } from '@/lib/telefone'
@@ -672,6 +673,16 @@ function ProductImage({ item, className = '', prioritaria = false }: { item: Fot
   )
 }
 
+/** Selo "Por encomenda" (0250): item feito sob pedido, com data mínima — vai em pedido separado. */
+function SeloEncomenda({ item, className = '' }: { item: ItemCardapio; className?: string }) {
+  if (!item.encomenda) return null
+  return (
+    <span className={`inline-flex h-[20px] w-fit items-center whitespace-nowrap rounded-[6px] bg-[#7E22CE] px-[6px] text-[11px] font-semibold leading-[20px] text-white ${className}`} data-testid="selo-encomenda">
+      Por encomenda
+    </span>
+  )
+}
+
 function ProductCard({ item, onClick, className = '', compact = false }: { item: ItemCardapio; onClick: () => void; className?: string; compact?: boolean }) {
   return (
     <button
@@ -704,6 +715,7 @@ function ProductCard({ item, onClick, className = '', compact = false }: { item:
           <DescricaoItem texto={item.descricao} className="mb-[8px] line-clamp-2 text-[12px] leading-[16px] text-[var(--v-secundario)]" />
         )}
         {!compact && <EtiquetasUtilitarias item={item} className="mb-[6px]" />}
+        <SeloEncomenda item={item} className="mb-[6px]" />
         <div className={compact ? 'pt-0.5' : ''}>
           {(() => {
             const pv = precoDeVitrine(item)
@@ -747,6 +759,7 @@ function ProductListRow({ item, onClick, tamanhoImagem = 120 }: { item: ItemCard
           <DescricaoItem texto={item.descricao} className="mt-[8px] line-clamp-3 text-[12px] leading-[16px] text-[var(--v-secundario)]" />
         )}
         <EtiquetasUtilitarias item={item} className="mt-[8px]" />
+        {item.encomenda && <div className="mt-[8px]"><SeloEncomenda item={item} /></div>}
         <div className="mt-[8px]">
           {(() => {
             const pv = precoDeVitrine(item)
@@ -2346,7 +2359,24 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   const [agDias, setAgDias] = useState<DiaAgendamento[] | null>(null)
   const [agData, setAgData] = useState('')
   const [agHora, setAgHora] = useState('')
-  const agendando = Boolean(restaurante?.somenteAgendado) || (Boolean(restaurante?.podeAgendar) && agendarEscolhido)
+  // Encomendas (0250): a linha da sacola guarda só o itemId — a regra vem do item no cardápio carregado
+  // (vale também para a sacola restaurada do aparelho). Item que sumiu do cardápio conta como comum; o servidor confere.
+  // "Peça também" (order bump) também conta — o item pode não estar entre os grupos carregados.
+  const encomendaPorItem = useMemo(() => new Map([...allItems, ...orderBumps].map((i) => [i.id, i.encomenda ?? null])), [allItems, orderBumps])
+  const encomendaDaLinha = (l: CartLine) => encomendaPorItem.get(l.itemId) ?? null
+  const itensEncomenda = cart.map((l) => {
+    const e = encomendaDaLinha(l)
+    return { encomenda: !!e, prazoHoras: e?.prazoHoras ?? 0, cozinhaHoras: e?.cozinhaHoras ?? 0, pagamentoAntecipado: !!e?.pagamentoAntecipado }
+  })
+  const tipoSacola = tipoDaSacola(itensEncomenda)
+  const regraEnc = regraEncomenda(itensEncomenda)
+  const sacolaMista = tipoSacola === 'mista'
+  const soEncomenda = tipoSacola === 'encomenda'
+  /** Prazo da sacola só de encomenda (número estável para a busca de horários); null = sacola comum. */
+  const prazoEncomenda = soEncomenda && regraEnc ? regraEnc.prazoHoras : null
+  const pagamentoAntecipado = !!regraEnc?.pagamentoAntecipado && soEncomenda
+  // Encomenda sempre tem data e hora: o checkout fica no modo agendado, sem "Agora".
+  const agendando = soEncomenda || Boolean(restaurante?.somenteAgendado) || (Boolean(restaurante?.podeAgendar) && agendarEscolhido)
 
   // ── Conferência da sacola (noite 5) ───────────────────────────────────────
   // A sacola fica guardada no aparelho por até 24 h: item pausado, esgotado, fora do dia/horário,
@@ -2412,9 +2442,11 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     if (cart.length === fora.size) { setCheckoutOpen(false); setTab('home') }
   }
   useEffect(() => {
-    if (!checkoutOpen || !restaurante?.podeAgendar) return
+    if (!checkoutOpen || (!restaurante?.podeAgendar && prazoEncomenda === null)) return
     let vivo = true
-    fetch(`/api/loja/${slug}/agendamento`, { cache: 'no-store' })
+    // Sacola só de encomenda: horários a partir de agora + prazo (valem mesmo com o agendamento da loja desligado).
+    if (prazoEncomenda !== null) { setAgDias(null); setAgHora('') }
+    fetch(prazoEncomenda !== null ? `/api/loja/${slug}/agendamento?encomenda=${prazoEncomenda}` : `/api/loja/${slug}/agendamento`, { cache: 'no-store' })
       .then((r) => r.json())
       .then((d: { dias?: DiaAgendamento[] }) => {
         if (!vivo) return
@@ -2424,7 +2456,22 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
       })
       .catch(() => { if (vivo) setAgDias([]) })
     return () => { vivo = false }
-  }, [checkoutOpen, restaurante?.podeAgendar, slug])
+  }, [checkoutOpen, restaurante?.podeAgendar, slug, prazoEncomenda])
+  const encomendaSemData = soEncomenda && agDias !== null && agDias.length === 0
+  function tirarLinhas(encomenda: boolean) {
+    setCart((prev) => prev.filter((l) => !!encomendaPorItem.get(l.itemId) !== encomenda))
+    setCheckoutError(null)
+  }
+  /** Sacola com encomenda + pronta entrega: aviso com os dois atalhos (o "Continuar" fica bloqueado). */
+  const avisoMista = () => !sacolaMista ? null : (
+    <div className="mb-[10px] rounded-[8px] border border-[#D8B4FE] bg-[#F3E8FF] px-[12px] py-[10px]" data-testid="aviso-sacola-mista">
+      <p className="text-[13px] font-semibold leading-[18px] text-[#6B21A8]">{avisoSacolaMista(cart.filter((l) => encomendaDaLinha(l)).map((l) => nomeLimpo(l.name)))}</p>
+      <div className="mt-[8px] grid grid-cols-2 gap-[8px]">
+        <button type="button" onClick={() => tirarLinhas(true)} className="rounded-[8px] bg-[#7E22CE] px-[10px] py-[10px] text-[13px] font-semibold text-white hover:bg-[#6B21A8]" data-testid="tirar-encomendas">Tirar as encomendas</button>
+        <button type="button" onClick={() => tirarLinhas(false)} className="rounded-[8px] border border-[#D8B4FE] bg-white px-[10px] py-[10px] text-[13px] font-semibold text-[#6B21A8] hover:bg-[#FAF5FF]" data-testid="tirar-outros">Tirar os outros itens</button>
+      </div>
+    </div>
+  )
   // Menu inferior SEMPRE visível (P8, 2026-10-04 — acabou o "some ao rolar"). A altura do que fica
   // fixo embaixo (sacola + WhatsApp + menu, já com a área segura do celular) é medida e vira o
   // espaço abaixo do último item: nem lacuna, nem item escondido atrás da barra.
@@ -2680,7 +2727,8 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   const idsPagamento = useMemo(() => [
     ...(pixAgora || pixChave ? ['Pix'] : []), ...(cartaoAgora ? ['Cartão online'] : []), ...(pixAgora && pixChave ? ['Pix na entrega'] : []),
     ...(cartaoCredito || cartaoDebito ? ['Cartão na entrega'] : []), ...(formasCanal.includes('dinheiro') ? ['Dinheiro'] : []), ...(bandeirasVale.length ? ['Vale'] : []),
-  ], [pixAgora, pixChave, cartaoAgora, cartaoCredito, cartaoDebito, formasCanal, bandeirasVale.length])
+  // Encomenda com pagamento antecipado (0250): só as formas online.
+  ].filter((m) => !pagamentoAntecipado || m === 'Cartão online' || (m === 'Pix' && pixAgora)), [pixAgora, pixChave, cartaoAgora, cartaoCredito, cartaoDebito, formasCanal, bandeirasVale.length, pagamentoAntecipado])
   // A forma escolhida saiu (outro canal, cartão online desligado...): volta para a primeira aceita.
   useEffect(() => { if (idsPagamento.length && !idsPagamento.includes(payMethod)) setPayMethod(idsPagamento[0]) }, [idsPagamento, payMethod])
 
@@ -2691,6 +2739,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   const metodosOnline = idsPagamento.filter((m) => m === 'Cartão online' || (m === 'Pix' && pixAgora))
   const metodosEntrega = idsPagamento.filter((m) => !metodosOnline.includes(m))
   const escolheModo = metodosOnline.length > 0 && metodosEntrega.length > 0
+  const encomendaSemOnline = pagamentoAntecipado && metodosOnline.length === 0
   const [modoPagamento, setModoPagamento] = useState<'online' | 'entrega' | null>(null)
   const etapaEscolhaPagamento = escolheModo && modoPagamento === null
   function escolherModo(m: 'online' | 'entrega') {
@@ -2895,8 +2944,17 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   }
 
   function checkoutNext() {
-    if (!restaurante?.lojaAberta && !restaurante?.somenteAgendado) {
+    // Encomenda tem data marcada: pode ser pedida com a loja fechada (o servidor aceita).
+    if (!restaurante?.lojaAberta && !restaurante?.somenteAgendado && !soEncomenda) {
       setCheckoutError('A loja está fechada no momento. Tente novamente durante o horário de funcionamento.')
+      return
+    }
+    if (sacolaMista) {
+      setCheckoutError(avisoSacolaMista(cart.filter((l) => encomendaDaLinha(l)).map((l) => nomeLimpo(l.name))))
+      return
+    }
+    if (checkoutStep === 1 && encomendaSemOnline) {
+      setCheckoutError('Esta encomenda precisa de pagamento online, indisponível agora. Fale com a loja.')
       return
     }
     // Dá pra esvaziar a sacola pelas linhas do resumo — não deixa seguir vazio.
@@ -2945,12 +3003,17 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
     }
     // Agendamento fica na etapa de entrega ("quando você quer receber").
     if (checkoutStep === 2 && agendando) {
+      if (encomendaSemData) {
+        setCheckoutError('Sem datas disponíveis para encomenda agora. Fale com a loja.')
+        return
+      }
       if (!agData || !agHora) {
-        setCheckoutError('Escolha o dia e o horário do agendamento.')
+        setCheckoutError(soEncomenda ? 'Escolha o dia e o horário da encomenda.' : 'Escolha o dia e o horário do agendamento.')
         return
       }
       const ag = restaurante?.agendamento
-      if (ag && ((tipoPedido === 'entrega' && !ag.entrega) || (tipoPedido === 'retirada' && !ag.retirada))) {
+      // Encomenda vale para entrega e retirada (configAgendamentoEncomenda), mesmo com o agendamento da loja restrito.
+      if (!soEncomenda && ag && ((tipoPedido === 'entrega' && !ag.entrega) || (tipoPedido === 'retirada' && !ag.retirada))) {
         setCheckoutError(tipoPedido === 'entrega' ? 'Agendamento não vale para entrega nesta loja.' : 'Agendamento não vale para retirada nesta loja.')
         return
       }
@@ -2973,6 +3036,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   /** "Continuar" da sacola (celular): a sacola já é o resumo — entra na entrega. */
   function continuarDaSacola() {
     if (bloqueioSacola) { showToast(bloqueioSacola); return }
+    if (sacolaMista) { showToast('Peça os itens de encomenda e os de pronta entrega em pedidos separados.'); return }
     if (!clienteSessao) { checkoutAposLogin.current = 2; setContaOpen(true); showToast('Entre com seu telefone para finalizar o pedido.'); return }
     setCheckoutOpen(true); setCheckoutMinStep(2); setCheckoutStep(2); setCheckoutError(null)
   }
@@ -4084,9 +4148,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                           Calcular taxa de entrega
                         </button>
                         )}
+                        {avisoMista()}
                         {bloqueioSacola && <p className="mb-2 rounded-[6px] bg-[#FDECEC] px-3 py-2 text-[12.5px] font-semibold text-[#B42318]" data-testid="bloqueio-sacola">{bloqueioSacola}</p>}
                         <button
-                          disabled={(!restaurante.lojaAberta && !restaurante.somenteAgendado) || !!bloqueioSacola}
+                          disabled={(!restaurante.lojaAberta && !restaurante.somenteAgendado && !soEncomenda) || !!bloqueioSacola || sacolaMista}
                           onClick={() => {
                             if (!clienteSessao) { checkoutAposLogin.current = 0; setContaOpen(true); showToast('Entre com seu telefone para finalizar o pedido.'); return }
                             // Desktop entra pelo resumo (step 0) — inclui o "Peça também".
@@ -4134,7 +4199,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             </p>
           </div>
         )}
-        {tab === 'cart' && !restaurante.lojaAberta && !restaurante.somenteAgendado && (
+        {tab === 'cart' && !restaurante.lojaAberta && !restaurante.somenteAgendado && !soEncomenda && (
           <div className="sticky top-0 z-20 flex items-start gap-2.5 border-b border-danger/30 bg-danger-bg px-4 py-3 shadow-sm">
             <Clock className="mt-[1px] h-4 w-4 flex-shrink-0 text-danger" strokeWidth={2.4} />
             <p className="text-[12px] font-semibold leading-[16px] text-danger">
@@ -4208,7 +4273,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
 
                 {/* Desktop: a barra fixa do celular mora no rodapé (lg:hidden); aqui ela vai no fim. */}
                 <div className="hidden border-t border-[#EFEFEF] pt-[16px] lg:block">
-                  <>{bloqueioSacola && <p className="mb-[8px] rounded-[6px] bg-[#FDECEC] px-[12px] py-[8px] text-[13px] font-semibold text-[#B42318]" data-testid="bloqueio-sacola">{bloqueioSacola}</p>}<BarraTotal total={brl(total)} legenda={`${legendaTotal} · ${cartCount} ${cartCount === 1 ? 'item' : 'itens'}`} economia={economia > 0 ? brl(economia) : null} botao="Continuar" onClick={continuarDaSacola} desabilitado={(!restaurante.lojaAberta && !restaurante.somenteAgendado) || !!bloqueioSacola} /></>
+                  <>{avisoMista()}{bloqueioSacola && <p className="mb-[8px] rounded-[6px] bg-[#FDECEC] px-[12px] py-[8px] text-[13px] font-semibold text-[#B42318]" data-testid="bloqueio-sacola">{bloqueioSacola}</p>}<BarraTotal total={brl(total)} legenda={`${legendaTotal} · ${cartCount} ${cartCount === 1 ? 'item' : 'itens'}`} economia={economia > 0 ? brl(economia) : null} botao="Continuar" onClick={continuarDaSacola} desabilitado={(!restaurante.lojaAberta && !restaurante.somenteAgendado && !soEncomenda) || !!bloqueioSacola || sacolaMista} /></>
                 </div>
               </div>
             )}
@@ -4730,7 +4795,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
         )}
         {tab === 'cart' && cart.length > 0 && (
           <div className="pointer-events-auto border-t border-[#EFEFEF] bg-white px-[16px] py-[12px] shadow-[0_-4px_20px_rgba(0,0,0,0.07)]" data-testid="barra-sacola-continuar">
-            <>{bloqueioSacola && <p className="mb-[8px] rounded-[6px] bg-[#FDECEC] px-[12px] py-[8px] text-[13px] font-semibold text-[#B42318]" data-testid="bloqueio-sacola">{bloqueioSacola}</p>}<BarraTotal total={brl(total)} legenda={`${legendaTotal} · ${cartCount} ${cartCount === 1 ? 'item' : 'itens'}`} economia={economia > 0 ? brl(economia) : null} botao="Continuar" onClick={continuarDaSacola} desabilitado={(!restaurante.lojaAberta && !restaurante.somenteAgendado) || !!bloqueioSacola} /></>
+            <>{avisoMista()}{bloqueioSacola && <p className="mb-[8px] rounded-[6px] bg-[#FDECEC] px-[12px] py-[8px] text-[13px] font-semibold text-[#B42318]" data-testid="bloqueio-sacola">{bloqueioSacola}</p>}<BarraTotal total={brl(total)} legenda={`${legendaTotal} · ${cartCount} ${cartCount === 1 ? 'item' : 'itens'}`} economia={economia > 0 ? brl(economia) : null} botao="Continuar" onClick={continuarDaSacola} desabilitado={(!restaurante.lojaAberta && !restaurante.somenteAgendado && !soEncomenda) || !!bloqueioSacola || sacolaMista} /></>
           </div>
         )}
         <nav
@@ -4963,6 +5028,15 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 </NomeComEtiquetas>
                 <DescricaoItem texto={productSheet.descricao} className="my-2 text-[13px] leading-[19px] text-[var(--v-secundario)]" />
                 <EtiquetasUtilitarias item={productSheet} className="mb-2" />
+                {productSheet.encomenda && (
+                  <div className="mb-[8px]" data-testid="ficha-encomenda">
+                    <SeloEncomenda item={productSheet} />
+                    <div className="mt-[8px] rounded-[8px] border border-[#D8B4FE] bg-[#F3E8FF] px-[12px] py-[10px] text-[13px] leading-[18px] text-[#6B21A8]">
+                      <p>Feito por encomenda · pronto em {textoPrazoEncomenda(productSheet.encomenda.prazoHoras)}. Peça separado dos itens de pronta entrega.</p>
+                      {productSheet.encomenda.pagamentoAntecipado && <p className="mt-[4px] font-semibold">Pagamento antecipado (Pix ou cartão online).</p>}
+                    </div>
+                  </div>
+                )}
                 {productSheet.tipoItem !== 'pizza' && productSheet.tamanhos.length === 0 && (
                   <PriceTag price={productSheet.promocaoPreco ?? productSheet.preco} originalPrice={productSheet.promocaoPreco ? productSheet.preco : null} />
                 )}
@@ -5474,10 +5548,10 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                 </button>
               )}
 
-              {restaurante.podeAgendar && (
+              {(restaurante.podeAgendar || soEncomenda) && (
                 <div className="mb-[20px] rounded-[8px] border border-[#E5E5E5] bg-white p-[14px]" data-testid="checkout-agendamento">
-                  <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">Quando você quer {tipoPedido === 'retirada' ? 'retirar' : 'receber'}?</h3>
-                  {!restaurante.somenteAgendado && (
+                  <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-subtle">{soEncomenda ? 'Quando você quer a encomenda?' : `Quando você quer ${tipoPedido === 'retirada' ? 'retirar' : 'receber'}?`}</h3>
+                  {!restaurante.somenteAgendado && !soEncomenda && (
                     <div className="mb-3 grid grid-cols-2 gap-2">
                       {[{ v: false, t: 'Agora' }, { v: true, t: 'Agendar' }].map((o) => (
                         <button
@@ -5495,7 +5569,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                     agDias === null ? (
                       <p className="text-[13px] text-text-subtle">Carregando horários…</p>
                     ) : agDias.length === 0 ? (
-                      <p className="text-[13px] font-semibold text-danger">Não há horários disponíveis para agendar agora.</p>
+                      <p className="text-[13px] font-semibold text-danger">{soEncomenda ? 'Sem datas disponíveis para encomenda agora. Fale com a loja.' : 'Não há horários disponíveis para agendar agora.'}</p>
                     ) : (
                       <div className="grid grid-cols-2 gap-2">
                         <label className="text-[12px] text-text-subtle">
@@ -5583,7 +5657,12 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
                   )}
                 </section>
               )}
-              {(!escolheModo || modoPagamento === 'entrega') && (
+              {encomendaSemOnline && (
+                <p className="mb-[20px] rounded-[8px] border border-[#D8B4FE] bg-[#F3E8FF] px-[12px] py-[10px] text-[13px] font-semibold leading-[18px] text-[#6B21A8]" data-testid="encomenda-sem-online">
+                  Esta encomenda precisa de pagamento online, indisponível agora. Fale com a loja.
+                </p>
+              )}
+              {(!escolheModo || modoPagamento === 'entrega') && !pagamentoAntecipado && (
               <section className="mb-[20px]" data-testid="pagar-na-entrega">
                 <TituloSecao>{escolheModo ? 'Escolha a forma' : tipoPedido === 'retirada' ? 'Pagar na retirada' : 'Pagar na entrega'}</TituloSecao>
                 {pixChave && (
@@ -5715,14 +5794,15 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
               tem o botão é o painel "Revise o seu pedido". */}
           {checkoutStep !== 3 && (
             <div className="sticky bottom-0 z-10 mt-auto w-full border-t border-[#EFEFEF] bg-white p-[16px] pb-[max(env(safe-area-inset-bottom),16px)] lg:pb-[16px]" data-barra-checkout>
-              {linhasIndisponiveis.length > 0 ? avisoIndisponivel() : checkoutError && <div className="mb-[10px] rounded-[6px] border border-danger bg-danger-bg px-[12px] py-[8px] text-[13px] font-medium text-danger">{checkoutError}</div>}
+              {avisoMista()}
+              {linhasIndisponiveis.length > 0 ? avisoIndisponivel() : !sacolaMista && checkoutError && <div className="mb-[10px] rounded-[6px] border border-danger bg-danger-bg px-[12px] py-[8px] text-[13px] font-medium text-danger">{checkoutError}</div>}
               <BarraTotal
                 total={brl(total)}
                 legenda={`${legendaTotal} · ${cartCount} ${cartCount === 1 ? 'item' : 'itens'}`}
                 economia={economia > 0 ? brl(economia) : null}
                 botao={submitting ? 'Enviando…' : checkoutStep === 1 ? (etapaEscolhaPagamento ? 'Escolha acima' : 'Revisar pedido') : 'Continuar'}
                 onClick={checkoutNext}
-                desabilitado={submitting || linhasIndisponiveis.length > 0 || (checkoutStep === 1 && etapaEscolhaPagamento)}
+                desabilitado={submitting || linhasIndisponiveis.length > 0 || (checkoutStep === 1 && etapaEscolhaPagamento) || sacolaMista || (checkoutStep === 2 && encomendaSemData) || (checkoutStep === 1 && encomendaSemOnline)}
               />
             </div>
           )}
@@ -5812,7 +5892,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
             </div>
             <div className="border-t border-[#EFEFEF] bg-white p-[16px] pb-[max(env(safe-area-inset-bottom),16px)]" data-barra-checkout>
               {linhasIndisponiveis.length > 0 ? avisoIndisponivel() : checkoutError && <div className="mb-[10px] rounded-[6px] border border-danger bg-danger-bg px-[12px] py-[8px] text-[13px] font-medium text-danger">{checkoutError}</div>}
-              <button onClick={checkoutNext} disabled={submitting || linhasIndisponiveis.length > 0} className="flex h-[52px] w-full items-center justify-center rounded-[12px] bg-[var(--tema-primaria)] px-[20px] text-[16px] font-semibold text-white shadow-sm transition-[filter] hover:brightness-110 active:scale-[0.98] disabled:opacity-60" data-testid="fazer-pedido">
+              <button onClick={checkoutNext} disabled={submitting || linhasIndisponiveis.length > 0 || sacolaMista || encomendaSemOnline || encomendaSemData} className="flex h-[52px] w-full items-center justify-center rounded-[12px] bg-[var(--tema-primaria)] px-[20px] text-[16px] font-semibold text-white shadow-sm transition-[filter] hover:brightness-110 active:scale-[0.98] disabled:opacity-60" data-testid="fazer-pedido">
                 {submitting ? 'Enviando…' : 'Fazer pedido'}
               </button>
               <button onClick={checkoutBack} disabled={submitting} className="mt-[8px] w-full py-[10px] text-[14px] font-semibold text-[var(--tema-dark)]" data-testid="alterar-pedido">Alterar pedido</button>

@@ -11,8 +11,11 @@ import { expirarCashbackVencidos } from '@/lib/queries/cashback'
 import { criarPortaoHorario } from '@/lib/manutencao-horaria'
 import { baterCron, umaPorVez } from '@/lib/saude/cron'
 import { rodarVigia } from '@/lib/saude/vigia'
+import { enviarLembretesEncomenda } from '@/lib/encomenda-lembrete'
+import { notificarLembreteEncomenda } from '@/lib/whatsapp'
 
 const manutencao = criarPortaoHorario(60 * 60_000)
+const lembreteEncomenda = criarPortaoHorario(10 * 60_000)
 
 /**
  * Cron da fila do WhatsApp: novas tentativas (espera crescente) e retenção de 90 dias.
@@ -46,6 +49,12 @@ async function rodada(admin: ReturnType<typeof getAdminSupabase>) {
     // "Perguntas que o robô não entendeu" ficam 30 dias (0177).
     await admin.from('whatsapp_auto_nao_entendidas').delete().lt('ultima_em', new Date(Date.now() - 30 * 24 * 3600_000).toISOString())
   }
+  // Lembrete da véspera das encomendas (0250): no máximo a cada 10 min, 1 consulta indexada, até 20 por rodada, 1 por pedido.
+  let lembretes: unknown = null
+  if (lembreteEncomenda.liberar()) {
+    lembretes = await enviarLembretesEncomenda(admin, { enviar: (id) => notificarLembreteEncomenda(admin, id) })
+      .catch((e) => { console.error('[whatsapp] lembrete de encomenda:', (e as Error).message); return null })
+  }
   // Sugestão pela IA das mensagens não entendidas (16/10): 1 loja por rodada, 1 lote por dia por loja, com o módulo e dentro do teto.
   await sugerirComIaUmaLoja(admin).catch((e) => console.error('[whatsapp] sugestão IA:', (e as Error).message))
   // Webhook de toda loja com WhatsApp (a cada 30 min por loja): reconectar pelo celular,
@@ -58,5 +67,5 @@ async function rodada(admin: ReturnType<typeof getAdminSupabase>) {
   // Vigia da saúde do sistema (28/10, Etapa 7): no máximo a cada 5 min, sem API paga; alerta no WhatsApp do dono.
   // Uma rodada por vez: duas chamadas juntas passariam as duas pela trava da última foto (auditoria 28/10).
   const saude = await umaPorVez('vigia', () => rodarVigia(admin)).catch((e) => { console.error('[whatsapp] vigia:', (e as Error).message); return null })
-  return { enviados: fila.enviados, falhas: fila.falhas, limpeza: limpeza ?? null, monitor, saude }
+  return { enviados: fila.enviados, falhas: fila.falhas, limpeza: limpeza ?? null, lembretes, monitor, saude }
 }

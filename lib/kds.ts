@@ -31,7 +31,7 @@ export const minutosDesde = (iso: string, agora: number) => (agora - Date.parse(
 /** Pedidos que a cozinha faz agora: recebido e preparando (agendado só quando liberado), mais antigos primeiro. */
 export function pedidosDaCozinha(lista: Pedido[], agora: Date, liberaMin: number): Pedido[] {
   return lista
-    .filter((p) => (p.status === 'recebido' || p.status === 'preparando') && pedidoLiberado(p.agendadoPara, liberaMin, agora))
+    .filter((p) => (p.status === 'recebido' || p.status === 'preparando') && pedidoLiberado(p.agendadoPara, liberaMin, agora, p.liberarEm))
     .sort((a, b) => a.criadoEm.localeCompare(b.criadoEm))
 }
 
@@ -40,7 +40,7 @@ export function pedidosDaCozinha(lista: Pedido[], agora: Date, liberaMin: number
  * tocou em Começar preparo (preparando_por); "Prontos" = os 8 mais recentes, para desfazer engano. Agendado só perto da hora.
  */
 export function colunasKds(lista: Pedido[], agora: Date, liberaMin: number) {
-  const liberados = lista.filter((p) => pedidoLiberado(p.agendadoPara, liberaMin, agora))
+  const liberados = lista.filter((p) => pedidoLiberado(p.agendadoPara, liberaMin, agora, p.liberarEm))
   const porCriacao = (a: Pedido, b: Pedido) => a.criadoEm.localeCompare(b.criadoEm)
   return {
     fila: liberados.filter((p) => p.status === 'preparando' && !p.preparandoPor).sort(porCriacao),

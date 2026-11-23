@@ -12,6 +12,7 @@ import { consumirCashback, devolverCashback, saldoCashbackCliente, vincularCashb
 import { valorCashbackAplicavel } from '@/lib/cashback-regras'
 import { grupoEstaAtivoAgora, itemDisponivelHoje, lojaEstaAberta } from '@/lib/timezone'
 import { configAgendamento, motivoAgendamentoInvalido } from '@/lib/agendamento'
+import { configAgendamentoEncomenda, ERRO_SACOLA_MISTA, itemEncomendaDaLinha, liberarEmDaEncomenda, motivoEncomendaInvalida, regraEncomenda, tipoDaSacola, type RegraEncomenda } from '@/lib/encomenda'
 import { itemDisponivelNoCanal } from '@/lib/canais-item'
 import { validarOpcoes, type GrupoOpcoesRegra } from '@/lib/opcoes-item'
 import { otimizarImagem, CACHE_CONTROL_SEGUNDOS } from '@/lib/imagem'
@@ -123,6 +124,9 @@ export interface Pedido {
   atualizadoEm: string
   /** Pedido agendado (0121): horário escolhido pelo cliente. Null = para agora. */
   agendadoPara?: string | null
+  /** Encomenda (0250): card roxo; entra no fluxo em liberarEm (antes da regra da loja). */
+  encomenda?: boolean
+  liberarEm?: string | null
   /** Primeira entrada em cada etapa (0078): linha do tempo do painel do pedido. */
   etapas?: { preparando: string | null; pronto: string | null; emRota: string | null; entregue: string | null }
   /** Item 61: o sistema marcou como entregue depois de 1h30 em rota sem o motoboy confirmar. */
@@ -209,6 +213,8 @@ interface PedidoRow {
   criado_em: string
   atualizado_em: string
   agendado_para?: string | null
+  encomenda?: boolean | null
+  liberar_em?: string | null
   preparando_em?: string | null
   pronto_em?: string | null
   em_rota_em?: string | null
@@ -245,7 +251,7 @@ export const PEDIDO_SELECT = `
   endereco_rua, endereco_numero, endereco_complemento, endereco_bairro, endereco_cep, endereco_cidade, endereco_referencia,
   forma_pagamento, cartao_tipo, vale_bandeira, troco_para, pago, subtotal, taxa_entrega, desconto, total, observacao,
   entregador_id, preparando_por, preparado_por, preparando_notificado, telefone_verificado, origem, canal, mesa, comanda_id, criado_por_nome, lancado_via, origem_canal, origem_detalhe, pagamento_online, comanda:comandas ( numero, senha ),
-  cancelado_motivo, cancelado_observacao, cancelado_por, criado_em, atualizado_em, agendado_para,
+  cancelado_motivo, cancelado_observacao, cancelado_por, criado_em, atualizado_em, agendado_para, encomenda, liberar_em,
   preparando_em, pronto_em, em_rota_em, entregue_em, entregue_automatico, editado_em, editado_por_nome, edicoes, diferenca_a_receber, diferenca_modo, parceiro_pix, saiu_para_entrega_em, entregador:entregadores!pedidos_entregador_id_fkey ( nome ),
   pedido_itens ( id, item_id, nome, preco_unitario, quantidade, observacao, complementos, tamanho_nome, sabor_nome, borda_nome, massa_nome, cancelado_em, cancelado_motivo, item:itens_cardapio ( descricao ) )
 `
@@ -300,6 +306,8 @@ export function mapPedido(row: PedidoRow): Pedido {
     criadoEm: row.criado_em,
     atualizadoEm: row.atualizado_em,
     agendadoPara: row.agendado_para ?? null,
+    encomenda: row.encomenda === true,
+    liberarEm: row.liberar_em ?? null,
     etapas: { preparando: row.preparando_em ?? null, pronto: row.pronto_em ?? null, emRota: row.em_rota_em ?? null, entregue: row.entregue_em ?? null },
     entregueAutomatico: row.entregue_automatico === true,
     editadoEm: row.editado_em ?? null,
@@ -406,6 +414,14 @@ export async function corteLiberacaoAgendados(supabase: SupabaseClient, restaura
   return new Date(Date.now() + min * 60_000).toISOString()
 }
 
+/**
+ * Filtro PostgREST "já liberado para o fluxo": sem agendamento, dentro da antecedência da loja (0121) ou encomenda
+ * com liberar_em já passado (0250). Mesma regra de pedidoLiberado() e de public.pedido_liberado().
+ */
+export function filtroLiberado(corte: string, agora: Date = new Date()): string {
+  return `agendado_para.is.null,agendado_para.lte.${corte},liberar_em.lte.${agora.toISOString()}`
+}
+
 /** Antecedência dos agendados por loja, guardada por 5 min (corteLiberacaoAgendados). */
 const antecedenciaAgendados = new Map<string, { min: number; em: number }>()
 const ANTECEDENCIA_VALIDADE_MS = 5 * 60_000
@@ -422,7 +438,7 @@ export async function listarRecebidosParaAlarme(supabase: SupabaseClient, restau
     .select('id, numero, preparando_notificado')
     .eq('restaurante_id', restauranteId)
     .eq('status', 'recebido')
-    .or(`agendado_para.is.null,agendado_para.lte.${corte}`)
+    .or(filtroLiberado(corte))
     .order('criado_em', { ascending: true })
   if (error) throw error
   const recebidos = ((data ?? []) as { id: string; numero: number; preparando_notificado: boolean | null }[])
@@ -447,7 +463,7 @@ export async function listarPedidosPorStatus(
     .select(PEDIDO_SELECT)
     .eq('restaurante_id', restauranteId)
     .in('status', status)
-    .or(`agendado_para.is.null,agendado_para.lte.${corte}`)
+    .or(filtroLiberado(corte))
     .order('criado_em', { ascending: true })
   if (error) throw error
   return ((data ?? []) as unknown as PedidoRow[]).map(mapPedido)
@@ -521,7 +537,7 @@ export async function pegarPedidoCozinha(admin: SupabaseClient, pedidoId: string
     .update({ status: 'preparando', preparando_por: cozinheiro })
     .eq('id', pedidoId)
     .eq('status', 'recebido')
-    .or(`agendado_para.is.null,agendado_para.lte.${corte}`)
+    .or(filtroLiberado(corte))
     .select('id')
   if (error) throw error
   return (data?.length ?? 0) > 0
@@ -1023,7 +1039,7 @@ export async function contarBadgesNav(supabase: SupabaseClient, restauranteId: s
   const corte = await corteLiberacaoAgendados(supabase, restauranteId)
   const [novos, logistica] = await Promise.all([
     supabase.from('pedidos').select('id', { count: 'exact', head: true }).eq('restaurante_id', restauranteId).eq('status', 'recebido')
-      .or(`agendado_para.is.null,agendado_para.lte.${corte}`),
+      .or(filtroLiberado(corte)),
     supabase.from('pedidos').select('id', { count: 'exact', head: true }).eq('restaurante_id', restauranteId).eq('status', 'pronto').eq('tipo', 'entrega'),
   ])
   // Falhou (o supabase-js não rejeita num 5xx) → lança: o layout mantém o número que já
@@ -1561,9 +1577,30 @@ export async function criarPedido(
   // Agendamento (0121): só a vitrine agenda. Tudo conferido aqui de novo — a tela só
   // mostra os horários válidos, mas um POST direto não pode escolher outro.
   let agendadoPara: string | null = null
+  // Encomenda (0250): só a vitrine. Sacola mista é recusada; a data segue o prazo dos itens (e não o agendamento
+  // da loja, que pode estar desligado); pagamento antecipado só online. PDV e mesa vendem o item como sempre.
+  let encomenda: RegraEncomenda | null = null
+  if (input.origem !== 'pdv' && canal !== 'mesa') {
+    const ids = [...new Set(input.itens.map((i) => i.itemId))]
+    const { data: encRows, error: encError } = ids.length
+      ? await admin.from('itens_cardapio').select('id, encomenda, encomenda_prazo_horas, encomenda_cozinha_horas, encomenda_pagamento_antecipado').eq('restaurante_id', restauranteId).in('id', ids)
+      : { data: [], error: null }
+    if (encError) throw encError
+    const porId = new Map(((encRows ?? []) as Record<string, unknown>[]).map((r) => [r.id as string, r]))
+    const itensEnc = input.itens.map((i) => itemEncomendaDaLinha(porId.get(i.itemId)))
+    const tipoSacola = tipoDaSacola(itensEnc)
+    if (tipoSacola === 'mista') throw new Error(ERRO_SACOLA_MISTA)
+    if (tipoSacola === 'encomenda') {
+      encomenda = regraEncomenda(itensEnc)!
+      const pagamentoOnline = (input.pixOnline === true && input.pagamento === 'pix') || (input.cartaoOnline === true && input.pagamento === 'cartao')
+      const motivoEnc = motivoEncomendaInvalida(encomenda, input.agendadoPara, pagamentoOnline)
+      if (motivoEnc) throw new Error(motivoEnc)
+    }
+  }
   if (input.agendadoPara) {
     if (input.origem === 'pdv' || canal === 'mesa') throw new Error('Agendamento só vale para pedidos da vitrine.')
-    const config = configAgendamento(lojaRow as unknown as Record<string, unknown>)
+    const configLoja = configAgendamento(lojaRow as unknown as Record<string, unknown>)
+    const config = encomenda ? configAgendamentoEncomenda(configLoja, encomenda.prazoHoras) : configLoja
     const t = new Date(input.agendadoPara)
     let ocupacao = new Map<string, number>()
     if (config.limite !== null && !Number.isNaN(t.getTime())) {
@@ -1572,6 +1609,7 @@ export async function criarPedido(
         .select('id', { count: 'exact', head: true })
         .eq('restaurante_id', restauranteId)
         .eq('agendado_para', t.toISOString())
+        .eq('encomenda', false)
         .neq('status', 'cancelado')
       ocupacao = new Map([[t.toISOString(), count ?? 0]])
     }
@@ -1946,6 +1984,7 @@ export async function criarPedido(
       // Só entra no insert quando houve uso (a coluna é da 0211; pedidos sem cashback não dependem dela).
       ...(cashbackUsado.valor > 0 ? { cashback_usado: cashbackUsado.valor } : {}),
       ...(agendadoPara ? { agendado_para: agendadoPara } : {}),
+      ...(encomenda && agendadoPara ? { encomenda: true, liberar_em: liberarEmDaEncomenda(agendadoPara, encomenda.cozinhaHoras) } : {}),
     })
     .select('id, numero')
     .single()

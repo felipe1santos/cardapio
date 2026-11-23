@@ -149,7 +149,7 @@ export function MensagensAutomaticas({ onToast, onAtivoMudou }: { onToast: (tom:
                   <textarea ref={area} value={rascunho} onChange={(ev) => setRascunho(ev.target.value)} rows={4} className="campanha-texto w-full" data-testid="editor-texto" aria-invalid={!!problema} />
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="text-[12px] text-[#5b6472]">Inserir:</span>
-                    {dados.variaveis.filter((v) => v.chave !== 'horario' || e.chave === 'agendado').map((v) => (
+                    {dados.variaveis.filter((v) => v.chave !== 'horario' || e.chave === 'agendado' || e.chave.startsWith('encomenda')).map((v) => (
                       <button key={v.chave} type="button" onClick={() => inserirVariavel(v.chave)} title={v.rotulo} className="h-7 rounded-[4px] border border-[#bae6fd] bg-[#f0f9ff] px-2 text-[12px] font-semibold text-[#0570ae] hover:border-[#0688d4]" data-testid={`var-${v.chave}`}>{`{${v.chave}}`}</button>
                     ))}
                   </div>

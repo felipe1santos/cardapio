@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getAdminSupabase } from '@/lib/supabase/admin'
 import { COLUNAS_AGENDAMENTO, configAgendamento, horariosAgendamento, podeAgendar, type DiaAgendamento } from '@/lib/agendamento'
 import { lojaEstaAberta, type HorarioFuncionamento } from '@/lib/timezone'
+import { configAgendamentoEncomenda } from '@/lib/encomenda'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,8 +17,10 @@ export interface AgendamentoResposta {
  * Horários que a vitrine pode oferecer agora (Fase 7, 0121): grade + antecedência +
  * intervalo, sem os horários que já lotaram. Só leitura; quem decide de verdade é
  * criarPedido, que confere tudo de novo.
+ * Encomenda (0250): `?encomenda=<prazo em horas>` → horários a partir de agora + prazo, com o agendamento da loja
+ * ligado ou não, sem limite por horário (encomenda não ocupa vaga). O prazo vem da sacola; o servidor confere de novo.
  */
-export async function GET(_req: Request, { params }: { params: Promise<{ slug: string }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
   const admin = getAdminSupabase()
   const { data: loja, error } = await admin
@@ -29,7 +32,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
   if (!loja) return NextResponse.json({ error: 'Loja não encontrada' }, { status: 404 })
 
   const row = loja as unknown as Record<string, unknown> & { id: string; status_loja: string | null; horario_funcionamento: HorarioFuncionamento | null }
-  const config = configAgendamento(row)
+  const prazoEncomenda = Number(new URL(req.url).searchParams.get('encomenda'))
+  const encomenda = Number.isInteger(prazoEncomenda) && prazoEncomenda >= 1 && prazoEncomenda <= 720
+  const config = encomenda ? configAgendamentoEncomenda(configAgendamento(row), prazoEncomenda) : configAgendamento(row)
   const aberta = lojaEstaAberta({ statusLoja: (row.status_loja ?? 'automatico') as 'automatico', horarioFuncionamento: row.horario_funcionamento ?? null })
   const pode = podeAgendar(config, aberta)
   if (!pode) return NextResponse.json<AgendamentoResposta>({ podeAgendar: false, entrega: false, retirada: false, dias: [] })
@@ -41,6 +46,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
       .select('agendado_para')
       .eq('restaurante_id', row.id)
       .gt('agendado_para', new Date().toISOString())
+      .eq('encomenda', false)
       .neq('status', 'cancelado')
       .limit(5000)
     for (const p of peds ?? []) {

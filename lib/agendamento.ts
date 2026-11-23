@@ -208,9 +208,13 @@ export function motivoAgendamentoInvalido(
   return 'Esse horário não está disponível. Escolha outro.'
 }
 
-/** O pedido agendado já entrou no fluxo (Kanban, cozinha, impressão)? Sem agendamento: sim. */
-export function pedidoLiberado(agendadoPara: string | null | undefined, liberaMin: number, agora: Date = new Date()): boolean {
+/**
+ * O pedido agendado já entrou no fluxo (Kanban, cozinha, impressão)? Sem agendamento: sim.
+ * Encomenda (0250): `liberarEm` só adianta a entrada — vale o que vier primeiro (mesma regra do banco).
+ */
+export function pedidoLiberado(agendadoPara: string | null | undefined, liberaMin: number, agora: Date = new Date(), liberarEm?: string | null): boolean {
   if (!agendadoPara) return true
+  if (liberarEm && new Date(liberarEm).getTime() <= agora.getTime()) return true
   return new Date(agendadoPara).getTime() - liberaMin * 60_000 <= agora.getTime()
 }
 
