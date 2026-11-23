@@ -4,7 +4,8 @@
  *
  * - Item por encomenda nunca vai na mesma sacola que item de pronta entrega (pedidos separados).
  * - A data mínima é agora + o maior prazo entre os itens da sacola.
- * - O pedido entra no Kanban/cozinha/impressão `cozinhaHoras` antes do horário (liberar_em).
+ * - O pedido entra no Kanban/cozinha/impressão assim que é feito (liberar_em = agora; pedido do dono 23/11) e fica lá
+ *   até a loja avançar — o painel tem "mostrar/esconder encomendas".
  * - Algum item com pagamento antecipado = o pedido só sai com pagamento online.
  */
 import type { ConfigAgendamento } from './agendamento'
@@ -12,20 +13,17 @@ import type { ConfigAgendamento } from './agendamento'
 export interface ItemEncomenda {
   encomenda: boolean
   prazoHoras: number
-  cozinhaHoras: number
   pagamentoAntecipado: boolean
 }
 
 export interface RegraEncomenda {
   prazoHoras: number
-  cozinhaHoras: number
   pagamentoAntecipado: boolean
 }
 
 export type TipoSacola = 'vazia' | 'normal' | 'encomenda' | 'mista'
 
 export const PRAZO_ENCOMENDA_PADRAO = 24
-export const COZINHA_ENCOMENDA_PADRAO = 24
 
 export function tipoDaSacola(itens: { encomenda: boolean }[]): TipoSacola {
   if (itens.length === 0) return 'vazia'
@@ -51,14 +49,8 @@ export function regraEncomenda(itens: ItemEncomenda[]): RegraEncomenda | null {
   if (enc.length === 0) return null
   return {
     prazoHoras: Math.max(...enc.map((i) => i.prazoHoras)),
-    cozinhaHoras: Math.max(...enc.map((i) => i.cozinhaHoras)),
     pagamentoAntecipado: enc.some((i) => i.pagamentoAntecipado),
   }
-}
-
-/** Instante em que a encomenda entra no fluxo (pedidos.liberar_em). */
-export function liberarEmDaEncomenda(agendadoPara: string, cozinhaHoras: number): string {
-  return new Date(new Date(agendadoPara).getTime() - cozinhaHoras * 3600_000).toISOString()
 }
 
 /** "6 h", "24 h", "2 dias" (dias só quando o prazo é múltiplo de 24 a partir de 48 h). */
@@ -122,7 +114,6 @@ export function itemEncomendaDaLinha(row: Record<string, unknown> | null | undef
   return {
     encomenda: row?.encomenda === true,
     prazoHoras: n(row?.encomenda_prazo_horas, PRAZO_ENCOMENDA_PADRAO),
-    cozinhaHoras: n(row?.encomenda_cozinha_horas, COZINHA_ENCOMENDA_PADRAO),
     pagamentoAntecipado: row?.encomenda_pagamento_antecipado === true,
   }
 }
@@ -130,13 +121,12 @@ export function itemEncomendaDaLinha(row: Record<string, unknown> | null | undef
 /** Encomenda no item (tela e cadastro). Null = item de pronta entrega. */
 export interface EncomendaItem {
   prazoHoras: number
-  cozinhaHoras: number
   pagamentoAntecipado: boolean
 }
 
 export function encomendaDoItem(row: Record<string, unknown> | null | undefined): EncomendaItem | null {
   const r = itemEncomendaDaLinha(row)
-  return r.encomenda ? { prazoHoras: r.prazoHoras, cozinhaHoras: r.cozinhaHoras, pagamentoAntecipado: r.pagamentoAntecipado } : null
+  return r.encomenda ? { prazoHoras: r.prazoHoras, pagamentoAntecipado: r.pagamentoAntecipado } : null
 }
 
 const limitar = (v: number, min: number, max: number, padrao: number) => (Number.isFinite(v) ? Math.min(max, Math.max(min, Math.round(v))) : padrao)
@@ -147,7 +137,6 @@ export function colunasEncomenda(e: EncomendaItem | null): Record<string, unknow
   return {
     encomenda: true,
     encomenda_prazo_horas: limitar(e.prazoHoras, 1, 720, PRAZO_ENCOMENDA_PADRAO),
-    encomenda_cozinha_horas: limitar(e.cozinhaHoras, 0, 720, COZINHA_ENCOMENDA_PADRAO),
     encomenda_pagamento_antecipado: e.pagamentoAntecipado === true,
   }
 }

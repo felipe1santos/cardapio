@@ -100,6 +100,9 @@ export interface AcoesCard {
   maisAberto?: boolean
 }
 
+/** Etapa da encomenda no card (0250): na coluna Encomendas as três etapas ficam juntas. */
+const ETAPA_ENCOMENDA: Partial<Record<string, string>> = { recebido: 'recebida', preparando: 'em preparo', pronto: 'pronta' }
+
 export function CardPedido({ order, now, selecionado, destaqueNovo, atencao = false, somBloqueado, onAbrir, acoes, rodape }: {
   order: Pedido
   now: number
@@ -176,6 +179,7 @@ export function CardPedido({ order, now, selecionado, destaqueNovo, atencao = fa
           <p className="mt-1 flex items-center gap-1.5 text-[11.5px] leading-[15px] text-[#6B21A8]" data-testid="card-encomenda">
             <span className="rounded-[2px] bg-[#7E22CE] px-1.5 py-px text-[10.5px] font-semibold uppercase tracking-wide text-white">Encomenda</span>
             {order.agendadoPara && <span className="truncate font-semibold">para {textoAgendado(order.agendadoPara)}</span>}
+            {ETAPA_ENCOMENDA[order.status] && <span className="flex-shrink-0 text-[#6B21A8]/80">· {ETAPA_ENCOMENDA[order.status]}</span>}
           </p>
         )}
         {/* Itens — item adicionado por edição em amarelo + "adicionado"; removido riscado + "removido" (Bloco A, 19/10) */}

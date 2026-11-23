@@ -238,7 +238,6 @@ interface ItemRow {
   video?: unknown
   encomenda?: boolean | null
   encomenda_prazo_horas?: number | null
-  encomenda_cozinha_horas?: number | null
   encomenda_pagamento_antecipado?: boolean | null
   mais_vendido: boolean
   tag: TagItem | null
@@ -527,7 +526,7 @@ export async function removerGrupo(supabase: SupabaseClient, grupoId: string) {
 const ITEM_SELECT = `
   id, grupo_id, nome, descricao, preco, imagem_url, imagem_thumb_url, status, dias_disponiveis, promocao_preco, mais_vendido, tag, tipo_item,
   promocao_inicio, promocao_fim, promocao_dias, promocao_hora_inicio, promocao_hora_fim, imagens_extras, video,
-  encomenda, encomenda_prazo_horas, encomenda_cozinha_horas, encomenda_pagamento_antecipado,
+  encomenda, encomenda_prazo_horas, encomenda_pagamento_antecipado,
   novidade_ate, edicao_limitada, item_promocional, entrega_gratis, serve_pessoas, combo_especial, tag_personalizada, tag_personalizada_cor,
   disponivel_delivery, disponivel_salao, pizza_tamanhos_ocultos, posicao, criado_em,
   item_complementos ( id, nome, preco, grupo_id, preset_origem_id, imagem_url, pausado, posicao ),

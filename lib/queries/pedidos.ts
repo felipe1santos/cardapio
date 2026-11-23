@@ -12,7 +12,7 @@ import { consumirCashback, devolverCashback, saldoCashbackCliente, vincularCashb
 import { valorCashbackAplicavel } from '@/lib/cashback-regras'
 import { grupoEstaAtivoAgora, itemDisponivelHoje, lojaEstaAberta } from '@/lib/timezone'
 import { configAgendamento, motivoAgendamentoInvalido } from '@/lib/agendamento'
-import { configAgendamentoEncomenda, ERRO_SACOLA_MISTA, itemEncomendaDaLinha, liberarEmDaEncomenda, motivoEncomendaInvalida, regraEncomenda, tipoDaSacola, type RegraEncomenda } from '@/lib/encomenda'
+import { configAgendamentoEncomenda, ERRO_SACOLA_MISTA, itemEncomendaDaLinha, motivoEncomendaInvalida, regraEncomenda, tipoDaSacola, type RegraEncomenda } from '@/lib/encomenda'
 import { itemDisponivelNoCanal } from '@/lib/canais-item'
 import { validarOpcoes, type GrupoOpcoesRegra } from '@/lib/opcoes-item'
 import { otimizarImagem, CACHE_CONTROL_SEGUNDOS } from '@/lib/imagem'
@@ -124,7 +124,7 @@ export interface Pedido {
   atualizadoEm: string
   /** Pedido agendado (0121): horário escolhido pelo cliente. Null = para agora. */
   agendadoPara?: string | null
-  /** Encomenda (0250): card roxo; entra no fluxo em liberarEm (antes da regra da loja). */
+  /** Encomenda (0250): card roxo; liberarEm = quando entrou no fluxo (na hora em que foi feita). */
   encomenda?: boolean
   liberarEm?: string | null
   /** Primeira entrada em cada etapa (0078): linha do tempo do painel do pedido. */
@@ -1583,7 +1583,7 @@ export async function criarPedido(
   if (input.origem !== 'pdv' && canal !== 'mesa') {
     const ids = [...new Set(input.itens.map((i) => i.itemId))]
     const { data: encRows, error: encError } = ids.length
-      ? await admin.from('itens_cardapio').select('id, encomenda, encomenda_prazo_horas, encomenda_cozinha_horas, encomenda_pagamento_antecipado').eq('restaurante_id', restauranteId).in('id', ids)
+      ? await admin.from('itens_cardapio').select('id, encomenda, encomenda_prazo_horas, encomenda_pagamento_antecipado').eq('restaurante_id', restauranteId).in('id', ids)
       : { data: [], error: null }
     if (encError) throw encError
     const porId = new Map(((encRows ?? []) as Record<string, unknown>[]).map((r) => [r.id as string, r]))
@@ -1984,7 +1984,8 @@ export async function criarPedido(
       // Só entra no insert quando houve uso (a coluna é da 0211; pedidos sem cashback não dependem dela).
       ...(cashbackUsado.valor > 0 ? { cashback_usado: cashbackUsado.valor } : {}),
       ...(agendadoPara ? { agendado_para: agendadoPara } : {}),
-      ...(encomenda && agendadoPara ? { encomenda: true, liberar_em: liberarEmDaEncomenda(agendadoPara, encomenda.cozinhaHoras) } : {}),
+      // Encomenda entra no Kanban/cozinha/impressão na hora (pedido do dono 23/11); agendado_para é a retirada/entrega.
+      ...(encomenda && agendadoPara ? { encomenda: true, liberar_em: new Date().toISOString() } : {}),
     })
     .select('id, numero')
     .single()

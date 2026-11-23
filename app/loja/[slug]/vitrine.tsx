@@ -2366,7 +2366,7 @@ export default function Vitrine({ slug, restauranteInicial }: { slug: string; re
   const encomendaDaLinha = (l: CartLine) => encomendaPorItem.get(l.itemId) ?? null
   const itensEncomenda = cart.map((l) => {
     const e = encomendaDaLinha(l)
-    return { encomenda: !!e, prazoHoras: e?.prazoHoras ?? 0, cozinhaHoras: e?.cozinhaHoras ?? 0, pagamentoAntecipado: !!e?.pagamentoAntecipado }
+    return { encomenda: !!e, prazoHoras: e?.prazoHoras ?? 0, pagamentoAntecipado: !!e?.pagamentoAntecipado }
   })
   const tipoSacola = tipoDaSacola(itensEncomenda)
   const regraEnc = regraEncomenda(itensEncomenda)

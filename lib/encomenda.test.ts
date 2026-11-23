@@ -5,7 +5,6 @@ import {
   encomendaDoItem,
   itemEncomendaDaLinha,
   configAgendamentoEncomenda,
-  liberarEmDaEncomenda,
   lembreteDevido,
   motivoEncomendaInvalida,
   regraEncomenda,
@@ -17,9 +16,9 @@ import { AGENDAMENTO_PADRAO, instanteDoHorario, pedidoLiberado } from './agendam
 const H = 3600_000
 const AGORA = new Date('2026-11-23T13:00:00.000Z') // 10:00 em São Paulo
 
-const bolo = { encomenda: true, prazoHoras: 48, cozinhaHoras: 24, pagamentoAntecipado: false }
-const pudim = { encomenda: true, prazoHoras: 24, cozinhaHoras: 6, pagamentoAntecipado: true }
-const brigadeiro = { encomenda: false, prazoHoras: 24, cozinhaHoras: 24, pagamentoAntecipado: false }
+const bolo = { encomenda: true, prazoHoras: 48, pagamentoAntecipado: false }
+const pudim = { encomenda: true, prazoHoras: 24, pagamentoAntecipado: true }
+const brigadeiro = { encomenda: false, prazoHoras: 24, pagamentoAntecipado: false }
 
 describe('tipoDaSacola', () => {
   it('classifica vazia, normal, encomenda e mista', () => {
@@ -40,17 +39,11 @@ describe('avisoSacolaMista', () => {
 })
 
 describe('regraEncomenda', () => {
-  it('maior prazo, maior antecedência da cozinha e pagamento antecipado se algum pedir', () => {
-    expect(regraEncomenda([bolo, pudim])).toEqual({ prazoHoras: 48, cozinhaHoras: 24, pagamentoAntecipado: true })
+  it('maior prazo e pagamento antecipado se algum pedir', () => {
+    expect(regraEncomenda([bolo, pudim])).toEqual({ prazoHoras: 48, pagamentoAntecipado: true })
   })
   it('ignora itens que não são encomenda; sem encomenda = null', () => {
     expect(regraEncomenda([brigadeiro])).toBeNull()
-  })
-})
-
-describe('liberarEmDaEncomenda', () => {
-  it('horário − horas da cozinha', () => {
-    expect(liberarEmDaEncomenda('2026-11-25T18:00:00.000Z', 24)).toBe('2026-11-24T18:00:00.000Z')
   })
 })
 
@@ -69,7 +62,7 @@ describe('pedidoLiberado com liberar_em (0250)', () => {
 })
 
 describe('motivoEncomendaInvalida', () => {
-  const regra = { prazoHoras: 48, cozinhaHoras: 24, pagamentoAntecipado: false }
+  const regra = { prazoHoras: 48, pagamentoAntecipado: false }
   it('exige data', () => {
     expect(motivoEncomendaInvalida(regra, null, false, AGORA)).toMatch(/data/)
   })
@@ -117,20 +110,20 @@ describe('lembreteDevido (véspera)', () => {
 
 describe('itemEncomendaDaLinha', () => {
   it('linha do banco → regra; ausente = item comum', () => {
-    expect(itemEncomendaDaLinha({ encomenda: true, encomenda_prazo_horas: 48, encomenda_cozinha_horas: 12, encomenda_pagamento_antecipado: true }))
-      .toEqual({ encomenda: true, prazoHoras: 48, cozinhaHoras: 12, pagamentoAntecipado: true })
-    expect(itemEncomendaDaLinha(undefined)).toEqual({ encomenda: false, prazoHoras: 24, cozinhaHoras: 24, pagamentoAntecipado: false })
+    expect(itemEncomendaDaLinha({ encomenda: true, encomenda_prazo_horas: 48, encomenda_pagamento_antecipado: true }))
+      .toEqual({ encomenda: true, prazoHoras: 48, pagamentoAntecipado: true })
+    expect(itemEncomendaDaLinha(undefined)).toEqual({ encomenda: false, prazoHoras: 24, pagamentoAntecipado: false })
   })
 })
 
 describe('encomendaDoItem / colunasEncomenda', () => {
   it('ida e volta; desligado = null', () => {
-    const cols = colunasEncomenda({ prazoHoras: 48, cozinhaHoras: 12, pagamentoAntecipado: true })
-    expect(encomendaDoItem(cols)).toEqual({ prazoHoras: 48, cozinhaHoras: 12, pagamentoAntecipado: true })
+    const cols = colunasEncomenda({ prazoHoras: 48, pagamentoAntecipado: true })
+    expect(encomendaDoItem(cols)).toEqual({ prazoHoras: 48, pagamentoAntecipado: true })
     expect(encomendaDoItem(colunasEncomenda(null))).toBeNull()
   })
   it('prende os números nos limites do banco', () => {
-    expect(colunasEncomenda({ prazoHoras: 0, cozinhaHoras: 9999, pagamentoAntecipado: false })).toMatchObject({ encomenda_prazo_horas: 1, encomenda_cozinha_horas: 720 })
+    expect(colunasEncomenda({ prazoHoras: 9999, pagamentoAntecipado: false })).toMatchObject({ encomenda_prazo_horas: 720 })
   })
 })
 

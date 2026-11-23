@@ -79,7 +79,7 @@ import { VideoDaVitrine } from '@/components/admin/video-vitrine'
 import type { VideoItem } from '@/lib/video-vitrine'
 import { juntarFotos, separarFotos } from '@/lib/fotos-item'
 import { CarregandoPagina } from '@/components/admin/barra-carregamento'
-import { COZINHA_ENCOMENDA_PADRAO, PRAZO_ENCOMENDA_PADRAO, type EncomendaItem } from '@/lib/encomenda'
+import { PRAZO_ENCOMENDA_PADRAO, type EncomendaItem } from '@/lib/encomenda'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -145,7 +145,6 @@ interface ItemFormState {
   /** Por encomenda (0250). Desligada = pronta entrega; prazos em texto para o campo aceitar apagar. */
   encomendaLigada: boolean
   encomendaPrazo: string
-  encomendaCozinha: string
   encomendaAntecipado: boolean
 }
 
@@ -171,7 +170,7 @@ function blankForm(grupoId: string | null): ItemFormState {
     comboEspecial: false, tagPersonalizadaLigada: false, tagPersonalizada: '', tagPersonalizadaCor: 'preta',
     promoLigada: false, promocaoInicio: '', promocaoFim: '', promocaoDias: [], promocaoHoraInicio: '', promocaoHoraFim: '',
     imagensExtras: [], video: null, precoCusto: '', codigoPdv: '', codigoInterno: '',
-    encomendaLigada: false, encomendaPrazo: String(PRAZO_ENCOMENDA_PADRAO), encomendaCozinha: String(COZINHA_ENCOMENDA_PADRAO), encomendaAntecipado: false,
+    encomendaLigada: false, encomendaPrazo: String(PRAZO_ENCOMENDA_PADRAO), encomendaAntecipado: false,
     // Item novo nasce nos dois canais: é o comportamento de sempre e o default da 0069.
     disponivelDelivery: true, disponivelSalao: true,
   }
@@ -222,7 +221,6 @@ function formFromItem(item: ItemCardapio): ItemFormState {
     precoCusto: '', codigoPdv: '', codigoInterno: '',
     encomendaLigada: !!item.encomenda,
     encomendaPrazo: String(item.encomenda?.prazoHoras ?? PRAZO_ENCOMENDA_PADRAO),
-    encomendaCozinha: String(item.encomenda?.cozinhaHoras ?? COZINHA_ENCOMENDA_PADRAO),
     encomendaAntecipado: item.encomenda?.pagamentoAntecipado === true,
   }
 }
@@ -1125,10 +1123,9 @@ export default function CardapioPage() {
     // Encomenda (0250): horas inteiras, mesmos limites que o servidor aplica (colunasEncomenda).
     let encomenda: EncomendaItem | null = null
     if (form.encomendaLigada) {
-      const prazo = form.encomendaPrazo.trim(), cozinha = form.encomendaCozinha.trim()
+      const prazo = form.encomendaPrazo.trim()
       if (!/^\d+$/.test(prazo) || Number(prazo) < 1 || Number(prazo) > 720) { setError('Prazo mínimo da encomenda: informe horas inteiras, de 1 a 720.'); return false }
-      if (!/^\d+$/.test(cozinha) || Number(cozinha) > 720) { setError('"Entra na cozinha": informe horas inteiras, de 0 a 720.'); return false }
-      encomenda = { prazoHoras: Number(prazo), cozinhaHoras: Number(cozinha), pagamentoAntecipado: form.encomendaAntecipado }
+      encomenda = { prazoHoras: Number(prazo), pagamentoAntecipado: form.encomendaAntecipado }
     }
     // Pausado só por falta de preço e agora com tamanho precificado: volta a vender.
     const tamanhoComPreco = (form.id ? items.find((i) => i.id === form.id)?.tamanhos ?? [] : []).some((t) => t.preco > 0)
@@ -2655,15 +2652,10 @@ export default function CardapioPage() {
                     </div>
                     {form.encomendaLigada && (
                       <>
-                        <div className="grid gap-4 sm:grid-cols-2">
-                          <div>
-                            <label className="cf"><input className="cf-campo" inputMode="numeric" placeholder=" " value={form.encomendaPrazo} onChange={(e) => setForm((p) => ({ ...p, encomendaPrazo: e.target.value.replace(/\D/g, '') }))} data-testid="produto-encomenda-prazo" /><span className="cf-rotulo">Prazo mínimo (horas)</span></label>
-                            <p className="mt-1.5 text-[11.5px] leading-snug text-text-subtle">Ex.: 48 = o cliente só pode escolher daqui a 2 dias.</p>
-                          </div>
-                          <div>
-                            <label className="cf"><input className="cf-campo" inputMode="numeric" placeholder=" " value={form.encomendaCozinha} onChange={(e) => setForm((p) => ({ ...p, encomendaCozinha: e.target.value.replace(/\D/g, '') }))} data-testid="produto-encomenda-cozinha" /><span className="cf-rotulo">Entra na cozinha (horas antes)</span></label>
-                            <p className="mt-1.5 text-[11.5px] leading-snug text-text-subtle">Horas antes do horário de retirada/entrega. Quando o pedido aparece no Kanban, na cozinha e na impressão.</p>
-                          </div>
+                        <div>
+                          <label className="cf"><input className="cf-campo" inputMode="numeric" placeholder=" " value={form.encomendaPrazo} onChange={(e) => setForm((p) => ({ ...p, encomendaPrazo: e.target.value.replace(/\D/g, '') }))} data-testid="produto-encomenda-prazo" /><span className="cf-rotulo">Prazo mínimo (horas)</span></label>
+                          <p className="mt-1.5 text-[11.5px] leading-snug text-text-subtle">Ex.: 48 = o cliente só pode escolher daqui a 2 dias.</p>
+                          <p className="mt-1 text-[11.5px] leading-snug text-text-subtle">A encomenda entra no Kanban assim que o cliente pede.</p>
                         </div>
                         <div className="flex items-center justify-between gap-3 rounded-[5px] border border-[#e5e7eb] px-3 py-2.5">
                           <span><span className="block text-[13.5px] font-semibold text-[#1f2937]">Pagamento antecipado</span><span className="block text-[12px] text-[#6b7280]">Só aceita Pix ou cartão online (Mercado Pago). Sem pagamento online ativo, a encomenda não pode ser finalizada.</span></span>

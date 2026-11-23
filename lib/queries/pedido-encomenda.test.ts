@@ -4,9 +4,9 @@ import { instanteDoHorario } from '@/lib/agendamento'
 
 /** Encomendas (0250): sacola mista recusada, prazo do item, pagamento antecipado, liberar_em gravado. */
 const base = { promocao_preco: null, status: 'disponivel', tipo_item: 'simples', dias_disponiveis: [0, 1, 2, 3, 4, 5, 6], item_complementos: [], tamanhos_item: [], pizza_sabores: [], grupos_cardapio: null }
-const BOLO = { ...base, id: 'bolo', nome: 'Bolo de Pote', preco: 80, encomenda: true, encomenda_prazo_horas: 48, encomenda_cozinha_horas: 24, encomenda_pagamento_antecipado: false }
-const TORTA = { ...base, id: 'torta', nome: 'Torta', preco: 90, encomenda: true, encomenda_prazo_horas: 24, encomenda_cozinha_horas: 6, encomenda_pagamento_antecipado: true }
-const BRIGADEIRO = { ...base, id: 'brig', nome: 'Brigadeiro', preco: 3, encomenda: false, encomenda_prazo_horas: 24, encomenda_cozinha_horas: 24, encomenda_pagamento_antecipado: false }
+const BOLO = { ...base, id: 'bolo', nome: 'Bolo de Pote', preco: 80, encomenda: true, encomenda_prazo_horas: 48, encomenda_pagamento_antecipado: false }
+const TORTA = { ...base, id: 'torta', nome: 'Torta', preco: 90, encomenda: true, encomenda_prazo_horas: 24, encomenda_pagamento_antecipado: true }
+const BRIGADEIRO = { ...base, id: 'brig', nome: 'Brigadeiro', preco: 3, encomenda: false, encomenda_prazo_horas: 24, encomenda_pagamento_antecipado: false }
 
 function supabaseFake(itens: unknown[]) {
   const pedidoInsert = vi.fn()
@@ -66,12 +66,12 @@ describe('criarPedido — encomendas (0250)', () => {
     await expect(criarPedido(f.client, 'r1', input(['bolo'], { agendadoPara: instanteDoHorario('2026-11-24', '15:00') }))).rejects.toThrow(/antecedência/)
   })
 
-  it('dentro do prazo grava encomenda, agendado_para e liberar_em (horário − horas da cozinha)', async () => {
+  it('dentro do prazo grava encomenda, agendado_para e liberar_em = agora (entra no Kanban na hora, pedido do dono 23/11)', async () => {
     relogio()
     const f = supabaseFake([BOLO])
     const quando = instanteDoHorario('2026-11-26', '15:00')
     await criarPedido(f.client, 'r1', input(['bolo'], { agendadoPara: quando }))
-    expect(f.pedidoInsert).toHaveBeenCalledWith(expect.objectContaining({ encomenda: true, agendado_para: quando, liberar_em: '2026-11-25T18:00:00.000Z' }))
+    expect(f.pedidoInsert).toHaveBeenCalledWith(expect.objectContaining({ encomenda: true, agendado_para: quando, liberar_em: '2026-11-23T13:00:00.000Z' }))
   })
 
   it('pagamento antecipado: dinheiro recusado, Pix online aceito', async () => {

@@ -288,6 +288,8 @@ export function PainelPedido({
                     {adicionados.has(l.id) ? <><Editado>{l.nome}</Editado><EtiquetaEdicao tipo="adicionado" /></> : l.nome}
                     {l.tamanhoNome && <span className="text-[#6B7280]"> · {l.tamanhoNome}</span>}
                     {l.saborNome && <span className="text-[#6B7280]"> · {l.saborNome}</span>}
+                    {/* Encomenda (0250): o pedido só tem itens de encomenda (a sacola mista é recusada). */}
+                    {p.encomenda && <span className="ml-1.5 inline-block rounded-[2px] bg-[#7E22CE] px-1.5 align-middle text-[10.5px] font-semibold leading-[17px] text-white" data-testid="painel-item-encomenda">Por encomenda</span>}
                   </span>
                   <span className={`flex-shrink-0 font-semibold tabular-nums ${DINHEIRO}`}>{brl(l.precoUnitario * l.quantidade)}</span>
                 </div>

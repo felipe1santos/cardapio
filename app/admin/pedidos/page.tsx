@@ -118,6 +118,20 @@ const COLUNA_CONFIG: Record<Coluna, ColunaConfig> = {
   },
 }
 
+/** Coluna das encomendas (0250): cabeçalho roxo; só aparece com encomenda ativa. */
+const COLUNA_ENCOMENDAS: ColunaConfig = {
+  label: 'Encomendas',
+  headerBg: 'bg-[#7E22CE]',
+  Icon: Inbox,
+  emptyTitle: 'Nenhuma encomenda',
+  EmptyIcon: Inbox,
+}
+// Classes inteiras (o Tailwind só gera o que aparece escrito): 3 a 5 colunas, com e sem o painel do pedido aberto.
+const GRADE: Record<number, string> = { 3: 'lg:grid-cols-3', 4: 'lg:grid-cols-4', 5: 'lg:grid-cols-5' }
+const GRADE_COM_PAINEL: Record<number, string> = {
+  3: 'lg:grid-cols-[repeat(3,minmax(240px,1fr))]', 4: 'lg:grid-cols-[repeat(4,minmax(240px,1fr))]', 5: 'lg:grid-cols-[repeat(5,minmax(240px,1fr))]',
+}
+
 
 
 
@@ -281,6 +295,9 @@ export default function PedidosPage() {
   const [reimpEstado, setReimpEstado] = useState<'idle' | 'enviando' | 'ok' | 'erro'>('idle')
   const [now, setNow] = useState(() => Date.now())
   const [showCol4, setShowCol4] = useState(false)
+  // Encomendas (0250): entram no Kanban na hora e ficam até a loja avançar; o operador esconde para não atrapalhar
+  // os pedidos do dia (preferência do aparelho).
+  const [mostrarEncomendas, setMostrarEncomendas] = useState(true)
   const [showStats, setShowStats] = useState(true)
   // Realtime e o poll de 8s podem disparar refetch() quase ao mesmo tempo; sem
   // isso, a resposta mais lenta pode resolver depois e sobrescrever o estado
@@ -348,6 +365,7 @@ export default function PedidosPage() {
   useEffect(() => {
     setShowCol4(localStorage.getItem('menuzia:kanban-col4') === '1')
     setShowStats(localStorage.getItem('menuzia:kanban-stats') !== '0')
+    setMostrarEncomendas(localStorage.getItem('menuzia:kanban-encomendas') !== '0')
   }, [])
 
 
@@ -489,6 +507,14 @@ export default function PedidosPage() {
     setOrders((prev) => prev.filter((o) => o.id !== p.id))
     setTransit((prev) => (prev.some((o) => o.id === p.id) ? prev : [...prev, { ...p, status: 'em_rota', entregadorId }]))
     if (restauranteId) refetch(restauranteId)
+  }
+
+  function alternarEncomendas() {
+    setMostrarEncomendas((v) => {
+      const next = !v
+      localStorage.setItem('menuzia:kanban-encomendas', next ? '1' : '0')
+      return next
+    })
   }
 
   function toggleCol4() {
@@ -1204,6 +1230,10 @@ export default function PedidosPage() {
       </Flutuante>
     </>
   )
+  // Colunas do quadro: as 3 de sempre + Encomendas (0250) quando há encomenda ativa e o operador não escondeu.
+  const colunasQuadro: (Coluna | 'encomendas')[] = mostrarEncomendas && orders.some((o) => o.encomenda)
+    ? ['recebido', 'preparando', 'pronto', 'encomendas']
+    : ['recebido', 'preparando', 'pronto']
   const avisosTopo = (
     <AvisosPedidos
       avisos={avisos}
@@ -1288,11 +1318,31 @@ export default function PedidosPage() {
           </div>
         )}
 
+        {/* Encomendas (0250): mostrar/esconder a coluna das encomendas. */}
+        {orders.some((o) => o.encomenda) && (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={alternarEncomendas}
+              aria-pressed={mostrarEncomendas}
+              className={`inline-flex h-[30px] items-center gap-1.5 rounded-menuzia border px-2.5 text-[12px] font-semibold ${mostrarEncomendas ? 'border-[#D8B4FE] bg-[#F3E8FF] text-[#6B21A8]' : 'border-[#7E22CE] bg-[#7E22CE] text-white'}`}
+              data-testid="kanban-encomendas"
+            >
+              {mostrarEncomendas ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              {mostrarEncomendas ? 'Esconder encomendas' : 'Mostrar encomendas'} ({orders.filter((o) => o.encomenda).length})
+            </button>
+          </div>
+        )}
+
         {/* Board */}
-        <div className={`grid flex-1 grid-cols-1 gap-2.5 max-lg:flex max-lg:flex-col max-lg:overflow-y-auto ${detail ? `lg:overflow-x-auto lg:overflow-y-hidden ${showCol4 ? 'lg:grid-cols-[repeat(4,minmax(240px,1fr))]' : 'lg:grid-cols-[repeat(3,minmax(240px,1fr))]'}` : `overflow-hidden ${showCol4 ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}`} data-testid="kanban-quadro">
-          {(['recebido', 'preparando', 'pronto'] as Coluna[]).map((coluna) => {
-            const colOrders = orders.filter((o) => colunaDe(o) === coluna)
-            const cfg = COLUNA_CONFIG[coluna]
+        {/* Encomendas (0250, pedido do dono): coluna própria (roxa) com todas as encomendas ativas, por data; some quando
+            não há encomenda ou o operador esconde. Os botões são os mesmos (Aceitar → Pronto → Entregue). */}
+        <div className={`grid flex-1 grid-cols-1 gap-2.5 max-lg:flex max-lg:flex-col max-lg:overflow-y-auto ${detail ? `lg:overflow-x-auto lg:overflow-y-hidden ${GRADE_COM_PAINEL[colunasQuadro.length + (showCol4 ? 1 : 0)]}` : `overflow-hidden ${GRADE[colunasQuadro.length + (showCol4 ? 1 : 0)]}`}`} data-testid="kanban-quadro">
+          {colunasQuadro.map((coluna) => {
+            const colOrders = coluna === 'encomendas'
+              ? orders.filter((o) => o.encomenda).sort((a, b) => String(a.agendadoPara).localeCompare(String(b.agendadoPara)))
+              : orders.filter((o) => colunaDe(o) === coluna && !o.encomenda)
+            const cfg = coluna === 'encomendas' ? COLUNA_ENCOMENDAS : COLUNA_CONFIG[coluna]
             return (
               <div key={coluna} className="flex flex-col overflow-hidden rounded-[2px] border border-[#E3E6EA] bg-[#F3F4F6] max-lg:flex-shrink-0 max-lg:overflow-visible">
                 {/* Cabeçalho da coluna (redesign 18/10, rodada 2 — referência do dono): sem faixa colorida; bolinha com a
@@ -1353,7 +1403,7 @@ export default function PedidosPage() {
                         ) : corridaAtiva ? <CorridaLalamoveNoCard corrida={corridaAtiva} onMudou={() => { if (restauranteId) refetch(restauranteId) }} onErro={setError} /> : order.parceiroPix && order.status === 'pronto' ? <ParceiroPixNoCard pedidoId={order.id} pp={order.parceiroPix} onErro={setError} />
                           // Parceiro escondido por falta de Pix (ou pedido de app a receber): a dica na linha de baixo, sem apertar os botões.
                           : order.status === 'pronto' && order.tipo === 'entrega' && entregadoresAtivos.some((prov) => precisaPixAntes(prov, order)) && (pedidoDeApp(order.origemCanal) || !pixOnlineLoja)
-                            ? <span className="text-[11.5px] text-text-subtle" data-testid="parceiro-pix-dica">{pedidoDeApp(order.origemCanal) ? 'Pagamento na entrega pelo app: entregue com motoboy próprio.' : 'Conecte o Pix online para usar parceiros em pedidos em dinheiro.'}</span> : (order.agendadoPara ? <Badge tone="alert">Agendado {textoAgendado(order.agendadoPara)}</Badge> : undefined)}
+                            ? <span className="text-[11.5px] text-text-subtle" data-testid="parceiro-pix-dica">{pedidoDeApp(order.origemCanal) ? 'Pagamento na entrega pelo app: entregue com motoboy próprio.' : 'Conecte o Pix online para usar parceiros em pedidos em dinheiro.'}</span> : (order.agendadoPara && !order.encomenda ? <Badge tone="alert">Agendado {textoAgendado(order.agendadoPara)}</Badge> : undefined)}
                       />
                     )
                   })}
